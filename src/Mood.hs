@@ -1,5 +1,7 @@
 {-# LANGUAGE Arrows #-}
+-- {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -41,8 +43,51 @@ terminate successp reason = do
 catchSDLFatally ∷ IO a -> IO a
 catchSDLFatally = (flip catch) (\e -> terminate True $ show (e :: SDL.SDLException))
 
-main :: IO ()
-main = do
+
+type TestWire s a b = ∀ t . (HasTime t s, Fractional t) ⇒ Wire s String IO a b
+
+mainT :: IO ()
+mainT = triv_stepper "" clockSession_ experiment
+
+triv_stepper ∷ HasTime t s ⇒ Fractional t ⇒ String → Session IO s → TestWire s String String → IO ()
+triv_stepper prescene sesn wire = do
+  (nextScene, nextSesn, nextWire) ← do
+    (st , sesn') ← stepSession sesn
+    (ret, wire') ← stepWire wire st $ Right "<start>"
+    case ret of
+      Left  iv         → error $ printf "stepWire: inhibited (got a %s)" iv
+      Right scene'     → return (scene', sesn', wire')
+  putStrLn $  nextScene
+  threadDelay 100000
+  triv_stepper nextScene nextSesn nextWire
+
+mklo ∷ String → TestWire s String String
+mklo x = loo
+    where loo = for 1 . (pure $ "..." ++ x ++ "!") -->
+                loo
+
+experiment ∷ TestWire s String String
+experiment = proc ins → do
+         x ← loo -< ins
+         returnA -< x
+  where
+    loo ∷ TestWire s String String
+    loo = rSwitch (mklo "<rswitch-base>") .
+          (proc i → do
+             ev ← (periodic 0.1
+                   . (arr $ \x → trace (printf "swx: %s → %s" (show x) (show $ floor x))  $
+                          arr $ const (show x))
+                   . when (\x → 
+                           odd $ floor x)
+                  <|> never) . timeF -< ()
+             returnA -< (i, ev)) -->
+          for 2 . mklo "rSwitch inhibited " -->
+          loo
+main ∷ IO ()
+main = mainT
+
+mainR :: IO ()
+mainR = do
   SDL.initialize [SDL.InitEverything]
   win  ← SDL.createWindow
            "Mood"
