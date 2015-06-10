@@ -15,6 +15,7 @@ import Control.Concurrent (threadDelay)
 import Control.Exception
 import Control.Wire hiding (empty)
 import Control.Wire.Session()
+import Control.Wire.Unsafe.Event (onEventM)
 
 import Data.Maybe (fromMaybe)
 import Data.Set (Set, empty, elems, insert, delete, null, filter, intersection, fromList)
@@ -74,11 +75,13 @@ experiment = proc ins → do
     loo ∷ TestWire s String String
     loo = rSwitch (mklo "<rswitch-base>") .
           (proc i → do
-             ev ← (periodic 0.1
-                   . (arr $ \x → trace (printf "swx: %s → %s" (show x) (show $ floor x))  $
-                          arr $ const (show x))
-                   . when (\x → 
-                           odd $ floor x)
+             ev ← (onEventM (\x → return $ arr $ const (show x))
+                   . edge (\x →
+                           odd $ floor (1 * x))
+                   -- . (arr $ \x → trace (printf "swx: %s → %s" (show x) (show $ floor x))  $
+                   --        arr $ const (show x))
+                   -- . when (\x →
+                   --         odd $ floor x)
                   <|> never) . timeF -< ()
              returnA -< (i, ev)) -->
           for 2 . mklo "rSwitch inhibited " -->
