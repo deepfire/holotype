@@ -90,7 +90,8 @@ experiment = proc ins → do
     loo ∷ TestWire s String String
     loo = rSwitch (mklo "<rswitch-base>") .
           (proc i → do
-             ev ← (onEventM (\x → return $ arr $ const (show x))
+             ev ← (-- (fmap (show . const . arr))
+                   onEventM (\x → return $ arr $ const (show x))
                    . edge (\x →
                            odd $ floor (1 * x))
                    -- . (arr $ \x → trace (printf "swx: %s → %s" (show x) (show $ floor x))  $
@@ -102,7 +103,7 @@ experiment = proc ins → do
           for 2 . mklo "rSwitch inhibited " -->
           loo
 main ∷ IO ()
-main = mainT
+main = mainR
 
 mainR :: IO ()
 mainR = do
@@ -158,51 +159,30 @@ stepper win rend (preScene, preKeysDown) sesn wire = do
   threadDelay 100000
   stepper win rend (nextScene, keysDown) nextSesn nextWire
 
-lol ∷ SimWire (a, Event (SimWire a a)) a
-lol = rSwitch mkId
-
 type PlugWire = SimWire (Inputs, String) (Inputs, String)
-
-yay ∷ SDL.Scancode → SimWire (Inputs, a) ((Inputs, a), Event (SimWire (Inputs, a) (Inputs, a)))
-yay key = mkId &&&
-          (proc (inputs, x) → do
-             ev ← now . pure mkEmpty . produceOnKey key  <|> never -< inputs
-             returnA -< ev)
-
-trigger :: SDL.Scancode → SimWire (Inputs, a) (Inputs, a)
-trigger key =
-    lol . yay key
 
 mkLoop ∷ String → SimWire (Inputs, String) (Inputs, String)
 mkLoop x = loo
     where loo = for 0.2  . second (pure $ "..." ++ x ++ "!") -->
                 loo
 
--- Q: how do we turn a wire into an event?
--- A: now . pure
--- fmap (f ∷ a → b) (wire ∷ SimWire c a) ∷ SimWire c b
-
-hmm ∷ SimWire Inputs (SimWire (Inputs, String) (Inputs, String))
-hmm = arr (\(Inputs ks) →
-               let kmap = [ (SDL.ScancodeY, mkLoop "Yay")
-                          , (SDL.ScancodeL, mkLoop "Lol")
-                          , (SDL.ScancodeW, mkLoop "Whew")]
-                   ix   = intersection ks (fromList $ map fst kmap)
-               in if null ix
-                  then inhibit "<nothing>" -- mkId
-                  else fromMaybe (mkLoop "canthappen") $
-                       lookup (head $ elems ix) kmap)
+hmm ∷ Inputs → (SimWire (Inputs, String) (Inputs, String))
+hmm (Inputs ks) =
+    let kmap = [ (SDL.ScancodeY, mkLoop "Yay")
+               , (SDL.ScancodeL, mkLoop "Lol")
+               , (SDL.ScancodeW, mkLoop "Whew")]
+        ix   = intersection ks (fromList $ map fst kmap)
+    in if null ix
+       then mkId -- inhibit "<key-down-but-wrong-key>"
+       else fromMaybe (mkLoop "canthappen") $
+            lookup (head $ elems ix) kmap
 
 addWireEvent ∷ SimWire (Inputs, String) ((Inputs, String), Event (SimWire (Inputs, String) (Inputs, String)))
 addWireEvent = proc i@(inputs, _) → do
-               ev ← ((now . hmm . when someKeyDown) <|> never) -< inputs
+               ev ← ((onEventM (\ks → return $ hmm ks) .
+                     redge someKeyDown) <|> never
+                    ) -< inputs
                returnA -< (i, ev)
- 
--- switcheroo = rSwitch mkId .
---              (mkId &&&
---               (proc (inputs, x) → do
---                  ev ← now . when (not . someKeyDown)  <|> never -< inputs
---                  returnA -< ev))
 
 test ∷ SimWire (Inputs, String) (Bool, String)
 test = proc ins → do
@@ -211,7 +191,7 @@ test = proc ins → do
   where
     loop ∷ SimWire (Inputs, String) (Inputs, String)
     loop = rSwitch  (mkLoop "<rswitch0>") . addWireEvent -->
-           for 0.2 . mkLoop "rSwitch inhibited " -->
+           for 0.2 . mkLoop "rSwitch inhibited" -->
            loop
     -- loop = for 2 . plug --> loop
     -- loop = for 2 .                 second "Once upon a time..." -->
