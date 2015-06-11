@@ -13,9 +13,9 @@ import Prelude hiding ((.), id, null, filter)
 
 import Control.Concurrent (threadDelay)
 import Control.Exception
-import Control.Wire hiding (empty)
-import Control.Wire.Session()
-import Control.Wire.Unsafe.Event (onEventM)
+--import Control.Monad (liftM)
+import Control.Wire (mkPure, mkId, stepWire, NominalDiffTime, mkSFN)
+import Control.Wire.Unsafe.Event (onEventM, Event(..))
 
 import Data.Maybe (fromMaybe)
 import Data.Set (Set, empty, elems, insert, delete, null, filter, intersection, fromList)
@@ -43,6 +43,21 @@ terminate successp reason = do
 
 catchSDLFatally ∷ IO a -> IO a
 catchSDLFatally = (flip catch) (\e -> terminate True $ show (e :: SDL.SDLException))
+
+
+-- | Like 'edge', but only produce an event on the rising edge.
+redge :: (a -> Bool) -> Wire s e m a (Event a)
+redge p = off
+    where
+    off = mkSFN $ \x -> if (p x) then (Event x, on) else (NoEvent, off)
+    on  = mkSFN $ \x -> if (p x) then (NoEvent, on) else (NoEvent, off)
+
+-- | Like 'edge', but only produce an event on the falling edge.
+fedge :: (a -> Bool) -> Wire s e m a (Event a)
+fedge p = off
+    where
+    off = mkSFN $ \x -> if (p x) then (NoEvent, on) else (NoEvent, off)
+    on  = mkSFN $ \x -> if (p x) then (NoEvent, on) else (Event x, off)
 
 
 type TestWire s a b = ∀ t . (HasTime t s, Fractional t) ⇒ Wire s String IO a b
