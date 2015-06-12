@@ -3,9 +3,11 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
@@ -32,81 +34,15 @@ import qualified SDL as SDL
 import Debug.Trace (trace)
 import System.Exit
 
+
+import Types
+import Utils
 screenWidth, screenHeight   ∷ _
 (screenWidth, screenHeight) = (640, 480)
 
-terminate ∷ Bool → String → IO a
-terminate successp reason = do
-  printf "%s: %s\n" (if successp then "Exiting" else "FATAL" ∷ String) reason
-  SDL.quit
-  exitWith (if successp then ExitSuccess else ExitFailure 1)
-
-catchSDLFatally ∷ IO a -> IO a
-catchSDLFatally = (flip catch) (\e -> terminate True $ show (e :: SDL.SDLException))
-
 
--- | Like 'edge', but only produce an event on the rising edge.
-redge :: (a -> Bool) -> Wire s e m a (Event a)
-redge p = off
-    where
-    off = mkSFN $ \x -> if (p x) then (Event x, on) else (NoEvent, off)
-    on  = mkSFN $ \x -> if (p x) then (NoEvent, on) else (NoEvent, off)
-
--- | Like 'edge', but only produce an event on the falling edge.
-fedge :: (a -> Bool) -> Wire s e m a (Event a)
-fedge p = off
-    where
-    off = mkSFN $ \x -> if (p x) then (NoEvent, on) else (NoEvent, off)
-    on  = mkSFN $ \x -> if (p x) then (NoEvent, on) else (Event x, off)
-
-
-type TestWire s a b = ∀ t . (HasTime t s, Fractional t) ⇒ Wire s String IO a b
-
-mainT :: IO ()
-mainT = triv_stepper "" clockSession_ experiment
-
-triv_stepper ∷ HasTime t s ⇒ Fractional t ⇒ String → Session IO s → TestWire s String String → IO ()
-triv_stepper prescene sesn wire = do
-  (nextScene, nextSesn, nextWire) ← do
-    (st , sesn') ← stepSession sesn
-    (ret, wire') ← stepWire wire st $ Right "<start>"
-    case ret of
-      Left  iv         → error $ printf "stepWire: inhibited (got a %s)" iv
-      Right scene'     → return (scene', sesn', wire')
-  putStrLn $  nextScene
-  threadDelay 100000
-  triv_stepper nextScene nextSesn nextWire
-
-mklo ∷ String → TestWire s String String
-mklo x = loo
-    where loo = for 1 . (pure $ "..." ++ x ++ "!") -->
-                loo
-
-experiment ∷ TestWire s String String
-experiment = proc ins → do
-         x ← loo -< ins
-         returnA -< x
-  where
-    loo ∷ TestWire s String String
-    loo = rSwitch (mklo "<rswitch-base>") .
-          (proc i → do
-             ev ← (-- (fmap (show . const . arr))
-                   onEventM (\x → return $ arr $ const (show x))
-                   . edge (\x →
-                           odd $ floor (1 * x))
-                   -- . (arr $ \x → trace (printf "swx: %s → %s" (show x) (show $ floor x))  $
-                   --        arr $ const (show x))
-                   -- . when (\x →
-                   --         odd $ floor x)
-                  <|> never) . timeF -< ()
-             returnA -< (i, ev)) -->
-          for 2 . mklo "rSwitch inhibited " -->
-          loo
-main ∷ IO ()
-main = mainR
-
-mainR :: IO ()
-mainR = do
+main :: IO ()
+main = do
   SDL.initialize [SDL.InitEverything]
   win  ← SDL.createWindow
            "Mood"
@@ -123,120 +59,24 @@ mainR = do
                     })
   SDL.showWindow win
 
-  -- catchSDLFatally $ (simulator win rend (initialScene, Inputs empty) clockSession_ simulation)
-  catchSDLFatally $ (stepper win rend ("<init>", Inputs empty) clockSession_ test)
-  -- catchSDLFatally $ (stepper win rend ("", Inputs empty) (countSession_ 1) test)
+  catchSDLFatally $ (simulator win rend (initialScene, Inputs empty) clockSession_ simulation)
+  -- catchSDLFatally $ (stepper win rend ("<init>", Inputs empty) clockSession_ test)
 
   SDL.destroyRenderer rend
   SDL.destroyWindow win
   SDL.quit
 
-elimFirst  ∷ SimWire (a, b) b
-elimFirst = proc (_, x) → returnA -< x
-
-elimSecond ∷ SimWire (a, b) a
-elimSecond = proc (x, _) → returnA -< x
-
-inhibitOnKey ∷ SDL.Scancode → SimWire Inputs Inputs
-inhibitOnKey key = when (not . keyDown key)
-
-produceOnKey ∷ SDL.Scancode → SimWire Inputs Inputs
-produceOnKey key = when (keyDown key)
-
-stepper ∷ SDL.Window → SDL.Renderer → (String, Inputs) → Session IO SimTime → SimWire (Inputs, String) (Bool, String) → IO ()
-stepper win rend (preScene, preKeysDown) sesn wire = do
-  keysDown <- parseEvents preKeysDown
-  let wWire = (wire . (first $ inhibitOnKey SDL.ScancodeQ)
-              --> pure (False, undefined))
-  (nextScene, nextSesn, nextWire) ← do
-    (st , sesn') ← stepSession sesn
-    (ret, wire') ← stepWire wWire st $ Right (keysDown, "<start>")
-    case ret of
-      Left  iv              → error $ printf "stepWire: inhibited (got a %s)" iv
-      Right (False, _)      → terminate True "user requested end of simulation"
-      Right (True, scene')  → return (scene', sesn', wire')
-  putStrLn $  nextScene
-  threadDelay 100000
-  stepper win rend (nextScene, keysDown) nextSesn nextWire
-
-type PlugWire = SimWire (Inputs, String) (Inputs, String)
-
-mkLoop ∷ String → SimWire (Inputs, String) (Inputs, String)
-mkLoop x = loo
-    where loo = for 0.2  . second (pure $ "..." ++ x ++ "!") -->
-                loo
-
-hmm ∷ Inputs → (SimWire (Inputs, String) (Inputs, String))
-hmm (Inputs ks) =
-    let kmap = [ (SDL.ScancodeY, mkLoop "Yay")
-               , (SDL.ScancodeL, mkLoop "Lol")
-               , (SDL.ScancodeW, mkLoop "Whew")]
-        ix   = intersection ks (fromList $ map fst kmap)
-    in if null ix
-       then mkId -- inhibit "<key-down-but-wrong-key>"
-       else fromMaybe (mkLoop "canthappen") $
-            lookup (head $ elems ix) kmap
-
-addWireEvent ∷ SimWire (Inputs, String) ((Inputs, String), Event (SimWire (Inputs, String) (Inputs, String)))
-addWireEvent = proc i@(inputs, _) → do
-               ev ← ((onEventM (\ks → return $ hmm ks) .
-                     redge someKeyDown) <|> never
-                    ) -< inputs
-               returnA -< (i, ev)
-
-test ∷ SimWire (Inputs, String) (Bool, String)
-test = proc ins → do
-         (_, x) ← loop -< ins
-         returnA -< (True, x)
-  where
-    loop ∷ SimWire (Inputs, String) (Inputs, String)
-    loop = rSwitch  (mkLoop "<rswitch0>") . addWireEvent -->
-           for 0.2 . mkLoop "rSwitch inhibited" -->
-           loop
-    -- loop = for 2 . plug --> loop
-    -- loop = for 2 .                 second "Once upon a time..." -->
-    --        for 3 .                 second "... games were completely imperative..." -->
-    --        trigger SDL.ScancodeF . second "... but then..." -->
-    --        for 10 .                second ("Netwire 5! " <> anim) -->
-    --        loop
-    -- anim = proc s → do
-   --          holdFor 1 . periodic 2 . "Hoo..." <|> "...ray!" -< s
-
-integralWith' ::
-    (Fractional a, HasTime t s)
-    => (a -> (a, o))  -- Function for potentially limiting the integration
-                      -- and producing a secondary output.
-    -> a              -- Integration constant (aka start value).
-    -> Wire s e m a (a, o)
-integralWith' correct = loop'
-  where
-    loop' x' =
-        mkPure $ \ds dx ->
-            let dt = realToFrac (dtime ds)
-                (x,b)  = correct (x' + dt*dx)
-            in x' `seq` (Right (x', b), loop' x)
-
 
-newtype Inputs = Inputs (Set SDL.Scancode)
-
-parseEvents :: Inputs -> IO Inputs
-parseEvents (Inputs keysDown) = do
-  event ← SDL.pollEvent
-  case event of
-    Nothing
-      → return $ Inputs keysDown
-    Just e | (SDL.KeyboardEvent{..}) ← SDL.eventPayload e
-      → parseEvents $ Inputs $ if keyboardEventKeyMotion == SDL.KeyDown
-                               then (insert (SDL.keysymScancode keyboardEventKeysym) keysDown)
-                               else (delete (SDL.keysymScancode keyboardEventKeysym) keysDown)
-    _
-      → parseEvents $ Inputs keysDown
-
-someKeyDown ∷ Inputs → Bool
-someKeyDown (Inputs ks) = not $ null ks
-
-keyDown :: SDL.Scancode -> Inputs -> Bool
-keyDown k (Inputs ks) = not $ null $ filter ((== k)) ks
+newtype Inputs   = Inputs (Set SDL.Scancode)
+newtype World    = World (Inputs, Scene)
+instance Sim World Inputs Scene where
+    inputsOf     (World (x, _)) = x
+    sceneOf      (World (_, x)) = x
+    nextWorld     i s           = World (i, s)
+    trackKeyDown (Inputs s) k   = Inputs $ insert k s
+    trackKeyUp   (Inputs s) k   = Inputs $ delete k s
+    someKeyDown  (Inputs s)     = not $ null s
+    keyDown       k (Inputs s)  = not $ null $ filter ((== k)) s
 
 
 class Renderable a where
@@ -275,9 +115,6 @@ render_scene rend scene = do
   SDL.renderPresent rend
 
 
-type SimTime = (Timed NominalDiffTime ())
-type SimWire a b = Wire SimTime String IO a b
-
 simulator ∷ SDL.Window → SDL.Renderer → (Scene, Inputs) → Session IO SimTime → SimWire (Scene, Inputs) (Bool, Scene) → IO ()
 simulator win rend (preScene, preKeysDown) sesn wire = do
   keysDown <- parseEvents preKeysDown
@@ -306,19 +143,13 @@ simulation = arena_sim . when (not . keyDown SDL.ScancodeQ . snd)
 --                 -5 . trigger SDL.ScancodeF -->
 --                 spinSpeed
 
-arena_sim2 ∷ SimWire (Scene, Inputs) (Bool, Scene)
-arena_sim2 = proc (scene, inputs) → do
-               accel ← arrows_to_double -< inputs
-               rec (x, coll) ← velocity_to_coords -< v
-                   v ← velocity -< (accel, coll)
-               returnA -< (True, update_scene scene x)
-
 arena_sim ∷ SimWire (Scene, Inputs) (Bool, Scene)
-arena_sim = proc (scene, inputs) → do
-              accel ← arrows_to_double -< inputs
-              rec (x, coll) ← velocity_to_coords -< v
-                  v ← velocity -< (accel, coll)
-              returnA -< (True, update_scene scene x)
+arena_sim =
+    proc (scene, inputs) → do
+      accel ← arrows_to_double -< inputs
+      rec (x, coll) ← velocity_to_coords -< v
+          v ← velocity -< (accel, coll)
+      returnA -< (True, update_scene scene x)
 
 velocity :: SimWire (Double, Bool) Double
 velocity = integralWith bounce 0
