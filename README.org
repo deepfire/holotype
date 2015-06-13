@@ -1,0 +1,137 @@
+# -*- indent-tabs-mode: nil -*-
+#+startup: hidestars odd
+
+* About
+
+  We are increasingly lost in the sea of information that surrounds us.
+
+  So many valuable things we discover are being routinely lost.
+  So many contexts that ought to, never do intersect.
+  So many thoughts that could, never come.
+
+  Why?
+
+  Because data entry, interning and recovery is harder that it could be.
+
+  <Name> is a general-purpose mind assistant, that is an attempt to change that.
+
+  A balanced, varied approach to resolve the conflict between extreme ease of use
+  and completeness of data being captured.
+
+  It also is supposed to try to be beautiful to the eye.
+
+  This is a design document, accompanied with some code to support it.
+
+* UI tropes
+
+  1. Arrows move
+  2. Space pages
+  3. Tab cycles state/mode
+  4. Escape pops
+  5. Return vs. C-Return -- a story of multi-line text input
+
+* (To be) Displayable structures
+
+  - Graphs ::
+    - Views :: 
+      - Z-axis :: 
+        - Classic side view :: 
+             Needs root detection, for automatic layout.
+      - Arrow-aligned :: 
+        - Weighted partitioning :: 
+
+  - Dags ::
+    - Views :: 
+      - Z-axis :: inherited from Graphs
+      - Y-axis :: inherited from Graphs
+      - Treeview, list entries, with duplication :: 
+    - Subsetting ::
+      - Viewport ::
+                   Arrow walker -- for nodes.
+                   Iterative refinement -- subsetting and context narrowing.
+                   Some kind of a shortcut-based jump language.
+                   Bookmarks.
+      - Ellipsis ::
+                   Zoomable: "everything else in this direction"
+                   What cases need it, given a proper Viewport subsetter?
+
+  - Trees :: 
+    - Views :: 
+      - Z-axis :: inherited from Graphs
+      - Y-axis :: inherited from Graphs
+      - Treeview, list entries, without duplication :: 
+      - Treeview, icon grid :: 
+      - Treeview, space partitioning, ala Lamdu :: 
+    - Subsetting :: Like dags.
+
+  - Sets ::
+    - Views :: 
+      - Carousel :: 
+      - Grid :: 
+      - List :: 
+    - Subsetting ::
+      - Viewport ::
+                   Iterative refinement makes it useful.
+                   Arrow walker -- for refinement elements and for.
+                   
+      - Summary  ::
+                   Extracting and exposing set structure.
+      - Ellipsis ::
+                   Logic summary or an explicit summary.
+
+* Scene composition
+*** Phases
+
+    - Select           :: Totality → Selector → Selection
+      - Basically, select from available data.  For now, the implementation
+        is conceptually irrelevant.  Query optimization might change that.
+      - =Selections= split into the following categories, by structure:
+        - General graph
+        - DAG (directed acyclic graph)
+        - Tree
+        - Set
+        - List (ordered set, trivial, not discussed further)
+
+    - Layout choice    :: Selection → LayoutPref → Layout
+      - =LayoutPref= picks a specific =Layout=, compatible with the current
+        =Selection= category:
+        - defaults to last used
+        - can be cycled through by a shortcut
+      - Layouts:
+        - Graph, dag, tree:
+          - =SideGraph=: graph from aside
+          - =DownGraph=: graph, arrow aligned weighted partitioning
+        - Dag (duplicates-encoded), tree:
+          - =TreeList=, list entries
+          - =TreeGrid=, icon grid
+          - =TreeSpace=, space partitioning, ala /Lamdu/
+        - Set:
+          - =Carousel=
+          - =Grid=
+          - =List=
+
+    - Viewport culling :: Layout → Selection → (Granularity, MinSize) → Viewport → (ViewSet, BoundarySet)
+      - =Granularity= determines, for tree layouts, the maximum depth of
+        subdivision, after which abbreviation is engaged
+      - =MinSize= limits the minimum element size
+      - =Viewport= is specific to =Layout=:
+        - SideGraph: layout-global position
+        - DownGraph: subroot node
+        - TreeList:  row offset
+        - TreeGrid:  row offset
+        - TreeSpace: vertical offset (?)
+        - Carousel:  current selection
+        - Grid:      row offset
+        - List:      row offset
+      - =ViewSet= is direct elements from =Selection=
+      - =BoundarySet= is anchor points to the parts of =Selection= that fall outside the =Viewport=
+
+    - Layout           :: Layout → (ViewSet, BoundarySet) → (Positions, Modifiers)
+      - =Modifiers= are things like scale change, to indicate foreground/background
+
+    - Change summary   :: 
+      - What effect did the last =Selector= change have?  Not always obvious.
+
+    - Render           :: (ViewSet, BoundarySet) → (Positions, Modifiers) → IO ()
+
+    - Interaction      :: Inputs → (ViewSet, BoundarySet) → Focus → (Granularity, MinSize) → Selector → LayoutPref → (Modifiers, Focus, (Granularity, MinSize), Selector, LayoutPref)
