@@ -23,7 +23,7 @@ let pkgs =  (import <nixpkgs> {}).pkgs;
   in
 with (import <nixpkgs> {}).pkgs;
 let pkg = haskellngPackages.callPackage
-            ({ mkDerivation, base, pkgconfig, containers, netwire, sdl2, stdenv, linear, vector, hoogle-index, halive }:
+            ({ mkDerivation, base, pkgconfig, containers, netwire, sdl2, stdenv, linear, vector, hoogle-index, halive, diagrams }:
              mkDerivation {
                pname = "mood";
                version = "0.1.0.0";
@@ -32,7 +32,7 @@ let pkg = haskellngPackages.callPackage
                isExecutable = true;
                buildDepends = [ base containers netwire sdl2-newapi strace ltrace
                                 emacs git silver-searcher haskellngPackages.cabal-install cabal-helper-new ghc-mod-git
-                                linear vector pkgconfig hoogle-index halive
+                                linear vector pkgconfig hoogle-index halive diagrams
                               ];
                homepage = "https://github.com/_deepfire/mood";
                description = "A mind-assisting graph substrate";
