@@ -80,6 +80,14 @@
                    Logic summary or an explicit summary.
 
 * Scene composition
+*** Phases, quick overview
+
+    - Select                 :: filter stores through =Selector=, yield =Selection=
+    - Choose layout engine   :: through defaulting, or also triggered by user
+    - Viewport culling       :: engine decides on what can be shown
+    - Layout                 :: obtain what is already covered, cover what isn't, compose;  compute scene modifiers
+    - Render                 :: ...
+
 *** Phases
 
     - Select           :: Totality → Selector → Selection
@@ -92,12 +100,13 @@
         - Set
         - List (ordered set, trivial, not discussed further)
 
-    - Layout choice    :: Selection → LayoutPref → Layout
-      - =LayoutPref= picks a specific =Layout=, compatible with the current
+    - Layout engine choice    :: Selection → LayEngPref → LayEng
+      - =LayEngPref= picks a specific =LayEng=, compatible with the current
         =Selection= category:
         - defaults to last used
+        - size limits for non-partial-capable engines?
         - can be cycled through by a shortcut
-      - Layouts:
+      - LayEngs:
         - Graph, dag, tree:
           - =SideGraph=: graph from aside
           - =DownGraph=: graph, arrow aligned weighted partitioning
@@ -110,11 +119,33 @@
           - =Grid=
           - =List=
 
-    - Viewport culling :: Layout → Selection → (Granularity, MinSize) → Viewport → (ViewSet, BoundarySet)
+    - Viewport culling :: LayEng → Selection → (Granularity, MinSize) → Viewport → (View, Boundary)
+      - XXX: what's the story about half-visible objects?
+        - select all intersecting, render more than what is showable?
+      - XXX: what's the story about avoidable layout recomputation?
+        - *key question*: is it bad?  In case of SideGraph, which *is* about
+                          total representation, it's very very bad.
+        - *caseanalysis* cacheable total-cost    can-partial partial-composable
+          - SideGraph:    yes       very hard     no(?)       no(?)
+          - DownGraph:    no        medium-small  yes         yes
+          - TreeList:     yes       small         yes         yes
+          - TreeGrid:     yes       medium-small  yes         yes
+          - TreeSpace:    yes       very hard     yes         yes
+          - Carousel:     no        easy          no          no
+          - Grid:         yes       easy          yes         yes
+          - List:         yes       easy          yes         yes
+        - *option*: compute base layout, then viewportcull and localise from base
+          - for huge selections this produces unnecessary computation
+        - *option*: go with partials and compose them, whenever possible
+          - if so, layout needs to be:
+            - restartable at arbitrary point
+            - splittable and composable
+        - *option*: lazy evaluation?
+        - NOTE: all obvious caching solutions seem to rely on *Ord*
       - =Granularity= determines, for tree layouts, the maximum depth of
         subdivision, after which abbreviation is engaged
       - =MinSize= limits the minimum element size
-      - =Viewport= is specific to =Layout=:
+      - =Viewport= is specific to =LayEng=:
         - SideGraph: layout-global position
         - DownGraph: subroot node
         - TreeList:  row offset
@@ -123,15 +154,21 @@
         - Carousel:  current selection
         - Grid:      row offset
         - List:      row offset
-      - =ViewSet= is direct elements from =Selection=
-      - =BoundarySet= is anchor points to the parts of =Selection= that fall outside the =Viewport=
+      - =View= is direct elements from =Selection=
+      - =Boundary= is anchor points to the parts of =Selection= that fall outside the =Viewport=
 
-    - Layout           :: Layout → (ViewSet, BoundarySet) → (Positions, Modifiers)
-      - =Modifiers= are things like scale change, to indicate foreground/background
+    - Layout           :: LayEng → (View, Boundary) → (Layout, Ephemerals)
+      - XXX: =Positions= what are they?
+        - scene-specific structure and interpretation?
+        - if not, global or screenspace?
+        - pixel-based, or [0.0..1.0]?
+      - =Ephemerals= are inherently non-persistent, layout-specific things like:
+        - element focus visulalisation state:
+          - scale change, to indicate foreground/background
 
     - Change summary   :: 
       - What effect did the last =Selector= change have?  Not always obvious.
 
-    - Render           :: (ViewSet, BoundarySet) → (Positions, Modifiers) → IO ()
+    - Render           :: (View, Boundary) → (Layout, Ephemerals) → IO ()
 
-    - Interaction      :: Inputs → (ViewSet, BoundarySet) → Focus → (Granularity, MinSize) → Selector → LayoutPref → (Modifiers, Focus, (Granularity, MinSize), Selector, LayoutPref)
+    - Interaction      :: Inputs → (View, Boundary) → Focus → (Granularity, MinSize) → Selector → LayEngPref → (Modifiers, Focus, (Granularity, MinSize), Selector, LayEngPref)
