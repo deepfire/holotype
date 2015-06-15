@@ -169,6 +169,6 @@
     - Change summary   :: 
       - What effect did the last =Selector= change have?  Not always obvious.
 
-    - Render           :: (View, Boundary) → (Layout, Ephemerals) → IO ()
+    - Render           :: RenderContext → (View, Boundary) → (Layout, Ephemerals) → IO ()
 
     - Interaction      :: Inputs → (View, Boundary) → Focus → (Granularity, MinSize) → Selector → LayEngPref → (Modifiers, Focus, (Granularity, MinSize), Selector, LayEngPref)

@@ -24,13 +24,16 @@ module Types
     , Sim(..)
     , onWorldInput
 
+    -- Rendering
+    , RenderContext(..)
+
     -- Model
     , Totality(..)
     , Selector(..)
     , Selection(..)
     , LayEng(..), Viewport(..), Boundary(..)
     , ViewArgs(..), MinSize(..), Granularity(..)
-    , GraphLayEng(..), DagLayEng(..), TreeLayEng(..), SetLayEng(..)
+    -- , GraphLayEng(..), DagLayEng(..), TreeLayEng(..), SetLayEng(..)
     , View(..)
 
     -- LayEngs
@@ -229,19 +232,29 @@ instance Fractional a => Fractional (Dim a) where
   {-# INLINE fromRational #-}
 
 
--- | LayEngs
+-- | Layout engine
 class Category cat ⇒ LayEng cat leng where
     data Viewport  leng ∷ *
     data Boundary  leng ∷ *
     data Layout    leng ∷ *
     data Ephemeral leng ∷ *
-    cullSelection     ∷ leng → Selection cat → ViewArgs → Viewport leng → (View cat, Boundary leng)
-    layout            ∷ leng → (View cat, Boundary leng) → (Layout leng, Ephemeral leng)
+    cullSelection       ∷ leng → Selection cat → ViewArgs → Viewport leng → (View cat, Boundary leng)
+    layout              ∷ leng → (View cat, Boundary leng) → (Layout leng, Ephemeral leng)
+    render              ∷ RenderContext ren ⇒ ren → (View cat, Boundary leng) → (Layout leng, Ephemeral leng) → IO ()
 
-class LayEng Graph a ⇒ GraphLayEng a where
-class LayEng Dag   a ⇒   DagLayEng a where
-class LayEng Tree  a ⇒  TreeLayEng a where
-class LayEng Set   a ⇒   SetLayEng a where
+
+-- | Visualisation
+class RenderContext a where
+    toPixels ∷ a → Posn → Dim Double → (V2 Int, V2 Int)
+
+
+-- | Layout engine instances
+
+--- Not sure what these add..
+-- class LayEng Graph a ⇒ GraphLayEng a where
+-- class LayEng Dag   a ⇒   DagLayEng a where
+-- class LayEng Tree  a ⇒  TreeLayEng a where
+-- class LayEng Set   a ⇒   SetLayEng a where
 
 -- | Graph, viewed from aside (Z axis)
 data SideGraph
@@ -293,6 +306,8 @@ instance LayEng Set Carousel where
                                 CarouselBoundary)
     layout Carousel (SetView xs, CarouselBoundary) =
         (CarouselLayout, CarouselEphemeral)
+    -- render rctx
+    --     ∷ RenderContext ren ⇒ ren → (View cat, Boundary leng) → (Layout leng, Ephemeral leng) → IO ()
 
 -- | Yay grids
 data Grid
