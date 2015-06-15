@@ -5,6 +5,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -25,12 +26,12 @@ module Types
     , Totality(..)
     , Selector(..)
     , Selection(..)
-    , Layout(..), Viewport(..), Boundary(..)
+    , LayEng(..), Viewport(..), Boundary(..)
     , ViewArgs(..), MinSize(..), Granularity(..)
-    , GraphLayout(..), DagLayout(..), TreeLayout(..), SetLayout(..)
+    , GraphLayEng(..), DagLayEng(..), TreeLayEng(..), SetLayEng(..)
     , View(..)
 
-    -- Layouts
+    -- LayEngs
     , SideGraph(..)
     , DownGraph(..)
     , TreeList(..)
@@ -82,6 +83,8 @@ data Element where
 instance (Hashable Element) where
     hashWithSalt s (Element e)  = s `hashWithSalt` (hash e)
 
+newtype Position = Posn (V2 Double) deriving (Eq, Num)
+
 class Category a where
     data Selector  a ∷ *
     data Selection a ∷ *
@@ -109,10 +112,10 @@ instance Category Tree where
 data Set
 instance Category Set where
     data Selector  Set   = SetSelector    String
-    data Selection Set   = SetSelection   (HS.HashSet Element)
-    data View      Set   = SetView        (HS.HashSet Element)
+    data Selection Set   = SetSelection   [Element]
+    data View      Set   = SetView        [Element]
     select _ (SetSelector str) =
-        SetSelection $ HS.singleton $ Element $ StringElt str
+        SetSelection $ [Element $ StringElt str]
 
 
 -- | View
@@ -121,50 +124,78 @@ newtype MinSize     = MinSize     Double deriving (Num, Show)
 newtype ViewArgs    = ViewArgs (Granularity, MinSize)
 
 
--- | Layouts
-class Category cat ⇒ Layout cat l where
-    data Viewport l ∷ *
-    data Boundary l ∷ *
-    cullSelection   ∷ l → Selection cat → ViewArgs → Viewport l → (View cat, Boundary a)
+-- | LayEngs
+class Category cat ⇒ LayEng cat leng where
+    data Viewport  leng ∷ *
+    data Boundary  leng ∷ *
+    data Layout    leng ∷ *
+    data Ephemeral leng ∷ *
+    cullSelection     ∷ leng → Selection cat → ViewArgs → Viewport leng → (View cat, Boundary leng)
+    layout            ∷ leng → (View cat, Boundary leng) → (Layout leng, Ephemeral leng)
 
-class Layout Graph a ⇒ GraphLayout a where
-class Layout Dag   a ⇒   DagLayout a where
-class Layout Tree  a ⇒  TreeLayout a where
-class Layout Set   a ⇒   SetLayout a where
+class LayEng Graph a ⇒ GraphLayEng a where
+class LayEng Dag   a ⇒   DagLayEng a where
+class LayEng Tree  a ⇒  TreeLayEng a where
+class LayEng Set   a ⇒   SetLayEng a where
 
 -- | Graph, viewed from aside (Z axis)
 data SideGraph
-instance Layout Graph SideGraph where
+instance LayEng Graph SideGraph where
 
 -- | Graph, arrow aligned weighted display partitioning
 data DownGraph
-instance Layout Graph DownGraph where
+instance LayEng Graph DownGraph where
 
 -- | List entries, vertical scrolling
 data TreeList
-instance Layout Tree TreeList where
+instance LayEng Tree TreeList where
 
 -- | Icon grid, vertical scrolling
 data TreeGrid
-instance Layout Tree TreeGrid where
+instance LayEng Tree TreeGrid where
 
 -- | Z-oriented space partitioning, ala /Lamdu/, vertical scrolling
 data TreeSpace
-instance Layout Tree TreeSpace where
+instance LayEng Tree TreeSpace where
+
+sublis ∷ Int → Int → [a] → [a]
+sublis from upto = take (upto - from) Prelude.. drop from
 
 -- | A finite/infinite carousel with parallax
-data Carousel
-instance Layout Set Carousel where
-    data Viewport Carousel = CarouselPort Int
-    data Boundary Carousel = CarouselBoundary
+data Carousel = Carousel
+instance LayEng Set Carousel where
+    data Viewport  Carousel = CarouselPort Int
+    data Boundary  Carousel = CarouselBoundary
+    data Layout    Carousel = CarouselLayout
+    data Ephemeral Carousel = CarouselEphemeral
+    cullSelection Carousel (SetSelection xs) (ViewArgs (gran, mins)) (CarouselPort n) =
+        -- XXX: we need some way to turn GRAN and MINS into LIMIT
+        let limit = 5                  -- must be odd!
+            arm   = quot (limit - 1) 2 -- viewable, on either side
+            got   = length xs
+        in if
+            -- can show in full?
+            | limit > got    → (SetView xs,
+                                CarouselBoundary)
+            -- left arm crosses limit?
+            | n - arm < 0    → (SetView undefined,
+                                CarouselBoundary)
+            -- right arm crosses limit?
+            | n + arm >= got → (SetView undefined,
+                                CarouselBoundary)
+            -- convenient case -- taking from middle
+            | otherwise      → (SetView (sublis (n - arm) (n + arm + 1) xs),
+                                CarouselBoundary)
+    layout Carousel (SetView xs, CarouselBoundary) =
+        (CarouselLayout, CarouselEphemeral)
 
 -- | Yay grids
 data Grid
-instance Layout Set Grid where
+instance LayEng Set Grid where
 
 -- | Yay lists
 data List
-instance Layout Set List where
+instance LayEng Set List where
 
 
 -- An attempt at use..
