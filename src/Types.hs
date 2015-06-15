@@ -247,6 +247,15 @@ class Category cat ⇒ LayEng cat leng where
 class RenderContext a where
     toPixels ∷ a → Posn → Dim Double → (V2 Int, V2 Int)
 
+data SDLRenderer
+    = SDLRenderer Aspect (V2 Double)
+instance RenderContext SDLRenderer where
+    toPixels (SDLRenderer aspect screen@(V2 scrW scrH)) (Posn posn) size =
+        ( fmap floor $ screen * posn
+        , fmap floor $ case size of
+                         DimS scrSize          → screen * scrSize
+                         DimP (V2 propW propH) → V2 (scrW * propW) (scrH * propH * (realToFrac aspect)) )
+
 
 -- | Layout engine instances
 
