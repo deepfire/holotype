@@ -186,12 +186,18 @@ instance LayEng Tree TreeSpace where
 sublis ∷ Int → Int → [a] → [a]
 sublis from upto = take (upto - from) Prelude.. drop from
 
+-- (x - ox)² / a² + (y - oy)² / b² = 1
+-- y = (1 - (x - ox)² / a²)^1/2 * b + oy
+ellipse ∷ Posn → Dim Double → Double → Double
+ellipse (Posn (V2 ox oy)) (DimS (V2 a b)) x = sqrt (1 - ((x - ox) / a) ** 2) * b + oy
+
+
 -- | A finite/infinite carousel with parallax
 data Carousel = Carousel
 instance LayEng Set Carousel where
     data Viewport  Carousel = CarouselPort Int
     data Boundary  Carousel = CarouselBoundary
-    data Layout    Carousel = CarouselLayout
+    data Layout    Carousel = CarouselLayout [(Posn, Scale)]
     data Ephemeral Carousel = CarouselEphemeral
     cullSelection Carousel (SetSelection xs) (ViewArgs (gran, mins)) (CarouselPort n) =
         -- XXX: we need some way to turn GRAN and MINS into LIMIT
@@ -212,9 +218,19 @@ instance LayEng Set Carousel where
             | otherwise      → (SetView (sublis (n - arm) (n + arm + 1) xs),
                                 CarouselBoundary)
     layout Carousel (SetView xs, CarouselBoundary) =
-        (CarouselLayout, CarouselEphemeral)
-    -- render rctx
-    --     ∷ RenderContext ren ⇒ ren → (View cat, Boundary leng) → (Layout leng, Ephemeral leng) → IO ()
+        ( CarouselLayout $ let got            = length xs
+                               ellipse_width  = 0.7 ∷ Double
+                               ellipse_height = 0.5 ∷ Double
+                               (ox, oy)       = (0.5, 0.5)
+                               (a, b)         = (ellipse_width / 2, ellipse_height / 2)
+                               step           = ellipse_width / fromIntegral (got - 1)
+                               ell            = ellipse (Posn (V2 ox oy)) (DimS (V2 a b))
+                           in [ let y = ell x
+                                in (Posn (V2 x y), Scale y)
+                              | x ← [ox - a, ox - a + step .. ox + a] ],
+          CarouselEphemeral)
+    render ctx (SetView xs, _) (CarouselLayout xposs, CarouselEphemeral) =
+        undefined
 
 -- | Yay grids
 data Grid
