@@ -96,34 +96,32 @@ instance (Hashable Element) where
     hashWithSalt s (Element e)  = s `hashWithSalt` (hash e)
 
 class Category a where
-    data Selector  a ∷ *
-    data Selection a ∷ *
-    data View      a ∷ *
-    select           ∷ Category a ⇒ Totality → Selector a → Selection a
+    data Selector   a ∷ *
+    data Selection  a ∷ *
+    data View       a ∷ *
+    data EngiName   a ∷ *
+    select            ∷ Category a ⇒ Totality → Selector a → Selection a
 
 data Graph
 instance Category Graph where
-    data Selector  Graph = GraphSelector  
-    data Selection Graph = GraphSelection 
-    data View      Graph = GraphView      
+    data Selector   Graph = GraphSelector  
+    data Selection  Graph = GraphSelection 
+    data View       Graph = GraphView
+    data EngiName   Graph = SideGraph | DownGraph
 
 data Dag
 instance Category Dag where
-    data Selector  Dag   = DagSelector    
-    data Selection Dag   = DagSelection   
-    data View      Dag   = DagView        
-
-data Tree
-instance Category Tree where
-    data Selector  Tree  = TreeSelector   
-    data Selection Tree  = TreeSelection  
-    data View      Tree  = TreeView       
+    data Selector   Dag   = DagSelector    
+    data Selection  Dag   = DagSelection   
+    data View       Dag   = DagView        
+    data EngiName   Dag   = DagList | DagGrid | DagSpace
 
 data Set
 instance Category Set where
-    data Selector  Set   = SetSelector    String
-    data Selection Set   = SetSelection   [Element]
-    data View      Set   = SetView        [Element]
+    data Selector   Set   = SetSelector    String
+    data Selection  Set   = SetSelection   [Element]
+    data View       Set   = SetView        [Element]
+    data EngiName   Set   = Carousel | Grid | List
     select _ (SetSelector str) =
         SetSelection $ [Element $ StringElt str]
 
@@ -144,14 +142,20 @@ class Category cat ⇒ LayEng cat leng where
     layout              ∷ leng → (View cat, Boundary leng) → (Layout leng, Ephemeral leng)
     render              ∷ RenderContext ren ⇒ ren → (View cat, Boundary leng) → (Layout leng, Ephemeral leng) → IO ()
 
+data EngiPref where
+    EngiPref ∷ (Hashable a, Category a) ⇒ H.HashMap a (EngiName a) → EngiPref
+
 
 -- | Visualisation
 class RenderContext a where
     toPixels ∷ a → Posn → Dim Double → (V2 Integer, V2 Integer)
     drawRect ∷ a → Posn → Dim Double → IO ()
 
+
+-- | Renderer instances
 data SDLRenderer
     = SDLRenderer Aspect (V2 Double) SDL.Renderer
+
 instance RenderContext SDLRenderer where
     toPixels (SDLRenderer aspect screen@(V2 scrW scrH) _) (Posn posn) size =
         ( fmap floor $ screen * posn
@@ -202,7 +206,7 @@ ellipse (Posn (V2 ox oy)) (DimS (V2 a b)) x = sqrt (1 - ((x - ox) / a) ** 2) * b
 
 -- | A finite/infinite carousel with parallax
 data Carousel =
-    Carousel {
+    CarouselEngi {
       carouselLooped ∷ Bool
     }
 
@@ -211,7 +215,7 @@ instance Engi Set Carousel where
     data Boundary  Carousel = CarouselBoundary
     data Layout    Carousel = CarouselLayout [(Posn, Scale)]
     data Ephemeral Carousel = CarouselEphemeral
-    cullSelection (Carousel {..}) (SetSelection xs) (ViewArgs (gran, mins)) (CarouselPort n) =
+    cullSelection (CarouselEngi {..}) (SetSelection xs) (ViewArgs (gran, mins)) (CarouselPort n) =
         -- XXX: we need some way to turn GRAN and MINS into LIMIT
         let limit = 5                  -- must be odd!
             arm   = quot (limit - 1) 2 -- viewable, on either side
@@ -229,7 +233,7 @@ instance Engi Set Carousel where
             -- convenient case -- taking from middle
             | otherwise      → (SetView (sublis (n - arm) (n + arm + 1) xs),
                                 CarouselBoundary)
-    layout (Carousel {..}) (SetView xs, CarouselBoundary) =
+    layout (CarouselEngi {..}) (SetView xs, CarouselBoundary) =
         ( CarouselLayout $ let got            = length xs
                                ellipse_width  = 0.7 ∷ Double
                                ellipse_height = 0.5 ∷ Double
