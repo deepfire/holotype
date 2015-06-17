@@ -38,9 +38,9 @@ module Types
     -- Engis
     , SideGraph(..)
     , DownGraph(..)
-    , TreeList(..)
-    , TreeGrid(..)
-    , TreeSpace(..)
+    , DagList(..)
+    , DagGrid(..)
+    , DagSpace(..)
     , Carousel(..)
     , Grid(..)
     , List(..)
@@ -51,7 +51,8 @@ import Control.Wire hiding (Category)
 import qualified SDL
 
 import Data.Hashable
-import qualified Data.HashSet as HS
+import qualified Data.HashSet      as H
+import qualified Data.HashMap.Lazy as H
 
 import Linear hiding (trace)
 import Linear.Affine
@@ -132,15 +133,30 @@ newtype MinSize     = MinSize      Double                deriving (Num, Show)
 newtype ViewArgs    = ViewArgs    (Granularity, MinSize) deriving (Show)
 
 
--- | Layout engine
-class Category cat ⇒ LayEng cat leng where
-    data Viewport  leng ∷ *
-    data Boundary  leng ∷ *
-    data Layout    leng ∷ *
-    data Ephemeral leng ∷ *
-    cullSelection       ∷ leng → Selection cat → ViewArgs → Viewport leng → (View cat, Boundary leng)
-    layout              ∷ leng → (View cat, Boundary leng) → (Layout leng, Ephemeral leng)
-    render              ∷ RenderContext ren ⇒ ren → (View cat, Boundary leng) → (Layout leng, Ephemeral leng) → IO ()
+-- | Interaction
+class InputSys a where
+
+
+-- | Layout engine & interaction
+data Affective where
+    Affective ∷ Engi cat eng ⇒ {
+      aSelector    ∷ Selector cat
+    , aEngiPref    ∷ EngiPref
+    , aGranularity ∷ Granularity
+    , aMinSize     ∷ MinSize
+    , aFocus       ∷ Engi cat eng ⇒ Focus eng
+    } → Affective
+
+class Category cat ⇒ Engi cat eng where
+    data Viewport  eng ∷ *
+    data Boundary  eng ∷ *
+    data Layout    eng ∷ *
+    data Ephemeral eng ∷ *
+    data Focus     eng ∷ *
+    cullSelection      ∷ eng → Selection cat → ViewArgs → Viewport eng → (View cat, Boundary eng)
+    layout             ∷ eng → (View cat, Boundary eng) → (Layout eng, Ephemeral eng)
+    render             ∷ RenderContext ren ⇒ ren → (View cat, Boundary eng) → (Layout eng, Ephemeral eng) → IO ()
+    interact           ∷ InputSys is ⇒ is → (View cat, Boundary eng) → Affective → Affective
 
 data EngiPref where
     EngiPref ∷ (Hashable a, Category a) ⇒ H.HashMap a (EngiName a) → EngiPref
