@@ -7,6 +7,8 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -45,14 +47,17 @@ module Types
     , List(..)
     ) where
 
+import Control.Monad (forM_)
 import Control.Wire hiding (Category)
-import SDL (Scancode)
+import qualified SDL
 
 import Data.Hashable
 import qualified Data.HashSet as HS
 
 import Linear hiding (trace)
 import Linear.Affine
+
+import Text.Printf (printf)
 
 
 -- Local imports
@@ -143,16 +148,21 @@ class Category cat ⇒ LayEng cat leng where
 
 -- | Visualisation
 class RenderContext a where
-    toPixels ∷ a → Posn → Dim Double → (V2 Int, V2 Int)
+    toPixels ∷ a → Posn → Dim Double → (V2 Integer, V2 Integer)
+    drawRect ∷ a → Posn → Dim Double → IO ()
 
 data SDLRenderer
-    = SDLRenderer Aspect (V2 Double)
+    = SDLRenderer Aspect (V2 Double) SDL.Renderer
 instance RenderContext SDLRenderer where
-    toPixels (SDLRenderer aspect screen@(V2 scrW scrH)) (Posn posn) size =
+    toPixels (SDLRenderer aspect screen@(V2 scrW scrH) _) (Posn posn) size =
         ( fmap floor $ screen * posn
         , fmap floor $ case size of
                          DimS scrSize          → screen * scrSize
                          DimP (V2 propW propH) → V2 (scrW * propW) (scrH * propH * (realToFrac aspect)))
+    drawRect r@(SDLRenderer _ _ rend) posn dim =
+        do
+          let (pixdim, pixpos) = toPixels r posn dim
+          SDL.renderDrawRect rend $ SDL.Rectangle (P $ fmap fromIntegral pixpos) (fmap fromIntegral pixdim)
 
 
 -- | Layout engine instances
@@ -193,13 +203,17 @@ ellipse (Posn (V2 ox oy)) (DimS (V2 a b)) x = sqrt (1 - ((x - ox) / a) ** 2) * b
 
 
 -- | A finite/infinite carousel with parallax
-data Carousel = Carousel
+data Carousel =
+    Carousel {
+      carouselLooped ∷ Bool
+    }
+
 instance LayEng Set Carousel where
     data Viewport  Carousel = CarouselPort Int
     data Boundary  Carousel = CarouselBoundary
     data Layout    Carousel = CarouselLayout [(Posn, Scale)]
     data Ephemeral Carousel = CarouselEphemeral
-    cullSelection Carousel (SetSelection xs) (ViewArgs (gran, mins)) (CarouselPort n) =
+    cullSelection (Carousel {..}) (SetSelection xs) (ViewArgs (gran, mins)) (CarouselPort n) =
         -- XXX: we need some way to turn GRAN and MINS into LIMIT
         let limit = 5                  -- must be odd!
             arm   = quot (limit - 1) 2 -- viewable, on either side
@@ -217,7 +231,7 @@ instance LayEng Set Carousel where
             -- convenient case -- taking from middle
             | otherwise      → (SetView (sublis (n - arm) (n + arm + 1) xs),
                                 CarouselBoundary)
-    layout Carousel (SetView xs, CarouselBoundary) =
+    layout (Carousel {..}) (SetView xs, CarouselBoundary) =
         ( CarouselLayout $ let got            = length xs
                                ellipse_width  = 0.7 ∷ Double
                                ellipse_height = 0.5 ∷ Double
@@ -227,8 +241,9 @@ instance LayEng Set Carousel where
                                ell            = ellipse (Posn (V2 ox oy)) (DimS (V2 a b))
                            in [ let y = ell x
                                 in (Posn (V2 x y), Scale y)
-                              | x ← [ox - a, ox - a + step .. ox + a] ],
-          CarouselEphemeral)
+                              -- The fraction subtraction is to avoid the range stepping beyond A, and so a NaN
+                              | x ← [ox - a, ox - a + step .. ox + a - 0.0001] ]
+        , CarouselEphemeral)
     render ctx (SetView xs, _) (CarouselLayout xposs, CarouselEphemeral) =
         undefined
 
