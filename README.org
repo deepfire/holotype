@@ -81,6 +81,14 @@
     - Layout                 :: obtain what is already covered, cover what isn't, compose;  compute scene modifiers
     - Render                 :: ...
 
+*** Functions, quick overview
+
+    - select        :: Category a ⇒        Totality → Selector a → Selection a
+    - cullSelection ::                     eng → Selection cat → ViewArgs → Viewport eng → (View cat, Boundary eng
+    - layout        ::                     eng → (View cat, Boundary eng) → (Layout eng, Ephemeral eng)
+    - render        :: RenderContext ren ⇒ ren → (View cat, Boundary eng) → (Layout eng, Ephemeral eng) → IO ()
+    - interact      :: InputSys is ⇒       is → (View cat, Boundary eng) → Affective → Affective
+
 *** Phases
 
     - Select           :: Totality → Selector → Selection
