@@ -84,13 +84,15 @@
 *** Phases
 
     - Select           :: Totality → Selector → Selection
-      - Basically, select from available data.  For now, the implementation
-        is conceptually irrelevant.  Query optimization might change that.
+      - What :: select from Totality
       - =Selections= split into the following categories, by structure:
         - General graph
         - DAG (directed acyclic graph)
         - Set -- with customisable ordering
           - XXX: ordering not factored in
+      - Design considerations ::
+        - does it make sense for a selector to be non-specific about what it returns?
+          - hard to say just yet, we need experience as guide
 
     - Layout engine choice    :: Selection → EngiPref → Engi
       - =EngiPref= picks a specific =Engi=, compatible with the current
