@@ -13,6 +13,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
 module Types
@@ -50,6 +51,8 @@ import Control.Monad (forM_)
 import Control.Wire hiding (Category)
 import qualified SDL
 
+-- import GHC.Generics (Generic)
+import GHC.Prim (Constraint)
 import Data.Hashable
 import qualified Data.HashSet      as H
 import qualified Data.HashMap.Lazy as H
@@ -88,6 +91,9 @@ onWorldInput wire = proc w → do
 newtype Totality
     = Totality ()
 
+type family   C a :: Constraint
+type instance C a = (Eq a, Show a)
+
 class ElementAPI e where
 
 -- data Element = ∀ e . ElementAPI e ⇒ Element e -- equivalent to the below:
@@ -96,7 +102,7 @@ data Element where
 instance (Hashable Element) where
     hashWithSalt s (Element e)  = s `hashWithSalt` (hash e)
 
-class Category a where
+class C (EngiName a) ⇒ Category a where
     data Selector   a ∷ *
     data Selection  a ∷ *
     data View       a ∷ *
@@ -108,21 +114,21 @@ instance Category Graph where
     data Selector   Graph = GraphSelector  
     data Selection  Graph = GraphSelection 
     data View       Graph = GraphView
-    data EngiName   Graph = SideGraph | DownGraph
+    data EngiName   Graph = SideGraph | DownGraph deriving (Eq, Show)
 
 data Dag
 instance Category Dag where
     data Selector   Dag   = DagSelector    
     data Selection  Dag   = DagSelection   
     data View       Dag   = DagView        
-    data EngiName   Dag   = DagList | DagGrid | DagSpace
+    data EngiName   Dag   = SideDag | DagList | DagGrid | DagSpace deriving (Eq, Show)
 
 data Set
 instance Category Set where
     data Selector   Set   = SetSelector    String
     data Selection  Set   = SetSelection   [Element]
     data View       Set   = SetView        [Element]
-    data EngiName   Set   = Carousel | Grid | List
+    data EngiName   Set   = Carousel | Grid | List deriving (Eq, Show)
     select _ (SetSelector str) =
         SetSelection $ [Element $ StringElt str]
 
