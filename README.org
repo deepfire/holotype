@@ -100,13 +100,13 @@
         - Set
         - List (ordered set, trivial, not discussed further)
 
-    - Layout engine choice    :: Selection → LayEngPref → LayEng
-      - =LayEngPref= picks a specific =LayEng=, compatible with the current
+    - Layout engine choice    :: Selection → EngiPref → Engi
+      - =EngiPref= picks a specific =Engi=, compatible with the current
         =Selection= category:
         - defaults to last used
         - size limits for non-partial-capable engines?
         - can be cycled through by a shortcut
-      - LayEngs:
+      - Engines:
         - Graph, dag, tree:
           - =SideGraph=: graph from aside
           - =DownGraph=: graph, arrow aligned weighted partitioning
@@ -119,7 +119,7 @@
           - =Grid=
           - =List=
 
-    - Viewport culling :: LayEng → Selection → (Granularity, MinSize) → Viewport → (View, Boundary)
+    - Viewport culling :: Engi → Selection → (Granularity, MinSize) → Viewport → (View, Boundary)
       - XXX: what's the story about half-visible objects?
         - select all intersecting, render more than what is showable?
       - XXX: what's the story about avoidable layout recomputation?
@@ -145,7 +145,7 @@
       - =Granularity= determines, for tree layouts, the maximum depth of
         subdivision, after which abbreviation is engaged
       - =MinSize= limits the minimum element size
-      - =Viewport= is specific to =LayEng=:
+      - =Viewport= is specific to =Engi=:
         - SideGraph: layout-global position
         - DownGraph: subroot node
         - TreeList:  row offset
@@ -157,7 +157,7 @@
       - =View= is direct elements from =Selection=
       - =Boundary= is anchor points to the parts of =Selection= that fall outside the =Viewport=
 
-    - Layout           :: LayEng → (View, Boundary) → (Layout, Ephemerals)
+    - Layout           :: Engi → (View, Boundary) → (Layout, Ephemerals)
       - XXX: =Positions= what are they?
         - scene-specific structure and interpretation?
         - if not, global or screenspace?
@@ -171,4 +171,4 @@
 
     - Render           :: RenderContext → (View, Boundary) → (Layout, Ephemerals) → IO ()
 
-    - Interaction      :: Inputs → (View, Boundary) → Focus → (Granularity, MinSize) → Selector → LayEngPref → (Modifiers, Focus, (Granularity, MinSize), Selector, LayEngPref)
+    - Interaction      :: Inputs → (View, Boundary) → Focus → (Granularity, MinSize) → Selector → EngiPref → (Modifiers, Focus, (Granularity, MinSize), Selector, EngiPref)

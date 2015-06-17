@@ -31,12 +31,11 @@ module Types
     , Totality(..)
     , Selector(..)
     , Selection(..)
-    , LayEng(..), Viewport(..), Boundary(..)
+    , Engi(..), Viewport(..), Boundary(..)
     , ViewArgs(..), MinSize(..), Granularity(..)
-    -- , GraphLayEng(..), DagLayEng(..), TreeLayEng(..), SetLayEng(..)
     , View(..)
 
-    -- LayEngs
+    -- Engis
     , SideGraph(..)
     , DownGraph(..)
     , TreeList(..)
@@ -168,30 +167,29 @@ instance RenderContext SDLRenderer where
 -- | Layout engine instances
 
 --- Not sure what these add..
--- class LayEng Graph a ⇒ GraphLayEng a where
--- class LayEng Dag   a ⇒   DagLayEng a where
--- class LayEng Tree  a ⇒  TreeLayEng a where
--- class LayEng Set   a ⇒   SetLayEng a where
+-- class Engi Graph a ⇒ GraphEngi a where
+-- class Engi Dag   a ⇒   DagEngi a where
+-- class Engi Set   a ⇒   SetEngi a where
 
 -- | Graph, viewed from aside (Z axis)
 data SideGraph
-instance LayEng Graph SideGraph where
+instance Engi Graph SideGraph where
 
 -- | Graph, arrow aligned weighted display partitioning
 data DownGraph
-instance LayEng Graph DownGraph where
+instance Engi Graph DownGraph where
 
 -- | List entries, vertical scrolling
-data TreeList
-instance LayEng Tree TreeList where
+data DagList
+instance Engi Dag DagList where
 
 -- | Icon grid, vertical scrolling
-data TreeGrid
-instance LayEng Tree TreeGrid where
+data DagGrid
+instance Engi Dag DagGrid where
 
 -- | Z-oriented space partitioning, ala /Lamdu/, vertical scrolling
-data TreeSpace
-instance LayEng Tree TreeSpace where
+data DagSpace
+instance Engi Dag DagSpace where
 
 sublis ∷ Int → Int → [a] → [a]
 sublis from upto = take (upto - from) Prelude.. drop from
@@ -208,7 +206,7 @@ data Carousel =
       carouselLooped ∷ Bool
     }
 
-instance LayEng Set Carousel where
+instance Engi Set Carousel where
     data Viewport  Carousel = CarouselPort Int
     data Boundary  Carousel = CarouselBoundary
     data Layout    Carousel = CarouselLayout [(Posn, Scale)]
@@ -252,11 +250,11 @@ instance LayEng Set Carousel where
 
 -- | Yay grids
 data Grid
-instance LayEng Set Grid where
+instance Engi Set Grid where
 
 -- | Yay lists
 data List
-instance LayEng Set List where
+instance Engi Set List where
 
 
 -- An attempt at use..
