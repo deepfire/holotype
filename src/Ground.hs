@@ -19,9 +19,9 @@ import Linear.Vector               (Additive(..))
 import Linear.V2                   (V2(..))
 
 
-newtype Scale       = Scale        Double                deriving (Eq, Num)
-newtype Posn        = Posn        (V2 Double)            deriving (Eq, Num)
-newtype Aspect      = Aspect       Double                deriving (Eq, Num, Floating, Fractional, Ord, Real, RealFrac, RealFloat)
+newtype Scale       = Scale        Double                deriving (Eq, Num, Show)
+newtype Posn        = Posn        (V2 Double)            deriving (Eq, Num, Show)
+newtype Aspect      = Aspect       Double                deriving (Eq, Num, Show, Floating, Fractional, Ord, Real, RealFrac, RealFloat)
 data Dim a
     =                 DimS        (V2 a)                                      -- * Screen-space: range 0.0 - (1.0, 1.0)
     |                 DimP        (V2 a)                                      -- * Proportional: range 0.0 - (1.0, 1.0 / Aspect)

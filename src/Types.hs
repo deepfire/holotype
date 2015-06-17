@@ -244,8 +244,11 @@ instance LayEng Set Carousel where
                               -- The fraction subtraction is to avoid the range stepping beyond A, and so a NaN
                               | x ← [ox - a, ox - a + step .. ox + a - 0.0001] ]
         , CarouselEphemeral)
-    render ctx (SetView xs, _) (CarouselLayout xposs, CarouselEphemeral) =
-        undefined
+    render ctx (SetView xs, _) (CarouselLayout xposs, CarouselEphemeral) = do
+        printf "-- frame start --\n"
+        forM_ xposs $ \(pos, scale) → do
+          printf "#<box %s-%s>   " (show pos) (show scale)
+        printf "-- frame end --\n"
 
 -- | Yay grids
 data Grid
