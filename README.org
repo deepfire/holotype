@@ -45,6 +45,8 @@
       - Z-axis :: inherited from Graphs
       - Y-axis :: inherited from Graphs
       - Treeview, list entries, with duplication :: 
+      - Treeview, icon grid, with duplication :: 
+      - Treeview, space partitioning, ala Lamdu, with duplication :: 
     - Subsetting ::
       - Viewport ::
                    Arrow walker -- for nodes.
@@ -54,15 +56,6 @@
       - Ellipsis ::
                    Zoomable: "everything else in this direction"
                    What cases need it, given a proper Viewport subsetter?
-
-  - Trees :: 
-    - Views :: 
-      - Z-axis :: inherited from Graphs
-      - Y-axis :: inherited from Graphs
-      - Treeview, list entries, without duplication :: 
-      - Treeview, icon grid :: 
-      - Treeview, space partitioning, ala Lamdu :: 
-    - Subsetting :: Like dags.
 
   - Sets ::
     - Views :: 
@@ -96,9 +89,8 @@
       - =Selections= split into the following categories, by structure:
         - General graph
         - DAG (directed acyclic graph)
-        - Tree
-        - Set
-        - List (ordered set, trivial, not discussed further)
+        - Set -- with customisable ordering
+          - XXX: ordering not factored in
 
     - Layout engine choice    :: Selection → EngiPref → Engi
       - =EngiPref= picks a specific =Engi=, compatible with the current
@@ -111,9 +103,9 @@
           - =SideGraph=: graph from aside
           - =DownGraph=: graph, arrow aligned weighted partitioning
         - Dag (duplicates-encoded), tree:
-          - =TreeList=, list entries
-          - =TreeGrid=, icon grid
-          - =TreeSpace=, space partitioning, ala /Lamdu/
+          - =DagList=, list entries
+          - =DagGrid=, icon grid
+          - =DagSpace=, space partitioning, ala /Lamdu/
         - Set:
           - =Carousel=
           - =Grid=
@@ -128,9 +120,9 @@
         - *caseanalysis* cacheable total-cost    can-partial partial-composable
           - SideGraph:    yes       very hard     no(?)       no(?)
           - DownGraph:    no        medium-small  yes         yes
-          - TreeList:     yes       small         yes         yes
-          - TreeGrid:     yes       medium-small  yes         yes
-          - TreeSpace:    yes       very hard     yes         yes
+          - DagList:      yes       small         yes         yes
+          - DagGrid:      yes       medium-small  yes         yes
+          - DagSpace:     yes       very hard     yes         yes
           - Carousel:     no        easy          no          no
           - Grid:         yes       easy          yes         yes
           - List:         yes       easy          yes         yes
@@ -148,9 +140,9 @@
       - =Viewport= is specific to =Engi=:
         - SideGraph: layout-global position
         - DownGraph: subroot node
-        - TreeList:  row offset
-        - TreeGrid:  row offset
-        - TreeSpace: vertical offset (?)
+        - DagList:   row offset
+        - DagGrid:   row offset
+        - DagSpace:  vertical offset (?)
         - Carousel:  current selection
         - Grid:      row offset
         - List:      row offset
