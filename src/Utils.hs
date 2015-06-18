@@ -8,7 +8,7 @@ module Utils
 
      -- * Netwire
       redge, fedge
-    , stepper
+    -- , stepper
     , justFirst, justSecond
     , integralWith'
 
@@ -82,7 +82,7 @@ integralWith' correct = loop'
 
 --- SDL
 ---
-parseEvents :: Sim w i s ⇒ i -> IO i
+parseEvents :: Sim w i ⇒ i -> IO i
 parseEvents i = do
   event ← SDL.pollEvent
   case event of
@@ -95,10 +95,10 @@ parseEvents i = do
     _
       → parseEvents $ i
 
-inhibitOnKey ∷ Sim w i s ⇒ SDL.Scancode → SimWire i i
+inhibitOnKey ∷ Sim w i ⇒ SDL.Scancode → SimWire i i
 inhibitOnKey key = when (not . keyDown key)
 
-produceOnKey ∷ Sim w i s ⇒ SDL.Scancode → SimWire i i
+produceOnKey ∷ Sim w i ⇒ SDL.Scancode → SimWire i i
 produceOnKey key = when (keyDown key)
 
 terminate ∷ Bool → String → IO a
@@ -110,18 +110,23 @@ terminate successp reason = do
 catchSDLFatally ∷ IO a -> IO a
 catchSDLFatally = (flip catch) (\e -> terminate True $ show (e ∷ SDL.SDLException))
 
-stepper ∷ Sim w i s ⇒ SDL.Window → SDL.Renderer → w → w → Session IO SimTime → SimWire w (Bool, s) → IO ()
-stepper win rend world w0 sesn wire = do
-  keysDown <- parseEvents (inputsOf world)
-  let wWire = (wire . (onWorldInput $ inhibitOnKey  SDL.ScancodeQ)
-              --> pure (False, undefined))
-  (nextScene, nextSesn, nextWire) ← do
-    (st , sesn') ← stepSession sesn
-    (ret, wire') ← stepWire wWire st $ Right w0
-    case ret of
-      Left  iv              → error $ printf "stepWire: inhibited (got a %s)" iv
-      Right (False, _)      → terminate True "user requested end of simulation"
-      Right (True, scene')  → return (scene', sesn', wire')
-  -- putStrLn $  nextScene
-  threadDelay 100000
-  stepper win rend (nextWorld keysDown nextScene) w0 nextSesn nextWire
+-- onWorldInput ∷ Sim w i ⇒ SimWire i i → SimWire w w
+-- onWorldInput wire = proc w → do
+--                       outs ← wire -< inputsOf w
+--                       returnA -< w { wInputs = outs }
+
+-- stepper ∷ Sim w i ⇒ SDL.Window → SDL.Renderer → w → w → Session IO SimTime → SimWire w (Bool, s) → IO ()
+-- stepper win rend world w0 sesn wire = do
+--   keysDown <- parseEvents (inputsOf world)
+--   let wWire = (wire . (onWorldInput $ inhibitOnKey  SDL.ScancodeQ)
+--               --> pure (False, undefined))
+--   (nextScene, nextSesn, nextWire) ← do
+--     (st , sesn') ← stepSession sesn
+--     (ret, wire') ← stepWire wWire st $ Right w0
+--     case ret of
+--       Left  iv              → error $ printf "stepWire: inhibited (got a %s)" iv
+--       Right (False, _)      → terminate True "user requested end of simulation"
+--       Right (True, scene')  → return (scene', sesn', wire')
+--   -- putStrLn $ show nextScene
+--   threadDelay 100000
+--   stepper win rend (nextWorld keysDown) w0 nextSesn nextWire
