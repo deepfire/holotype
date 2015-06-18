@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+-- {-# LANGUAGE DeriveAnyClass #-} -- this breaks deriving Num for trivial newtypes
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -22,16 +23,17 @@ module Types
       SimTime, SimWire
     , Sim(..)
 
-    -- Rendering
-    , RenderContext(..)
-
     -- Model
     , Totality(..)
+    , Controls(..), initialControls
     , Selector(..)
     , Selection(..)
     , Engi(..), Viewport(..), Boundary(..)
     , ViewArgs(..), MinSize(..), Granularity(..)
     , View(..)
+
+    -- Rendering
+    , RenderContext(..)
 
     -- Engis
     , SideGraph(..)
@@ -48,11 +50,10 @@ import Control.Monad (forM_)
 import Control.Wire hiding (Category)
 import qualified SDL
 
--- import GHC.Generics (Generic)
 import GHC.Prim (Constraint)
 import Data.Hashable
-import qualified Data.HashSet      as H
-import qualified Data.HashMap.Lazy as H
+-- import qualified Data.HashSet      as HS
+-- import qualified Data.HashMap.Lazy as HM
 
 import Linear hiding (trace)
 import Linear.Affine
@@ -79,10 +80,7 @@ class Sim w i | w → i, i → w where
 
 -- | Model
 newtype Totality
-    = Totality ()
-
-type family   C a :: Constraint
-type instance C a = (Eq a, Show a)
+    = Totality [String]
 
 class ElementAPI e where
 
@@ -92,40 +90,41 @@ data Element where
 instance (Hashable Element) where
     hashWithSalt s (Element e)  = s `hashWithSalt` (hash e)
 
-data Controls where
-    Controls ∷ Category cat ⇒ {
-      cSelector    ∷ Selector cat
-    , cEngiPref    ∷ EngiPref
-    , cGranularity ∷ Granularity
-    , cMinSize     ∷ MinSize
-    , cFocus       ∷ Focus cat
-    } → Controls
-
+type family   C a :: Constraint
+type instance C a = (Eq a, Show a)
 class C (EngiName a) ⇒ Category a where
     data Selector   a ∷ *
     data Selection  a ∷ *
     data Focus      a ∷ *
     data View       a ∷ *
     data EngiName   a ∷ *
-    -- defaultControls   ∷ Controls a
+    -- emptySelector     ∷ Selector a
     select            ∷ Category a ⇒ Totality → Selector a → Selection a
-    nofocus           ∷ Focus a
-
-initialControls = Controls {
-                    cSelector    = SetSelector "lol"
-                  , cEngiPref    = EngiPref [ EPEntry (Graph, SideGraph)
-                                            , EPEntry (Dag,   SideDag)
-                                            , EPEntry (Set,   Carousel)]
-                  , cGranularity = Granularity 3
-                  , cMinSize     = MinSize 0.01
-                  , cFocus       = nofocus
-                  }
-
 data EPEntry where
     EPEntry ∷ Category a ⇒ (a, (EngiName a)) → EPEntry
 
 data EngiPref where
     EngiPref ∷ [EPEntry] → EngiPref
+
+data Controls where
+    Controls ∷ Category cat ⇒ {
+      cSelector    ∷ Selector cat
+    , cEngiPref    ∷ EngiPref
+    , cGranularity ∷ Granularity
+    , cMinSize     ∷ MinSize
+    , cFocus       ∷ Maybe (Focus cat)
+    } → Controls
+
+initialControls ∷ Controls
+initialControls = Controls {
+                    cSelector    = SetSelector ""
+                  , cEngiPref    = EngiPref [ EPEntry (Graph, SideGraph)
+                                            , EPEntry (Dag,   SideDag)
+                                            , EPEntry (Set,   Carousel)]
+                  , cGranularity = Granularity 3
+                  , cMinSize     = MinSize 0.03
+                  , cFocus       = Nothing
+                  }
 
 
 -- | Query system instances
@@ -141,8 +140,7 @@ instance Category Graph where
     data Selection  Graph = GraphSelection 
     data View       Graph = GraphView
     data EngiName   Graph = SideGraph | DownGraph deriving (Eq, Show)
-    data Focus      Graph = NoGraphFocus | GraphFocus Element
-    nofocus               = NoGraphFocus
+    data Focus      Graph = GraphFocus Element
 
 data Dag = Dag
 instance Category Dag where
@@ -150,8 +148,7 @@ instance Category Dag where
     data Selection  Dag   = DagSelection   
     data View       Dag   = DagView        
     data EngiName   Dag   = SideDag | DagList | DagGrid | DagSpace deriving (Eq, Show)
-    data Focus      Dag   = NoDagFocus | DagFocus Element
-    nofocus               = NoDagFocus
+    data Focus      Dag   = DagFocus Element
 
 data Set = Set
 instance Category Set where
@@ -159,8 +156,7 @@ instance Category Set where
     data Selection  Set   = SetSelection   [Element]
     data View       Set   = SetView        [Element]
     data EngiName   Set   = Carousel | Grid | List deriving (Eq, Show)
-    data Focus      Set   = NoSetFocus | SetFocus Element
-    nofocus               = NoSetFocus
+    data Focus      Set   = SetFocus Element
     select _ (SetSelector str) =
         SetSelection $ [Element $ StringElt str]
 
@@ -184,7 +180,7 @@ class Category cat ⇒ Engi cat eng where
     cullSelection      ∷ eng → Selection cat → ViewArgs → Viewport eng → (View cat, Boundary eng)
     layout             ∷ eng → (View cat, Boundary eng) → (Layout eng, Ephemeral eng)
     render             ∷ RenderContext ren ⇒ ren → (View cat, Boundary eng) → (Layout eng, Ephemeral eng) → IO ()
-    interact           ∷ InputSys is ⇒ is → (View cat, Boundary eng) → Affective → Affective
+    interact           ∷ InputSys is ⇒ is → (View cat, Boundary eng) → Controls → Controls
 
 
 -- | Visualisation
@@ -193,7 +189,12 @@ class RenderContext a where
     drawRect ∷ a → Posn → Dim Double → IO ()
 
 
--- | Renderer instances
+-- | UI backend instances
+data SDLInput
+    = SDLInput
+
+instance InputSys SDLInput where
+
 data SDLRenderer
     = SDLRenderer Aspect (V2 Double) SDL.Renderer
 
@@ -282,11 +283,11 @@ instance Engi Set Carousel where
                               -- The fraction subtraction is to avoid the range stepping beyond A, and so a NaN
                               | x ← [ox - a, ox - a + step .. ox + a - 0.0001] ]
         , CarouselEphemeral)
-    render ctx (SetView xs, _) (CarouselLayout xposs, CarouselEphemeral) = do
-        printf "-- frame start --\n"
-        forM_ xposs $ \(pos, scale) → do
-          printf "#<box %s-%s>   " (show pos) (show scale)
-        printf "-- frame end --\n"
+    render ctx (SetView xs, _) (CarouselLayout xposs, CarouselEphemeral) =
+        do printf "-- frame start --\n"
+           forM_ xposs $ \(pos, scale) →
+               do printf "#<box %s-%s>   " (show pos) (show scale)
+           printf "-- frame end --\n"
 
 -- | Yay grids
 data Grid
