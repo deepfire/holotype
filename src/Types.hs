@@ -55,6 +55,8 @@ import Data.Hashable
 -- import qualified Data.HashSet      as HS
 -- import qualified Data.HashMap.Lazy as HM
 
+import qualified Data.Time.Clock as Time
+
 import Linear hiding (trace)
 import Linear.Affine
 
@@ -100,6 +102,8 @@ class C (EngiName a) ⇒ Category a where
     data EngiName   a ∷ *
     -- emptySelector     ∷ Selector a
     select            ∷ Category a ⇒ Totality → Selector a → Selection a
+    validity_time     ∷ Category a ⇒ Selection a → Maybe Time.NominalDiffTime
+
 data EPEntry where
     EPEntry ∷ Category a ⇒ (a, (EngiName a)) → EPEntry
 
@@ -171,12 +175,15 @@ newtype ViewArgs    = ViewArgs    (Granularity, MinSize) deriving (Show)
 class InputSys a where
 
 
-
+-- | Layout engine
 class Category cat ⇒ Engi cat eng where
+    data Cull      eng ∷ *
     data Viewport  eng ∷ *
     data Boundary  eng ∷ *
     data Layout    eng ∷ *
     data Ephemeral eng ∷ *
+    computeCull        ∷ eng → (Granularity, MinSize) → Cull eng
+    placeViewport      ∷ eng → Selection cat → Focus cat → Cull eng → Viewport eng
     cullSelection      ∷ eng → Selection cat → ViewArgs → Viewport eng → (View cat, Boundary eng)
     layout             ∷ eng → (View cat, Boundary eng) → (Layout eng, Ephemeral eng)
     render             ∷ RenderContext ren ⇒ ren → (View cat, Boundary eng) → (Layout eng, Ephemeral eng) → IO ()
