@@ -102,33 +102,75 @@ data Element where
 instance (Hashable Element) where
     hashWithSalt s (Element e)  = s `hashWithSalt` (hash e)
 
+data Controls where
+    Controls ∷ Category cat ⇒ {
+      cSelector    ∷ Selector cat
+    , cEngiPref    ∷ EngiPref
+    , cGranularity ∷ Granularity
+    , cMinSize     ∷ MinSize
+    , cFocus       ∷ Focus cat
+    } → Controls
+
 class C (EngiName a) ⇒ Category a where
     data Selector   a ∷ *
     data Selection  a ∷ *
+    data Focus      a ∷ *
     data View       a ∷ *
     data EngiName   a ∷ *
+    -- defaultControls   ∷ Controls a
     select            ∷ Category a ⇒ Totality → Selector a → Selection a
+    nofocus           ∷ Focus a
 
-data Graph
+initialControls = Controls {
+                    cSelector    = SetSelector "lol"
+                  , cEngiPref    = EngiPref [ EPEntry (Graph, SideGraph)
+                                            , EPEntry (Dag,   SideDag)
+                                            , EPEntry (Set,   Carousel)]
+                  , cGranularity = Granularity 3
+                  , cMinSize     = MinSize 0.01
+                  , cFocus       = nofocus
+                  }
+
+data EPEntry where
+    EPEntry ∷ Category a ⇒ (a, (EngiName a)) → EPEntry
+
+data EngiPref where
+    EngiPref ∷ [EPEntry] → EngiPref
+
+
+-- | Query system instances
+
+newtype FullTextQuery = FullTextQuery String
+
+newtype StringElt = StringElt String deriving (Hashable)
+instance ElementAPI StringElt where
+
+data Graph = Graph
 instance Category Graph where
     data Selector   Graph = GraphSelector  
     data Selection  Graph = GraphSelection 
     data View       Graph = GraphView
     data EngiName   Graph = SideGraph | DownGraph deriving (Eq, Show)
+    data Focus      Graph = NoGraphFocus | GraphFocus Element
+    nofocus               = NoGraphFocus
 
-data Dag
+data Dag = Dag
 instance Category Dag where
     data Selector   Dag   = DagSelector    
     data Selection  Dag   = DagSelection   
     data View       Dag   = DagView        
     data EngiName   Dag   = SideDag | DagList | DagGrid | DagSpace deriving (Eq, Show)
+    data Focus      Dag   = NoDagFocus | DagFocus Element
+    nofocus               = NoDagFocus
 
-data Set
+data Set = Set
 instance Category Set where
     data Selector   Set   = SetSelector    String
     data Selection  Set   = SetSelection   [Element]
     data View       Set   = SetView        [Element]
     data EngiName   Set   = Carousel | Grid | List deriving (Eq, Show)
+    data Focus      Set   = NoSetFocus | SetFocus Element
+    nofocus               = NoSetFocus
     select _ (SetSelector str) =
         SetSelection $ [Element $ StringElt str]
 
@@ -143,29 +185,16 @@ newtype ViewArgs    = ViewArgs    (Granularity, MinSize) deriving (Show)
 class InputSys a where
 
 
--- | Layout engine & interaction
-data Affective where
-    Affective ∷ Engi cat eng ⇒ {
-      aSelector    ∷ Selector cat
-    , aEngiPref    ∷ EngiPref
-    , aGranularity ∷ Granularity
-    , aMinSize     ∷ MinSize
-    , aFocus       ∷ Engi cat eng ⇒ Focus eng
-    } → Affective
 
 class Category cat ⇒ Engi cat eng where
     data Viewport  eng ∷ *
     data Boundary  eng ∷ *
     data Layout    eng ∷ *
     data Ephemeral eng ∷ *
-    data Focus     eng ∷ *
     cullSelection      ∷ eng → Selection cat → ViewArgs → Viewport eng → (View cat, Boundary eng)
     layout             ∷ eng → (View cat, Boundary eng) → (Layout eng, Ephemeral eng)
     render             ∷ RenderContext ren ⇒ ren → (View cat, Boundary eng) → (Layout eng, Ephemeral eng) → IO ()
     interact           ∷ InputSys is ⇒ is → (View cat, Boundary eng) → Affective → Affective
-
-data EngiPref where
-    EngiPref ∷ (Hashable a, Category a) ⇒ H.HashMap a (EngiName a) → EngiPref
 
 
 -- | Visualisation
@@ -191,11 +220,6 @@ instance RenderContext SDLRenderer where
 
 
 -- | Layout engine instances
-
---- Not sure what these add..
--- class Engi Graph a ⇒ GraphEngi a where
--- class Engi Dag   a ⇒   DagEngi a where
--- class Engi Set   a ⇒   SetEngi a where
 
 -- | Graph, viewed from aside (Z axis)
 data SideGraph
@@ -281,9 +305,3 @@ instance Engi Set Grid where
 -- | Yay lists
 data List
 instance Engi Set List where
-
-
--- An attempt at use..
-newtype FullTextQuery = FullTextQuery String
-newtype StringElt = StringElt String deriving (Hashable)
-instance ElementAPI StringElt where
