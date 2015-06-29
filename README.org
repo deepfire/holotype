@@ -30,6 +30,18 @@
   4. Escape pops
   5. Return vs. C-Return -- a story of multi-line text input
 
+* Visualisable qualities
+
+  - Exhaustivity ::
+    - Explicit "unknown" remaining
+  - Variant-ness ::
+    - Simultaneous
+    - Per-choice filtering
+  - Progression ::
+  - Person-zoning ::
+  - Distinctions ::
+    - Decomposition vs. dependency
+
 * (To be) Displayable structures
 
   - Graphs ::
@@ -85,17 +97,19 @@
 
 *** Functions, quick overview
 
-    - select        :: Category a ⇒        Totality → Selector a → Selection a
-    - computeCull   ::                     eng → (Granularity, MinSize) → Cull eng
-    - placeViewport ::                     eng → Selection cat → Focus cat → Cull eng → Viewport eng
-    - cullSelection ::                     eng → Selection cat → ViewArgs → Viewport eng → (View cat, Boundary eng
-    - layout        ::                     eng → (View cat, Boundary eng) → (Layout eng, Ephemeral eng)
-    - render        :: RenderContext ren ⇒ ren → (View cat, Boundary eng) → (Layout eng, Ephemeral eng) → IO ()
-    - interact      :: InputSys is ⇒       is → (View cat, Boundary eng) → Affective → Affective
+    - select         :: Category cat ⇒       Totality → Selector cat → Selection cat
+    - elect_engi     :: Category cat ⇒       EngiPref → Maybe (EngiName cat) → EngiName cat
+    - erect_engi     :: Engi cat eng ⇒       EngiName cat → eng
+    - compute_cull   :: Engi cat eng ⇒       eng → (Granularity, MinSize) → Cull eng
+    - place_viewport :: Engi cat eng ⇒       eng → Selection cat → Focus cat → Cull eng → Viewport eng
+    - cull_selection :: Engi cat eng ⇒       eng → Selection cat → ViewArgs → Viewport eng → (View cat, Boundary eng
+    - layout         :: Engi cat eng ⇒       eng → (View cat, Boundary eng) → (Layout eng, Ephemeral eng)
+    - render         :: RenderContext ren ⇒  ren → (View cat, Boundary eng) → (Layout eng, Ephemeral eng) → IO ()
+    - interact       :: InputSys is ⇒        is → (View cat, Boundary eng) → Affective → Affective
 
 *** Phases
 
-    - Select           :: Totality → Selector → Selection
+    - Select :: Totality → Selector → Selection
       - What :: select from Totality
       - =Selections= split into the following categories, by structure:
         - General graph
@@ -114,7 +128,7 @@
         - does it make sense for a selector to be non-specific about what it returns?
           - hard to say just yet, we need experience as guide
 
-    - Layout engine choice    :: Selection → EngiPref → Engi
+    - Layout engine choice :: Selection → EngiPref → Engi
       - =EngiPref= picks a specific =Engi=, compatible with the current
         =Selection= category:
         - defaults to last used
@@ -132,6 +146,12 @@
           - =Carousel=
           - =Grid=
           - =List=
+      - Summing up, *fundamentally* we want:
+        1. type classes for individual LEs, because it allows for a
+           seriously neat organisation of code
+        2. multiple LEs associated with a category, because that's how
+           the problem domain looks
+        3. #1 gives that there isn't a monotype for a LE
 
     - Visibility constraints computation :: Engi → (Granularity, MinSize) → Cull
       - disconnected from elements -- deals with UI constraints projected onto a
@@ -193,7 +213,7 @@
       - =View= is direct elements from =Selection=
       - =Boundary= is anchor points to the parts of =Selection= that fall outside the =Viewport=
 
-    - Layout           :: Engi → (View, Boundary) → (Layout, Ephemerals)
+    - Layout :: Engi → (View, Boundary) → (Layout, Ephemerals)
       - XXX: =Positions= what are they?
         - scene-specific structure and interpretation?
         - if not, global or screenspace?
@@ -202,9 +222,9 @@
         - element focus visulalisation state:
           - scale change, to indicate foreground/background
 
-    - Change summary   :: 
+    - Change summary :: 
       - What effect did the last =Selector= change have?  Not always obvious.
 
-    - Render           :: RenderContext → (View, Boundary) → (Layout, Ephemerals) → IO ()
+    - Render :: RenderContext → (View, Boundary) → (Layout, Ephemerals) → IO ()
 
-    - Interaction      :: Inputs → (View, Boundary) → Focus → (Granularity, MinSize) → Selector → EngiPref → (Modifiers, Focus, (Granularity, MinSize), Selector, EngiPref)
+    - Interaction :: Inputs → (View, Boundary) → Focus → (Granularity, MinSize) → Selector → EngiPref → (Modifiers, Focus, (Granularity, MinSize), Selector, EngiPref)
