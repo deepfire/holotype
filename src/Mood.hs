@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 -- {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -21,7 +22,8 @@ import Control.Wire (mkPure, mkId, stepWire, NominalDiffTime, mkSFN)
 import Control.Wire.Unsafe.Event (onEventM, Event(..))
 
 import Data.Maybe (fromMaybe)
-import Data.Set (Set, empty, elems, insert, delete, null, filter, intersection, fromList)
+import Data.Set (empty, elems, insert, delete, null, filter, intersection, fromList)
+import qualified Data.Set as DS
 
 import FRP.Netwire hiding (empty)
 
@@ -72,27 +74,32 @@ screenWidth, screenHeight   ∷ _
 (screenWidth, screenHeight) = (640, 480)
 
 
-newtype Inputs = Inputs (Set SDL.Scancode)
-data World =
-    World {
-      wInputs   ∷ Inputs
-    , wControls ∷ Controls
-    , wTotality ∷ Totality
-    -- , w
-    }
+newtype Inputs = Inputs (DS.Set SDL.Scancode)
+data World where
+    World ∷ {
+              wInputs   ∷ Inputs
+            , wControls ∷ Controls
+            , wTotality ∷ Totality
+            , wEngi     ∷ Engine
+            } → World
+
+construct_initial_world ∷ Controls → World
+construct_initial_world (ctls@Controls{..}) =
+    let
+    in World (Inputs empty) ctls (Totality []) $ erect_engi $ elect_engi cEngiPref (Just Carousel)
 
 initialWireInput ∷ (Inputs, World)
-initialWireInput = (Inputs empty, undefined)
+initialWireInput = (Inputs empty, construct_initial_world initial_controls)
 
 instance Sim World Inputs where
-    inputsOf     (World x _ _)  = x
-    trackKeyDown (Inputs s) k   = Inputs $ insert k s
-    trackKeyUp   (Inputs s) k   = Inputs $ delete k s
-    someKeyDown  (Inputs s)     = not $ null s
-    keyDown       k (Inputs s)  = not $ null $ filter ((== k)) s
+    inputsOf     (World x _ _ _)   = x
+    trackKeyDown (Inputs s) k      = Inputs $ insert k s
+    trackKeyUp   (Inputs s) k      = Inputs $ delete k s
+    someKeyDown  (Inputs s)        = not $ null s
+    keyDown       k (Inputs s)     = not $ null $ filter ((== k)) s
 
 render_world ∷ SDL.Renderer → World → IO ()
-render_world rend (World _ Controls{..} _) = do
+render_world rend (World _ Controls{..} _ _) = do
   SDL.setRenderDrawColor rend (V4 0 0 0 255)
   SDL.renderClear rend
   SDL.setRenderDrawColor rend (V4 255 255 255 255)
