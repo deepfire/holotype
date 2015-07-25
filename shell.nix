@@ -16,8 +16,8 @@ let
     buildDepends = oldAttrs.buildDepends ++ [ cabal-helper ghc.cereal ];
   });
   cabal-helper = pkgs.haskell.lib.overrideCabal ghc.cabal-helper (oldAttrs: {
-    version = "0.3.2.0";
-    sha256 = "06igjmr0n8418wid1pr74cgvlsmwni7ar72g9bddivlbxax1pfli";
+    version = "0.3.6.0";
+    sha256 = "1c6pdrq8ypy9halw6cqdasr0zdr0hdb76h66vs9g0qkqqbpgiyyq";
   });
 in with pkgs;
   (pkgs.haskell.lib.addBuildTools drv [
