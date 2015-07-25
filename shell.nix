@@ -6,18 +6,13 @@ let
   ghc  = pkgs.haskell.packages.${compiler};
   pkgf = import ./.;
   drv  = ghc.callPackage pkgf {};
-  ghc-mod      = pkgs.haskell.lib.overrideCabal ghc.ghc-mod (oldAttrs: {
+  ghci-ng      = nixpkgs.pkgs.haskell.lib.overrideCabal ghc.ghci-ng (oldAttrs: {
+    buildDepends = oldAttrs.buildDepends ++ [ ghc.syb ];
     src = pkgs.fetchgit {
-      url = https://github.com/kazu-yamamoto/ghc-mod;
-      rev = "247e4e0e7616fe1fecc68fdcf80d6249ac4cee4f";
-      sha256 = "2a23271d0e6907351a246f095040ba18c3ab6bf1cba08a14338d701defa55474";
-     };
-    # the new ghc mod also requires some new dependencies. Add them to buildDepends:
-    buildDepends = oldAttrs.buildDepends ++ [ cabal-helper ghc.cereal ];
-  });
-  cabal-helper = pkgs.haskell.lib.overrideCabal ghc.cabal-helper (oldAttrs: {
-    version = "0.3.6.0";
-    sha256 = "1c6pdrq8ypy9halw6cqdasr0zdr0hdb76h66vs9g0qkqqbpgiyyq";
+      url = https://github.com/chrisdone/ghci-ng.git;
+      rev = "738f66f3d1f1a3b7ba574fb9c83da793179a42c3";
+      sha256 = "03kz2ysmglgnhcbzw03wrgjsf8pmh87f1ajgvdny3rm2mbg37iig";
+    };
   });
 in with pkgs;
   (pkgs.haskell.lib.addBuildTools drv [
@@ -25,8 +20,7 @@ in with pkgs;
     ghc.halive
     ghc.hoogle-index
     ##
-    cabal-helper
-    ghc-mod
+    ghci-ng
     ##
     emacs git ltrace silver-searcher strace
   ]).env
