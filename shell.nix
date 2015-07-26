@@ -1,5 +1,5 @@
 { nixpkgs ? import <nixpkgs> {}
-, compiler ? "ghc7101"
+, compiler ? "ghcNokinds"
 }:
 let
   pkgs = nixpkgs.pkgs;

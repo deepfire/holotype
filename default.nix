@@ -1,6 +1,6 @@
 let
   pkgs = (import <nixpkgs> {}).pkgs;
-  ghc  = pkgs.haskell.packages.ghc7101;
+  ghc  = pkgs.haskell.packages.ghcNokinds;
   sdl2-newapi = pkgs.haskell.lib.overrideCabal ghc.sdl2 (oldAttrs: {
     buildDepends = oldAttrs.buildDepends ++ [ ghc.linear ghc.text ghc.vector ];
     src          = pkgs.fetchgit {
