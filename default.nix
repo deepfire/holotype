@@ -5,9 +5,9 @@ let
   sdl2-newapi = pkgs.haskell.lib.overrideCabal ghc.sdl2 (oldAttrs: {
     buildDepends = [ ghc.linear ghc.text ghc.vector ];
     src          = pkgs.fetchgit {
-      url    = https://github.com/haskell-game/sdl2;
-      rev    = "5c406b34c513615cbd3da1bb8ef60c1f465925c6";
-      sha256 = "13q9ic6d60qvbaqqcrrs1warj6nd30b38n4pm283j0dszv17vzkr";
+      url    = https://github.com/deepfire/sdl2;
+      rev    = "b1e4b1c4c504139c6bd444a6696f5c0dcaa16846";
+      sha256 = "0w4q2fjrmanysk7v3p420799ph5k1ngjvwdb30ma57pkxlx5j7il";
      };
   });
 in
