@@ -19,7 +19,7 @@ in with pkgs;
   (pkgs.haskell.lib.addBuildTools drv [
     ghc.cabal-install
     ghc.halive
-    ghc.hoogle-index
+    # ghc.hoogle-index
     ##
     ghci-ng
     ##
