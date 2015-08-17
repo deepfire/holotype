@@ -3,7 +3,8 @@
 }:
 let
   pkgs = nixpkgs.pkgs;
-  ghc  = pkgs.haskell.packages.${compiler};
+  ghc  = pkgs.haskellPackages;
+  # ghc  = pkgs.haskell.packages.${compiler};
   pkgf = import ./.;
   drv  = ghc.callPackage pkgf {};
   ghci-ng      = nixpkgs.pkgs.haskell.lib.overrideCabal ghc.ghci-ng (oldAttrs: {
