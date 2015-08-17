@@ -2,7 +2,7 @@ let
   pkgs = (import <nixpkgs> {}).pkgs;
   ghc  = pkgs.haskell.packages.ghcNokinds;
   sdl2-newapi = pkgs.haskell.lib.overrideCabal ghc.sdl2 (oldAttrs: {
-    buildDepends = oldAttrs.buildDepends ++ [ ghc.linear ghc.text ghc.vector ];
+    buildDepends = [ ghc.linear ghc.text ghc.vector ];
     src          = pkgs.fetchgit {
       url    = https://github.com/haskell-game/sdl2;
       rev    = "5c406b34c513615cbd3da1bb8ef60c1f465925c6";
