@@ -11,14 +11,14 @@ let
      };
   });
 in
-{ mkDerivation, base, base-unicode-symbols, containers, diagrams, linear, netwire, pkgconfig, stdenv, vector }:
+{ mkDerivation, base, base-unicode-symbols, containers, diagrams, linear, netwire, pkgconfig, reflection, stdenv, vector }:
 mkDerivation {
   pname        = "mood";
   version      = "0.0.1";
   src          = ./.;
   isLibrary    = false;
   isExecutable = true;
-  buildDepends = [ base base-unicode-symbols containers diagrams linear netwire pkgconfig sdl2-newapi vector
+  buildDepends = [ base base-unicode-symbols containers diagrams linear netwire pkgconfig reflection sdl2-newapi vector
                  ];
   description  = "Graph-backed visual mind assistant";
   license      = stdenv.lib.licenses.agpl3;
