@@ -50,28 +50,28 @@ module Types
     , List(..)
     ) where
 
-import Control.Monad (forM_)
-import Control.Wire hiding (Category)
+import           Control.Monad (forM_)
+import           Control.Wire hiding (Category)
 import qualified SDL
 
-import GHC.Prim (Constraint)
-import Data.Hashable
-import qualified Data.HashSet      as HS
+import           GHC.Prim (Constraint)
+import           Data.Hashable
+import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
-import Data.List (find)
+import           Data.List (find)
 
 import qualified Data.Time.Clock as Time
 
-import Linear hiding (trace)
-import Linear.Affine
+import           Linear hiding (trace)
+import           Linear.Affine
 
-import Text.Printf (printf)
+import           Text.Printf (printf)
 
-import Data.Typeable (cast)
+import           Data.Typeable (cast)
 
 
 -- Local imports
-import Ground
+import           Ground
 
 
 -- | Simulation
