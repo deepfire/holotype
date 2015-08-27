@@ -69,6 +69,8 @@ import           Text.Printf (printf)
 
 import           Data.Typeable (cast)
 
+import           Data.Reflection (Given(..), give)
+
 
 -- Local imports
 import           Ground
