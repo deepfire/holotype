@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Ground
+module Database.Mood.Ground
     (
     -- Ground types
       Scale(..), Posn(..), Aspect(..), Dim(..)

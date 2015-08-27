@@ -18,7 +18,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
-module Types
+module Database.Mood.Types
     (
     -- Simulation
       SimTime, SimWire
@@ -73,7 +73,7 @@ import           Data.Reflection (Given(..), give)
 
 
 -- Local imports
-import           Ground
+import           Database.Mood.Ground
 
 
 -- | Simulation
@@ -107,19 +107,19 @@ data CatName
     | Set
     deriving (Eq)
 
-type family   C a ∷ Constraint
-type instance C a = (Eq a, Show a)
-class C (EngiName a) ⇒ Category (a ∷ CatName) where
-    data Selector   a ∷ *
-    data Selection  a ∷ *
-    data Focus      a ∷ *
-    data View       a ∷ *
-    data EngiName   a ∷ *
-    select            ∷ Totality → Selector a → Selection a
-    -- elect_engi        ∷ a → EngiPref → Maybe (EngiName a) → Engine
-    validity_limit    ∷ Selection a → Maybe Time.NominalDiffTime
+type family   C c ∷ Constraint
+type instance C c = (Eq c, Show c)
+class C (EngiName cn) ⇒ Category (cn ∷ CatName) where
+    data Selector   cn ∷ *
+    data Selection  cn ∷ *
+    data Focus      cn ∷ *
+    data View       cn ∷ *
+    data EngiName   cn ∷ *
+    select             ∷ Totality → Selector cn → Selection cn
+    elect_engi         ∷ CatName → EngiPref → Maybe (EngiName cn) → Engine
+    validity_limit     ∷ Selection cn → Maybe Time.NominalDiffTime
 
-prefer_engi ∷ Category c ⇒ c → EngiPref → EngiName c → EngiName c
+prefer_engi ∷ Category cn ⇒ CatName → EngiPref → EngiName cn → EngiName cn
 prefer_engi cat (EngiPref xs) defname =
     case find (\(EPEntry (icat, ename)) → cat == icat) xs of
       Just (EPEntry (icat, ename)) → ename
@@ -131,7 +131,7 @@ prefer_engi cat (EngiPref xs) defname =
 data EngiPref where
     EngiPref ∷ [EPEntry] → EngiPref
 data EPEntry where
-    EPEntry ∷ Category a ⇒ a → EngiName a → EPEntry
+    EPEntry ∷ Category cn ⇒ CatName → EngiName cn → EPEntry
 
 -- Q: Why do we need our layouts be a typeclass?
 -- A: 1. Typeclass separation is a nice way to have methods.
