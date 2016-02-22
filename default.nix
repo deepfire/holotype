@@ -55,16 +55,16 @@ let
 in
 # ghc.callPackage
 # (
-#{ stdenv, mkDerivation, base, base-unicode-symbols, containers, diagrams, linear, netwire, pkgconfig, reflection, sdl2, vector }:
-{ stdenv, mkDerivation, base, base-unicode-symbols, containers,           linear, netwire, pkgconfig, reflection, sdl2, vector }:
+#{ stdenv, mkDerivation, base, base-unicode-symbols, containers, diagrams, hscolour, linear, netwire, pkgconfig, reflection, sdl2, vector }:
+{ stdenv, mkDerivation, base, base-unicode-symbols, containers,           hscolour, linear, netwire, pkgconfig, reflection, sdl2, vector }:
 mkDerivation {
   pname        = "mood";
   version      = "0.0.1";
   src          = ./.;
   isLibrary    = false;
   isExecutable = true;
-# buildDepends = [ base base-unicode-symbols containers diagrams linear netwire pkgconfig reflection sdl2 vector ];
-  buildDepends = [ base base-unicode-symbols containers          linear netwire pkgconfig reflection sdl2 vector ];
+# buildDepends = [ base base-unicode-symbols containers diagrams hscolour linear netwire pkgconfig reflection sdl2 vector ];
+  buildDepends = [ base base-unicode-symbols containers          hscolour linear netwire pkgconfig reflection sdl2 vector ];
   description  = "Graph-backed visual mind assistant";
   license      = stdenv.lib.licenses.agpl3;
 }

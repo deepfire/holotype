@@ -1,5 +1,18 @@
+{-|
+
+  Module      : Database.Mood.Types
+  Description : Type backbone of the Mood data modeling system.
+  Copyright   : (c) Kosyrev Serge, 2015
+
+  License     : AGPL-3
+  Maintainer  : _deepfire@feelingofgreen.ru
+  Stability   : experimental
+  Portability : POSIX
+
+  This is the type-level backbone of the Mood data modeling system.
+-}
+
 {-# LANGUAGE Arrows #-}
--- {-# LANGUAGE DeriveAnyClass #-} -- this breaks deriving Num for trivial newtypes
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -23,12 +36,20 @@ module Database.Mood.Types
     -- Simulation
       SimTime, SimWire
     , Sim(..)
+    -- * Introduction
+    -- $intro
 
-    -- Model
     , Totality(..)
+    -- * Abstraction of the data set
+
+    -- * Data element
     , ElementAPI(..), Element(..)
     , Category(..), EngiName(..), Engine(..)
     , Graph(..), Dag(..), Set(..)
+
+    -- * Data representation
+
+    -- * Data view & interface
     , Controls(..), initial_controls
     , Selector(..)
     , Selection(..)
@@ -36,7 +57,7 @@ module Database.Mood.Types
     , ViewArgs(..), MinSize(..), Granularity(..)
     , View(..)
 
-    -- Rendering
+    -- * Rendering
     , RenderContext(..)
 
     -- Engis
@@ -50,7 +71,69 @@ module Database.Mood.Types
     , List(..)
     ) where
 
-import           Control.Monad (forM_)
+{- $intro
+
+= Where
+
+  <https://github.com/deepfire/mood>
+
+= Screenshot
+
+  <<https://github.com/deepfire/mood pic or didn't happen>>
+
+= Model
+
+  Mood contains a model of data visualisation -- a pipeline:
+
+    - data source -- /a __temporary__ crude abstraction/ (via 'Totality')
+    - selection (via 'Selector', 'Selection')
+    - layout engine choice (via 'EngiName')
+    - visibility constraint computation
+    - viewport positioning
+    - viewport culling
+    - layout (@some monospace text@)
+    - rendering
+
+= Vocabulary
+
+  [@Data source@] …
+  [@Category@] …
+  [@Selection@] …
+  [@Engine@] …
+  [@Viewport@] …
+  [@View@] …
+  [@Layout@] …
+
+= TODO
+
+  1. Validate against <https://wiki.haskell.org/How_to_write_a_Haskell_program>.
+
+= Unused Haddock reference material
+
+@
+  f x = x + x
+@
+
+> g x = x * 42
+
+>>> fib 10
+55
+
+prop> a + b = b + a
+
+ A supplemental "Ground" module is used.
+
+-}
+
+-- Base imports
+import           Control.Monad            (forM_)
+import           Data.List                (find)
+import           Data.Typeable            (cast)
+import           Prelude.Unicode
+import           Text.Printf              (printf)
+
+
+-- External imports
 import           Control.Wire hiding (Category)
 import qualified SDL
 

@@ -1,3 +1,5 @@
+{-# OPTIONS_HADDOCK hide, prune, ignore-exports, not-home,  show-extensions #-}
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
