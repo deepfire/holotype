@@ -46,12 +46,27 @@ let
                 url    = https://github.com/haskell-game/sdl2.git;
                 rev    = "02a535bc44ddf1a520b5d0eada648b2801f94a32";
                 sha256 = "1y0prl6gllm8xsidq702n576vfd6xmib4v2kip0afpx6z6mnhgdm";
-		# url    = https://github.com/deepfire/sdl2;
+                # url    = https://github.com/deepfire/sdl2;
                 # rev    = "bb2c4b6b52b48497f3271fc880dd1a0b11623ef7";
                 # sha256 = "0fcirg3g2kd9d001hzz60mililp79l36prh0nqpcw0fzk5zzp9y2";
         };
       }));
       semigroupoids  = dontCheck (doJailbreak old.semigroupoids);
+      optparse-generic = ghc.callPackage ({ mkDerivation, base, optparse-applicative, system-filepath, text, transformers, void }:
+             mkDerivation {
+               pname = "optparse-generic";
+               version = "1.0.0";
+               src = pkgs.fetchgit {
+                 url    = https://github.com/Gabriel439/Haskell-Optparse-Generic-Library.git;
+                 rev    = "7fc59e05055e599919cda838a072032e2d94fdc8";
+                 sha256 = "0qdkncmn87dv31fsxmj49997v283wkrpj2ykk4b09wa570yjqyn9";
+               };
+               isLibrary = true;
+               isExecutable = false;
+               buildDepends = [ base optparse-applicative system-filepath text transformers void
+                              ];
+               license = stdenv.lib.licenses.gpl3;
+             }) {};
     };
   });
   pkgf = import ./.;

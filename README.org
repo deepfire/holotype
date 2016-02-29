@@ -11,7 +11,7 @@
 
   Why?
 
-  Because data entry, interning and recovery is harder that it could be.
+  Because data entry, interning and recovery is harder than it could be.
 
   <Name> is a general-purpose mind assistant, that is an attempt to change that.
 
@@ -25,6 +25,7 @@
 * UI tropes
 
   1. Arrows move
+     - +modifiers = ...
   2. Space pages
   3. Tab cycles state/mode
   4. Escape pops
@@ -88,8 +89,8 @@
 *** Phases, quick overview
 
     - Select                             :: filter stores through =Selector=, yield =Selection=
-    - Layout engine choice               :: through defaulting, or also triggered by user
-    - Visibility constraints computation :: engine decides on how much can be shown
+    - Presenter choice                   :: through defaulting, or also triggered by user
+    - Visibility constraint computation  :: engine decides on how much can be shown
     - Viewport positioning               :: engine decides how to place the view around focus
     - Viewport culling                   :: engine decides on what elements fit into the chosen view
     - Layout                             :: obtain what is already covered, cover what isn't, compose;  compute scene modifiers
@@ -97,20 +98,18 @@
 
 *** Functions, quick overview
 
-    - select         :: Category cat ⇒       Totality → Selector cat → Selection cat
-    - elect_engi     :: Category cat ⇒       EngiPref → Maybe (EngiName cat) → EngiName cat
-    - erect_engi     :: Engi cat eng ⇒       EngiName cat → eng
-    - compute_cull   :: Engi cat eng ⇒       eng → (Granularity, MinSize) → Cull eng
-    - place_viewport :: Engi cat eng ⇒       eng → Selection cat → Focus cat → Cull eng → Viewport eng
-    - cull_selection :: Engi cat eng ⇒       eng → Selection cat → ViewArgs → Viewport eng → (View cat, Boundary eng
-    - layout         :: Engi cat eng ⇒       eng → (View cat, Boundary eng) → (Layout eng, Ephemeral eng)
-    - render         :: RenderContext ren ⇒  ren → (View cat, Boundary eng) → (Layout eng, Ephemeral eng) → IO ()
-    - interact       :: InputSys is ⇒        is → (View cat, Boundary eng) → Affective → Affective
+    - select         :: Structure struc ⇒      Source → Selector struc → Selection struc
+    - compute_cull   :: Presenter struc eng ⇒  eng → (Granularity, MinSize) → Cull eng
+    - place_viewport :: Presenter struc eng ⇒  eng → Selection struc → Focus struc → Cull eng → Viewport eng
+    - cull_selection :: Presenter struc eng ⇒  eng → Selection struc → ViewArgs → Viewport eng → (View struc, Boundary eng
+    - layout         :: Presenter struc eng ⇒  eng → (View struc, Boundary eng) → (Layout eng, Ephemeral eng)
+    - render         :: RenderContext ren ⇒    ren → (View struc, Boundary eng) → (Layout eng, Ephemeral eng) → IO ()
+    - interact       :: InputSys is ⇒          is → (View struc, Boundary eng) → Affective → Affective
 
 *** Phases
 
-    - Select :: Totality → Selector → Selection
-      - What :: select from Totality
+    - Select :: Source → Selector → Selection
+      - What :: select from Source
       - =Selections= split into the following categories, by structure:
         - General graph
         - DAG (directed acyclic graph)
@@ -128,9 +127,9 @@
         - does it make sense for a selector to be non-specific about what it returns?
           - hard to say just yet, we need experience as guide
 
-    - Layout engine choice :: Selection → EngiPref → Engi
-      - =EngiPref= picks a specific =Engi=, compatible with the current
-        =Selection= category:
+    - Presenter choice :: Selection → PresPref → Presenter
+      - =PresPref= picks a specific =Presenter=, compatible with the current
+        =Selection= structure:
         - defaults to last used
         - size limits for non-partial-capable engines?
         - can be cycled through by a shortcut
@@ -149,12 +148,12 @@
       - Summing up, *fundamentally* we want:
         1. type classes for individual LEs, because it allows for a
            seriously neat organisation of code
-        2. multiple LEs associated with a category, because that's how
+        2. multiple LEs associated with a structure, because that's how
            the problem domain looks
         3. #1 gives that there isn't a monotype for a LE
 
-    - Visibility constraints computation :: Engi → (Granularity, MinSize) → Cull
-      - disconnected from elements -- deals with UI constraints projected onto a
+    - Visibility constraints computation :: Presenter → (Granularity, MinSize) → Cull
+      - disconnected from specific elements -- deals with UI constraints projected onto a
         specific layout engine:
         - for SideGraph and SideDag -- no idea, let practice guide us..
         - for space partitioning it's trivial -- granularity says it all
@@ -162,20 +161,20 @@
         - for a List -- how many rows
       - updated only rarely -- when the user changes the visualisation parameters
 
-    - Viewport positioning :: Engi → Selection → Focus → Cull → Viewport
+    - Viewport positioning :: Presenter → Selection → Focus → Cull → Viewport
       - How do we position a viewport?
         - If we don't have a focus, then it wouldn't make sense to have a viewport
-          - Pick a "first" element (maybeHead $ fromList set, f.e.)
+          - Pick a "first" element (maybeHead $ fromList set, e.g.)
         - If we don't have a viewport, generate one containing the focus
         - if we do have a viewport, and the focus is inside -- choice is upon the engine
         - if we the focus is outside, shift the viewport -- how exactly is upon the engine
       - The above exposes following questions:
         - what does "inside a viewport" mean?
         - how can we generate a viewport that is guaranteed to contain a focus?
-      - The answer seems to have the shape of a category-specific visibility
+      - The answer seems to have the shape of a structure-specific visibility
         constraint specifier -- a =Cull=.
 
-    - Viewport culling :: Engi → Selection → (Granularity, MinSize) → Viewport → (View, Boundary)
+    - Viewport culling :: Presenter → Selection → (Granularity, MinSize) → Viewport → (View, Boundary)
       - XXX: what's the story about half-visible objects?
         - select all intersecting, render more than what is showable?
       - XXX: what's the story about avoidable layout recomputation?
@@ -201,19 +200,19 @@
       - =Granularity= determines, for tree layouts, the maximum depth of
         subdivision, after which abbreviation is engaged
       - =MinSize= limits the minimum element size
-      - =Viewport= is specific to =Engi=:
+      - =Viewport= is specific to =Presenter=:
         - SideGraph: layout-global position
         - DownGraph: subroot node
         - DagList:   row offset
         - DagGrid:   row offset
-        - DagSpace:  vertical offset (?)
+        - DagSpace:  vertical offset (it's possible, because it's weighted space partitioning, but...?)
         - Carousel:  current selection
         - Grid:      row offset
         - List:      row offset
       - =View= is direct elements from =Selection=
       - =Boundary= is anchor points to the parts of =Selection= that fall outside the =Viewport=
 
-    - Layout :: Engi → (View, Boundary) → (Layout, Ephemerals)
+    - Layout :: Presenter → (View, Boundary) → (Layout, Ephemerals)
       - XXX: =Positions= what are they?
         - scene-specific structure and interpretation?
         - if not, global or screenspace?
@@ -227,4 +226,4 @@
 
     - Render :: RenderContext → (View, Boundary) → (Layout, Ephemerals) → IO ()
 
-    - Interaction :: Inputs → (View, Boundary) → Focus → (Granularity, MinSize) → Selector → EngiPref → (Modifiers, Focus, (Granularity, MinSize), Selector, EngiPref)
+    - Interaction :: Inputs → (View, Boundary) → Focus → (Granularity, MinSize) → Selector → PresPref → (Modifiers, Focus, (Granularity, MinSize), Selector, PresPref)
