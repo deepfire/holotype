@@ -5,6 +5,8 @@
 *.o
 *.o_p
 *.hi
+*.dyn*
+yt-request-*
 dist
 *.swp
 cabal-dev/
@@ -12,3 +14,6 @@ cabal-dev/
 .cabal-sandbox/
 cabal.sandbox.config
 nohup.out
+JSONTypes.hs
+
+*.csv
