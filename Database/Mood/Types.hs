@@ -44,20 +44,21 @@ module Database.Mood.Types
 
     -- * Data element
     , DatumAPI(..)
-    -- , Datum(..)
+    , Datum(..)
 
     -- -- * Data representation
-    -- , Structure(..)
+    , IKStructure(..), Structure(..)
 
     -- -- * Data view & interface
-    -- , PresName(..), Presenter(..)
-    -- -- , Graph(..), Dag(..), Set(..)
+    , InterfaceAPI(..)
+    , Presenter(..)
+    -- , Graph(..) --, Dag(..), Set(..)
     -- , Controls(..), initial_controls
-    -- , Selector(..)
     -- , Selection(..)
-    -- , Engi(..), Viewport(..), Boundary(..)
+    , Viewport(..)
+    -- , Boundary(..)
     -- , ViewArgs(..), MinSize(..), Granularity(..)
-    -- , View(..)
+    , View(..)
 
     -- -- * Rendering
     -- , RenderContext(..)
@@ -166,9 +167,6 @@ import           Data.Typeable            (cast)
 import           Prelude.Unicode
 import           Text.Printf              (printf)
 
-
-
-
 import           GHC.Exts (Constraint)
 import           GHC.Generics (Generic(..))
 
@@ -182,8 +180,6 @@ import qualified Data.HashSet      as HS
 import qualified Data.HashMap.Lazy as HM
 
 import qualified SDL
-
-import qualified Data.Time.Clock as Time
 
 import           Linear hiding (trace)
 import           Linear.Affine
@@ -214,11 +210,11 @@ A closed universe of possible data representations:
 
 data IKStructure = Graph | Dag | Tree | List | Set deriving (Eq, Show)
 data Structure (struc ∷ IKStructure) where
-  SGraph ∷ Structure Graph
-  SDag   ∷ Structure Dag
-  STree  ∷ Structure Tree
-  SList  ∷ Structure List
-  SSet   ∷ Structure Set
+    SGraph ∷ Structure Graph
+    SDag   ∷ Structure Dag
+    STree  ∷ Structure Tree
+    SList  ∷ Structure List
+    SSet   ∷ Structure Set
 data WStruct where
     WStruct ∷ Structure struc → WStruct
 instance Eq WStruct where

@@ -39,8 +39,9 @@ import System.Exit
 
 
 -- Local imports
-import Types
-import Utils
+import Database.Mood.Types
+import Database.Mood.Derivatives
+import Database.Mood.Utils
 
 
 main :: IO ()

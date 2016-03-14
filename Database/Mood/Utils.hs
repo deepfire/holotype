@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
-module Utils
+module Database.Mood.Utils
     (
      -- * Arrow
 
@@ -37,7 +37,8 @@ import qualified SDL as SDL
 
 import System.Exit
 
-import Types
+import Database.Mood.Types
+import Database.Mood.Derivatives
 
 
 --- Arrow
@@ -88,10 +89,10 @@ parseEvents i = do
   case event of
     Nothing
       → return i
-    Just e | (SDL.KeyboardEvent{..}) ← SDL.eventPayload e
-      → parseEvents $ if keyboardEventKeyMotion == SDL.KeyDown
-                      then trackKeyDown i $ SDL.keysymScancode keyboardEventKeysym
-                      else trackKeyUp   i $ SDL.keysymScancode keyboardEventKeysym
+    -- Just e | (SDL.KeyboardEvent{..}) ← SDL.eventPayload e
+    --   → parseEvents $ if keyboardEventKeyMotion == SDL.KeyDown
+    --                   then trackKeyDown i $ SDL.keysymScancode keyboardEventKeysym
+    --                   else trackKeyUp   i $ SDL.keysymScancode keyboardEventKeysym
     _
       → parseEvents $ i
 

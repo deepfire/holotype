@@ -33,8 +33,8 @@ import Debug.Trace (trace)
 import System.Exit
 
 
-import Types
-import Utils
+import Database.Mood.Types
+import Database.Mood.Utils
 
 
 stepper ∷ SDL.Window → SDL.Renderer → (String, Inputs) → Session IO SimTime → SimWire World (Bool, String) → IO ()
