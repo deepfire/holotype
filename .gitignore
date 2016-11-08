@@ -12,6 +12,7 @@ dist
 cabal-dev/
 .hsenv/
 .cabal-sandbox/
+.stack-work/
 cabal.sandbox.config
 nohup.out
 JSONTypes.hs
