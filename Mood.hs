@@ -33,6 +33,7 @@ import Linear.Affine
 import Text.Printf (printf)
 
 import qualified SDL as SDL
+import SDL (($=))
 
 import Debug.Trace (trace)
 import System.Exit
@@ -54,12 +55,7 @@ main = do
          SDL.createRenderer
             win
             (-1)
-            (SDL.RendererConfig
-                    { SDL.rendererAccelerated = False
-                    , SDL.rendererSoftware = False
-                    , SDL.rendererTargetTexture = False
-                    , SDL.rendererPresentVSync = False
-                    })
+            SDL.defaultRenderer
   SDL.showWindow win
 
   catchSDLFatally $ (simulator win rend initialWireInput clockSession_ simulation)
@@ -101,11 +97,11 @@ instance Sim World Inputs where
 
 render_world ∷ SDL.Renderer → World → IO ()
 render_world rend (World _ Controls{..} _ _) = do
-  SDL.setRenderDrawColor rend (V4 0 0 0 255)
-  SDL.renderClear rend
-  SDL.setRenderDrawColor rend (V4 255 255 255 255)
+  SDL.rendererDrawColor rend $= V4 0 0 0 255
+  SDL.clear rend
+  SDL.rendererDrawColor rend $= V4 255 255 255 255
   
-  SDL.renderPresent rend
+  SDL.present rend
 
 
 simulator ∷ SDL.Window → SDL.Renderer → (Inputs, World) → Session IO SimTime → SimWire (Inputs, World) (Bool, World) → IO ()
