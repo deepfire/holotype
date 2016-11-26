@@ -31,6 +31,20 @@
   4. Escape pops
   5. Return vs. C-Return -- a story of multi-line text input
 
+* Inspiration
+
+  - http://graphdrawing.org/
+    - 2010 ::
+      - doi:10.1007/978-3-642-18469-7
+      - http://www.graphdrawing.org/gd2010/accepted.html
+    - 2014 ::
+      - doi:10.1007/978-3-662-45803-7
+      - 
+    - 2015 :: http://www.csun.edu/gd2015/
+      - doi:10.1007/978-3-319-27261-0
+      - http://www.csun.edu/gd2015/accepted.htm
+    - 2016 :: https://arxiv.org/html/1609.02443v1
+
 * Visualisable qualities
 
   - Exhaustivity ::
