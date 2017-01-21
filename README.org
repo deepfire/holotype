@@ -48,38 +48,64 @@
 * Open questions
 
   - reliable ephemeral identification for tag overlays ::
-       There are sources we have no structural (or even mutation) control over.
+       How to pin overlaid metadata to source data -- there are sources we have no
+       structural (or even mutation) control over, so can't pin "within" the data.
+  - model does not cover data mutability :: 
 
-* Visual substrate
-*** START lambdacube-quake3
-***** DONE buildability
-***** TODO render a graph
-***** TODO interact with a graph
-* START Graph representation
+* Graph representation
 *** DONE DeltaGraph
 
     - source :: [[http://cs.binghamton.edu/~pdexter1/icfp-haskell2016-paper22.pdf][2016 Dexter, Liu, Chau - Lazy Graph Processing in Haskell]]
-    - not ready for consumption, according to authors
+    - conclusion :: not ready for consumption, according to authors
 
 *** DONE data-reify
 
     - source :: [[http://www.ittc.ku.edu/~andygill/papers/reifyGraph.pdf][2009 Gill - Type-Safe Observable Sharing in Haskell]]
-    - purpose :: discharging direct object references
+    - conclusion :: specific tool for discharging direct object references
 
-*** START Huet’s Zipper
+*** SORTA Huet’s Zipper
 
     - source :: [[http://www.cs.tufts.edu/~nr/pubs/zipcfg.pdf][2005 Ramsey, Dias - An Applicative Control-Flow Graph Based on Huet’s Zipper]]
     - source :: [[http://www.cs.tufts.edu/~nr/pubs/hoopl10.pdf][2010 Ramsey, Dias, Peyton Jones - Hoopl: A Modular, Reusable Library for Dataflow Analysis and Transformation]]
+    - key properties ::
+      - unclear improvement over simpler encoding
 
-*** START Lazy I/O and graphs: Winterfell to King's Landing
+*** SORTA Lazy I/O and graphs: Winterfell to King's Landing
 
     - source :: https://jaspervdj.be/posts/2017-01-17-lazy-io-graphs.html
-    - =unsafeInterleaveIO=-driven SQL peeking
-    - direct object references
+    - key properties ::
+      - =unsafeInterleaveIO=-driven SQL peeking
+      - direct object references
 
 *** TODO The Monad Reader #5 - Practical Graph Handling
 
     - source :: https://wiki.haskell.org/The_Monad.Reader/Issue5/Practical_Graph_Handling
+    - key properties ::
+
+*** Current best idea
+
+    A simple map of node ids to nodes.
+
+* Visual substrate
+*** START interactive development with halive
+    - [ ] fix https://github.com/lukexi/halive/issues/22
+*** START lambdacube-quake3
+***** DONE buildability
+***** START render a graph
+******* START specialize q3mapviewer
+        - [X] text rendering
+          - [X] +examine lambdacube offerings: there's none+
+          - [X] +http://zyghost.com/articles/Haskell-font-rendering-with-freetype2-and-opengl.html: freetype2 has no layout+
+          - [X] +https://hackage.haskell.org/package/SVGFonts: slow+
+          - [X] +https://hackage.haskell.org/package/FTGL: unmaintained+
+          - [X] find cmodern: [[~/Art/Assets/Fonts/]]
+          - [X] examine typesetting options: pretty much pangocairo, and nothing else.
+          - [ ] debug build of gi-pangocairo
+        - [ ] box and line drawing
+        - [-] environment assets
+          - [X] droning, [[~/Art/Assets/Audio/Loops/]]
+          - [ ] skybox
+***** TODO interact with a graph
 
 * Model of interaction
 *** START decide on a FRP implementation
@@ -107,7 +133,7 @@
       - meaningful views
     - metadata externality ::
       - local to data sources
-      - overlayed from specialized storage
+      - overlaid from specialized storage
 
 *** Types
 
@@ -128,6 +154,7 @@
             - org
           - graph files
             - graphml
+              - yEd graphml: find definition for https://github.com/tuura/pangraph/issues/7#issuecomment-273645083
             - vue
 
 * Visualisable qualities
@@ -188,7 +215,8 @@
 *** Phases, quick overview
 
     - Select                             :: filter stores through =Selector=, yield =Selection=
-    - Presenter choice                   :: through defaulting, or also triggered by user
+    - Choose presenting engine           :: emphasize user agency, deemphasize static rules like defaulting
+      - context?
     - Visibility constraint computation  :: engine decides on how much can be shown
     - Viewport positioning               :: engine decides how to place the view around focus
     - Viewport culling                   :: engine decides on what elements fit into the chosen view
