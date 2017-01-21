@@ -1,0 +1,39 @@
+* code
+
+  - main
+    - =pk3Data= ← loadPK3
+    - initWindow
+    - createLoadingScreen
+    - getFramebufferSize
+    - drawLoadingScreen
+    - =levelData= ← engineInit pk3Data fullBSPName
+    - forkIO forever do compileQuake3GraphicsCached
+    - =storage= ← allocStorage
+    - =graphicsData= ← setupStorage storage levelData
+    - =simpleRenderer= ← loadQuake3Graphics storage "SimpleGraphics.json"
+    - setStorage simpleRenderer storage
+    - =rendererRef= ← loadQuake3Graphics storage "SimpleGraphics.json"
+    - sc
+      - u ← =scene=
+	- =time=  ← stateful 0 (+)
+	- =last2= ← … mousePosition
+	- =mouseMove= = … last2
+	- =bsp= = getBSP levelData
+	- =p0= = … getSpawnPoints levelData
+	- =fblrPress'=
+	  - upEdge fblrPress
+	- =controlledCamera= ← userCamera (getTeleportFun levelData) bsp p0 mouseMove fblrPress'
+	- =frameCount= ← stateful (0 : Int) (\_ c -> c + 1)
+	- =capture= ← transfer2 f capturePress =<< delay False capturePress
+	- effectful3 =setupGFX=
+	  - updateRenderInput graphicsData (camPos,camTarget,camUp)
+	  - captureA
+      - =draw (captureA,debugRender)= u
+	- renderFrame
+	- captureA
+	- swapBuffers
+	- pollEvents
+    - driveNetwork sc $ 
+         (readInput compileRequest compileReady pplName rendererRef
+          storage win s mousePositionSink fblrPressSink capturePressSink
+          waypointPressSink capRef)
