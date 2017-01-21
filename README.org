@@ -93,13 +93,14 @@
 ***** DONE buildability
 ***** START render a graph
 ******* START specialize q3mapviewer
-        - [X] text rendering
+        - [-] text rendering
           - [X] +examine lambdacube offerings: there's none+
           - [X] +http://zyghost.com/articles/Haskell-font-rendering-with-freetype2-and-opengl.html: freetype2 has no layout+
           - [X] +https://hackage.haskell.org/package/SVGFonts: slow+
           - [X] +https://hackage.haskell.org/package/FTGL: unmaintained+
           - [X] find cmodern: [[~/Art/Assets/Fonts/]]
           - [X] examine typesetting options: pretty much pangocairo, and nothing else.
+          - [ ] https://hackage.haskell.org/cobbpg/lafonten: does it do layout?
           - [ ] debug build of gi-pangocairo
         - [ ] box and line drawing
         - [-] environment assets
