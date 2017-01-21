@@ -39,7 +39,7 @@
       - http://www.graphdrawing.org/gd2010/accepted.html
     - 2014 ::
       - doi:10.1007/978-3-662-45803-7
-      - 
+      -
     - 2015 :: http://www.csun.edu/gd2015/
       - doi:10.1007/978-3-319-27261-0
       - http://www.csun.edu/gd2015/accepted.htm
@@ -60,20 +60,20 @@
 * (To be) Displayable structures
 
   - Graphs ::
-    - Views :: 
-      - Z-axis :: 
-        - Classic side view :: 
+    - Views ::
+      - Z-axis ::
+        - Classic side view ::
              Needs root detection, for automatic layout.
-      - Arrow-aligned :: 
-        - Weighted partitioning :: 
+      - Arrow-aligned ::
+        - Weighted partitioning ::
 
   - Dags ::
-    - Views :: 
+    - Views ::
       - Z-axis :: inherited from Graphs
       - Y-axis :: inherited from Graphs
-      - Treeview, list entries, with duplication :: 
-      - Treeview, icon grid, with duplication :: 
-      - Treeview, space partitioning, ala Lamdu, with duplication :: 
+      - Treeview, list entries, with duplication ::
+      - Treeview, icon grid, with duplication ::
+      - Treeview, space partitioning, ala Lamdu, with duplication ::
     - Subsetting ::
       - Viewport ::
                    Arrow walker -- for nodes.
@@ -85,15 +85,15 @@
                    What cases need it, given a proper Viewport subsetter?
 
   - Sets ::
-    - Views :: 
-      - Carousel :: 
-      - Grid :: 
-      - List :: 
+    - Views ::
+      - Carousel ::
+      - Grid ::
+      - List ::
     - Subsetting ::
       - Viewport ::
                    Iterative refinement makes it useful.
                    Arrow walker -- for refinement elements and for.
-                   
+
       - Summary  ::
                    Extracting and exposing set structure.
       - Ellipsis ::
@@ -235,7 +235,7 @@
         - element focus visulalisation state:
           - scale change, to indicate foreground/background
 
-    - Change summary :: 
+    - Change summary ::
       - What effect did the last =Selector= change have?  Not always obvious.
 
     - Render :: RenderContext → (View, Boundary) → (Layout, Ephemerals) → IO ()
