@@ -1,5 +1,5 @@
-# -*- indent-tabs-mode: nil -*-
 #+startup: hidestars odd
+#+TODO: TODO(t) START(s) CODE(c) | SORTA(y) DONE(d) UPSTREAM(u)
 
 * About
 
@@ -44,6 +44,91 @@
       - doi:10.1007/978-3-319-27261-0
       - http://www.csun.edu/gd2015/accepted.htm
     - 2016 :: https://arxiv.org/html/1609.02443v1
+
+* Open questions
+
+  - reliable ephemeral identification for tag overlays ::
+       There are sources we have no structural (or even mutation) control over.
+
+* Visual substrate
+*** START lambdacube-quake3
+***** DONE buildability
+***** TODO render a graph
+***** TODO interact with a graph
+* START Graph representation
+*** DONE DeltaGraph
+
+    - source :: [[http://cs.binghamton.edu/~pdexter1/icfp-haskell2016-paper22.pdf][2016 Dexter, Liu, Chau - Lazy Graph Processing in Haskell]]
+    - not ready for consumption, according to authors
+
+*** DONE data-reify
+
+    - source :: [[http://www.ittc.ku.edu/~andygill/papers/reifyGraph.pdf][2009 Gill - Type-Safe Observable Sharing in Haskell]]
+    - purpose :: discharging direct object references
+
+*** START Huet’s Zipper
+
+    - source :: [[http://www.cs.tufts.edu/~nr/pubs/zipcfg.pdf][2005 Ramsey, Dias - An Applicative Control-Flow Graph Based on Huet’s Zipper]]
+    - source :: [[http://www.cs.tufts.edu/~nr/pubs/hoopl10.pdf][2010 Ramsey, Dias, Peyton Jones - Hoopl: A Modular, Reusable Library for Dataflow Analysis and Transformation]]
+
+*** START Lazy I/O and graphs: Winterfell to King's Landing
+
+    - source :: https://jaspervdj.be/posts/2017-01-17-lazy-io-graphs.html
+    - =unsafeInterleaveIO=-driven SQL peeking
+    - direct object references
+
+*** TODO The Monad Reader #5 - Practical Graph Handling
+
+    - source :: https://wiki.haskell.org/The_Monad.Reader/Issue5/Practical_Graph_Handling
+
+* Model of interaction
+*** START decide on a FRP implementation
+***** DONE Netwire
+
+      - I used to know it..
+      - no longer maintained -- author moved to =wires=
+
+***** TODO Elerea
+
+      - packaged into lambdacube-quake3
+
+***** TODO Wires
+
+      - the new library by =esoylemez=
+
+* Data sources
+*** Properties
+
+    - type ::
+      - structure
+      - identification across persistence
+	- only for metadata-external types, to enable tag overlays
+    - rendering ::
+      - meaningful views
+    - metadata externality ::
+      - local to data sources
+      - overlayed from specialized storage
+
+*** Types
+
+    - source types ::
+      - by structure ::
+	- tagged sets
+	- hierarchies
+	  - file system
+	- graphs
+    - element types ::
+      - by structure ::
+        - atomic :: (point with attributes)
+          - meta
+          - pdf
+          - media
+        - complex ::
+          - outlines
+            - org
+          - graph files
+            - graphml
+            - vue
 
 * Visualisable qualities
 
@@ -241,3 +326,9 @@
     - Render :: RenderContext → (View, Boundary) → (Layout, Ephemerals) → IO ()
 
     - Interaction :: Inputs → (View, Boundary) → Focus → (Granularity, MinSize) → Selector → PresPref → (Modifiers, Focus, (Granularity, MinSize), Selector, PresPref)
+
+* emacs options
+
+;; Local Variables:
+;; eval: (setf indent-tabs-mode nil org-todo-keyword-faces '(("TODO" . "#6c71c4") ("START" . "#2aa198") ("CODE" . "#6c71c4") ("SORTA" . "#268bd2") ("DONE" . "#073642") ("UPSTREAM" . "#268bd2")))
+;; End:
