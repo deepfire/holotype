@@ -1,0 +1,6 @@
+nix:
+  enable: false
+
+resolver: ghc-8.0.1
+packages:
+- '.'
