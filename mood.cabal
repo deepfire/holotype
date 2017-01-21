@@ -13,7 +13,7 @@ cabal-version:       >=1.10
 
 
 executable mood
-  hs-source-dirs:      mood
+  hs-source-dirs:      src
   main-is:             Mood.hs
   default-language:    Haskell2010
   

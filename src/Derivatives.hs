@@ -18,7 +18,7 @@
 {-# LANGUAGE UndecidableSuperClasses #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
-module Database.Mood.Derivatives
+module Derivatives
     (
      )
 where
@@ -36,8 +36,8 @@ import           Linear.V2 (V2(..))
 
 
 -- Local imports
-import Database.Mood.Ground
-import Database.Mood.Types
+import Ground
+import Types
 
 
 

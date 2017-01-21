@@ -34,7 +34,7 @@
 {-# LANGUAGE UndecidableSuperClasses #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
-module Database.Mood.Types
+module Types
     (
     -- * Introduction
     -- $intro
@@ -182,7 +182,7 @@ import           Linear.Affine
 
 
 -- Local imports
-import           Database.Mood.Ground
+import           Ground
 
 
 
