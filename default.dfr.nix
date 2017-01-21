@@ -6,7 +6,7 @@
 , pretty-show, process, proteaaudio, time, vect, vector, zlib
 #, youtrack
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
-, lambdacube-quake3, force-layout, hxt
+, lambdacube-quake3, force-layout, hxt, gi-cairo, gi-pango, gi-pangocairo
 }:
 mkDerivation {
   pname = "mood";
@@ -22,7 +22,7 @@ mkDerivation {
     time vect vector zlib
     # youtrack
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
-    lambdacube-quake3 force-layout hxt
+    lambdacube-quake3 force-layout hxt gi-cairo gi-pango gi-pangocairo
   ];
   executableHaskellDepends = [
     base bytestring containers directory elerea filepath GLFW-b
