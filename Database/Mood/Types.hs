@@ -172,14 +172,10 @@ import           GHC.Generics (Generic(..))
 
 
 -- External imports
-import           Control.Wire hiding (Structure)
-
 import           Data.Data
 import           Data.Hashable
 import qualified Data.HashSet      as HS
 import qualified Data.HashMap.Lazy as HM
-
-import qualified SDL
 
 import           Linear hiding (trace)
 import           Linear.Affine

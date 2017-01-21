@@ -20,9 +20,6 @@
 
 module Database.Mood.Derivatives
     (
-    -- Simulation
-      SimTime, SimWire
-    , Sim(..)
      )
 where
 
@@ -33,12 +30,9 @@ import           Prelude.Unicode
 
 
 -- External imports
-import           Control.Wire hiding (Category)
 import           Data.Hashable
 import qualified Data.Time.Clock as Time
 import           Linear.V2 (V2(..))
-
-import qualified SDL
 
 
 -- Local imports
@@ -46,17 +40,6 @@ import Database.Mood.Ground
 import Database.Mood.Types
 
 
--- | Simulation
-type SimTime     = (Timed NominalDiffTime ())
-type SimWire a b = Wire SimTime String IO a b
-
-class Sim w i | w → i, i → w where
-    inputsOf        ∷ w → i
-    --
-    trackKeyDown    ∷ i → SDL.Scancode → i
-    trackKeyUp      ∷ i → SDL.Scancode → i
-    someKeyDown     ∷ i → Bool
-    keyDown         ∷ SDL.Scancode → i → Bool
 
 
 
@@ -195,26 +178,6 @@ class InputSys a where
 class RenderContext a where
     to_pixels ∷ a → Posn → Dim Double → (V2 Integer, V2 Integer)
     draw_rect ∷ a → Posn → Dim Double → IO ()
-
-
--- | UI backend instances
-data SDLInput
-    = SDLInput
-
-instance InputSys SDLInput where
-
-data SDLRenderer
-    = SDLRenderer Aspect (V2 Double) SDL.Renderer
-
--- instance RenderContext SDLRenderer where
---     to_pixels (SDLRenderer aspect screen@(V2 scrW scrH) _) (Posn posn) size =
---         ( fmap floor $ screen * posn
---         , fmap floor $ case size of
---                          DimS scrSize          → screen * scrSize
---                          DimP (V2 propW propH) → V2 (scrW * propW) (scrH * propH * (realToFrac aspect)))
---     draw_rect r@(SDLRenderer _ _ rend) posn dim =
---         let (pixdim, pixpos) = to_pixels r posn dim
---         in SDL.drawRect rend $ Just $ SDL.Rectangle (P $ fmap fromIntegral pixpos) (fmap fromIntegral pixdim)
 
 
 -- | Layout engine instances
