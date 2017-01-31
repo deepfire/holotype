@@ -39,11 +39,7 @@ import Engine
 import GameEngine.Loader.Zip
 import qualified Data.ByteString.Char8 as SB8
 
-#ifdef CAPTURE
-import Codec.Image.DevIL
 import Text.Printf
-import Foreign
-#endif
 
 import Data.String.Utils hiding (join)
 
@@ -102,16 +98,6 @@ getDataGraphNodeList graph = map (getDataGraphNode graph ∘ fst) (nodes graph)
 
 type Sink a = a -> IO ()
 
-#ifdef CAPTURE
--- framebuffer capture function
-withFrameBuffer :: Int -> Int -> Int -> Int -> (Ptr Word8 -> IO ()) -> IO ()
-withFrameBuffer x y w h fn = allocaBytes (w*h*4) $ \p -> do
-    glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) GL_RGBA GL_UNSIGNED_BYTE $ castPtr p
-    fn p
-#endif
-
-captureRate :: Double
-captureRate = 30
 
 main :: IO ()
 main = do
@@ -127,10 +113,6 @@ main = do
     -- Example of what to do with the Graph: Print vertices
     -- print $ map ((\ (vid, _, _) → vid) . vertexMap) (DataGraph.vertices graph)
     print $ graphs
-
-#ifdef CAPTURE
-    ilInit
-#endif
 
     noPak0_pk3 <- null . filter (\n -> "pak0.pk3" == map toLower n) <$> getDirectoryContents "."
     when noPak0_pk3 $ die "Could not find pak0.pk3. See how to run: https://github.com/lambdacube3d/lambdacube-quake3/blob/master/README.md"
@@ -183,9 +165,9 @@ main = do
     graphicsData <- setupStorage pk3Data levelData storage
     putStrLn "storage created"
 
-    simpleRenderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
+    simpleRenderer <- fromJust <$> loadMoodGraphics storage "SimpleGraphics.json"
     setStorage simpleRenderer storage
-    rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
+    rendererRef <- newIORef =<< fromJust <$> loadMoodGraphics storage "SimpleGraphics.json"
 
     -- play level music
     -- case getMusicFile levelData of
@@ -201,24 +183,20 @@ main = do
 
     (mousePosition,mousePositionSink) <- external (0,0)
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False,False)
-    (capturePress,capturePressSink) <- external False
-    (waypointPress,waypointPressSink) <- external []
 
-    let draw (captureA,debugRender) = do
+    let draw debugRender = do
           if debugRender
             then renderFrame simpleRenderer
             else readIORef rendererRef >>= renderFrame
-          captureA
           swapBuffers win
           pollEvents
 
-    capRef <- newIORef False
     sc <- start $ do
-        u <- scene win levelData graphicsData mousePosition fblrPress capturePress waypointPress capRef
+        u <- scene win levelData graphicsData mousePosition fblrPress
         return $ (draw <$> u)
     s <- fpsState
     setTime 0
-    driveNetwork sc (readInput compileRequest compileReady pplName rendererRef storage win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
+    driveNetwork sc (readInput compileRequest compileReady pplName rendererRef storage win s mousePositionSink fblrPressSink)
 
     disposeRenderer =<< readIORef rendererRef
     putStrLn "storage destroyed"
@@ -232,7 +210,7 @@ edge s = transfer2 False (\_ cur prev _ -> cur && not prev) s =<< delay False s
 upEdge :: Signal Bool -> SignalGen p (Signal Bool)
 upEdge s = transfer2 False (\_ cur prev _ -> cur && prev == False) s =<< delay False s
 
-scene win levelData graphicsData mousePosition fblrPress capturePress waypointPress capRef = do
+scene win levelData graphicsData mousePosition fblrPress = do
     time <- stateful 0 (+)
     last2 <- transfer ((0,0),(0,0)) (\_ n (_,b) -> (b,n)) mousePosition
     let mouseMove = (\((ox,oy),(nx,ny)) -> (nx-ox,ny-oy)) <$> last2
@@ -244,46 +222,21 @@ scene win levelData graphicsData mousePosition fblrPress capturePress waypointPr
     controlledCamera <- userCamera (getTeleportFun levelData) bsp p0 mouseMove fblrPress'
 
     frameCount <- stateful (0 :: Int) (\_ c -> c + 1)
-    capture <- transfer2 False (\_ cap cap' on -> on /= (cap && not cap')) capturePress =<< delay False capturePress
     
-    {-
-    [clearWaypoints, setWaypoint, stopPlayback, startPlayback, incPlaybackSpeed, decPlaybackSpeed] <-
-        forM (zip [edge, edge, edge, edge, return, return] [0..]) $ \(process, i) -> process (fmap (!! i) waypointPress)
-
-    waypoints <- recordSignalSamples setWaypoint clearWaypoints ((\(camPos, targetPos, _, _) -> (camPos, targetPos)) <$> controlledCamera)
-    playbackSpeed <- transfer2 100 (\dt inc dec speed -> speed + 10*dt*(if inc then 1 else if dec then -1 else 0)) incPlaybackSpeed decPlaybackSpeed
-    splineCamera <- playbackCamera startPlayback stopPlayback playbackSpeed waypoints
-    let activeCamera = do
-            camData <- splineCamera
-            case camData of
-                Nothing -> controlledCamera
-                Just camData -> return camData
-    -}
     let activeCamera = controlledCamera
-    let setupGFX (camPos,camTarget,camUp,brushIndex) time (capturing,frameCount) = do
+    let setupGFX (camPos,camTarget,camUp,brushIndex) time frameCount = do
             (w,h) <- getFramebufferSize win
             -- hack
             let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
             noBSPCull <- keyIsPressed (Key'X)
             debugRender <- keyIsPressed (Key'C)
             updateRenderInput graphicsData (camPos,camTarget,camUp) w h time noBSPCull
-            {-
-            when (not $ null brushIndex) $ do
-              putStrLn $ "brush collision: " ++ show (map (getModelIndexFromBrushIndex levelData) brushIndex)
-            -}
-            let captureA = do
-#ifdef CAPTURE
-                  when capturing $ do
-                      glFinish
-                      withFrameBuffer 0 0 w h $ \p -> writeImageFromPtr (printf "frame%08d.jpg" frameCount) (h,w) p
-                  writeIORef capRef capturing
-#endif
-                  return ()
-            return (captureA,debugRender)
-    r <- effectful3 setupGFX activeCamera time ((,) <$> capture <*> frameCount)
+            return debugRender
+    r <- effectful3 setupGFX activeCamera time ((,) <$> pure False <*> frameCount)
     return r
 
-readInput compileRequest compileReady pplName rendererRef storage win s mousePos fblrPress capturePress waypointPress capRef = do
+
+readInput compileRequest compileReady pplName rendererRef storage win s mousePos fblrPress = do
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
     t <- maybe 0 id <$> getTime
     setTime 0
@@ -293,11 +246,8 @@ readInput compileRequest compileReady pplName rendererRef storage win s mousePos
 
     fblrPress =<< ((,,,,,) <$> keyIsPressed Key'A <*> keyIsPressed Key'W <*> keyIsPressed Key'S <*> keyIsPressed Key'D
                            <*> keyIsPressed Key'RightShift <*> keyIsPressed Key'Space)
-    capturePress =<< keyIsPressed Key'P
-    waypointPress =<< mapM keyIsPressed [Key'R,Key'E,Key'1,Key'2,Key'F,Key'G]
 
-    isCapturing <- readIORef capRef
-    let dt = if isCapturing then recip captureRate else realToFrac t
+    let dt = realToFrac t
 
     updateFPS s dt
 
