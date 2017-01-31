@@ -9,7 +9,9 @@
 yt-request-*
 dist
 *.swp
+*.cache
 *.ejc.*
+*.pk3
 cabal-dev/
 .hsenv/
 .cabal-sandbox/
