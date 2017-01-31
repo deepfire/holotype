@@ -93,21 +93,33 @@
 ***** DONE buildability
 ***** START render a graph
 ******* START specialize q3mapviewer
-        - [-] text rendering
+        - factored out ::
+          - [ ] facilitate semi-automated debugging of haskell package builds
+          - [ ] debug gtk-hs-examples/gi-gtk-demo-layout: https://github.com/haskell-gi/gi-gtk-examples/issues/3
+        - [X] text rendering
           - [X] +examine lambdacube offerings: there's none+
           - [X] +http://zyghost.com/articles/Haskell-font-rendering-with-freetype2-and-opengl.html: freetype2 has no layout+
           - [X] +https://hackage.haskell.org/package/SVGFonts: slow+
           - [X] +https://hackage.haskell.org/package/FTGL: unmaintained+
-          - [X] find cmodern: [[~/Art/Assets/Fonts/]]
+          - [X] +https://hackage.haskell.org/cobbpg/lafonten: does it do layout? no, it doesn't+
           - [X] examine typesetting options: pretty much pangocairo, and nothing else.
-          - [ ] https://hackage.haskell.org/cobbpg/lafonten: does it do layout?
-          - [ ] debug build of gi-pangocairo
+          - [X] find cmodern: [[~/Art/Assets/Fonts/]]
+          - [X] employ pango font rasterization/text layout mechanism
+            - [X] debug availability of gi-pangocairo
+              - see https://github.com/NixOS/nixpkgs/issues/21993#issuecomment-274287469
+            - [X] obtain a working example of font layout using pango/cairo/pangocairo
+        - [ ] integration
+          - [ ] fix intero+lambdacube-quake3
+          - [ ] get an idea of the lambdacube's pipeline
+            - [ ] study the overview: [[http://lambdacube3d.com/overview]]
+            - [ ] study -quake3's pipeline: [[file:~/src/lambdacube-quake3/lc/Graphics.lc]]
+          - [ ] overlay a translucent-background canvas atop the scene
+          - [ ] apply the pangocairo magic to the canvas
         - [ ] box and line drawing
         - [-] environment assets
           - [X] droning, [[~/Art/Assets/Audio/Loops/]]
           - [ ] skybox
 ***** TODO interact with a graph
-
 * Model of interaction
 *** START decide on a FRP implementation
 ***** DONE Netwire
