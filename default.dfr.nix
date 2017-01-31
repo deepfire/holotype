@@ -3,10 +3,10 @@
 , bytestring-trie, containers, data-binary-ieee754, deepseq, digest
 , directory, elerea, filepath, GLFW-b, JuicyPixels
 , microlens-platform, MissingH, MonadRandom, OpenGLRaw
-, pretty-show, process, proteaaudio, time, vect, vector, zlib
+, pretty-show, process, proteaaudio, time, transformers, vect, vector, zlib
 #, youtrack
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
-, lambdacube-quake3, force-layout, hxt, gi-cairo, gi-pango, gi-pangocairo
+, lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo, gi-gtk, gi-gdk
 }:
 mkDerivation {
   pname = "mood";
@@ -19,10 +19,10 @@ mkDerivation {
     aeson attoparsec base base-unicode-symbols binary bytestring bytestring-trie containers
     data-binary-ieee754 deepseq digest directory filepath JuicyPixels
     microlens-platform MissingH MonadRandom pretty-show process
-    time vect vector zlib
+    time transformers vect vector zlib
     # youtrack
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
-    lambdacube-quake3 force-layout hxt gi-cairo gi-pango gi-pangocairo
+    lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo gi-gtk gi-gdk
   ];
   executableHaskellDepends = [
     base bytestring containers directory elerea filepath GLFW-b

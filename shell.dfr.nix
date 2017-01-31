@@ -4,16 +4,38 @@
 , ghcOrig     ? pkgs.haskell.packages.${compiler}
 }:
 let
-  hubsrc    =      repo: rev: sha256:        pkgs.fetchgit { url = "https://github.com/" + repo; rev = rev; sha256 = sha256; };
-  overhub   = old: repo: rev: sha256: xargs: pkgs.haskell.lib.overrideCabal old (oldAttrs: { src = hubsrc repo rev sha256; }       // xargs);
-  overcabal = old: version:   sha256: xargs: pkgs.haskell.lib.overrideCabal old (oldAttrs: { version = version; sha256 = sha256; } // xargs);
+  overcabal = pkgs.haskell.lib.overrideCabal;
+  hubsrc    =      repo: rev: sha256:       pkgs.fetchgit { url = "https://github.com/" + repo; rev = rev; sha256 = sha256; };
+  overc     = old:                    args: overcabal old (oldAttrs: (oldAttrs // args));
+  overhub   = old: repo: rev: sha256: args: overc old ({ src = hubsrc repo rev sha256; }       // args);
+  overhage  = old: version:   sha256: args: overc old ({ version = version; sha256 = sha256; } // args);
 
   ghc       = ghcOrig.override (oldArgs: {
     overrides = with haskell.lib; new: old:
     let parent = (oldArgs.overrides or (_: _: {})) new old;
     in with new; parent // {
       halive = overhub   old.halive "lukexi/halive" "e9011910d326a5036f447e4f733235a86dd1987f" "149wdrm07b41d19wjw1hp2xhbb55a2x8ydz6nm9jl281wl8dc6xa" { doCheck = false; };
-      elerea = overcabal old.elerea                                                    "2.8.0" "1sc71775f787dh70ay9fm6x6npsn81yci9yr984ai87ddz023sab" {};
+      elerea = overhage  old.elerea                                                    "2.8.0" "1sc71775f787dh70ay9fm6x6npsn81yci9yr984ai87ddz023sab" {};
+      haskell-gi = old.haskell-gi_0_20;
+      haskell-gi-base = old.haskell-gi-base_0_20;
+      gi-atk = old.gi-atk_2_0_11;
+      gi-gobject = old.gi-gobject_2_0_11;
+      gi-cairo = old.gi-cairo_1_0_11;
+      gi-gdk = old.gi-gdk_3_0_11;
+      gi-gio = old.gi-gio_2_0_11;
+      gi-gdkpixbuf = old.gi-gdkpixbuf_2_0_11;
+      gi-glib = old.gi-glib_2_0_11;
+      gi-gtk = old.gi-gtk_3_0_11;
+      gi-pango = old.gi-pango_1_0_11;
+      gi-pangocairo = overrideCabal (old.gi-pangocairo.overrideScope (self: super: {
+      })) (old: with pkgs; {
+        libraryPkgconfigDepends = [ pango.dev cairo gobjectIntrospection ];
+        preConfigure = ''export HASKELL_GI_GIR_SEARCH_PATH=${pango.dev}/share/gir-1.0'';
+        preCompileBuildDriver = ''
+          PKG_CONFIG_PATH+=":${pango.dev}/lib/pkgconfig:${cairo}/lib/pkgconfig"
+          setupCompileFlags+=" $(pkg-config --libs pangocairo cairo-gobject)"
+        '';
+      });
       lambdacube-quake3 =
       new.mkDerivation {
         pname = "lambdacube-quake3";
