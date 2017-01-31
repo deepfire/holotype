@@ -12,6 +12,9 @@ dist
 *.cache
 *.ejc.*
 *.pk3
+*.wav
+*.pdf
+*.graphml
 cabal-dev/
 .hsenv/
 .cabal-sandbox/
