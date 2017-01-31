@@ -18,6 +18,11 @@ module Engine
 
 import Control.Monad
 import Data.Char
+import Data.Digest.CRC32
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
+import qualified Data.Set as Set
+import qualified Data.Vector as V
 import Data.List (isPrefixOf,partition,isInfixOf,elemIndex)
 import Data.Maybe
 import Data.Vect
@@ -84,6 +89,90 @@ type EngineGraphics =
   , [(Float, SetterFun TextureData, V.Vector TextureData)]
   )
 
+createMoodRenderInfo :: Map FilePath CommonAttrs -> HashSet FilePath -> HashSet FilePath -> (PipelineSchema, Map FilePath CommonAttrs)
+createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTexSlot) where
+  mkShader hasLightmap n = case Map.lookup n shMap' of
+    Just s -> (n,s)
+    Nothing -> let alias = dropExtension n in case Map.lookup alias shMap' of
+      Just s -> (alias,s)
+      Nothing -> (n,imageShader hasLightmap n)
+
+  imageShader hasLightmap txName = defaultCommonAttrs {caStages = sa:if hasLightmap then saLM:[] else []} where
+    sa = defaultStageAttrs
+        { saTexture     = ST_Map txName
+        , saBlend       = Nothing
+        , saTCGen       = TG_Base
+        , saDepthWrite  = True
+        , saRGBGen      = RGB_IdentityLighting
+        }
+    saLM = defaultStageAttrs
+        { saTexture = ST_Lightmap
+        , saBlend   = Just (B_DstColor,B_Zero)
+        , saTCGen   = TG_Lightmap
+        , saRGBGen  = RGB_IdentityLighting
+        }
+
+  shMap = Map.fromList [mkShader True n | n <- HashSet.toList levelMaterials] `Map.union`
+          Map.fromList [mkShader False n | n <- HashSet.toList modelMaterials]
+
+  shMapTexSlot = mangleCA <$> shMap
+    where
+      mangleStageTex stageTex = "Tex_" ++ show (crc32 $ SB.pack $ show stageTex)
+      mangleCA ca = ca {caStages = mangleSA <$> caStages ca}
+      mangleSA sa = sa {saTextureUniform = mangleStageTex sa}
+
+  textureUniforms = Set.toList . Set.fromList . concat . map name . concat . map caStages $ Map.elems shMapTexSlot
+    where
+      name s = [saTextureUniform s]
+      {-
+      name s = case saTexture s of
+        ST_Map n        -> [n]
+        ST_ClampMap n   -> [n]
+        ST_AnimMap _ n  -> [head n]
+        ST_Lightmap     -> ["LightMap"]
+        ST_WhiteImage   -> []
+
+      -}
+  quake3SlotSchema =
+    ObjectArraySchema Triangles $ Map.fromList
+      [ ("color",       Attribute_V4F)
+      , ("diffuseUV",   Attribute_V2F)
+      , ("normal",      Attribute_V3F)
+      , ("position",    Attribute_V3F)
+      , ("lightmapUV",  Attribute_V2F)
+      ]
+
+  debugSlotSchema =
+    ObjectArraySchema Triangles $ Map.fromList
+      [ ("position",    Attribute_V3F)
+      , ("color",       Attribute_V4F)
+      ]
+
+  inputSchema = {-TODO-}
+    PipelineSchema
+    { objectArrays = Map.fromList $ ("CollisionShape",debugSlotSchema) : zip ("LightMapOnly":"missing shader": Map.keys shMap) (repeat quake3SlotSchema)
+    , uniforms = Map.fromList $ [ ("viewProj",      M44F)
+                                , ("worldMat",      M44F)
+                                , ("viewMat",       M44F)
+                                , ("orientation",   M44F)
+                                , ("viewOrigin",    V3F)
+                                , ("entityRGB",     V3F)
+                                , ("entityAlpha",   Float)
+                                , ("identityLight", Float)
+                                , ("time",          Float)
+                                , ("LightMap",      FTexture2D)
+                                , ("Noise",                FTexture2D)
+                                , ("SinTable",             FTexture2D)
+                                , ("SquareTable",          FTexture2D)
+                                , ("SawToothTable",        FTexture2D)
+                                , ("InverseSawToothTable", FTexture2D)
+                                , ("TriangleTable",        FTexture2D)
+                                , ("origin",    V3F)
+                                -- Mood
+                                , ("graphNode",     FTexture2D)
+                                ] ++ zip textureUniforms (repeat FTexture2D)
+    }
+
 -- TODO
 engineInit :: Map String Entry -> FilePath -> IO (PipelineSchema, EngineContent)
 engineInit pk3Data fullBSPName = do
@@ -141,7 +230,7 @@ engineInit pk3Data fullBSPName = do
 
     let levelMaterials = HashSet.fromList . Set.toList $ Set.map SB.unpack shNames
         modelMaterials = HashSet.fromList . Set.toList $ Set.map SB.unpack (md3Materials `Set.union` characterSkinMaterials)
-        (inputSchema,shMapTexSlot) = createRenderInfo shMap levelMaterials modelMaterials
+        (inputSchema,shMapTexSlot) = createMoodRenderInfo shMap levelMaterials modelMaterials
     --putStrLn $ "all materials:  " ++ show (Map.size shMap')
     --putStrLn $ "used materials: " ++ show (Map.size shMap)
     --putStrLn $ "texture uniforms: \n" ++ ppShow textureUniforms
