@@ -158,7 +158,7 @@ main = do
     swapBuffers win
     pollEvents
 
-    initAudio 64 44100 1024
+    -- initAudio 64 44100 1024
 
     (inputSchema,levelData) <- engineInit pk3Data fullBSPName
 
@@ -188,20 +188,16 @@ main = do
     rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
 
     -- play level music
-    case getMusicFile levelData of
-      Nothing -> return ()
-      Just musicFName' -> let musicFName = map f musicFName'
-                              f '\\' = '/'
-                              f c = c
-                          in case Map.lookup musicFName pk3Data of
-        Nothing -> return ()
-        Just e -> do
-          buf <- readEntry e
-          -- load from memory buffer
-          smp' <- case takeExtension musicFName of
-           ".ogg" -> SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryOgg p i 1
-           ".wav" -> SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryWav p i 1
-          soundPlay smp' 1 1 0 1
+    -- case getMusicFile levelData of
+    -- let musicFName = "assets/audio/erokia-ambient-wave-12-stretched.wav" :: String
+    -- buf <- SB8.readFile musicFName
+    -- -- load from memory buffer
+    -- smp' <- case takeExtension musicFName of
+    --  ".ogg" -> SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryOgg p i 1
+    --  ".wav" -> do
+    --    printf "read music WAV %s\n" musicFName
+    --    SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryWav p i 1
+    -- soundPlay smp' 1.0 1.0 0.0 1.0
 
     (mousePosition,mousePositionSink) <- external (0,0)
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False,False)
