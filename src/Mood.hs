@@ -172,6 +172,37 @@ getDataGraphNodeList graph = map (getDataGraphNode graph ∘ fst) (nodes graph)
 
 type Sink a = a -> IO ()
 
+lc_q3_cache = ".lc_q3.cache" -- local cache: generated files, compiled pipelines are stored here
+q3shader_cache = lc_q3_cache </> "q3shader.cache"
+timeDiff m = (\s x e -> (diffUTCTime e s, x))
+  <$> getCurrentTime
+  <*> m
+  <*> getCurrentTime
+showTime delta
+    | t > 1e-1  = printf "%.3fs" t
+    | t > 1e-3  = printf "%.1fms" (t/1e-3)
+    | otherwise = printf "%.0fus" (t/1e-6)
+  where
+    t = realToFrac delta :: Double
+printTimeDiff message m = do
+  (t,r) <- timeDiff m
+  putStr message
+  putStrLn $ showTime t
+  return r
+
+loadMoodGraphics :: GLStorage -> String -> IO (Maybe GLRenderer)
+loadMoodGraphics storage name = do
+    putStrLn $ "load " ++ name
+    let localName  = "lc" </> name
+        paths = [lc_q3_cache </> name,localName]
+    validPaths <- filterM doesFileExist paths
+    when (null validPaths) $ fail $ name ++ " is not found in " ++ show paths
+    renderer <- printTimeDiff "allocate pipeline..." $ do
+      eitherDecode <$> LB.readFile (head validPaths) >>= \case
+        Left err -> fail err
+        Right ppl -> allocRenderer ppl
+    printTimeDiff "setStorage..." $ setStorage renderer storage
+    return $ Just renderer
 
 main :: IO ()
 main = do
