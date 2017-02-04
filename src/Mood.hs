@@ -287,7 +287,8 @@ main = do
     -- soundPlay smp' 1.0 1.0 0.0 1.0
 
     (mousePosition,mousePositionSink) <- external (0,0)
-    (fblrPress,fblrPressSink) <- external (False,False,False,False,False,False)
+    (fblrPress,fblrPressSink)     <- external (False,False,False,False,False,False)
+    (canvasPress,canvasPressSink) <- external (False,False,False,False,False)
 
     let draw debugRender = do
           if debugRender
@@ -297,11 +298,11 @@ main = do
           pollEvents
 
     sc <- start $ do
-        u <- scene win levelData graphicsData mousePosition fblrPress
+        u <- scene win levelData graphicsData mousePosition fblrPress canvasPress
         return $ (draw <$> u)
     s <- fpsState
     setTime 0
-    driveNetwork sc (readInput compileRequest compileReady pplName rendererRef storage win s mousePositionSink fblrPressSink)
+    driveNetwork sc (readInput compileRequest compileReady pplName rendererRef storage win s mousePositionSink fblrPressSink canvasPressSink)
 
     disposeRenderer =<< readIORef rendererRef
     putStrLn "storage destroyed"
@@ -315,9 +316,14 @@ edge s = transfer2 False (\_ cur prev _ -> cur && not prev) s =<< delay False s
 upEdge :: Signal Bool -> SignalGen p (Signal Bool)
 upEdge s = transfer2 False (\_ cur prev _ -> cur && prev == False) s =<< delay False s
 
-scene win levelData graphicsData mousePosition fblrPress = do
+scene :: Window -> Engine.EngineContent -> Engine.EngineGraphics
+      -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool, Bool) -> Signal (Bool, Bool, Bool, Bool, Bool)
+      -> SignalGen Float (Signal Bool)
+scene win levelData graphicsData mousePosition fblrPress canvasPress = do
     time <- stateful 0 (+)
-    last2 <- transfer ((0,0),(0,0)) (\_ n (_,b) -> (b,n)) mousePosition
+    last2           <- transfer ((0,0),(0,0))  (\_ n (_,b) ->                (b,n)) mousePosition
+    lastCanvasPress <- transfer ((False, False, False, False, False), (False, False, False, False, False))
+                                (\_ kn (_,ko) -> (ko,kn)) canvasPress
     let mouseMove = (\((ox,oy),(nx,ny)) -> (nx-ox,ny-oy)) <$> last2
         bsp = getBSP levelData
         p0 = head . drop 1 . cycle $ getSpawnPoints levelData
@@ -325,23 +331,27 @@ scene win levelData graphicsData mousePosition fblrPress = do
       j' <- upEdge $ (\(w,a,s,d,t,j) -> j) <$> fblrPress
       return $ (\(w,a,s,d,t,_) j' -> (w,a,s,d,t,j')) <$> fblrPress <*> j'
     controlledCamera <- userCamera (getTeleportFun levelData) bsp p0 mouseMove fblrPress'
+    canvas           <- canvas canvasPress
 
     frameCount <- stateful (0 :: Int) (\_ c -> c + 1)
     
     let activeCamera = controlledCamera
-    let setupGFX (camPos,camTarget,camUp,brushIndex) time frameCount = do
+    let setupGFX (camPos,camTarget,camUp,brushIndex) canvasSitu@(cvori, cvpos) time ((ko1,ko2,ko3,ko4,ko5),(kn1,kn2,kn3,kn4,kn5)) = do
             (w,h) <- getFramebufferSize win
             -- hack
             let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
-            noBSPCull <- keyIsPressed (Key'X)
+                kdown ko kn = ko && not kn
+            -- noBSPCull <- keyIsPressed (Key'X)
             debugRender <- keyIsPressed (Key'C)
-            updateRenderInput graphicsData (camPos,camTarget,camUp) w h time noBSPCull
+            updateRenderInput graphicsData (camPos,camTarget,camUp) w h time canvasSitu
+            when (kdown ko1 kn1 || kdown ko2 kn2 || kdown ko3 kn3 || kdown ko4 kn4 || kdown ko5 kn5) $ do
+              printf "orient: %s, pos %s\n" (show cvori) (show cvpos)
             return debugRender
-    r <- effectful3 setupGFX activeCamera time ((,) <$> pure False <*> frameCount)
+    r <- effectful4 setupGFX activeCamera canvas time lastCanvasPress
     return r
 
 
-readInput compileRequest compileReady pplName rendererRef storage win s mousePos fblrPress = do
+readInput compileRequest compileReady pplName rendererRef storage win s mousePos fblrPress canvasPress = do
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
     t <- maybe 0 id <$> getTime
     setTime 0
@@ -351,6 +361,8 @@ readInput compileRequest compileReady pplName rendererRef storage win s mousePos
 
     fblrPress =<< ((,,,,,) <$> keyIsPressed Key'A <*> keyIsPressed Key'W <*> keyIsPressed Key'S <*> keyIsPressed Key'D
                            <*> keyIsPressed Key'RightShift <*> keyIsPressed Key'Space)
+
+    canvasPress =<< ((,,,,) <$> keyIsPressed Key'X <*> keyIsPressed Key'Y <*> keyIsPressed Key'Z <*> keyIsPressed Key'LeftShift <*> keyIsPressed Key'LeftAlt)
 
     let dt = realToFrac t
 

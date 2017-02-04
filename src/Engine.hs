@@ -14,6 +14,8 @@ module Engine
   , getModelIndexFromBrushIndex
   , getTeleportFun
   , getMusicFile
+  --
+  , EngineContent, EngineGraphics
   ) where
 
 import Control.Monad
@@ -56,6 +58,7 @@ import GameEngine.Graphics.Frustum
 import GameEngine.Graphics.Storage
 import GameEngine.Graphics.BSP
 import GameEngine.Graphics.MD3
+import GameEngine.Loader.MD3
 import GameEngine.Loader.BSP
 import GameEngine.Loader.Zip
 import GameEngine.Utils
@@ -303,7 +306,9 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
 
     lcMD3Objs <- concat <$> forM md3Objs addMD3Obj
 
-    lcMD3Weapon <- addMD3 storage (fromJust $ Map.lookup (SB.pack handWeapon) md3Map) mempty ["worldMat","viewProj"]
+    chunk <- loadMD3 "./chunk.md3"
+    let weapon_model = chunk -- (fromJust $ Map.lookup (SB.pack handWeapon) md3Map)
+    lcMD3Weapon <- addMD3 storage weapon_model mempty ["worldMat","viewProj"]
 
     -- add characters
     lcCharacterObjs <- forM characterObjs
@@ -319,8 +324,8 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex)
 
 -- TODO
-updateRenderInput :: EngineGraphics -> (Vec3, Vec3, Vec3) -> Int -> Int -> Float -> Bool -> IO ()
-updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex) (camPos,camTarget,camUp) w h time noBSPCull = do
+updateRenderInput :: EngineGraphics -> (Vec3, Vec3, Vec3) -> Int -> Int -> Float -> (Vec3, Vec3) -> IO ()
+updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex) (camPos,camTarget,camUp) w h time (Vec3 cvx cvy cvz, cvpos) = do
             let slotU = uniformSetter storage
 
             let matSetter   = uniformM44F "viewProj" slotU
@@ -329,10 +334,12 @@ updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,
                 viewMat     = uniformM44F "viewMat" slotU
                 timeSetter  = uniformFloat "time" slotU
 
-            let cm = fromProjective (lookat camPos camTarget camUp)
-                pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
-                sm = fromProjective (scaling $ Vec3 s s s)
+            let cm = fromProjective (lookat camPos camTarget camUp)                             -- camera orientation transform
+                pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h) -- perspective matrix
+                sm = fromProjective (scaling $ Vec3 s s s)                                      -- scale matrix
+                smcanvas = fromProjective (scaling $ Vec3 scanvas scanvas scanvas)              -- scale matrix
                 s  = 0.005
+                scanvas  = 0.1
                 --V4 orientA orientB orientC _ = mat4ToM44F $! cm .*. sm
                 Vec3 cx cy cz = camPos
                 near = 0.00001/s
@@ -351,9 +358,10 @@ updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,
 
             let invCM = mat4ToM44F $ idmtx -- inverse cm .*. (fromProjective $ translation (Vec3 0 (0) (-30)))
                 --rot = fromProjective $ rotationEuler (Vec3 (-pi/2+30/pi*2) (pi/2) (-pi))
-                rot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixX (-pi/2) .*. rotMatrixY (pi/2) .*. rotMatrixX (10/pi*2)
+                -- rot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixX (-pi/2) .*. rotMatrixY (pi/2) .*. rotMatrixX (10/pi*2)
+                rot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixZ cvz .*. rotMatrixY cvy .*. rotMatrixX cvx
             forM_ (md3instanceObject lcMD3Weapon) $ \obj -> do
-              uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! rot .*. (fromProjective $ translation (Vec3 3 (-10) (-5))) .*. sm .*. pm
+              uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! rot .*. (fromProjective $ translation cvpos) .*. smcanvas -- .*. pm
               uniformM44F "worldMat" (objectUniformSetter obj) invCM
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
               forM_ (md3instanceObject lcmd3) $ \obj -> do
@@ -448,6 +456,7 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
               setMD3Frame uLC torsoFrame
               setMD3Frame lLC legFrame
 
+            -- ???: what does this do?
             forM_ animTex $ \(animTime,texSetter,v) -> do
               let (_,i) = properFraction (time / animTime)
                   idx = floor $ i * fromIntegral (V.length v)
@@ -455,8 +464,10 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
             setScreenSize storage (fromIntegral w) (fromIntegral h)
             -- TODO
             let idmtx = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
+            -- ???: why is this needed?
             V.forM_ surfaceObjs $ \objs -> forM_ objs $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) idmtx
-            case noBSPCull of
-              True  -> V.forM_ surfaceObjs $ \objs -> forM_ objs $ \obj -> enableObject obj True
-              False -> cullSurfaces bsp camPos frust surfaceObjs
+            -- case noBSPCull of
+            --   True  -> V.forM_ surfaceObjs $ \objs -> forM_ objs $ \obj -> enableObject obj True
+            --   False -> cullSurfaces bsp camPos frust surfaceObjs
+            cullSurfaces bsp camPos frust surfaceObjs
             return ()

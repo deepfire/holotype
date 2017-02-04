@@ -9,26 +9,58 @@ import FRP.Elerea.Param
 import GameEngine.Collision
 import GameEngine.Data.BSP
 
+canvas :: Signal (Bool, Bool, Bool, Bool, Bool) -> SignalGen Float (Signal (Vec3, Vec3))
+canvas canvasPress = transfer (Vec3 0 0 0, Vec3 (0) (0) (0)) calcCanvas canvasPress
+  where
+    calcCanvas :: Float -> (Bool, Bool, Bool, Bool, Bool) -> (Vec3, Vec3) -> (Vec3, Vec3)
+    calcCanvas dt (kx,ky,kz,kshift,kalt) (Vec3 xr yr zr, Vec3 xp yp zp) = (Vec3 xr' yr' zr', Vec3 xp' yp' zp')
+      where
+        timefac scale       = if kshift then -scale else scale
+        kdelta  scale kbool = if kbool  then timefac scale * dt else 0
+        (xr',yr',zr',xp',yp',zp')
+          = if kalt
+            then (xr, yr, zr
+                 ,xp + kdelta 0.5 kx
+                 ,yp + kdelta 0.5 ky
+                 ,zp + kdelta 0.5 kz)
+            else (xr + kdelta 0.01 kx
+                 ,yr + kdelta 0.01 ky
+                 ,zr + kdelta 0.01 kz
+                 ,xp, yp, zp)
+
 userCamera :: ([Int] -> Vec3 -> Vec3) -> BSPLevel -> Vec3 -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool, Bool)
            -> SignalGen Float (Signal (Vec3, Vec3, Vec3, [Int]))
 userCamera camTr bsp p mposs keyss = fmap (\(pos,target,up,i,_) -> (pos,target,up,i)) <$> transfer2 (p,zero,zero,[],(0,0,0)) calcCam mposs keyss
   where
-    d0 = Vec4 0 (-1) 0 1
-    u0 = Vec4 0 0 (-1) 1
+    -- &* : vec * scalar     -> vec
+    -- &^ : vec `cross` vec  -> vec
+    -- &+ : vec + vec        -> vec
+    -- *. : 
+    d0 = Vec4 0 (-1) 0 1 -- y
+    u0 = Vec4 0 0 (-1) 1 -- z
     gravity = 1000
     jumpSpeed0 = 300
     height = 42
+    calcCam :: Float
+            -> (Float, Float)
+            -> (Bool, Bool, Bool, Bool, Bool, Bool)
+            -> (Vec3, t, t, [Int], (Float, Float, Float))
+            -> (Vec3, Vec3, Vec3, [Int], (Float, Float, Float))
     calcCam dt (dmx,dmy) (left,up,down,right,turbo,jump) (p0,_,_,bIdx0,(mx,my,fallingSpeed)) =
       let nil c n = if c then n else zero
-          p'  = nil left (v &* (-t)) &+ nil up (d &* t) &+ nil down (d &* (-t)) &+ nil right (v &* t) &+ p0
-          k   = if turbo then 500 else 200
-          t   = k * realToFrac dt
+          p'  = nil left  (v &* (-t)) -- leftward
+             &+ nil up    (d &* t)    -- forward
+             &+ nil down  (d &* (-t)) -- backward
+             &+ nil right (v &* t)    -- rightward
+             &+ p0
+          k   = if turbo then 500 else 200 -- time factor
+          t   = k * realToFrac dt          -- time delta
           mx' = dmx + mx
           my' = dmy + my
-          rm  = fromProjective $ rotationEuler $ Vec3 (mx' / 100) (my' / 100) 0
-          d   = trim $ rm *. d0 :: Vec3
-          u   = trim $ rm *. u0 :: Vec3
-          v   = normalize $ d &^ u
+          rm  = fromProjective $ rotationEuler $ Vec3 (mx' / 100) (my' / 100) 0 -- yaw + pitch -- mouse orientation
+          d   = trim $ rm *. d0 :: Vec3 -- mouse *. vec-y
+          u   = trim $ rm *. u0 :: Vec3 -- mouse *. vec-z
+          v   = normalize $ d &^ u      -- rightwards
           jumpSpeed' = if jump then jumpSpeed0 else 0
           fallingVec = Vec3 0 0 (fallingSpeed * dt)
           p'2 = p' &+ fallingVec
