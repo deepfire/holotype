@@ -14,11 +14,13 @@ dist
 *.pk3
 *.wav
 *.pdf
+*.shc
 *.graphml
 cabal-dev/
 .hsenv/
 .cabal-sandbox/
 .stack-work/
+pk3/
 cabal.sandbox.config
 nohup.out
 JSONTypes.hs
