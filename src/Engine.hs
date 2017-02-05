@@ -93,7 +93,7 @@ type EngineGraphics =
   , [(Proj4, (MD3.MD3Model, MD3Instance), (MD3.MD3Model, MD3Instance),(MD3.MD3Model, MD3Instance))]
   , V.Vector [Object]
   , BSPLevel
-  , MD3Instance
+  , MD3Instance, MD3SInstance
   , [(Float, SetterFun TextureData, V.Vector TextureData)]
   )
 
@@ -368,8 +368,8 @@ addGPUMD3Surface r GPUMD3S{..} skin unis = do
         }
 
 addMD3Surface :: GLStorage -> MD3.Surface -> MD3.Frame -> MD3Skin -> [String] -> IO MD3SInstance
-addMD3Surface r model frame skin unis = do
-    gpuMD3 <- uploadMD3Surface model frame
+addMD3Surface r surface frame skin unis = do
+    gpuMD3 <- uploadMD3Surface surface frame
     addGPUMD3Surface r gpuMD3 skin unis
 
 setupStorage :: Map String Entry -> EngineContent -> GLStorage -> IO EngineGraphics
@@ -419,9 +419,66 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
 
     lcMD3Objs <- concat <$> forM md3Objs addMD3Obj
 
+    -- weapon
     chunk <- loadMD3 "./chunk.md3"
     let weapon_model = chunk -- (fromJust $ Map.lookup (SB.pack handWeapon) md3Map)
     lcMD3Weapon <- addMD3 storage weapon_model mempty ["worldMat","viewProj"]
+    -- putStrLn $ "chunk: " ++ show chunk
+    -- MD3Model
+    -- { mdFrames = [ Frame
+    --                { frMins = Vec3 (-9.8234445e-2) (-3.609405) (-0.13970709)
+    --                , frMaxs = Vec3 7.239163 0.10289715 0.117761
+    --                , frOrigin = Vec3 0.0 0.0 0.0
+    --                , frRadius = 7.492566
+    --                , frName = ""
+    --                } ]
+    -- , mdTags = [ fromList [("tag_weapon\SOHls\b8\SIa#\b\SOHuww\DEL\DELpfcuww"
+    --                        ,Tag {tgName = "tag_weapon\SOHls\b8\SIa#\b\SOHuww\DEL\DELpfcuww", tgOrigin = Vec3 0.0 0.0 0.0, tgAxisX = Vec3 1.0 9.770482e-10 (-1.3012951e-9), tgAxisY = Vec3 (-9.770482e-10) 1.0 1.0161813e-10, tgAxisZ = Vec3 1.3012951e-9 (-1.0161813e-10) 1.0})
+    --                       ,("tag_flash",
+    --                         Tag {tgName = "tag_flash", tgOrigin = Vec3 24.09466 (-0.13132995) 0.15694045, tgAxisX = Vec3 0.9999999 (-3.9148767e-4) (-2.3588572e-4), tgAxisY = Vec3 3.9149114e-4 0.9999999 1.4458483e-5, tgAxisZ = Vec3 2.3588004e-4 (-1.4550828e-5) 1.0})]]
+    -- , mdSurfaces = [ Surface
+    --                  { srName = "w_plasma03"
+    --                  , srShaders = [Shader {shName = "models/weapons2/plasma/plasma_glo.tga", shIndex = 0}]
+    --                  , srTriangles = [0,2,1,0,1,3]
+    --                  , srTexCoords = [Vec2 0.3213 (-9.99999e-3),Vec2 0.6958 1.0081,Vec2 0.6681 (-2.7999997e-2),Vec2 0.3088 1.0261]
+    --                  -- Vec2 0.3213 (-9.99999e-3),Vec2 0.6958 1.0081,Vec2 0.6681 (-2.7999997e-2),Vec2 0.3088 1.0261
+    --                     Vec2 0.3213    0,                      Vec2 0.6958   1.0081,               Vec2 0.6681 0,      Vec2 0.3088   1.0261
+    --                  -- Vec3 3.125e-2 (-3.609375) (-1.5625e-2),Vec3 7.203125 1.5625e-2 (-9.375e-2),Vec3 0.0 0.0 0.0,Vec3 7.234375 (-3.5625) (-0.125)
+    --                  -- Vec3 0        (-1)        0,           Vec3 1        0         0,          Vec3 0      0   0,  Vec3 1        (-1)      0
+    --                  , srXyzNormal = [([Vec3 0 -1  0
+    --                                    ,Vec3 1  0  0
+    --                                    ,Vec3 0  0  0
+    --                                    ,Vec3 1 -1  0]
+    --                                   ,[Vec3 (-0.29138938) 0 1
+    --                                    ,Vec3 (-0.38410592) 0 1
+    --                                    ,Vec3 (-0.24391353) 0 1
+    --                                    ,Vec3 (-0.4067365)  0 1])]
+    --                  }]
+    -- }
+
+    -- canvas
+    let cvSurface = MD3.Surface
+                    { srName      = "canvas"      -- !ByteString
+                    , srShaders   = V.fromList    -- !(Vector Shader)
+                                    [MD3.Shader {shName = "models/weapons2/plasma/plasma_glo.tga", shIndex = 0}]
+                    , srTriangles = SV.fromList   -- !(SV.Vector Int32)
+                                    [0,2,1,0,1,3]
+                                    -- 2 - 1
+                                    -- ! / !
+                                    -- 0 - 3 
+                    , srTexCoords = SV.fromList   -- !(SV.Vector Vec2)
+                                    [Vec2 0 0, Vec2 1 1, Vec2 0 1, Vec2 1 0]
+                    , srXyzNormal = V.singleton    -- !(Vector (SV.Vector Vec3,SV.Vector Vec3))
+                                     (SV.fromList [Vec3 0 (-1) 0, Vec3 1 0 0, Vec3 0 0 0, Vec3 1 (-1) 0]
+                                     ,SV.fromList [Vec3 0   0  1, Vec3 0 0 1, Vec3 0 0 1, Vec3 0   0  1])
+                    }
+
+        cvFrame = MD3.Frame { frMins   = Vec3 0 0 0
+                            , frMaxs   = Vec3 1 1 0
+                            , frOrigin = Vec3 0 0 0
+                            , frRadius = 1.42
+                            , frName   = "baseframe" }
+    canvas <- addMD3Surface storage cvSurface cvFrame mempty ["worldMat","viewProj"]
 
     -- add characters
     lcCharacterObjs <- forM characterObjs
@@ -434,11 +491,11 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
         lLC <- addMD3 storage lMD3 lSkin ["worldMat"]
         return (mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))
       )
-    return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex)
+    return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,canvas,animTex)
 
 -- TODO
 updateRenderInput :: EngineGraphics -> (Vec3, Vec3, Vec3) -> Int -> Int -> Float -> (Vec3, Vec3) -> IO ()
-updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex) (camPos,camTarget,camUp) w h time (Vec3 cvx cvy cvz, cvpos) = do
+updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,canvas,animTex) (camPos,camTarget,camUp) w h time (Vec3 cvx cvy cvz, cvpos) = do
             let slotU = uniformSetter storage
 
             let matSetter   = uniformM44F "viewProj" slotU
@@ -473,7 +530,10 @@ updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,
                 --rot = fromProjective $ rotationEuler (Vec3 (-pi/2+30/pi*2) (pi/2) (-pi))
                 -- rot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixX (-pi/2) .*. rotMatrixY (pi/2) .*. rotMatrixX (10/pi*2)
                 rot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixZ cvz .*. rotMatrixY cvy .*. rotMatrixX cvx
-            forM_ (md3instanceObject lcMD3Weapon) $ \obj -> do
+            -- forM_ (md3instanceObject lcMD3Weapon) $ \obj -> do
+            --   uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! rot .*. (fromProjective $ translation cvpos) .*. smcanvas -- .*. pm
+            --   uniformM44F "worldMat" (objectUniformSetter obj) invCM
+            forM_ (md3sinstanceObject canvas) $ \obj -> do
               uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! rot .*. (fromProjective $ translation cvpos) .*. smcanvas -- .*. pm
               uniformM44F "worldMat" (objectUniformSetter obj) invCM
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
