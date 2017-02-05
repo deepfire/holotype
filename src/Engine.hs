@@ -22,14 +22,18 @@ import Control.Monad
 import Data.Char
 import Data.Digest.CRC32
 import Data.HashSet (HashSet)
+import qualified Data.ByteString.Char8 as SB8
 import qualified Data.HashSet as HashSet
 import qualified Data.Set as Set
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as SV
 import Data.List (isPrefixOf,partition,isInfixOf,elemIndex)
 import Data.Maybe
 import Data.Vect
 import Data.Set (Set)
 import Data.Map (Map)
+import Data.Vector (Vector)
+import Foreign
 import System.FilePath
 import System.Directory
 
@@ -41,15 +45,16 @@ import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.Set as Set
 import qualified Data.HashSet as HashSet
-import qualified Data.Vector as V
 
 import Text.Show.Pretty (ppShow)
 
 import Codec.Picture
 
 import LambdaCube.GL as GL
+import LambdaCube.GL.Mesh
 
 import GameEngine.Data.BSP
+import GameEngine.Data.MD3
 import GameEngine.Data.GameCharacter
 import GameEngine.Data.Material hiding (Vec3,Entity)
 import GameEngine.Content
@@ -228,7 +233,7 @@ engineInit pk3Data fullBSPName = do
     let
         maxMaterial = 20 -- TODO: remove if we will have fast reducer
         shNames = Set.fromList $ {-Prelude.take maxMaterial $ -}selectedMaterials ++ ignoredMaterials
-        allShName = map shName $ V.toList $ blShaders bsp
+        allShName = map GameEngine.Data.BSP.shName $ V.toList $ blShaders bsp
         (selectedMaterials,ignoredMaterials) = partition (\n -> or $ [SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
 
     let levelMaterials = HashSet.fromList . Set.toList $ Set.map SB.unpack shNames
@@ -258,6 +263,114 @@ getTeleportFun levelData@(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSl
       hitModels = [tp | TriggerTeleport target model <- teleport, model `elem` models, TargetPosition _ tp <- maybeToList $ Map.lookup target teleportTarget]
   --in head $ trace (show ("hitModels",hitModels,models)) hitModels ++ [p]
   in head $ hitModels ++ [p]
+
+--- What do we lose?
+-- 1. buffer per surface vs. per model
+-- 2. frame lossage is ok, since we don't intend to have frames
+-- 3. shader lossage is ok, since, well, no common shaders, yay, ok, no?
+--
+-- Frame {frMins = Vec3 (-10.765625) (-10.921875) (-5.84375), frMaxs = Vec3 10.828125 10.671875 15.75, frOrigin = Vec3 0.0 0.0 0.0, frRadius = 22.01359, frName = "(from ase)"}
+uploadMD3Surface :: MD3.Surface -> MD3.Frame -> IO GPUMD3S
+uploadMD3Surface surface@MD3.Surface{..} frame = do
+  let cvtSurface :: MD3.Surface -> (Array,Array,V.Vector (Array,Array))
+      cvtSurface MD3.Surface{..} =
+        ( Array ArrWord32 (SV.length srTriangles) (withV srTriangles)
+        , Array ArrFloat (2 * SV.length srTexCoords) (withV srTexCoords)
+        , V.map cvtPosNorm srXyzNormal
+        )
+        where
+          withV a f = SV.unsafeWith a (\p -> f $ castPtr p)
+          cvtPosNorm (p,n) = (f p, f n) where f sv = Array ArrFloat (3 * SV.length sv) $ withV sv
+
+      addSurface sf (il,tl,pl,nl,pnl) = (i:il,t:tl,p:pl,n:nl,pn:pnl) where
+        (i,t,pn) = cvtSurface sf
+        (p,n)    = V.head pn
+
+      (il,tl,pl,nl,pnl) = addSurface surface ([],[],[],[],[])
+
+  buffer <- compileBuffer (concat [il,tl,pl,nl])
+
+  let surfaceData idx MD3.Surface{..} = (index,attributes) where
+        index = IndexStream buffer idx 0 (SV.length srTriangles)
+        countV = SV.length srTexCoords
+        attributes = Map.fromList $
+          [ ("diffuseUV",   Stream Attribute_V2F buffer (1 + idx) 0 countV)
+          , ("position",    Stream Attribute_V3F buffer (2 + idx) 0 countV)
+          , ("normal",      Stream Attribute_V3F buffer (3 + idx) 0 countV)
+          , ("color",       ConstV4F (V4 1 1 1 1))
+          , ("lightmapUV",  ConstV2F (V2 0 0))
+          ]
+
+      frames :: Data.Vector.Vector [(Int, Array)]
+      frames = foldr addSurfaceFrames emptyFrame $ zip [0..] pnl where
+        emptyFrame = V.empty -- V.replicate (V.length mdFrames) []
+        addSurfaceFrames (idx,pn) f = V.zipWith (\l (p,n) -> (2 + idx,p):(3 + idx,n):l) f pn
+
+  return $ GPUMD3S
+    { gpumd3sBuffer    = buffer
+    , gpumd3sStreams   = surfaceData 0 surface
+    , gpumd3sFrames    = frames
+    , gpumd3sShaders   = HashSet.fromList $ map (SB8.unpack . MD3.shName) $ V.toList srShaders
+    , gpumd3sSurface   = surface
+    , gpumd3sFrame     = frame
+    }
+
+data GPUMD3S
+  = GPUMD3S
+  { gpumd3sBuffer    :: Buffer
+  , gpumd3sStreams   :: (IndexStream Buffer,Map String (Stream Buffer)) -- index stream, attribute streams
+  , gpumd3sFrames    :: V.Vector [(Int,Array)]
+  , gpumd3sShaders   :: HashSet String
+  , gpumd3sSurface   :: MD3.Surface
+  , gpumd3sFrame     :: MD3.Frame
+  }
+
+data MD3SInstance
+  = MD3SInstance
+  { md3sinstanceObject  :: [Object]
+  , md3sinstanceBuffer  :: Buffer
+  , md3sinstanceFrames  :: V.Vector [(Int,Array)]
+  , md3sinstanceSurface :: MD3.Surface
+  }
+
+type MD3Skin = Map String String
+
+addGPUMD3Surface :: GLStorage -> GPUMD3S -> MD3Skin -> [String] -> IO MD3SInstance
+addGPUMD3Surface r GPUMD3S{..} skin unis = do
+    let sf@MD3.Surface{..} = gpumd3sSurface
+    let (index, attrs) = gpumd3sStreams
+    objs <- do
+        let materialName s = case Map.lookup (SB8.unpack $ srName) skin of
+              Nothing -> SB8.unpack $ MD3.shName s
+              Just a  -> a
+        objList <- concat <$> forM (V.toList $ srShaders) (\s -> do
+          a <- addObjectWithMaterial r (materialName s) TriangleList (Just index) attrs $ setNub $ "worldMat":unis
+          b <- addObject r "LightMapOnly" TriangleList (Just index) attrs $ setNub $ "worldMat":unis
+          return [a,b])
+
+        -- add collision geometry
+        -- XXX: note -- Frame used for collision geometry
+        let Frame{..} = gpumd3sFrame
+        collisionObjs <- do
+            sphereObj <- uploadMeshToGPU (sphere (V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
+            boxObj <- uploadMeshToGPU (bbox (V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
+            --when (frOrigin /= zero) $ putStrLn $ "frOrigin: " ++ show frOrigin
+            return [sphereObj,boxObj]
+
+        return $ objList ++ collisionObjs
+    -- question: how will be the referred shaders loaded?
+    --           general problem: should the gfx network contain all passes (every possible materials)?
+    return $ MD3SInstance
+        { md3sinstanceObject  = objs
+        , md3sinstanceBuffer  = gpumd3sBuffer
+        , md3sinstanceFrames  = gpumd3sFrames
+        , md3sinstanceSurface = sf
+        }
+
+addMD3Surface :: GLStorage -> MD3.Surface -> MD3.Frame -> MD3Skin -> [String] -> IO MD3SInstance
+addMD3Surface r model frame skin unis = do
+    gpuMD3 <- uploadMD3Surface model frame
+    addGPUMD3Surface r gpuMD3 skin unis
 
 setupStorage :: Map String Entry -> EngineContent -> GLStorage -> IO EngineGraphics
 setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_,_,_,_) storage = do
