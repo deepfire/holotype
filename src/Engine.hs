@@ -394,7 +394,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     putStrLn "loading textures:"
     -- load textures
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\(shName,sh) -> [(shName,saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ Map.toList shMapTexSlot) $
-      \(shName,stageTex,texSlotName,noMip) -> do
+      \(shName,stageTex,texSlotName,noMip) -> do -- texSlotName :: Approx "Tex_3913048198"
         let texSetter = uniformFTexture2D (SB.pack texSlotName) slotU
             setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data shName img
         case stageTex of
@@ -423,38 +423,6 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     chunk <- loadMD3 "./chunk.md3"
     let weapon_model = chunk -- (fromJust $ Map.lookup (SB.pack handWeapon) md3Map)
     lcMD3Weapon <- addMD3 storage weapon_model mempty ["worldMat","viewProj"]
-    -- putStrLn $ "chunk: " ++ show chunk
-    -- MD3Model
-    -- { mdFrames = [ Frame
-    --                { frMins = Vec3 (-9.8234445e-2) (-3.609405) (-0.13970709)
-    --                , frMaxs = Vec3 7.239163 0.10289715 0.117761
-    --                , frOrigin = Vec3 0.0 0.0 0.0
-    --                , frRadius = 7.492566
-    --                , frName = ""
-    --                } ]
-    -- , mdTags = [ fromList [("tag_weapon\SOHls\b8\SIa#\b\SOHuww\DEL\DELpfcuww"
-    --                        ,Tag {tgName = "tag_weapon\SOHls\b8\SIa#\b\SOHuww\DEL\DELpfcuww", tgOrigin = Vec3 0.0 0.0 0.0, tgAxisX = Vec3 1.0 9.770482e-10 (-1.3012951e-9), tgAxisY = Vec3 (-9.770482e-10) 1.0 1.0161813e-10, tgAxisZ = Vec3 1.3012951e-9 (-1.0161813e-10) 1.0})
-    --                       ,("tag_flash",
-    --                         Tag {tgName = "tag_flash", tgOrigin = Vec3 24.09466 (-0.13132995) 0.15694045, tgAxisX = Vec3 0.9999999 (-3.9148767e-4) (-2.3588572e-4), tgAxisY = Vec3 3.9149114e-4 0.9999999 1.4458483e-5, tgAxisZ = Vec3 2.3588004e-4 (-1.4550828e-5) 1.0})]]
-    -- , mdSurfaces = [ Surface
-    --                  { srName = "w_plasma03"
-    --                  , srShaders = [Shader {shName = "models/weapons2/plasma/plasma_glo.tga", shIndex = 0}]
-    --                  , srTriangles = [0,2,1,0,1,3]
-    --                  , srTexCoords = [Vec2 0.3213 (-9.99999e-3),Vec2 0.6958 1.0081,Vec2 0.6681 (-2.7999997e-2),Vec2 0.3088 1.0261]
-    --                  -- Vec2 0.3213 (-9.99999e-3),Vec2 0.6958 1.0081,Vec2 0.6681 (-2.7999997e-2),Vec2 0.3088 1.0261
-    --                     Vec2 0.3213    0,                      Vec2 0.6958   1.0081,               Vec2 0.6681 0,      Vec2 0.3088   1.0261
-    --                  -- Vec3 3.125e-2 (-3.609375) (-1.5625e-2),Vec3 7.203125 1.5625e-2 (-9.375e-2),Vec3 0.0 0.0 0.0,Vec3 7.234375 (-3.5625) (-0.125)
-    --                  -- Vec3 0        (-1)        0,           Vec3 1        0         0,          Vec3 0      0   0,  Vec3 1        (-1)      0
-    --                  , srXyzNormal = [([Vec3 0 -1  0
-    --                                    ,Vec3 1  0  0
-    --                                    ,Vec3 0  0  0
-    --                                    ,Vec3 1 -1  0]
-    --                                   ,[Vec3 (-0.29138938) 0 1
-    --                                    ,Vec3 (-0.38410592) 0 1
-    --                                    ,Vec3 (-0.24391353) 0 1
-    --                                    ,Vec3 (-0.4067365)  0 1])]
-    --                  }]
-    -- }
 
     -- canvas
     let cvSurface = MD3.Surface
@@ -536,6 +504,11 @@ updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,
             forM_ (md3sinstanceObject canvas) $ \obj -> do
               uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! rot .*. (fromProjective $ translation cvpos) .*. smcanvas -- .*. pm
               uniformM44F "worldMat" (objectUniformSetter obj) invCM
+            let generator x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 0 v 0
+                image         = ImageRGB8 $ generateImage generator 16 16
+                texture       = uploadTexture2DToGPU' False False False False image
+                setTexture    = texture >>= uniformFTexture2D (SB.pack "Tex_MEGATEX") (uniformSetter storage)
+            setTexture
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
               forM_ (md3instanceObject lcmd3) $ \obj -> do
                 let m = mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
