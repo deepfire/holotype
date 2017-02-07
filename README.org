@@ -31,6 +31,7 @@
   4. Escape pops
   5. Return vs. C-Return -- a story of multi-line text input
   6. "give me more data about this object"
+  7. "well-behaved":  process large datasets efficiently (lazily, if needed)
 
 * Inspiration
 
