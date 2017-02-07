@@ -30,6 +30,7 @@
   3. Tab cycles state/mode
   4. Escape pops
   5. Return vs. C-Return -- a story of multi-line text input
+  6. "give me more data about this object"
 
 * Inspiration
 
