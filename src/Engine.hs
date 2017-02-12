@@ -120,8 +120,9 @@ createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTe
         , saRGBGen  = RGB_IdentityLighting
         }
 
-  shMap = Map.fromList [mkShader True n | n <- HashSet.toList levelMaterials] `Map.union`
-          Map.fromList [mkShader False n | n <- HashSet.toList modelMaterials]
+  shMap = Map.fromList [mkShader True n | n <- HashSet.toList levelMaterials]  `Map.union`
+          Map.fromList [mkShader False n | n <- HashSet.toList modelMaterials] `Map.union`
+          Map.fromList [mkShader False "CanvasShader"]
 
   shMapTexSlot = mangleCA <$> shMap
     where
@@ -176,8 +177,6 @@ createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTe
                                 , ("InverseSawToothTable", FTexture2D)
                                 , ("TriangleTable",        FTexture2D)
                                 , ("origin",    V3F)
-                                -- Mood
-                                , ("graphNode",     FTexture2D)
                                 ] ++ zip textureUniforms (repeat FTexture2D)
     }
 
@@ -340,6 +339,7 @@ addGPUMD3Surface r GPUMD3S{..} skin unis = do
     let sf@MD3.Surface{..} = gpumd3sSurface
     let (index, attrs) = gpumd3sStreams
     objs <- do
+        putStrLn $ "++ s ++: " ++ SB8.unpack srName
         let materialName s = case Map.lookup (SB8.unpack $ srName) skin of
               Nothing -> SB8.unpack $ MD3.shName s
               Just a  -> a
@@ -426,9 +426,10 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
 
     -- canvas
     let cvSurface = MD3.Surface
-                    { srName      = "canvas"      -- !ByteString
-                    , srShaders   = V.fromList    -- !(Vector Shader)
-                                    [MD3.Shader {shName = "models/weapons2/plasma/plasma_glo.tga", shIndex = 0}]
+                    { srName      = "CanvasShader" -- !ByteString
+                    , srShaders   = V.fromList     -- !(Vector Shader)
+                                    [MD3.Shader {shName = "models/mapobjects/skel/skel.tga", shIndex = 0}]
+                                    -- [MD3.Shader {shName = "CanvasShader", shIndex = 0}]
                     , srTriangles = SV.fromList   -- !(SV.Vector Int32)
                                     [0,2,1,0,1,3]
                                     -- 2 - 1
@@ -506,8 +507,9 @@ updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,
               uniformM44F "worldMat" (objectUniformSetter obj) invCM
             let generator x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 0 v 0
                 image         = ImageRGB8 $ generateImage generator 16 16
-                texture       = uploadTexture2DToGPU' False False False False image
-                setTexture    = texture >>= uniformFTexture2D (SB.pack "Tex_MEGATEX") (uniformSetter storage)
+                imagewhite    = ImageRGB8 $ generateImage (\_ _ -> PixelRGB8 255 255 255) 1 1
+                texture       = uploadTexture2DToGPU' False False False False imagewhite
+                setTexture    = texture >>= uniformFTexture2D (SB.pack "Tex_2095664494") (uniformSetter storage)
             setTexture
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
               forM_ (md3instanceObject lcmd3) $ \obj -> do
