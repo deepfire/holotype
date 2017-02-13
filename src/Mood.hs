@@ -41,6 +41,7 @@ import Camera
 import Engine
 import GameEngine.Loader.Zip
 import qualified Data.ByteString.Char8 as SB8
+import LambdaCube.GL.Type (GLRenderer(..))
 
 import Text.Printf
 
@@ -190,20 +191,6 @@ printTimeDiff message m = do
   putStrLn $ showTime t
   return r
 
-loadMoodGraphics :: GLStorage -> String -> IO (Maybe GLRenderer)
-loadMoodGraphics storage name = do
-    putStrLn $ "load " ++ name
-    let localName  = "lc" </> name
-        paths = [lc_q3_cache </> name,localName]
-    validPaths <- filterM doesFileExist paths
-    when (null validPaths) $ fail $ name ++ " is not found in " ++ show paths
-    renderer <- printTimeDiff "allocate pipeline..." $ do
-      eitherDecode <$> LB.readFile (head validPaths) >>= \case
-        Left err -> fail err
-        Right ppl -> allocRenderer ppl
-    printTimeDiff "setStorage..." $ setStorage renderer storage
-    return $ Just renderer
-
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
@@ -270,9 +257,9 @@ main = do
     graphicsData <- setupStorage pk3Data levelData storage
     putStrLn "storage created"
 
-    simpleRenderer <- fromJust <$> loadMoodGraphics storage "SimpleGraphics.json"
+    simpleRenderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
     setStorage simpleRenderer storage
-    rendererRef <- newIORef =<< fromJust <$> loadMoodGraphics storage "SimpleGraphics.json"
+    rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
 
     -- play level music
     -- case getMusicFile levelData of
@@ -374,9 +361,14 @@ readInput compileRequest compileReady pplName rendererRef storage win s mousePos
       False -> return ()
       True -> do
         writeIORef compileReady False
-        loadQuake3Graphics storage pplName >>= \case
+        ppl <- loadQuake3Graphics storage pplName
+        case ppl of
           Nothing -> return ()
-          Just a  -> do
+          Just a@GLRenderer{..}  -> do
+            printf "loaded pipeline:\n  slots:%s\n  canvas in: %s/%s\n"
+                   (show $ glSlotNames)
+                   (show $ elem "canvasMaterial" glSlotNames)
+                   (show $ elem "models/weapons2/shotgun/shotgun.tga" glSlotNames)
             readIORef rendererRef >>= disposeRenderer
             writeIORef rendererRef a
     k <- keyIsPressed Key'Escape
