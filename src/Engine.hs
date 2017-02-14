@@ -444,7 +444,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     defaultTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
 
     canvas <- renderCanvasInitial storage shMapTexSlot
-              (CanvasRequest loremIpsum (256, 256) (16, 16) (1, 1, 0, 1) (0.3, 0.3, 0.3, 0))
+              (CanvasRequest loremIpsum (256, 256) (0, 0) (1, 1, 0, 1) (0.3, 0.3, 0.3, 0))
 
     putStrLn "loading textures:"
     -- load textures
@@ -580,6 +580,8 @@ data Canvas where
 renderCanvasInitial :: GLStorage -> Map String CommonAttrs -> CanvasRequest -> IO Canvas
 renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (padx, pady) fgColor bgColor) = do
   let (reqw, reqh) = (padx + areaw + padx, pady + areah + pady)
+      (dx, dy)     = (fromIntegral reqw, fromIntegral (-reqh)) --(fromIntegral reqw, -fromIntegral reqh)
+      n            = (1) -- the normal
 
   grcSurface  <- GRC.createImageSurface GRC.FormatARGB32 reqw reqh
   strideBytes <- GRC.imageSurfaceGetStride grcSurface
@@ -587,10 +589,12 @@ renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (pad
   grc         <- GRC.create grcSurface
   gic         <- grcToGIC grc
   gip         <- GIPC.createLayout gic
-  GIP.layoutSetWrap   gip GIP.WrapModeWord
-  GIP.layoutSetText   gip text (-1)
-  GIP.layoutSetWidth  gip 500000
-  (`runReaderT` grc) $ GRC.runRender $ do
+  GIP.layoutSetWrap      gip GIP.WrapModeWord
+  GIP.layoutSetEllipsize gip GIP.EllipsizeModeEnd
+  GIP.layoutSetText      gip text (-1)
+  GIP.layoutSetWidth     gip =<< (GIP.unitsFromDouble $ fromIntegral areaw)
+  GIP.layoutSetHeight    gip =<< (GIP.unitsFromDouble $ fromIntegral areah)
+  ((rw, rh), ellipsized) <- (`runReaderT` grc) $ GRC.runRender $ do
     -- clear
     let (r, g, b, a) = bgColor
     GRC.setSourceRGBA r g b a
@@ -601,7 +605,8 @@ renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (pad
     let (r, g, b, a) = fgColor
     GRC.setSourceRGBA r g b a
     GIPC.showLayout gic gip
-    GIP.layoutGetHeight gip
+    ellipsized <- GIP.layoutIsEllipsized gip
+    (, ellipsized) <$> GIP.layoutGetPixelSize gip
 
   pixels      <- GRCI.imageSurfaceGetData grcSurface
   cvTexture   <- uploadTexture2DToGPU'''' False False False False $ (stridePxs, 256, GL_BGRA, pixels)
@@ -614,8 +619,8 @@ renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (pad
                    , srShaders   = V.fromList  [MD3.Shader {shIndex = 0, shName = SB.pack cvMaterial }]
                    , srTriangles = SV.fromList [0,2,1,0,1,3]
                    , srTexCoords = SV.fromList [Vec2 0 1, Vec2 widthOfStride 0, Vec2 0 0, Vec2 widthOfStride 1]
-                   , srXyzNormal = V.singleton ( SV.fromList [Vec3 0 (-1) 0, Vec3 1 0 0, Vec3 0 0 0, Vec3 1 (-1) 0]
-                                               , SV.fromList [Vec3 0   0  1, Vec3 0 0 1, Vec3 0 0 1, Vec3 0   0  1] ) }
+                   , srXyzNormal = V.singleton ( SV.fromList [Vec3 0 dy 0, Vec3 dx 0 0, Vec3 0 0 0, Vec3 dx dy 0]
+                                               , SV.fromList [Vec3 0  0 n, Vec3  0 0 n, Vec3 0 0 n, Vec3  0  0 n] ) }
       cvFrame = MD3.Frame { frMins   = Vec3 0 0 0
                           , frMaxs   = Vec3 1 1 0
                           , frOrigin = Vec3 0 0 0
@@ -636,20 +641,18 @@ renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (pad
               , cvGIPLay   = gip }
 
 -- | Orthogonal transformation matrix in row major order.
-ortho :: Float  -- ^ Top
-      -> Float  -- ^ Far
+ortho :: Float  -- ^ Left
+      -> Float  -- ^ Right
+      -> Float  -- ^ Bottom
+      -> Float  -- ^ Top
       -> Float  -- ^ Near
-      -> Float  -- ^ Aspect ratio, i.e. screen's width\/height.
+      -> Float  -- ^ Far
       -> Mat4
-ortho t f n aspect = --transpose $
+ortho l r b t n f = transpose $
     Mat4 (Vec4 (2/(r-l))    0          0       (-(r+l)/(r-l)))
          (Vec4   0        (2/(t-b))    0       (-(t+b)/(t-b)))
          (Vec4   0          0       (-2/(f-n)) (-(f+n)/(f-n)))
          (Vec4   0          0          0              1)
-  where
-    b = -t
-    r = aspect*t
-    l = -r
 
 -- TODO
 updateRenderInput :: EngineGraphics
@@ -676,23 +679,25 @@ updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs,
                 frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
                 cullObject obj p = enableObject obj (pointInFrustum p frust)
 
+            let idM44F = mat4ToM44F $ idmtx -- inverse cm .*. (fromProjective $ translation (Vec3 0 (0) (-30)))
+            let --cvrot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixZ cvz .*. rotMatrixY cvy .*. rotMatrixX cvx
+                cvrot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixZ cvz .*. rotMatrixY 100 .*. rotMatrixX 100
+                aspect = (fromIntegral w) / (fromIntegral h) :: Float
+                (vpw,vph) = (fromIntegral w/2, fromIntegral h/2)
+                om    = ortho (-vpw) vpw (-vph) vph (-1) 1
+            -- uploadTexture2DToGPU'' False False cvTexture $ ImageRGBA8 $ generateImage gen 256 256
+            -- updateUniforms storage $ do
+            --   cvMatSlot @= return cvTexture
+            forM_ (md3sinstanceObject cvMD3) $ \obj -> do
+              uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! om -- .*. (fromProjective $! translation cvpos) -- $! cvrot .*. (fromProjective $ translation cvpos) .*. om -- .*. smcanvas
+              uniformM44F "worldMat" (objectUniformSetter obj) idM44F -- invCM
+
             -- set uniforms
             timeSetter $ time / 1
             viewOrigin $ V3 cx cy cz
             viewMat $ mat4ToM44F cm
             matSetter $! mat4ToM44F $! cm .*. sm .*. pm
 
-            let invCM = mat4ToM44F $ idmtx -- inverse cm .*. (fromProjective $ translation (Vec3 0 (0) (-30)))
-            let cvrot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixZ cvz .*. rotMatrixY cvy .*. rotMatrixX cvx
-                om    = ortho 0.5 (-0.01) 0.01 (fromIntegral w / fromIntegral h)
-                smcanvas = fromProjective (scaling $ Vec3 scanvas scanvas scanvas)
-                scanvas  = 0.5
-            -- uploadTexture2DToGPU'' False False cvTexture $ ImageRGBA8 $ generateImage gen 256 256
-            -- updateUniforms storage $ do
-            --   cvMatSlot @= return cvTexture
-            forM_ (md3sinstanceObject cvMD3) $ \obj -> do
-              uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! om .*. (fromProjective $! translation cvpos) -- $! cvrot .*. (fromProjective $ translation cvpos) .*. om -- .*. smcanvas
-              uniformM44F "worldMat" (objectUniformSetter obj) invCM
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
               forM_ (md3instanceObject lcmd3) $ \obj -> do
                 let m = mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
