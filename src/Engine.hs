@@ -33,6 +33,7 @@ import Data.Vect
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.Vector (Vector)
+import qualified Data.Text as DT
 import Foreign
 import System.FilePath
 import System.Directory
@@ -49,7 +50,30 @@ import qualified Data.HashSet as HashSet
 import Text.Printf (printf)
 import Text.Show.Pretty (ppShow)
 
+import qualified Graphics.Rendering.Cairo          as GRC -- (moveTo, Render, Format(..))
+import qualified Graphics.Rendering.Cairo.Internal as GRC (Render(..), create, imageSurfaceCreate)
+import qualified Graphics.Rendering.Cairo.Types    as GRC -- (Cairo(..))
+import qualified Graphics.Rendering.Cairo.Internal as GRCI-- (Cairo(..))
+
+import qualified Data.GI.Base                      as GI
+import qualified GI.Cairo                          as GIC
+import qualified GI.Cairo.Structs.Context          as GIC -- (Context(..))
+import qualified GI.Pango                          as GIP
+       -- (AttrList, Attribute, attrListInsert, attrListNew, Layout,
+       --  layoutSetWidth, layoutNew, layoutSetAttributes, layoutSetText,
+       --  layoutSetWrap)
+import qualified GI.PangoCairo.Interfaces.FontMap  as GIPC -- (fontMapGetDefault)
+import qualified GI.PangoCairo.Functions           as GIPC -- (createLayout, showLayout)
+
+import Foreign.ForeignPtr (withForeignPtr)
+import Control.Monad.Trans.Reader (ReaderT(..))
+import Foreign.Ptr (castPtr)
+import Foreign.C.Types (CUChar)
+import Control.Monad.IO.Class (MonadIO(..))
+
 import Codec.Picture
+import Codec.Picture.Types
+import Data.Vector.Mutable
 
 import LambdaCube.GL as GL
 import LambdaCube.GL.Mesh
@@ -60,6 +84,7 @@ import GameEngine.Data.BSP
 import GameEngine.Data.MD3
 import GameEngine.Data.GameCharacter
 import GameEngine.Data.Material hiding (Vec3,Entity)
+import qualified GameEngine.Data.Material as GE
 import GameEngine.Content
 import GameEngine.Graphics.Culling
 import GameEngine.Graphics.Frustum
@@ -100,12 +125,7 @@ type EngineGraphics =
   , [(Float, SetterFun TextureData, V.Vector TextureData)]
   )
 
-data Canvas where
-  Canvas ::
-    { cvMaterial :: String
-    , cvTexture  :: TextureData
-    , cvMD3      :: MD3SInstance
-    } -> Canvas
+loremIpsum = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna\ \ aliqua. Ut enim ad minim veniam, quis nostrud exercitation\ \ ullamco laboris nisi ut aliquip ex ea commodo consequat.\ \ Duis aute irure dolor in reprehenderit in voluptate\ \ velit esse cillum dolore eu fugiat nulla pariatur.\ \ Excepteur sint occaecat cupidatat non proident, sunt in culpa\ \ qui officia deserunt mollit anim id est laborum."
 
 createMoodRenderInfo :: Map FilePath CommonAttrs -> HashSet FilePath -> HashSet FilePath -> (PipelineSchema, Map FilePath CommonAttrs)
 createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTexSlot) where
@@ -132,7 +152,16 @@ createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTe
 
   shMap = Map.fromList [mkShader True n | n <- HashSet.toList levelMaterials]  `Map.union`
           Map.fromList [mkShader False n | n <- HashSet.toList modelMaterials] `Map.union`
-          Map.fromList [mkShader False "canvasMaterial"]
+          Map.fromList [("canvasMaterial"
+                        ,defaultCommonAttrs
+                         { caSort   = 9.0
+                         , caStages = [defaultStageAttrs
+                                        { saTexture     = ST_Map "canvasMaterial"
+                                        , saBlend       = Just ( B_SrcAlpha , B_OneMinusSrcAlpha )
+                                        , saTCGen       = TG_Base
+                                        , saDepthWrite  = True
+                                        , saRGBGen      = RGB_IdentityLighting
+                                        }]})]
 
   shMapTexSlot = mangleCA <$> shMap
     where
@@ -384,6 +413,17 @@ addMD3Surface r surface frame skin unis = do
     gpuMD3 <- uploadMD3Surface surface frame
     addGPUMD3Surface r gpuMD3 skin unis
 
+grcToGIC :: GRC.Cairo -> IO GIC.Context
+grcToGIC grc = GIC.Context <$> GI.newManagedPtr (castPtr $ GRC.unCairo grc) (return ())
+
+{-# INLINE doRange #-}
+doRange :: Int -> Int -> (Int -> IO ()) -> IO ()
+doRange from to action =
+  let loop n | n >= to   = return ()
+             | otherwise = do action n
+                              loop (n+1)
+   in loop from
+
 setupStorage :: Map String Entry -> EngineContent -> GLStorage -> IO EngineGraphics
 setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_,_,_,_) storage = do
     let slotU           = uniformSetter storage
@@ -403,19 +443,19 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     let redBitmap x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
     defaultTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
 
+    canvas <- renderCanvasInitial storage shMapTexSlot
+              (CanvasRequest loremIpsum (256, 256) (16, 16) (1, 1, 0, 1) (0.3, 0.3, 0.3, 0))
+
     putStrLn "loading textures:"
     -- load textures
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\(shName,sh) -> [(shName,saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ Map.toList shMapTexSlot) $
       \(shName,stageTex,texSlotName,noMip) -> do -- texSlotName :: Approx "Tex_3913048198"
         let texSetter = uniformFTexture2D (SB.pack texSlotName) slotU
             setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data shName img
-            substitute shName = do
-              texSetter defaultTexture
-              printf "just uploaded tex %s for texSlotName=%s, shName=%s\n" (show stageTex) (show texSlotName) (show shName)
-              return []
         case stageTex of
-            ST_Map "canvasMaterial"                -> substitute "canvasMaterial"
-            ST_Map img          -> setTex False img >> return []
+            ST_Map img          -> if img == cvMaterial canvas -- don't touch our canvas..
+                                   then return []
+                                   else setTex False img >> return []
             ST_ClampMap img     -> setTex True img >> return []
             ST_AnimMap freq imgs   -> do
                 txList <- mapM (loadQ3Texture (not noMip) False defaultTexture pk3Data shName) imgs
@@ -439,29 +479,8 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     -- weapon
     chunk <- loadMD3 "./chunk.md3"
     let weapon_model = chunk -- (fromJust $ Map.lookup (SB.pack handWeapon) md3Map)
-    lcMD3Weapon <- addMD3 storage weapon_model mempty ["worldMat","viewProj"]
-
-    -- canvas
-    let cvMaterial' = "canvasMaterial"
-        cvSurface = MD3.Surface
-                    { srName      = "canvasSurface"
-                    , srShaders   = V.fromList  [MD3.Shader {shIndex = 0, shName = cvMaterial' }]
-                    , srTriangles = SV.fromList [0,2,1,0,1,3]
-                    , srTexCoords = SV.fromList [Vec2 0 0, Vec2 1 1, Vec2 0 1, Vec2 1 0]
-                    , srXyzNormal = V.singleton ( SV.fromList [Vec3 0 (-1) 0, Vec3 1 0 0, Vec3 0 0 0, Vec3 1 (-1) 0]
-                                                , SV.fromList [Vec3 0   0  1, Vec3 0 0 1, Vec3 0 0 1, Vec3 0   0  1] ) }
-        cvFrame = MD3.Frame { frMins   = Vec3 0 0 0
-                            , frMaxs   = Vec3 1 1 0
-                            , frOrigin = Vec3 0 0 0
-                            , frRadius = 1.42
-                            , frName   = "baseframe" }
-        cvAddS    = addMD3Surface storage cvSurface cvFrame mempty ["worldMat","viewProj"]
-        --
-        cvMaterial = SB.unpack cvMaterial'
-
-    cvTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
-    cvMD3     <- cvAddS
-    let canvas = Canvas{..}
+    -- lcMD3Weapon <- addMD3 storage weapon_model mempty ["worldMat","viewProj"]
+    lcMD3Weapon <- addMD3 storage (fromJust $ Map.lookup (SB.pack handWeapon) md3Map) mempty ["worldMat","viewProj"]
 
     -- add characters
     lcCharacterObjs <- pure mempty -- forM characterObjs
@@ -476,6 +495,45 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
       )
     return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,canvas,animTex)
 
+uploadTexture2DToGPU''' :: Bool -> (Int, Int, Ptr Foreign.C.Types.CUChar) -> IO TextureData
+uploadTexture2DToGPU''' isMip (w, h, ptr) = do
+    glPixelStorei GL_UNPACK_ALIGNMENT 1
+    to <- alloca $! \pto -> glGenTextures 1 pto >> peek pto
+    glBindTexture GL_TEXTURE_2D to
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_S $ fromIntegral GL_REPEAT
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_T $ fromIntegral GL_REPEAT
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER $ fromIntegral GL_NEAREST
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER $ fromIntegral GL_NEAREST
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_BASE_LEVEL 0
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAX_LEVEL $ fromIntegral 0
+    let internalFormat  = fromIntegral $ GL_RGBA8
+        dataFormat      = fromIntegral $ GL_RGBA8
+    glTexImage2D GL_TEXTURE_2D 0 internalFormat (fromIntegral w) (fromIntegral h) 0 dataFormat GL_UNSIGNED_BYTE $ castPtr ptr
+    when isMip $ glGenerateMipmap GL_TEXTURE_2D
+    return $ TextureData to
+
+uploadTexture2DToGPU'''' :: Bool -> Bool -> Bool -> Bool -> (Int, Int, GLenum, Ptr Foreign.C.Types.CUChar) -> IO TextureData
+uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) = do
+    glPixelStorei GL_UNPACK_ALIGNMENT 1
+    to <- alloca $! \pto -> glGenTextures 1 pto >> peek pto
+    glBindTexture GL_TEXTURE_2D to
+    let texFilter = if isFiltered then GL_LINEAR else GL_NEAREST
+        wrapMode = case isClamped of
+            True    -> GL_CLAMP_TO_EDGE
+            False   -> GL_REPEAT
+        (minFilter,maxLevel) = case isFiltered && isMip of
+            False   -> (texFilter,0)
+            True    -> (GL_LINEAR_MIPMAP_LINEAR, floor $ log (fromIntegral $ max w h) / log 2)
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_S $ fromIntegral wrapMode
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_T $ fromIntegral wrapMode
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER $ fromIntegral minFilter
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER $ fromIntegral texFilter
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_BASE_LEVEL 0
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAX_LEVEL $ fromIntegral maxLevel
+    let internalFormat  = fromIntegral $ if isSRGB then GL_SRGB8_ALPHA8 else GL_RGBA8
+    glTexImage2D GL_TEXTURE_2D 0 internalFormat (fromIntegral w) (fromIntegral h) 0 format GL_UNSIGNED_BYTE $ castPtr ptr
+    when isMip $ glGenerateMipmap GL_TEXTURE_2D
+    return $ TextureData to
 
 uploadTexture2DToGPU'' :: Bool -> Bool -> TextureData -> DynamicImage -> IO ()
 uploadTexture2DToGPU'' isSRGB isMip (TextureData to) bitmap' = do
@@ -498,9 +556,108 @@ uploadTexture2DToGPU'' isSRGB isMip (TextureData to) bitmap' = do
     when isMip $ glGenerateMipmap GL_TEXTURE_2D
     return ()
 
+data CanvasRequest where
+  CanvasRequest ::
+    { crText :: DT.Text
+    , crDim  :: (Int, Int)
+    , crPad  :: (Int, Int)
+    , crFG   :: (Double, Double, Double, Double)
+    , crBG   :: (Double, Double, Double, Double)
+    } -> CanvasRequest
+
+data Canvas where
+  Canvas ::
+    { cvMaterial :: String
+    , cvMatSlot  :: GLUniformName
+    , cvTexture  :: TextureData
+    , cvMD3      :: MD3SInstance
+    , cvGRCr     :: GRC.Cairo
+    , cvGRCSurf  :: GRC.Surface
+    , cvGICtx    :: GIC.Context
+    , cvGIPLay   :: GIP.Layout
+    } -> Canvas
+
+renderCanvasInitial :: GLStorage -> Map String CommonAttrs -> CanvasRequest -> IO Canvas
+renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (padx, pady) fgColor bgColor) = do
+  let (reqw, reqh) = (padx + areaw + padx, pady + areah + pady)
+
+  grcSurface  <- GRC.createImageSurface GRC.FormatARGB32 reqw reqh
+  strideBytes <- GRC.imageSurfaceGetStride grcSurface
+  let stridePxs = strideBytes `div` 4
+  grc         <- GRC.create grcSurface
+  gic         <- grcToGIC grc
+  gip         <- GIPC.createLayout gic
+  GIP.layoutSetWrap   gip GIP.WrapModeWord
+  GIP.layoutSetText   gip text (-1)
+  GIP.layoutSetWidth  gip 500000
+  (`runReaderT` grc) $ GRC.runRender $ do
+    -- clear
+    let (r, g, b, a) = bgColor
+    GRC.setSourceRGBA r g b a
+    GRC.paint
+    -- padx
+    GRC.moveTo (fromIntegral padx) (fromIntegral pady)
+    -- layout
+    let (r, g, b, a) = fgColor
+    GRC.setSourceRGBA r g b a
+    GIPC.showLayout gic gip
+    GIP.layoutGetHeight gip
+
+  pixels      <- GRCI.imageSurfaceGetData grcSurface
+  cvTexture   <- uploadTexture2DToGPU'''' False False False False $ (stridePxs, 256, GL_BGRA, pixels)
+
+  let cvMaterial = "canvasMaterial"
+      cvMatSlot  = head $ concat $ concatMap (\(shName,sh) -> [if shName == cvMaterial then [saTextureUniform sa] else [] | sa <- caStages sh]) $ Map.toList shMapTexSlot
+      widthOfStride = fromIntegral reqw / fromIntegral stridePxs
+      cvSurface  = MD3.Surface
+                   { srName      = "canvasSurface"
+                   , srShaders   = V.fromList  [MD3.Shader {shIndex = 0, shName = SB.pack cvMaterial }]
+                   , srTriangles = SV.fromList [0,2,1,0,1,3]
+                   , srTexCoords = SV.fromList [Vec2 0 1, Vec2 widthOfStride 0, Vec2 0 0, Vec2 widthOfStride 1]
+                   , srXyzNormal = V.singleton ( SV.fromList [Vec3 0 (-1) 0, Vec3 1 0 0, Vec3 0 0 0, Vec3 1 (-1) 0]
+                                               , SV.fromList [Vec3 0   0  1, Vec3 0 0 1, Vec3 0 0 1, Vec3 0   0  1] ) }
+      cvFrame = MD3.Frame { frMins   = Vec3 0 0 0
+                          , frMaxs   = Vec3 1 1 0
+                          , frOrigin = Vec3 0 0 0
+                          , frRadius = 1.42
+                          , frName   = "baseframe" }
+  cvMD3       <- addMD3Surface storage cvSurface cvFrame mempty ["worldMat","viewProj"]
+
+  printf "reqw=%d, stride=%d, widthOfStride=%f\n" reqw stridePxs widthOfStride
+  uniformFTexture2D (SB.pack cvMatSlot) (uniformSetter storage) cvTexture
+
+  pure Canvas { cvMaterial = cvMaterial
+              , cvMD3      = cvMD3
+              , cvTexture  = cvTexture
+              , cvMatSlot  = SB.pack cvMatSlot
+              , cvGRCr     = grc
+              , cvGRCSurf  = grcSurface
+              , cvGICtx    = gic
+              , cvGIPLay   = gip }
+
+-- | Orthogonal transformation matrix in row major order.
+ortho :: Float  -- ^ Top
+      -> Float  -- ^ Far
+      -> Float  -- ^ Near
+      -> Float  -- ^ Aspect ratio, i.e. screen's width\/height.
+      -> Mat4
+ortho t f n aspect = --transpose $
+    Mat4 (Vec4 (2/(r-l))    0          0       (-(r+l)/(r-l)))
+         (Vec4   0        (2/(t-b))    0       (-(t+b)/(t-b)))
+         (Vec4   0          0       (-2/(f-n)) (-(f+n)/(f-n)))
+         (Vec4   0          0          0              1)
+  where
+    b = -t
+    r = aspect*t
+    l = -r
+
 -- TODO
-updateRenderInput :: EngineGraphics -> (Vec3, Vec3, Vec3) -> Int -> Int -> Float -> (Vec3, Vec3) -> IO ()
-updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,canvas@Canvas{..},animTex) (camPos,camTarget,camUp) w h time (Vec3 cvx cvy cvz, cvpos) = do
+updateRenderInput :: EngineGraphics
+                  -> (Vec3, Vec3, Vec3)
+                  -> Int -> Int -> Float -> (Vec3, Vec3) -> IO ()
+updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs, bsp, lcMD3Weapon, canvas@Canvas{..}, animTex)
+                  (camPos@(Vec3 cx cy cz), camTarget, camUp)
+                  w h time (Vec3 cvx cvy cvz, cvpos) = do
             let slotU = uniformSetter storage
 
             let matSetter   = uniformM44F "viewProj" slotU
@@ -512,11 +669,7 @@ updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,
             let cm = fromProjective (lookat camPos camTarget camUp)                             -- camera orientation transform
                 pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h) -- perspective matrix
                 sm = fromProjective (scaling $ Vec3 s s s)                                      -- scale matrix
-                smcanvas = fromProjective (scaling $ Vec3 scanvas scanvas scanvas)              -- scale matrix
                 s  = 0.005
-                scanvas  = 1
-                --V4 orientA orientB orientC _ = mat4ToM44F $! cm .*. sm
-                Vec3 cx cy cz = camPos
                 near = 0.00001/s
                 far  = 100/s
                 fovDeg = 60
@@ -525,26 +678,20 @@ updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,
 
             -- set uniforms
             timeSetter $ time / 1
-            --putStrLn $ "time: " ++ show time ++ " " ++ show capturing
             viewOrigin $ V3 cx cy cz
             viewMat $ mat4ToM44F cm
-            --orientation $ V4 orientA orientB orientC $ V4 0 0 0 1
             matSetter $! mat4ToM44F $! cm .*. sm .*. pm
 
             let invCM = mat4ToM44F $ idmtx -- inverse cm .*. (fromProjective $ translation (Vec3 0 (0) (-30)))
-                --rot = fromProjective $ rotationEuler (Vec3 (-pi/2+30/pi*2) (pi/2) (-pi))
-                -- rot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixX (-pi/2) .*. rotMatrixY (pi/2) .*. rotMatrixX (10/pi*2)
-                rot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixZ cvz .*. rotMatrixY cvy .*. rotMatrixX cvx
-            -- forM_ (md3instanceObject lcMD3Weapon) $ \obj -> do
-            --   uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! rot .*. (fromProjective $ translation cvpos) .*. smcanvas -- .*. pm
-            --   uniformM44F "worldMat" (objectUniformSetter obj) invCM
-            let toff       = (floor $ time * 100) `mod` 255
-                genImg x y = let v = if (x+y) `mod` 2 == 0 then toff else (255-toff) in PixelRGB8 v v 0
-            uploadTexture2DToGPU'' False False cvTexture $ ImageRGB8 $ generateImage genImg 64 64
-            updateUniforms storage $ do
-              "Tex_2051691439" @= return cvTexture
+            let cvrot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixZ cvz .*. rotMatrixY cvy .*. rotMatrixX cvx
+                om    = ortho 0.5 (-0.01) 0.01 (fromIntegral w / fromIntegral h)
+                smcanvas = fromProjective (scaling $ Vec3 scanvas scanvas scanvas)
+                scanvas  = 0.5
+            -- uploadTexture2DToGPU'' False False cvTexture $ ImageRGBA8 $ generateImage gen 256 256
+            -- updateUniforms storage $ do
+            --   cvMatSlot @= return cvTexture
             forM_ (md3sinstanceObject cvMD3) $ \obj -> do
-              uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! rot .*. (fromProjective $ translation cvpos) .*. smcanvas -- .*. pm
+              uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! om .*. (fromProjective $! translation cvpos) -- $! cvrot .*. (fromProjective $ translation cvpos) .*. om -- .*. smcanvas
               uniformM44F "worldMat" (objectUniformSetter obj) invCM
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
               forM_ (md3instanceObject lcmd3) $ \obj -> do

@@ -52,71 +52,38 @@ import Data.IORef
 import Data.Monoid ((<>))
 import qualified Data.Text as T
 
-import Graphics.Rendering.Cairo (moveTo, Render)
-import qualified GI.Gtk as Gtk (main, init)
-import GI.Gtk
-       (DrawingArea, widgetShowAll, onWidgetKeyPressEvent,
-        iMContextFilterKeypress, onWidgetKeyReleaseEvent,
-        iMContextFocusOut, onWidgetFocusOutEvent, iMContextFocusIn,
-        onWidgetFocusInEvent, widgetGetWindow, iMContextSetClientWindow,
-        onWidgetRealize, onIMContextDeleteSurrounding,
-        iMContextSetSurrounding, onIMContextRetrieveSurrounding,
-        onIMContextCommit, iMContextGetPreeditString,
-        onIMContextPreeditChanged, onIMContextPreeditEnd,
-        onIMContextPreeditStart, iMMulticontextNew, onWidgetDraw,
-        onWidgetSizeAllocate, widgetQueueDraw, widgetSetSizeRequest,
-        containerAdd, drawingAreaNew, mainQuit, onWidgetDestroy, windowNew)
-import GI.Gtk.Enums (WrapMode(..), WindowType(..))
-import GI.Pango
-       (AttrList, Attribute, attrListInsert, attrListNew, Layout,
-        layoutSetWidth, layoutNew, layoutSetAttributes, layoutSetText,
-        layoutSetWrap)
-import GI.PangoCairo.Interfaces.FontMap (fontMapGetDefault)
-import GI.PangoCairo.Functions (showLayout)
-import GI.Gdk.Structs.Rectangle (getRectangleWidth)
-import GI.Gdk.Structs.EventKey (getEventKeyState, getEventKeyKeyval)
-import GI.Gdk (keyvalToUnicode, keyvalName, EventKey)
-import GI.Cairo.Structs.Context (Context(..))
-import Foreign.ForeignPtr (withForeignPtr)
-import Control.Monad.Trans.Reader (ReaderT(..))
-import Graphics.Rendering.Cairo.Types (Cairo(..))
-import Foreign.Ptr (castPtr)
-import Graphics.Rendering.Cairo.Internal (Render(..))
-import Control.Monad.IO.Class (MonadIO(..))
 
-loremIpsum = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna\ \ aliqua. Ut enim ad minim veniam, quis nostrud exercitation\ \ ullamco laboris nisi ut aliquip ex ea commodo consequat.\ \ Duis aute irure dolor in reprehenderit in voluptate\ \ velit esse cillum dolore eu fugiat nulla pariatur.\ \ Excepteur sint occaecat cupidatat non proident, sunt in culpa\ \ qui officia deserunt mollit anim id est laborum."
+-- data Buffer = Buffer T.Text Int
 
-data Buffer = Buffer T.Text Int
+-- defaultBuffer = Buffer loremIpsum (T.length loremIpsum)
 
-defaultBuffer = Buffer loremIpsum (T.length loremIpsum)
+-- displayBuffer (Buffer str pos) =
+--   before <> "<CURSOR>" <> after
+--   where (before,after) = T.splitAt pos str
 
-displayBuffer (Buffer str pos) =
-  before <> "<CURSOR>" <> after
-  where (before,after) = T.splitAt pos str
+-- displayBufferPreedit (Buffer str pos) preeditStr preeditPos =
+--   before <> "[" <> prebefore <> "<CURSOR>" <> preafter <> "]" <> after
+--   where (before,after) = T.splitAt pos str
+--         (prebefore, preafter) = T.splitAt preeditPos preeditStr
 
-displayBufferPreedit (Buffer str pos) preeditStr preeditPos =
-  before <> "[" <> prebefore <> "<CURSOR>" <> preafter <> "]" <> after
-  where (before,after) = T.splitAt pos str
-        (prebefore, preafter) = T.splitAt preeditPos preeditStr
+-- insertStr new (Buffer str pos) = Buffer (before<>new<>after) (pos+T.length new)
+--   where (before,after) = T.splitAt pos str
 
-insertStr new (Buffer str pos) = Buffer (before<>new<>after) (pos+T.length new)
-  where (before,after) = T.splitAt pos str
+-- deleteChar b@(Buffer str 0) = b
+-- deleteChar (Buffer str pos) = Buffer (T.init before <> after) (pos-1)
+--   where (before,after) = T.splitAt pos str
 
-deleteChar b@(Buffer str 0) = b
-deleteChar (Buffer str pos) = Buffer (T.init before <> after) (pos-1)
-  where (before,after) = T.splitAt pos str
+-- moveLeft b@(Buffer str pos) | pos==0 = b
+--                             | otherwise = Buffer str (pos-1)
 
-moveLeft b@(Buffer str pos) | pos==0 = b
-                            | otherwise = Buffer str (pos-1)
+-- moveRight b@(Buffer str pos) | pos==T.length str = b
+--                              | otherwise = Buffer str (pos+1)
 
-moveRight b@(Buffer str pos) | pos==T.length str = b
-                             | otherwise = Buffer str (pos+1)
-
-attrListNewFromList :: MonadIO m => [Attribute] -> m AttrList
-attrListNewFromList list = do
-    al <- attrListNew
-    mapM_ (attrListInsert al) list
-    return al
+-- attrListNewFromList :: MonadIO m => [GI.Attribute] -> m AttrList
+-- attrListNewFromList list = do
+--     al <- attrListNew
+--     mapM_ (attrListInsert al) list
+--     return al
 
 data Graph = Graph
   { nodes ∷ [(String, [(String, (String, String))])],
