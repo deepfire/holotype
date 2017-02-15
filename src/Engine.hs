@@ -37,6 +37,7 @@ import qualified Data.Text as DT
 import Foreign
 import System.FilePath
 import System.Directory
+import qualified System.IO.Unsafe as UN
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
@@ -444,7 +445,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     defaultTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
 
     canvas <- renderCanvasInitial storage shMapTexSlot
-              (CanvasRequest loremIpsum (256, 256) (0, 0) (1, 1, 0, 1) (0.3, 0.3, 0.3, 0))
+              (CanvasRequest loremIpsum (256, 256) (0, 0) (1, 1, 0, 1) (0.3, 0.3, 0.3, 0) defaultFontDesc)
 
     putStrLn "loading textures:"
     -- load textures
@@ -556,13 +557,50 @@ uploadTexture2DToGPU'' isSRGB isMip (TextureData to) bitmap' = do
     when isMip $ glGenerateMipmap GL_TEXTURE_2D
     return ()
 
+defaultFontDesc :: GIP.FontDescription
+defaultFontDesc = UN.unsafePerformIO $ fontDescriptionFromArgs "Terminus" GIP.StyleNormal 12288
+
+fontDescriptionFromArgs :: String -> GIP.Style -> Int -> IO GIP.FontDescription
+fontDescriptionFromArgs family style pus = do
+  fd <- GIP.fontDescriptionNew
+  GIP.fontDescriptionSetFamily fd $ DT.pack family
+  GIP.fontDescriptionSetStyle  fd style
+  GIP.fontDescriptionSetSize   fd $ fromIntegral pus
+  pure fd
+
+  -- fmap        <- GIPC.fontMapGetDefault
+  -- ffam        <- fromJust <$> (tryFontMapFamily  fmap $ DT.pack fontfamily)
+  -- fface       <- fromJust <$> (tryFontFamilyFace ffam $ DT.pack fontface)
+  -- fcsizes     <- fromJust <$> GIP.fontFaceListSizes fface
+  -- unless (elem (fromIntegral fontpts) fcsizes) $
+  --   error $ printf "No font size %dPU for font %s-%s.\nAvailable sizes: %s." fontpts fontfamily fontface (show fcsizes)
+  -- printf "------------ got: %s-%s-%s\n" (DT.unpack $ UN.unsafePerformIO $ GIP.fontFamilyGetName ffam) (DT.unpack $ UN.unsafePerformIO $ GIP.fontFaceGetFaceName fface) (show fcsizes)
+
+tryFontMapFamily :: GIP.FontMap -> DT.Text -> IO (Maybe GIP.FontFamily)
+tryFontMapFamily fm req = loop =<< GIP.fontMapListFamilies fm
+  where loop []     = pure Nothing
+        loop (f:fs) = do
+          name <- GIP.fontFamilyGetName f
+          if name == req
+          then pure $ Just f
+          else loop fs
+tryFontFamilyFace :: GIP.FontFamily -> DT.Text -> IO (Maybe GIP.FontFace)
+tryFontFamilyFace fa req = loop =<< GIP.fontFamilyListFaces fa
+  where loop []     = pure Nothing
+        loop (f:fs) = do
+          name <- GIP.fontFaceGetFaceName f
+          if name == req
+          then pure $ Just f
+          else loop fs
+
 data CanvasRequest where
-  CanvasRequest ::
-    { crText :: DT.Text
-    , crDim  :: (Int, Int)
-    , crPad  :: (Int, Int)
-    , crFG   :: (Double, Double, Double, Double)
-    , crBG   :: (Double, Double, Double, Double)
+  CanvasRequest    ::
+    { crText       :: DT.Text
+    , crDim        :: (Int, Int)
+    , crPad        :: (Int, Int)
+    , crFG         :: (Double, Double, Double, Double)
+    , crBG         :: (Double, Double, Double, Double)
+    , crFontDesc   :: GIP.FontDescription
     } -> CanvasRequest
 
 data Canvas where
@@ -578,7 +616,7 @@ data Canvas where
     } -> Canvas
 
 renderCanvasInitial :: GLStorage -> Map String CommonAttrs -> CanvasRequest -> IO Canvas
-renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (padx, pady) fgColor bgColor) = do
+renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (padx, pady) fgColor bgColor fontdesc) = do
   let (reqw, reqh) = (padx + areaw + padx, pady + areah + pady)
       (dx, dy)     = (fromIntegral reqw, fromIntegral (-reqh)) --(fromIntegral reqw, -fromIntegral reqh)
       n            = (1) -- the normal
@@ -589,6 +627,7 @@ renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (pad
   grc         <- GRC.create grcSurface
   gic         <- grcToGIC grc
   gip         <- GIPC.createLayout gic
+  GIP.layoutSetFontDescription gip (Just fontdesc)
   GIP.layoutSetWrap      gip GIP.WrapModeWord
   GIP.layoutSetEllipsize gip GIP.EllipsizeModeEnd
   GIP.layoutSetText      gip text (-1)
