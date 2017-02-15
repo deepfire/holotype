@@ -60,3 +60,4 @@ executable mood
                      , gi-pangocairo
                      , gi-gdk
                      , haskell-gi-base
+                     , extra
