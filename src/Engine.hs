@@ -60,7 +60,7 @@ import qualified Data.GI.Base                      as GI
 import qualified GI.Cairo                          as GIC
 import qualified GI.Cairo.Structs.Context          as GIC -- (Context(..))
 import qualified GI.Pango                          as GIP
-       -- (AttrList, Attribute, attrListInsert, attrListNew, Layout,
+       -- (AttrList, GL.Attribute, attrListInsert, attrListNew, Layout,
        --  layoutSetWidth, layoutNew, layoutSetAttributes, layoutSetText,
        --  layoutSetWrap)
 import qualified GI.PangoCairo.Interfaces.FontMap  as GIPC -- (fontMapGetDefault)
@@ -76,7 +76,7 @@ import Codec.Picture
 import Codec.Picture.Types
 import Data.Vector.Mutable
 
-import LambdaCube.GL as GL
+import qualified LambdaCube.GL     as GL
 import LambdaCube.GL.Mesh
 import LambdaCube.GL.Type (TextureData(..))
 import Graphics.GL.Core33
@@ -116,19 +116,19 @@ type EngineContent =
   )
 
 type EngineGraphics =
-  ( GLStorage
+  ( GL.GLStorage
   , [(Proj4, MD3Instance)]
   , [Character]
   , [(Proj4, (MD3.MD3Model, MD3Instance), (MD3.MD3Model, MD3Instance),(MD3.MD3Model, MD3Instance))]
-  , V.Vector [Object]
+  , V.Vector [GL.Object]
   , BSPLevel
   , MD3Instance, Canvas
-  , [(Float, SetterFun TextureData, V.Vector TextureData)]
+  , [(Float, GL.SetterFun TextureData, V.Vector TextureData)]
   )
 
 loremIpsum = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna\ \ aliqua. Ut enim ad minim veniam, quis nostrud exercitation\ \ ullamco laboris nisi ut aliquip ex ea commodo consequat.\ \ Duis aute irure dolor in reprehenderit in voluptate\ \ velit esse cillum dolore eu fugiat nulla pariatur.\ \ Excepteur sint occaecat cupidatat non proident, sunt in culpa\ \ qui officia deserunt mollit anim id est laborum."
 
-createMoodRenderInfo :: Map FilePath CommonAttrs -> HashSet FilePath -> HashSet FilePath -> (PipelineSchema, Map FilePath CommonAttrs)
+createMoodRenderInfo :: Map FilePath CommonAttrs -> HashSet FilePath -> HashSet FilePath -> (GL.PipelineSchema, Map FilePath CommonAttrs)
 createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTexSlot) where
   mkShader hasLightmap n = case Map.lookup n shMap' of
     Just s -> (n,s)
@@ -183,45 +183,45 @@ createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTe
 
       -}
   quake3SlotSchema =
-    ObjectArraySchema Triangles $ Map.fromList
-      [ ("color",       Attribute_V4F)
-      , ("diffuseUV",   Attribute_V2F)
-      , ("normal",      Attribute_V3F)
-      , ("position",    Attribute_V3F)
-      , ("lightmapUV",  Attribute_V2F)
+    GL.ObjectArraySchema GL.Triangles $ Map.fromList
+      [ ("color",       GL.Attribute_V4F)
+      , ("diffuseUV",   GL.Attribute_V2F)
+      , ("normal",      GL.Attribute_V3F)
+      , ("position",    GL.Attribute_V3F)
+      , ("lightmapUV",  GL.Attribute_V2F)
       ]
 
   debugSlotSchema =
-    ObjectArraySchema Triangles $ Map.fromList
-      [ ("position",    Attribute_V3F)
-      , ("color",       Attribute_V4F)
+    GL.ObjectArraySchema GL.Triangles $ Map.fromList
+      [ ("position",    GL.Attribute_V3F)
+      , ("color",       GL.Attribute_V4F)
       ]
 
   inputSchema = {-TODO-}
-    PipelineSchema
+    GL.PipelineSchema
     { objectArrays = Map.fromList $ ("CollisionShape",debugSlotSchema) : zip ("LightMapOnly":"missing shader": Map.keys shMap) (repeat quake3SlotSchema)
-    , uniforms = Map.fromList $ [ ("viewProj",      M44F)
-                                , ("worldMat",      M44F)
-                                , ("viewMat",       M44F)
-                                , ("orientation",   M44F)
-                                , ("viewOrigin",    V3F)
-                                , ("entityRGB",     V3F)
-                                , ("entityAlpha",   Float)
-                                , ("identityLight", Float)
-                                , ("time",          Float)
-                                , ("LightMap",      FTexture2D)
-                                , ("Noise",                FTexture2D)
-                                , ("SinTable",             FTexture2D)
-                                , ("SquareTable",          FTexture2D)
-                                , ("SawToothTable",        FTexture2D)
-                                , ("InverseSawToothTable", FTexture2D)
-                                , ("TriangleTable",        FTexture2D)
-                                , ("origin",    V3F)
-                                ] ++ zip textureUniforms (repeat FTexture2D)
+    , uniforms = Map.fromList $ [ ("viewProj",      GL.M44F)
+                                , ("worldMat",      GL.M44F)
+                                , ("viewMat",       GL.M44F)
+                                , ("orientation",   GL.M44F)
+                                , ("viewOrigin",    GL.V3F)
+                                , ("entityRGB",     GL.V3F)
+                                , ("entityAlpha",   GL.Float)
+                                , ("identityLight", GL.Float)
+                                , ("time",          GL.Float)
+                                , ("LightMap",      GL.FTexture2D)
+                                , ("Noise",                GL.FTexture2D)
+                                , ("SinTable",             GL.FTexture2D)
+                                , ("SquareTable",          GL.FTexture2D)
+                                , ("SawToothTable",        GL.FTexture2D)
+                                , ("InverseSawToothTable", GL.FTexture2D)
+                                , ("TriangleTable",        GL.FTexture2D)
+                                , ("origin",    GL.V3F)
+                                ] ++ zip textureUniforms (repeat GL.FTexture2D)
     }
 
 -- TODO
-engineInit :: Map String Entry -> FilePath -> IO (PipelineSchema, EngineContent)
+engineInit :: Map String Entry -> FilePath -> IO (GL.PipelineSchema, EngineContent)
 engineInit pk3Data fullBSPName = do
     let bspName = takeBaseName fullBSPName
         bspEntry = case Map.lookup fullBSPName pk3Data of
@@ -313,15 +313,15 @@ getTeleportFun levelData@(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSl
 -- Frame {frMins = Vec3 (-10.765625) (-10.921875) (-5.84375), frMaxs = Vec3 10.828125 10.671875 15.75, frOrigin = Vec3 0.0 0.0 0.0, frRadius = 22.01359, frName = "(from ase)"}
 uploadMD3Surface :: MD3.Surface -> MD3.Frame -> IO GPUMD3S
 uploadMD3Surface surface@MD3.Surface{..} frame = do
-  let cvtSurface :: MD3.Surface -> (Array,Array,V.Vector (Array,Array))
+  let cvtSurface :: MD3.Surface -> (GL.Array, GL.Array, V.Vector (GL.Array, GL.Array))
       cvtSurface MD3.Surface{..} =
-        ( Array ArrWord32 (SV.length srTriangles) (withV srTriangles)
-        , Array ArrFloat (2 * SV.length srTexCoords) (withV srTexCoords)
+        ( GL.Array GL.ArrWord32 (SV.length srTriangles) (withV srTriangles)
+        , GL.Array GL.ArrFloat (2 * SV.length srTexCoords) (withV srTexCoords)
         , V.map cvtPosNorm srXyzNormal
         )
         where
           withV a f = SV.unsafeWith a (\p -> f $ castPtr p)
-          cvtPosNorm (p,n) = (f p, f n) where f sv = Array ArrFloat (3 * SV.length sv) $ withV sv
+          cvtPosNorm (p,n) = (f p, f n) where f sv = GL.Array GL.ArrFloat (3 * SV.length sv) $ withV sv
 
       addSurface sf (il,tl,pl,nl,pnl) = (i:il,t:tl,p:pl,n:nl,pn:pnl) where
         (i,t,pn) = cvtSurface sf
@@ -329,21 +329,21 @@ uploadMD3Surface surface@MD3.Surface{..} frame = do
 
       (il,tl,pl,nl,pnl) = addSurface surface ([],[],[],[],[])
 
-  buffer <- compileBuffer (concat [il,tl,pl,nl])
+  buffer <- GL.compileBuffer (concat [il,tl,pl,nl])
 
   let nMdFrames   = 1
       numSurfaces = 1
       surfaceData idx MD3.Surface{..} = (index,attributes) where
-        index = IndexStream buffer idx 0 (SV.length srTriangles)
+        index = GL.IndexStream buffer idx 0 (SV.length srTriangles)
         countV = SV.length srTexCoords
         attributes = Map.fromList $
-          [ ("diffuseUV",   Stream Attribute_V2F buffer (1 * numSurfaces + idx) 0 countV)
-          , ("position",    Stream Attribute_V3F buffer (2 * numSurfaces + idx) 0 countV)
-          , ("normal",      Stream Attribute_V3F buffer (3 * numSurfaces + idx) 0 countV)
-          , ("color",       ConstV4F (V4 1 1 1 1))
-          , ("lightmapUV",  ConstV2F (V2 0 0))
+          [ ("diffuseUV",   GL.Stream GL.Attribute_V2F buffer (1 * numSurfaces + idx) 0 countV)
+          , ("position",    GL.Stream GL.Attribute_V3F buffer (2 * numSurfaces + idx) 0 countV)
+          , ("normal",      GL.Stream GL.Attribute_V3F buffer (3 * numSurfaces + idx) 0 countV)
+          , ("color",       GL.ConstV4F (GL.V4 1 1 1 1))
+          , ("lightmapUV",  GL.ConstV2F (GL.V2 0 0))
           ]
-      frames :: Data.Vector.Vector [(Int, Array)]
+      frames :: Data.Vector.Vector [(Int, GL.Array)]
       frames = foldr addSurfaceFrames emptyFrame $ zip [0..] pnl where
         emptyFrame = V.replicate nMdFrames []
         addSurfaceFrames (idx,pn) f = V.zipWith (\l (p,n) -> (2 * numSurfaces + idx,p):(3 * numSurfaces + idx,n):l) f pn
@@ -359,9 +359,9 @@ uploadMD3Surface surface@MD3.Surface{..} frame = do
 
 data GPUMD3S
   = GPUMD3S
-  { gpumd3sBuffer    :: Buffer
-  , gpumd3sStreams   :: (IndexStream Buffer,Map String (Stream Buffer)) -- index stream, attribute streams
-  , gpumd3sFrames    :: V.Vector [(Int,Array)]
+  { gpumd3sBuffer    :: GL.Buffer
+  , gpumd3sStreams   :: (GL.IndexStream GL.Buffer,Map String (GL.Stream GL.Buffer)) -- index stream, attribute streams
+  , gpumd3sFrames    :: V.Vector [(Int, GL.Array)]
   , gpumd3sShaders   :: HashSet String
   , gpumd3sSurface   :: MD3.Surface
   , gpumd3sFrame     :: MD3.Frame
@@ -369,15 +369,15 @@ data GPUMD3S
 
 data MD3SInstance
   = MD3SInstance
-  { md3sinstanceObject  :: [Object]
-  , md3sinstanceBuffer  :: Buffer
-  , md3sinstanceFrames  :: V.Vector [(Int,Array)]
+  { md3sinstanceObject  :: [GL.Object]
+  , md3sinstanceBuffer  :: GL.Buffer
+  , md3sinstanceFrames  :: V.Vector [(Int, GL.Array)]
   , md3sinstanceSurface :: MD3.Surface
   }
 
 type MD3Skin = Map String String
 
-addGPUMD3Surface :: GLStorage -> GPUMD3S -> MD3Skin -> [String] -> IO MD3SInstance
+addGPUMD3Surface :: GL.GLStorage -> GPUMD3S -> MD3Skin -> [String] -> IO MD3SInstance
 addGPUMD3Surface r GPUMD3S{..} skin unis = do
     let sf@MD3.Surface{..} = gpumd3sSurface
     let (index, attrs) = gpumd3sStreams
@@ -387,15 +387,15 @@ addGPUMD3Surface r GPUMD3S{..} skin unis = do
               Just a  -> a
         objList <- concat <$> forM (V.toList $ srShaders) (\s -> do
           printf "addObjectWithmaterial:\n  %s\n  %s\n\n" (show $ materialName s) (show unis) -- (ppShow attrs)
-          a <- addObjectWithMaterial r (materialName s) TriangleList (Just index) attrs $ setNub $ "worldMat":unis
-          b <- addObject             r "LightMapOnly"   TriangleList (Just index) attrs $ setNub $ "worldMat":unis
+          a <- addObjectWithMaterial r (materialName s) GL.TriangleList (Just index) attrs $ setNub $ "worldMat":unis
+          b <- GL.addObject          r "LightMapOnly"   GL.TriangleList (Just index) attrs $ setNub $ "worldMat":unis
           return [a,b])
 
         -- add collision geometry
         let Frame{..} = gpumd3sFrame
         collisionObjs <- do
-            sphereObj <- uploadMeshToGPU (sphere (V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
-            boxObj <- uploadMeshToGPU (bbox (V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
+            sphereObj <- uploadMeshToGPU (sphere (GL.V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
+            boxObj <- uploadMeshToGPU (bbox (GL.V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
             --when (frOrigin /= zero) $ putStrLn $ "frOrigin: " ++ show frOrigin
             return [sphereObj,boxObj]
 
@@ -409,7 +409,7 @@ addGPUMD3Surface r GPUMD3S{..} skin unis = do
         , md3sinstanceSurface = sf
         }
 
-addMD3Surface :: GLStorage -> MD3.Surface -> MD3.Frame -> MD3Skin -> [String] -> IO MD3SInstance
+addMD3Surface :: GL.GLStorage -> MD3.Surface -> MD3.Frame -> MD3Skin -> [String] -> IO MD3SInstance
 addMD3Surface r surface frame skin unis = do
     gpuMD3 <- uploadMD3Surface surface frame
     addGPUMD3Surface r gpuMD3 skin unis
@@ -425,24 +425,24 @@ doRange from to action =
                               loop (n+1)
    in loop from
 
-setupStorage :: Map String Entry -> EngineContent -> GLStorage -> IO EngineGraphics
+setupStorage :: Map String Entry -> EngineContent -> GL.GLStorage -> IO EngineGraphics
 setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_,_,_,_) storage = do
-    let slotU           = uniformSetter storage
-        entityRGB       = uniformV3F "entityRGB" slotU
-        entityAlpha     = uniformFloat "entityAlpha" slotU
-        identityLight   = uniformFloat "identityLight" slotU
-        worldMat        = uniformM44F "worldMat" slotU
+    let slotU           = GL.uniformSetter storage
+        entityRGB       = GL.uniformV3F "entityRGB" slotU
+        entityAlpha     = GL.uniformFloat "entityAlpha" slotU
+        identityLight   = GL.uniformFloat "identityLight" slotU
+        worldMat        = GL.uniformM44F "worldMat" slotU
         overbrightBits  = 0
-        idmtx = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
+        idmtx = GL.V4 (GL.V4 1 0 0 0) (GL.V4 0 1 0 0) (GL.V4 0 0 1 0) (GL.V4 0 0 0 1)
     worldMat idmtx
-    entityRGB $ V3 1 1 1
+    entityRGB $ GL.V3 1 1 1
     entityAlpha 1
     identityLight $ 1 / (2 ^ overbrightBits)
     initTableTextures >>= setupTableTextures slotU
 
     -- default texture
     let redBitmap x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
-    defaultTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
+    defaultTexture <- GL.uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
 
     canvas <- renderCanvasInitial storage shMapTexSlot
               (CanvasRequest loremIpsum (256, 256) (0, 0) (1, 1, 0, 1) (0.3, 0.3, 0.3, 0) defaultFontDesc)
@@ -451,7 +451,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     -- load textures
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\(shName,sh) -> [(shName,saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ Map.toList shMapTexSlot) $
       \(shName,stageTex,texSlotName,noMip) -> do -- texSlotName :: Approx "Tex_3913048198"
-        let texSetter = uniformFTexture2D (SB.pack texSlotName) slotU
+        let texSetter = GL.uniformFTexture2D (SB.pack texSlotName) slotU
             setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data shName img
         case stageTex of
             ST_Map img          -> if img == cvMaterial canvas -- don't touch our canvas..
@@ -606,7 +606,7 @@ data CanvasRequest where
 data Canvas where
   Canvas ::
     { cvMaterial :: String
-    , cvMatSlot  :: GLUniformName
+    , cvMatSlot  :: GL.GLUniformName
     , cvTexture  :: TextureData
     , cvMD3      :: MD3SInstance
     , cvGRCr     :: GRC.Cairo
@@ -668,7 +668,7 @@ renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (pad
   cvMD3       <- addMD3Surface storage cvSurface cvFrame mempty ["worldMat","viewProj"]
 
   printf "reqw=%d, stride=%d, widthOfStride=%f\n" reqw stridePxs widthOfStride
-  uniformFTexture2D (SB.pack cvMatSlot) (uniformSetter storage) cvTexture
+  GL.uniformFTexture2D (SB.pack cvMatSlot) (GL.uniformSetter storage) cvTexture
 
   pure Canvas { cvMaterial = cvMaterial
               , cvMD3      = cvMD3
@@ -700,23 +700,23 @@ updateRenderInput :: EngineGraphics
 updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs, bsp, lcMD3Weapon, canvas@Canvas{..}, animTex)
                   (camPos@(Vec3 cx cy cz), camTarget, camUp)
                   w h time (Vec3 cvx cvy cvz, cvpos) = do
-            let slotU = uniformSetter storage
+            let slotU = GL.uniformSetter storage
 
-            let matSetter   = uniformM44F "viewProj" slotU
-                viewOrigin  = uniformV3F "viewOrigin" slotU
-                orientation = uniformM44F "orientation" slotU
-                viewMat     = uniformM44F "viewMat" slotU
-                timeSetter  = uniformFloat "time" slotU
+            let matSetter   = GL.uniformM44F "viewProj" slotU
+                viewOrigin  = GL.uniformV3F "viewOrigin" slotU
+                orientation = GL.uniformM44F "orientation" slotU
+                viewMat     = GL.uniformM44F "viewMat" slotU
+                timeSetter  = GL.uniformFloat "time" slotU
 
             let cm = fromProjective (lookat camPos camTarget camUp)                             -- camera orientation transform
-                pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h) -- perspective matrix
+                pm = GameEngine.Utils.perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h) -- perspective matrix
                 sm = fromProjective (scaling $ Vec3 s s s)                                      -- scale matrix
                 s  = 0.005
                 near = 0.00001/s
                 far  = 100/s
                 fovDeg = 60
                 frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
-                cullObject obj p = enableObject obj (pointInFrustum p frust)
+                cullObject obj p = GL.enableObject obj (pointInFrustum p frust)
 
             let idM44F = mat4ToM44F $ idmtx -- inverse cm .*. (fromProjective $ translation (Vec3 0 (0) (-30)))
             let --cvrot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixZ cvz .*. rotMatrixY cvy .*. rotMatrixX cvx
@@ -728,12 +728,12 @@ updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs,
             -- updateUniforms storage $ do
             --   cvMatSlot @= return cvTexture
             forM_ (md3sinstanceObject cvMD3) $ \obj -> do
-              uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! om -- .*. (fromProjective $! translation cvpos) -- $! cvrot .*. (fromProjective $ translation cvpos) .*. om -- .*. smcanvas
-              uniformM44F "worldMat" (objectUniformSetter obj) idM44F -- invCM
+              GL.uniformM44F "viewProj" (GL.objectUniformSetter obj) aspectM44F -- $ mat4ToM44F $! om -- .*. (fromProjective $! Data.Vect.translation cvpos) -- $! cvrot .*. (fromProjective $ translation cvpos) .*. om -- .*. smcanvas
+              GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) idM44F -- invCM
 
             -- set uniforms
             timeSetter $ time / 1
-            viewOrigin $ V3 cx cy cz
+            viewOrigin $ GL.V3 cx cy cz
             viewMat $ mat4ToM44F cm
             matSetter $! mat4ToM44F $! cm .*. sm .*. pm
 
@@ -741,7 +741,7 @@ updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs,
               forM_ (md3instanceObject lcmd3) $ \obj -> do
                 let m = mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
                     p = trim . _4 $ fromProjective mat
-                uniformM44F "worldMat" (objectUniformSetter obj) m
+                GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) m
                 cullObject obj p
 
             forM_ (zip characters lcCharacterObjs) $ \(Character{..},(mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))) -> do
@@ -821,7 +821,7 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
                   lcMat m = mat4ToM44F . fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. mat
                   p = trim . _4 $ fromProjective mat
                   setup m obj = do
-                    uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat m
+                    GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) $ lcMat m
                     cullObject obj p
               forM_ (md3instanceObject hLC) $ setup hMat
               forM_ (md3instanceObject uLC) $ setup uMat
@@ -834,11 +834,11 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
               let (_,i) = properFraction (time / animTime)
                   idx = floor $ i * fromIntegral (V.length v)
               texSetter $ v V.! idx
-            setScreenSize storage (fromIntegral w) (fromIntegral h)
+            GL.setScreenSize storage (fromIntegral w) (fromIntegral h)
             -- TODO
-            let idmtx = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
+            let idmtx = GL.V4 (GL.V4 1 0 0 0) (GL.V4 0 1 0 0) (GL.V4 0 0 1 0) (GL.V4 0 0 0 1)
             -- ???: why is this needed?
-            V.forM_ surfaceObjs $ \objs -> forM_ objs $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) idmtx
+            V.forM_ surfaceObjs $ \objs -> forM_ objs $ \obj -> GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) idmtx
             -- case noBSPCull of
             --   True  -> V.forM_ surfaceObjs $ \objs -> forM_ objs $ \obj -> enableObject obj True
             --   False -> cullSurfaces bsp camPos frust surfaceObjs
