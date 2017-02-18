@@ -22,7 +22,7 @@
 
   This is a design document, accompanied with some code to support it.
 
-* UI tropes
+* UI tropes, random ideas
 
   1. Arrows move
      - +modifiers = ...
@@ -38,6 +38,11 @@
   8. a multiple set co-reduction/co-projection model
   9. a path language derived from above
   10. external application embedding (WM-like)
+  11. sources & foci factoring out common information from data, which is allowed
+      to remain non-enriched -- which makes sources+foci be like functions
+      - which leads to need for "pinning" values of those projections, for those
+        values the user considered important
+  12. reify *query results* as *projection* called *stage*, that is out of sync by definition
 
 * Inspiration
 
