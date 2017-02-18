@@ -2,7 +2,7 @@
 , aeson, attoparsec, base, base-unicode-symbols, binary, bytestring
 , bytestring-trie, containers, data-binary-ieee754, deepseq, digest
 , directory, elerea, extra, filepath, GLFW-b, JuicyPixels
-, microlens-platform, MissingH, MonadRandom, OpenGLRaw
+, microlens-platform, MissingH, MonadRandom, mono-traversable, OpenGLRaw
 , pretty-show, process, proteaaudio, time, transformers, vect, vector, zlib
 #, youtrack
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
@@ -18,7 +18,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson attoparsec base base-unicode-symbols binary bytestring bytestring-trie containers
     data-binary-ieee754 deepseq digest directory extra filepath JuicyPixels
-    microlens-platform MissingH MonadRandom pretty-show process
+    microlens-platform MissingH MonadRandom mono-traversable pretty-show process
     time transformers vect vector zlib
     # youtrack
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
