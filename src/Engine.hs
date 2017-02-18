@@ -157,7 +157,7 @@ createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTe
                         ,defaultCommonAttrs
                          { caSort   = 9.0
                          , caStages = [defaultStageAttrs
-                                        { saTexture     = ST_Map "canvasMaterial"
+                                        { saTexture     = ST_ClampMap "canvasMaterial"
                                         , saBlend       = Just ( B_SrcAlpha , B_OneMinusSrcAlpha )
                                         , saTCGen       = TG_Base
                                         , saDepthWrite  = True
@@ -452,12 +452,12 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\(shName,sh) -> [(shName,saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ Map.toList shMapTexSlot) $
       \(shName,stageTex,texSlotName,noMip) -> do -- texSlotName :: Approx "Tex_3913048198"
         let texSetter = GL.uniformFTexture2D (SB.pack texSlotName) slotU
-            setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data shName img
-        case stageTex of
-            ST_Map img          -> if img == cvMaterial canvas -- don't touch our canvas..
+            setTex isClamped img = if img == cvMaterial canvas -- don't touch our canvas..
                                    then return []
-                                   else setTex False img >> return []
-            ST_ClampMap img     -> setTex True img >> return []
+                                   else (texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data shName img) >> return []
+        case stageTex of
+            ST_Map img          -> setTex False img
+            ST_ClampMap img     -> setTex True  img
             ST_AnimMap freq imgs   -> do
                 txList <- mapM (loadQ3Texture (not noMip) False defaultTexture pk3Data shName) imgs
                 let txVector = V.fromList txList
@@ -709,7 +709,7 @@ updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs,
                 timeSetter  = GL.uniformFloat "time" slotU
 
             let cm = fromProjective (lookat camPos camTarget camUp)                             -- camera orientation transform
-                pm = GameEngine.Utils.perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h) -- perspective matrix
+                pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h) -- perspective matrix
                 sm = fromProjective (scaling $ Vec3 s s s)                                      -- scale matrix
                 s  = 0.005
                 near = 0.00001/s
