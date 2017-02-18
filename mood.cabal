@@ -47,6 +47,7 @@ executable mood
                      , GLFW-b
                      , hxt
                      , JuicyPixels
+                     , lambdacube-ir
                      , lambdacube-gl
                      , lambdacube-quake3
                      , MissingH
