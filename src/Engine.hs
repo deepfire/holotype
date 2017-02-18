@@ -709,7 +709,7 @@ updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs,
                 timeSetter  = GL.uniformFloat "time" slotU
 
             let cm = fromProjective (lookat camPos camTarget camUp)                             -- camera orientation transform
-                pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h) -- perspective matrix
+                pm = GameEngine.Utils.perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h) -- perspective matrix
                 sm = fromProjective (scaling $ Vec3 s s s)                                      -- scale matrix
                 s  = 0.005
                 near = 0.00001/s
