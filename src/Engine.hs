@@ -1,4 +1,10 @@
-{-# LANGUAGE LambdaCase, ViewPatterns, RecordWildCards, TupleSections, PackageImports, OverloadedStrings, GADTs #-}
+{-# LANGUAGE LambdaCase, ViewPatterns, RecordWildCards, TupleSections, PackageImports, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ExplicitForAll, FlexibleContexts, NoMonomorphismRestriction #-}
+{-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving, StandaloneDeriving #-}
+{-# LANGUAGE DataKinds, GADTs, TypeFamilies, TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module Engine
   ( loadPK3
   , createLoadingScreen
@@ -18,7 +24,11 @@ module Engine
   , EngineContent, EngineGraphics
   ) where
 
+import GHC.Stack
+import GHC.TypeLits
+
 import Control.Monad
+import Control.Lens
 import Data.Char
 import Data.Digest.CRC32
 import Data.HashSet (HashSet)
@@ -41,12 +51,20 @@ import qualified System.IO.Unsafe as UN
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
-import Data.Binary (encodeFile,decodeFile)
-import qualified Data.ByteString.Lazy as LB
-import Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as SB
 import qualified Data.Set as Set
 import qualified Data.HashSet as HashSet
+
+import qualified Data.ByteString.Lazy as LB
+import           Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Char8 as SB
+
+import Data.Binary (encodeFile,decodeFile)
+
+import Data.MonoTraversable
+
+import Linear
+import qualified Linear as L
+import Numeric.Extra
 
 import Text.Printf (printf)
 import Text.Show.Pretty (ppShow)
@@ -77,6 +95,7 @@ import Codec.Picture.Types
 import Data.Vector.Mutable
 
 import qualified LambdaCube.GL     as GL
+import qualified LambdaCube.Linear as LCLin
 import LambdaCube.GL.Mesh
 import LambdaCube.GL.Type (TextureData(..))
 import Graphics.GL.Core33
@@ -102,6 +121,207 @@ import qualified GameEngine.Loader.Entity as E
 import Entity
 import Content
 
+---
+--- XXX: HUGE NOTE: V2/Co/Wrap mass of code below is likely silliness,
+---      easily replaced with a couple of short lens operators.
+---      Nevertheless, it is what it is -- because of blissful lack of education.
+---      Typical.
+---
+
+goldenRatio :: Double
+goldenRatio = 1.61803398875
+
+v2symm :: a -> V2 a
+v2symm x = V2 x x
+
+v2negp :: (Num a, Ord a) => V2 a -> Bool
+v2negp (V2 d0 d1) = d0 < 0 || d1 < 0
+
+
+-- | Type-safe flat space types.
+newtype Co a = Co { fromCo :: V2 a } -- ^ Coordinates
+newtype Di a = Di { fromDi :: V2 a } -- ^ Dimensions
+newtype An a = An { fromAn :: V2 a } -- ^ Angles
+deriving instance Show a => Show (Co a)
+deriving instance Show a => Show (Di a)
+deriving instance Show a => Show (An a)
+deriving instance Functor Co
+deriving instance Functor Di
+deriving instance Functor An
+deriving instance Additive Co
+deriving instance Additive Di
+deriving instance Additive An
+
+di2goldX, di2goldY :: Double -> Di Double
+di2goldX x = Di $ V2  x               (x / goldenRatio)
+di2goldY y = Di $ V2 (y / goldenRatio) y
+
+coRectOppo :: Co a -> Co a -> (Co a, Co a)
+coRectOppo !(Co (V2 c00 c01)) !(Co (V2 c10 c11))
+  = (Co (V2 c00 c11), Co (V2 c10 c01))
+
+-- There's something smaller and beautiful struggling here:
+--  ltx = lbx, lty = rty etc.
+coLTRBRectArcCentersCW :: Num a => Co a -> Co a -> a -> (Co a, Co a, Co a, Co a)
+coLTRBRectArcCentersCW !lt@(Co (V2 ltx lty)) !rb@(Co (V2 rbx rby)) r =
+  let (Co (V2 lbx lby), Co (V2 rtx rty)) = coRectOppo lt rb
+  in (Co (V2 (ltx + r) (lty + r))
+     ,Co (V2 (rtx - r) (rty + r))
+     ,Co (V2 (rbx - r) (rby - r))
+     ,Co (V2 (lbx + r) (lby - r)))
+
+aLTRectAnglesCW :: (Fractional a, Floating a) => (An a, An a, An a, An a)
+aLTRectAnglesCW
+  = (An $ V2 (180 * degrees) (270 * degrees)
+    ,An $ V2 (-90 * degrees)   (0 * degrees)
+    ,An $ V2   (0 * degrees)  (90 * degrees)
+    ,An $ V2  (90 * degrees) (180 * degrees))
+  where !degrees = pi/180
+
+coArc :: Co Double -> Double -> An Double -> GRCI.Render ()
+coArc !(Co (V2 x y)) !r !(An (V2 angs ange))
+  = GRC.arc x y r angs ange
+  where degrees = pi/180
+
+
+-- | A 'Wrap' is a rectangular "donut", wrapping something inside it.
+--   It effectively partitions space into:
+--   - the __/wrap area/__, around the /wrapped area/ -- this is what 'Wrap' corresponds to,
+--   - the __/wrapped area/__, inside the 'Wrap' itself.
+data Wrap (pinned :: Bool) a where
+  Wrap  :: Num a => -- ^ The non-positioned, dimensional-only wrap.
+    { wLTd :: !(Di a) -- ^ The combined offsets from the left and top sides.
+    , wRBd :: !(Di a) -- ^ The combined offsets from the right and bottom sides.
+    } -> Wrap False a
+  PWrap :: Num a => -- ^ The /pinned/ variant -- enriched with a position.
+    { pLTd :: !(Di a) -- ^ ..same as above.
+    , pRBd :: !(Di a) -- ^ ..same as above.
+    , pLTp :: !(Co a) -- ^ Coordinates of the top-leftmost pixel of the wrap area.
+    , pRBp :: !(Co a) -- ^ Coordinates of the bottom-rightmost pixel of the wrap area.
+    } -> Wrap True a
+deriving instance Show a => Show (Wrap p a)
+
+wL, wT, wR, wB :: Wrap p a -> a
+wL  Wrap{..} = (view _x) $ fromDi wLTd; wL PWrap{..} = (view _x) $ fromDi pLTd
+wT  Wrap{..} = (view _y) $ fromDi wLTd; wT PWrap{..} = (view _y) $ fromDi pLTd
+wR  Wrap{..} = (view _x) $ fromDi wRBd; wR PWrap{..} = (view _x) $ fromDi pRBd
+wB  Wrap{..} = (view _y) $ fromDi wRBd; wB PWrap{..} = (view _y) $ fromDi pRBd
+
+-- | Narrowing into a positioned 'Wrap'.
+pwLTpi, pwRBpi :: Wrap True a -> Co a
+pwLTpi (PWrap (Di pLTd) _ (Co pLTp) _) = Co $ pLTp ^+^ pLTd
+pwRBpi (PWrap _ (Di pRBd) _ (Co pRBp)) = Co $ pRBp ^-^ pRBd
+
+pwPosIn        :: Wrap True a -> (Co a, Co a)
+pwPosIn pw = (pwLTpi pw, pwRBpi pw)
+
+-- | Narrowing into a positioned 'Wrap', halfway.
+pwLTpi'2, pwRBpi'2 :: Fractional a => Wrap True a -> Co a
+pwLTpi'2 (PWrap (Di pLTd) _ (Co pLTp) _) = Co $ pLTp ^+^ pLTd * 0.5
+pwRBpi'2 (PWrap _ (Di pRBd) _ (Co pRBp)) = Co $ pRBp ^-^ pRBd * 0.5
+
+pwPosIn'2          :: Fractional a => Wrap True a -> (Co a, Co a)
+pwPosIn'2 pw = (pwLTpi'2 pw, pwRBpi'2 pw)
+
+--   TR and BL corners:
+-- wLBd, wRTd :: Wrap False a -> V2 a
+-- wLBd  (Wrap (V2 l _) (V2 _ b))     = V2 l b
+-- wRTd  (Wrap (V2 _ t) (V2 r _))     = V2 r t
+-- pLBd, pRTd :: Wrap True a -> V2 a
+-- pLBd (PWrap (V2 l _) (V2 _ b) _ _) = V2 l b
+-- pRTd (PWrap (V2 _ t) (V2 r _) _ _) = V2 r t
+-- pLBp, pRTp :: Wrap True a -> V2 a
+-- pLBp (PWrap _ _ (V2 l _) (V2 _ b)) = V2 l b
+-- pRTp (PWrap _ _ (V2 _ t) (V2 r _)) = V2 r t
+
+--   Is there a useful meaning for a monoid?
+-- instance (Num a, Monoid (V2 a)) => Monoid (Wrap a) where
+--   mempty = Wrap mempty mempty
+--   Wrap l0 l1 `mappend` Wrap r0 r1 = Wrap (mappend l0 r0) (mappend l1 r1)
+-- instance forall a.Num a => Functor (Wrap a) where
+--   fmap f Wrap{..} = Wrap (fmap f wLB) (fmap f wRT)
+
+--- It's /clearly/ a profunctorial transform, but I don't care yet..
+type instance Element (Wrap p a) = V2 a
+instance MonoFunctor (Wrap p a) where
+  omap f  Wrap{..} =  Wrap (f'di wLTd) (f'di wRBd)
+    where f'di = Di . f . fromDi
+  omap f PWrap{..} = PWrap (f'di pLTd) (f'di pRBd) (f'co pLTp) (f'co pRBp)
+    where f'di = Di . f . fromDi
+          f'co = Co . f . fromCo
+
+wDim :: Wrap s a -> Di a
+wDim  Wrap{..} = wLTd ^+^ wRBd
+wDim PWrap{..} = pLTd ^+^ pRBd
+
+-- | Make pLTp and pRBp the top-leftmost and bottom-rightmost pixels of the 'Wrap'.
+--   Warning:  no check on whether the coordinates are compatible with the dimensions is performed.
+wPin :: Wrap False a -> Co a -> Co a -> Wrap True a
+wPin Wrap{..} pLTp pRBp = PWrap{..}
+  where pLTd = wLTd
+        pRBd = wRBd
+
+-- | Smart constructors for 'Wrap'.
+wSymm :: Num a => a -> Wrap False a
+wSymm d = Wrap (Di $ v2symm d) (Di $ v2symm d)
+
+wGoldSX, wGoldSY :: Double -> Wrap False Double
+wGoldSX x = Wrap w w where w = di2goldX x
+wGoldSY y = Wrap w w where w = di2goldY y
+
+
+----
+---- Space partitioning
+----
+data Space (pinned :: Bool) (depth :: Nat) a where
+  End :: Num a =>                 Space p  0    a
+  Spc :: Num a =>
+    { sWrap  :: !(Wrap p   a)
+    , sInner ::  Space p m a } -> Space p (n+1) a
+
+-- | Compute the total allocation for an un-pinned 'Space'.
+--   Complexity: O(depth).
+sDim :: Space False d a -> Di a
+sDim s@Spc{..} = wDim sWrap ^+^ sDim sInner
+sDim   End     = L.zero
+
+-- | Compute the RB point for an un-pinned 'Space', given its LT point.
+--   Complexity: O(depth).
+sRB  :: Space False d a -> Co a -> Co a
+sRB  s@Spc{..} lt = Co $ fromCo lt ^+^ fromDi (sDim s) --  ^-^ V2 1 1
+
+-- | Pin space to the @lt
+sPin :: Num a => Space False n a -> Co a -> Space True n a
+sPin space lt = loop space L.zero rb
+  where rb = sRB space lt
+        loop :: Space False n a -> Co a -> Co a -> Space True n a
+        loop  End        _       _        = End
+        loop (Spc Wrap{..} swInner) lt rb =
+          Spc (PWrap { pLTd = wLTd, pRBd = wRBd, pLTp = lt, pRBp = rb })
+          $   loop swInner
+              (lt ^+^ (Co . fromDi) wLTd)
+              (rb ^-^ (Co . fromDi) wRBd)
+
+-- This is the significant hack in the model: a contiguous area is represented as
+-- a wrap around a zero-sized point amidst the area.
+sArea :: Fractional a => Di a -> Space False 1 a
+sArea dim = Spc (Wrap half half) End
+            where half = dim ^/ 2.0
+
+sGrowS :: Num a => a -> Space False d a -> Space False (d + 1) a
+sGrowS delta sp = Spc (wSymm delta) sp
+
+sGrowGX, sGrowGY :: Double -> Space False n Double -> Space False (n + 1) Double
+sGrowGX d sp = Spc (wGoldSX d) sp
+sGrowGY d sp = Spc (wGoldSY d) sp
+
+sCutOutsideS2 :: Di a -> Space False n a -> Space False (n+1) a
+sCutOutsideS2 cut s@Spc{..} = Spc (Wrap cut cut)                $ s { sWrap = omap (^-^ fromDi cut) sWrap }
+
+sCutInsideS2  :: Fractional a => Di a -> Space False n a -> Space False (n+1) a
+sCutInsideS2  cut s@Spc{..} = Spc (omap (^-^ fromDi cut) sWrap) $ s { sWrap = Wrap cut cut }
+
+
 type EngineContent =
   ( BSPLevel
   , Map ByteString MD3.MD3Model
@@ -445,7 +665,8 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     defaultTexture <- GL.uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
 
     canvas <- renderCanvasInitial storage shMapTexSlot
-              (CanvasRequest loremIpsum (256, 256) (0, 0) (1, 1, 0, 1) (0.3, 0.3, 0.3, 0) defaultFontDesc)
+              (CanvasRequest (sGrowS 3 $ sGrowS 6 $ sGrowS 1 $ sGrowS 16 $ sArea $ fromIntegral . ceiling <$> di2goldX 512)
+                loremIpsum (V4 0.8 0.8 0.8 1) (V4 0.1 0.1 0.5 1) (V4 0.7 0.7 0.7 1) terminusFontDesc)
 
     putStrLn "loading textures:"
     -- load textures
@@ -557,8 +778,10 @@ uploadTexture2DToGPU'' isSRGB isMip (TextureData to) bitmap' = do
     when isMip $ glGenerateMipmap GL_TEXTURE_2D
     return ()
 
-defaultFontDesc :: GIP.FontDescription
-defaultFontDesc = UN.unsafePerformIO $ fontDescriptionFromArgs "Terminus" GIP.StyleNormal 12288
+defaultFontDesc, terminusFontDesc, aurulentFontDesc :: GIP.FontDescription
+aurulentFontDesc = UN.unsafePerformIO $ fontDescriptionFromArgs "Aurulent Sans" GIP.StyleNormal 12288
+terminusFontDesc = UN.unsafePerformIO $ fontDescriptionFromArgs "Terminus" GIP.StyleNormal 12288
+defaultFontDesc = aurulentFontDesc --terminusFontDesc
 
 fontDescriptionFromArgs :: String -> GIP.Style -> Int -> IO GIP.FontDescription
 fontDescriptionFromArgs family style pus = do
@@ -595,11 +818,11 @@ tryFontFamilyFace fa req = loop =<< GIP.fontFamilyListFaces fa
 
 data CanvasRequest where
   CanvasRequest    ::
-    { crText       :: DT.Text
-    , crDim        :: (Int, Int)
-    , crPad        :: (Int, Int)
-    , crFG         :: (Double, Double, Double, Double)
-    , crBG         :: (Double, Double, Double, Double)
+    { crSpace      :: Space False 5 Double -- 5 = outer bezel, border, inner bezel, padding, drawing area
+    , crText       :: DT.Text
+    , crCFore      :: V4 Double
+    , crCBack      :: V4 Double
+    , crCBord      :: V4 Double
     , crFontDesc   :: GIP.FontDescription
     } -> CanvasRequest
 
@@ -615,49 +838,125 @@ data Canvas where
     , cvGIPLay   :: GIP.Layout
     } -> Canvas
 
-renderCanvasInitial :: GLStorage -> Map String CommonAttrs -> CanvasRequest -> IO Canvas
-renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (padx, pady) fgColor bgColor fontdesc) = do
-  let (reqw, reqh) = (padx + areaw + padx, pady + areah + pady)
-      (dx, dy)     = (fromIntegral reqw, fromIntegral (-reqh)) --(fromIntegral reqw, -fromIntegral reqh)
-      n            = (1) -- the normal
+-- grcStrokeCanvas :: GRC.Context -> CanvasRequest -> 
 
-  grcSurface  <- GRC.createImageSurface GRC.FormatARGB32 reqw reqh
+renderCanvasInitial :: GL.GLStorage -> Map String CommonAttrs -> CanvasRequest -> IO Canvas
+renderCanvasInitial storage shMapTexSlot
+  (CanvasRequest space@(Spc _ (Spc _ (Spc _ (Spc _ (Spc canvas End)))))
+   text fgColor bgColor borColor fontdesc) = do
+  let total@(V2 totalw totalh) = ceiling <$> fromDi (sDim space)
+      V2 canvw canvh = fromDi $ wDim canvas
+
+  grcSurface  <- GRC.createImageSurface GRC.FormatARGB32 totalw totalh
   strideBytes <- GRC.imageSurfaceGetStride grcSurface
   let stridePxs = strideBytes `div` 4
   grc         <- GRC.create grcSurface
   gic         <- grcToGIC grc
   gip         <- GIPC.createLayout gic
   GIP.layoutSetFontDescription gip (Just fontdesc)
-  GIP.layoutSetWrap      gip GIP.WrapModeWord
-  GIP.layoutSetEllipsize gip GIP.EllipsizeModeEnd
-  GIP.layoutSetText      gip text (-1)
-  GIP.layoutSetWidth     gip =<< (GIP.unitsFromDouble $ fromIntegral areaw)
-  GIP.layoutSetHeight    gip =<< (GIP.unitsFromDouble $ fromIntegral areah)
-  ((rw, rh), ellipsized) <- (`runReaderT` grc) $ GRC.runRender $ do
+  GIP.layoutSetWrap            gip GIP.WrapModeWord
+  GIP.layoutSetEllipsize       gip GIP.EllipsizeModeEnd
+  GIP.layoutSetWidth           gip =<< (GIP.unitsFromDouble canvw)
+  GIP.layoutSetHeight          gip =<< (GIP.unitsFromDouble canvh)
+
+  (`runReaderT` grc) $ GRC.runRender $ do
     -- clear
-    let (r, g, b, a) = bgColor
-    GRC.setSourceRGBA r g b a
+    GRC.setSourceRGBA 0 1 0 1
     GRC.paint
-    -- padx
-    GRC.moveTo (fromIntegral padx) (fromIntegral pady)
-    -- layout
-    let (r, g, b, a) = fgColor
-    GRC.setSourceRGBA r g b a
-    GIPC.showLayout gic gip
-    ellipsized <- GIP.layoutIsEllipsized gip
-    (, ellipsized) <$> GIP.layoutGetPixelSize gip
+    -- ((layw, layh), ellipsized) <-
+    (case sPin space (Co $ V2 0 0) of
+      Spc obez (Spc bord (Spc ibez (Spc pad (Spc canv End)))) -> do
+        let d (Co (V2 x y)) (V4 r g b a) = GRC.setSourceRGBA r g b a >> GRC.rectangle (x) (y) 1 1 >> GRC.fill -- GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
+            roundedBoxArcs :: Wrap True Double -> Double -> GRCI.Render (Co Double, Co Double, Co Double, Co Double)
+            roundedBoxArcs wrap@PWrap{..} r = do
+              let (lti, rbi)           = pwPosIn'2 wrap
+                  (plt, prt, prb, plb) = coLTRBRectArcCentersCW lti rbi r
+                  (alt, art, arb, alb) = aLTRectAnglesCW
+              coArc plt r alt >> coArc prt r art
+              coArc prb r arb >> coArc plb r alb
+              pure (plt, prt, prb, plb)
+            ths@[oth, bth, ith, pth]
+                          = fmap wL [obez, bord, ibez, pad]
+            totpadx       = sum ths
+            or            = totpadx - oth/2
+            br            = or - (oth+bth)/2
+            ir            = br - (bth+ith)/2
+        -- border arcs
+        GRC.setSourceRGBA 0.7 0.7 0.7 1
+        GRC.newPath
+        (blt, brt, brb, blb) <- roundedBoxArcs bord br
+        GRC.closePath
+        -- background
+        let V4 r g b a = bgColor
+        GRC.setSourceRGBA r g b a
+        GRC.fillPreserve
+        -- border
+        let V4 r g b a = borColor
+        GRC.setSourceRGBA r g b a
+        GRC.setLineWidth $ bth
+        GRC.stroke
+        -- obezel
+        GRC.newPath
+        (olt, ort, orb, olb) <- roundedBoxArcs obez or
+        GRC.closePath
+        GRC.setSourceRGBA 1 0 0 1
+        GRC.setLineWidth $ oth
+        GRC.stroke
+        -- text
+        let Co (V2 cvx cvy) = pLTp canv
+        GRC.moveTo cvx cvy
+        let V4 r g b a = fgColor
+        GRC.setSourceRGBA r g b a
+        --
+        let text = DT.pack $ printf
+                   (unlines
+                    ["total=%d,%d  space=%s"
+                    ,"%s"
+                    ,"%s   %s"
+                    ,"%s   %s"
+                    ,"or=%f  oth=%f"
+                    ,"%s"
+                    ,"%s   %s"
+                    ,"%s   %s"
+                    ,"br=%f  bth=%f"
+                    ,""])
+                   totalw totalh (show $ sDim space)
+                   (ppShow obez)
+                   (show olt) (show ort) (show olb) (show orb)
+                   or oth
+                   (ppShow bord)
+                   (show blt) (show brt) (show blb) (show brb)
+                   br bth
+                   --(show $ orb ^+^ (V2 or or)) or
+            r = V4 1 0 0 1; y = V4 1 1 0 1; b = V4 0 0 1 1
+            --r = V4 1 0 0 1; y = V4 1 1 0 1; b = V4 0 0 1 1
+            --(bc, oc) = (r, y) -- XXX/GHC: an apparent type checker bug
+        GIP.layoutSetText      gip text (-1)
+        GIPC.showLayout gic gip
+        d blt borColor; d olt r
+        d brb borColor; d orb r
+        d (pLTp bord) b; d (pLTp obez) y; 
+        d (pRBp bord) b; d (pRBp obez) y; 
+        -- dpx (V2 0 0) (V3 0 0 1)
+        ) :: GRCI.Render () -- XXX/GHC: an apparent type checker bug
+        -- pure ((0,0),False)
+        -- ellipsized <- GIP.layoutIsEllipsized gip
+        -- (, ellipsized) <$> GIP.layoutGetPixelSize gip
 
   pixels      <- GRCI.imageSurfaceGetData grcSurface
-  cvTexture   <- uploadTexture2DToGPU'''' False False False False $ (stridePxs, 256, GL_BGRA, pixels)
+  cvTexture   <- uploadTexture2DToGPU'''' False False False False $ (stridePxs, totalh, GL_BGRA, pixels)
 
   let cvMaterial = "canvasMaterial"
       cvMatSlot  = head $ concat $ concatMap (\(shName,sh) -> [if shName == cvMaterial then [saTextureUniform sa] else [] | sa <- caStages sh]) $ Map.toList shMapTexSlot
-      widthOfStride = fromIntegral reqw / fromIntegral stridePxs
+      -- widthOfStride = fromIntegral totalw / fromIntegral stridePxs
+      (dx, dy)       = (fromIntegral totalw, fromIntegral (-totalh)) --(fromIntegral reqw, -fromIntegral reqh)
+      n              = (1) -- the normal
       cvSurface  = MD3.Surface
                    { srName      = "canvasSurface"
                    , srShaders   = V.fromList  [MD3.Shader {shIndex = 0, shName = SB.pack cvMaterial }]
                    , srTriangles = SV.fromList [0,2,1,0,1,3]
-                   , srTexCoords = SV.fromList [Vec2 0 1, Vec2 widthOfStride 0, Vec2 0 0, Vec2 widthOfStride 1]
+                   , srTexCoords = SV.fromList [ Vec2 0 1, Vec2 1 0
+                                               , Vec2 0 0, Vec2 1 1]
                    , srXyzNormal = V.singleton ( SV.fromList [Vec3 0 dy 0, Vec3 dx 0 0, Vec3 0 0 0, Vec3 dx dy 0]
                                                , SV.fromList [Vec3 0  0 n, Vec3  0 0 n, Vec3 0 0 n, Vec3  0  0 n] ) }
       cvFrame = MD3.Frame { frMins   = Vec3 0 0 0
@@ -667,7 +966,6 @@ renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (pad
                           , frName   = "baseframe" }
   cvMD3       <- addMD3Surface storage cvSurface cvFrame mempty ["worldMat","viewProj"]
 
-  printf "reqw=%d, stride=%d, widthOfStride=%f\n" reqw stridePxs widthOfStride
   GL.uniformFTexture2D (SB.pack cvMatSlot) (GL.uniformSetter storage) cvTexture
 
   pure Canvas { cvMaterial = cvMaterial
@@ -679,19 +977,14 @@ renderCanvasInitial storage shMapTexSlot (CanvasRequest text (areaw, areah) (pad
               , cvGICtx    = gic
               , cvGIPLay   = gip }
 
--- | Orthogonal transformation matrix in row major order.
-ortho :: Float  -- ^ Left
-      -> Float  -- ^ Right
-      -> Float  -- ^ Bottom
-      -> Float  -- ^ Top
-      -> Float  -- ^ Near
-      -> Float  -- ^ Far
-      -> Mat4
-ortho l r b t n f = transpose $
-    Mat4 (Vec4 (2/(r-l))    0          0       (-(r+l)/(r-l)))
-         (Vec4   0        (2/(t-b))    0       (-(t+b)/(t-b)))
-         (Vec4   0          0       (-2/(f-n)) (-(f+n)/(f-n)))
-         (Vec4   0          0          0              1)
+-- * To screen space conversion matrix.  From hell knows what, yes.
+screenM :: Int -> Int -> Mat4
+screenM w h =
+  Mat4 (Vec4 (1/fw)  0     0 0)
+       (Vec4  0     (1/fh) 0 0)
+       (Vec4  0      0     1 0)
+       (Vec4  0      0     0 0.5) -- where the f..k does that 0.5 factor COMEFROM?
+  where (fw, fh) = (fromIntegral w, fromIntegral h)
 
 -- TODO
 updateRenderInput :: EngineGraphics
@@ -715,21 +1008,26 @@ updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs,
                 near = 0.00001/s
                 far  = 100/s
                 fovDeg = 60
-                frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
+                frust = GameEngine.Graphics.Frustum.frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
                 cullObject obj p = GL.enableObject obj (pointInFrustum p frust)
 
             let idM44F = mat4ToM44F $ idmtx -- inverse cm .*. (fromProjective $ translation (Vec3 0 (0) (-30)))
             let --cvrot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixZ cvz .*. rotMatrixY cvy .*. rotMatrixX cvx
                 cvrot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixZ cvz .*. rotMatrixY 100 .*. rotMatrixX 100
-                aspect = (fromIntegral w) / (fromIntegral h) :: Float
-                (vpw,vph) = (fromIntegral w/2, fromIntegral h/2)
-                om    = ortho (-vpw) vpw (-vph) vph (-1) 1
+                -- (vpw,vph) = (fromIntegral w/2.0, fromIntegral h/2.0)
+                -- om    = Engine.ortho (doubleToFloat (-vpw)) (doubleToFloat vpw) (doubleToFloat (-vph)) (doubleToFloat vph) (-1) 1
+                toScreen = screenM w h
+                -- (fw, fh) = (fromIntegral w, fromIntegral h)
+                -- aspectM44F = GL.V4 (GL.V4 (1/fw)  0     0 0)
+                --                    (GL.V4  0     (1/fh) 0 0)
+                --                    (GL.V4  0      0     1 0)
+                --                    (GL.V4  0      0     0 0.5)
             -- uploadTexture2DToGPU'' False False cvTexture $ ImageRGBA8 $ generateImage gen 256 256
             -- updateUniforms storage $ do
             --   cvMatSlot @= return cvTexture
             forM_ (md3sinstanceObject cvMD3) $ \obj -> do
-              GL.uniformM44F "viewProj" (GL.objectUniformSetter obj) aspectM44F -- $ mat4ToM44F $! om -- .*. (fromProjective $! Data.Vect.translation cvpos) -- $! cvrot .*. (fromProjective $ translation cvpos) .*. om -- .*. smcanvas
-              GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) idM44F -- invCM
+              GL.uniformM44F "viewProj" (GL.objectUniformSetter obj) $ mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation cvpos)
+              GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) idM44F
 
             -- set uniforms
             timeSetter $ time / 1
@@ -740,7 +1038,7 @@ updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs,
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
               forM_ (md3instanceObject lcmd3) $ \obj -> do
                 let m = mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
-                    p = trim . _4 $ fromProjective mat
+                    p = trim . Data.Vect._4 $ fromProjective mat
                 GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) m
                 cullObject obj p
 
@@ -819,7 +1117,7 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
                   uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) HashMap.! "tag_torso")
                   lMat = one :: Proj4
                   lcMat m = mat4ToM44F . fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. mat
-                  p = trim . _4 $ fromProjective mat
+                  p = trim . Data.Vect._4 $ fromProjective mat
                   setup m obj = do
                     GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) $ lcMat m
                     cullObject obj p

@@ -190,11 +190,13 @@ main = do
             return $ filter ((name ==) . takeBaseName) bspNames
     let bspName = takeBaseName fullBSPName
 
-    win <- initWindow "LC DSL Quake 3 Demo" 800 600
+    win <- initWindow "LC DSL Quake 3 Demo" 1024 1024
 
     -- loading screen
     loadingScreen <- createLoadingScreen
     (w,h) <- getFramebufferSize win
+    putStrLn "===== drawLoadingScreen"
+    printf   "=====  bspName = %s\n" bspName
     drawLoadingScreen w h loadingScreen pk3Data bspName
     swapBuffers win
     pollEvents
