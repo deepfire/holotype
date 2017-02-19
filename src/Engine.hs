@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase, ViewPatterns, RecordWildCards, TupleSections, PackageImports, OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, MultiWayIf #-}
 {-# LANGUAGE ExplicitForAll, FlexibleContexts, NoMonomorphismRestriction #-}
 {-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 {-# LANGUAGE DataKinds, GADTs, TypeFamilies, TypeOperators #-}
@@ -139,21 +139,58 @@ v2negp (V2 d0 d1) = d0 < 0 || d1 < 0
 
 
 -- | Type-safe flat space types.
-newtype Po a = Po { fromPo :: V2 a } -- ^ Coordinates
-newtype Di a = Di { fromDi :: V2 a } -- ^ Dimensions
-newtype An a = An { fromAn :: V2 a } -- ^ Angles
-newtype Co a = Co { fromCo :: V4 a } -- ^ Color
-deriving instance Show a => Show (Po a)
+newtype Di  a = Di  { fromDi  :: V2 a } deriving (Additive, Eq, Functor) -- ^ Dimensions
+newtype Po  a = Po  { fromPo  :: V2 a } deriving (Additive, Eq, Functor) -- ^ Coordinates
+newtype SDi a = SDi { fromSDi :: V4 a } deriving           (Eq)          -- ^ Side-wise dimensions: north, east, south, west
+newtype SPo a = SPo { fromSpo :: V4 a } deriving           (Eq)          -- ^ Side-wise positions:  north, east, south, west
+newtype An  a = An  { fromAn  :: V2 a } deriving (Additive, Eq, Functor) -- ^ Angles
+newtype Co  a = Co  { fromCo  :: V4 a } deriving           (Eq, Functor) -- ^ Color
+newtype R   a = R   { fromR   ::    a } deriving           (Eq, Functor, Num) -- ^ Radius
+newtype Th  a = Th  { fromTh  ::    a } deriving           (Eq, Fractional, Functor, Num) -- ^ Thickness
 deriving instance Show a => Show (Di a)
+deriving instance Show a => Show (Po a)
+deriving instance Show a => Show (SDi a)
+deriving instance Show a => Show (SPo a)
 deriving instance Show a => Show (An a)
 deriving instance Show a => Show (Co a)
-deriving instance Functor Po
-deriving instance Functor Di
-deriving instance Functor An
-deriving instance Functor Co
-deriving instance Additive Po
-deriving instance Additive Di
-deriving instance Additive An
+deriving instance Show a => Show (R a)
+deriving instance Show a => Show (Th a)
+
+di :: a -> a -> Di a
+di x y = Di $ V2 x y
+po :: a -> a -> Po a
+po x y = Po $ V2 x y
+an :: a -> a -> An a
+an x y = An $ V2 x y
+co :: a -> a -> a -> a -> Co a
+co r g b a = Co $ V4 r g b a
+
+off :: Num a => Po a -> V2 a -> Po a
+off co = Po . (+ fromPo co)
+
+-- | Orientation: from north-west, clockwise to west.
+data Orient = ONW | ON | ONE | OE | OSE | OS | OSW | OW
+  deriving (Eq, Show)
+
+vROri :: Num a => R a -> Orient -> (V2 a, V2 a)
+vROri (R r) o | ON  <- o = (z, n) | ONE <- o = (e, n)
+              | OE  <- o = (e, z) | OSE <- o = (e, s)
+              | OS  <- o = (z, s) | OSW <- o = (w, s)
+              | OW  <- o = (w, z) | ONW <- o = (w, n)
+  where n = V2  0(-r)
+        s = V2  0  r
+        e = V2  r  0
+        w = V2(-r) 0
+        z = L.zero
+
+oriCenterRChordCW :: Num a => Orient -> Po a -> R a -> (Po a, Po a)
+oriCenterRChordCW o c r
+  | ONE <- o = (oy, ox)
+  | OSE <- o = (ox, oy)
+  | OSW <- o = (oy, ox)
+  | ONW <- o = (ox, oy)
+  where (vx, vy) = vROri r o
+        (ox, oy) = (off c vx, off c vy)
 
 di2goldX, di2goldY :: Double -> Di Double
 di2goldX x = Di $ V2  x               (x / goldenRatio)
@@ -163,31 +200,33 @@ poRectOppo :: Po a -> Po a -> (Po a, Po a)
 poRectOppo !(Po (V2 c00 c01)) !(Po (V2 c10 c11))
   = (Po (V2 c00 c11), Po (V2 c10 c01))
 
--- There's something smaller and beautiful struggling here:
---  ltx = lbx, lty = rty etc.
-poLTRBRectArcCentersCW :: Num a => Po a -> Po a -> a -> (Po a, Po a, Po a, Po a)
-poLTRBRectArcCentersCW !lt@(Po (V2 ltx lty)) !rb@(Po (V2 rbx rby)) r =
-  let (Po (V2 lbx lby), Po (V2 rtx rty)) = poRectOppo lt rb
-  in (Po (V2 (ltx + r) (lty + r))
-     ,Po (V2 (rtx - r) (rty + r))
-     ,Po (V2 (rbx - r) (rby - r))
-     ,Po (V2 (lbx + r) (lby - r)))
+spoNarrow :: Num a => Th a -> SPo a -> SPo a
+spoNarrow (Th d) (SPo (V4 n e s w))
+  = SPo $ V4 (n + d) (e - d) (s - d) (w + d)
 
-aLTRectAnglesCW :: (Fractional a, Floating a) => (An a, An a, An a, An a)
-aLTRectAnglesCW
-  = (An $ V2 (180 * degrees) (270 * degrees)
-    ,An $ V2 (-90 * degrees)   (0 * degrees)
-    ,An $ V2   (0 * degrees)  (90 * degrees)
-    ,An $ V2  (90 * degrees) (180 * degrees))
-  where !degrees = pi/180
+thLineSet :: Th Double -> GRCI.Render ()
+thLineSet !(Th th)
+  = GRC.setLineWidth th
+
+-- | Description of rounded rectangle features -- sides and corners.
+data RoundRectFeature a where
+  RRCorn ::
+    { rrOri :: !Orient
+    , rraCt :: !(Po a)
+    , rraAn :: !(An a)
+    , rraR  :: !(R a)
+    } -> RoundRectFeature a
+  RRSide ::
+    { rrOri :: !Orient
+    , rrsFr :: !(Po a)
+    , rrsTo :: !(Po a)
+    } -> RoundRectFeature a
+deriving instance Show a => Show (RoundRectFeature a)
 
 poArc :: Po Double -> Double -> An Double -> GRCI.Render ()
 poArc !(Po (V2 x y)) !r !(An (V2 angs ange))
   = GRC.arc x y r angs ange
   where degrees = pi/180
-
-co :: a -> a -> a -> a -> Co a
-co r g b a = Co $ V4 r g b a
 
 coOpaq :: Num a => a -> a -> a -> Co a
 coOpaq r g b = Co $ V4 r g b 1
@@ -198,9 +237,26 @@ coGray x a = Co $ V4 x x x a
 coMult :: Num a => a -> Co a -> Co a
 coMult x (Co (V4 r g b a)) = Co $ V4 (r*x) (g*x) (b*x) a
 
-coSetSource :: Co Double -> GRCI.Render ()
-coSetSource !(Co (V4 r g b a))
+coSetSourceColor :: Co Double -> GRCI.Render ()
+coSetSourceColor !(Co (V4 r g b a))
   = GRC.setSourceRGBA r g b a
+
+coGradientSet :: Co Double -> Co Double -> GRC.Pattern -> IO ()
+coGradientSet !(Co (V4 rs gs bs as)) !(Co (V4 re ge be ae)) pat = do
+  GRCI.patternAddColorStopRGBA pat 0 rs gs bs as
+  GRCI.patternAddColorStopRGBA pat 1 re ge be ae
+
+coPatternGradLinear :: Po Double -> Co Double -> Po Double -> Co Double -> IO GRC.Pattern
+coPatternGradLinear !(Po (V2 xs ys)) !sco !(Po (V2 xe ye)) !eco = do
+  p <- GRCI.patternCreateLinear xs ys xe ye
+  coGradientSet sco eco p
+  pure p
+
+coPatternGradRadial :: Po Double -> Double -> Co Double -> Po Double -> Double -> Co Double -> IO GRC.Pattern
+coPatternGradRadial !(Po (V2 xi yi)) !ir !ico !(Po (V2 xo yo)) !or !oco = do
+  p <- GRCI.patternCreateRadial xi yi ir xo yo or
+  coGradientSet ico oco p
+  pure p
 
 
 -- | A 'Wrap' is a rectangular "donut", wrapping something inside it.
@@ -209,49 +265,42 @@ coSetSource !(Co (V4 r g b a))
 --   - the __/wrapped area/__, inside the 'Wrap' itself.
 data Wrap (pinned :: Bool) a where
   Wrap  :: Num a => -- ^ The non-positioned, dimensional-only wrap.
-    { wLTd :: !(Di a) -- ^ The combined offsets from the left and top sides.
-    , wRBd :: !(Di a) -- ^ The combined offsets from the right and bottom sides.
+    { wNWd  :: !(Di a) -- ^ The combined offsets from the left and top sides.
+    , wSEd  :: !(Di a) -- ^ The combined offsets from the right and bottom sides.
     } -> Wrap False a
   PWrap :: Num a => -- ^ The /pinned/ variant -- enriched with a position.
-    { pLTd :: !(Di a) -- ^ ..same as above.
-    , pRBd :: !(Di a) -- ^ ..same as above.
-    , pLTp :: !(Po a) -- ^ Coordinates of the top-leftmost pixel of the wrap area.
-    , pRBp :: !(Po a) -- ^ Coordinates of the bottom-rightmost pixel of the wrap area.
+    { pwNWd :: !(Di a) -- ^ ..same as above.
+    , pwSEd :: !(Di a) -- ^ ..same as above.
+    , pwNWp :: !(Po a) -- ^ Coordinates of the top-leftmost pixel of the wrap area.
+    , pwSEp :: !(Po a) -- ^ Coordinates of the bottom-rightmost pixel of the wrap area.
     } -> Wrap True a
 deriving instance Show a => Show (Wrap p a)
 
 wL, wT, wR, wB :: Wrap p a -> a
-wL  Wrap{..} = (view _x) $ fromDi wLTd; wL PWrap{..} = (view _x) $ fromDi pLTd
-wT  Wrap{..} = (view _y) $ fromDi wLTd; wT PWrap{..} = (view _y) $ fromDi pLTd
-wR  Wrap{..} = (view _x) $ fromDi wRBd; wR PWrap{..} = (view _x) $ fromDi pRBd
-wB  Wrap{..} = (view _y) $ fromDi wRBd; wB PWrap{..} = (view _y) $ fromDi pRBd
+wL  Wrap{..} = (view _x) $ fromDi wNWd; wL PWrap{..} = (view _x) $ fromDi pwNWd
+wT  Wrap{..} = (view _y) $ fromDi wNWd; wT PWrap{..} = (view _y) $ fromDi pwNWd
+wR  Wrap{..} = (view _x) $ fromDi wSEd; wR PWrap{..} = (view _x) $ fromDi pwSEd
+wB  Wrap{..} = (view _y) $ fromDi wSEd; wB PWrap{..} = (view _y) $ fromDi pwSEd
+
+pwPosition :: Wrap True a -> SPo a
+pwPosition (PWrap _ _ (Po (V2 nwx nwy)) (Po (V2 sex sey))) =
+  SPo $ V4 nwy sex sey nwx
 
 -- | Narrowing into a positioned 'Wrap'.
-pwLTpi, pwRBpi :: Wrap True a -> Po a
-pwLTpi (PWrap (Di pLTd) _ (Po pLTp) _) = Po $ pLTp ^+^ pLTd
-pwRBpi (PWrap _ (Di pRBd) _ (Po pRBp)) = Po $ pRBp ^-^ pRBd
+pwNWpi, pwSEpi :: Wrap True a -> Po a
+pwNWpi (PWrap (Di pwNWd) _ (Po pwNWp) _) = Po $ pwNWp ^+^ pwNWd
+pwSEpi (PWrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd
 
 pwPosIn        :: Wrap True a -> (Po a, Po a)
-pwPosIn pw = (pwLTpi pw, pwRBpi pw)
+pwPosIn pw = (pwNWpi pw, pwSEpi pw)
 
 -- | Narrowing into a positioned 'Wrap', halfway.
-pwLTpi'2, pwRBpi'2 :: Fractional a => Wrap True a -> Po a
-pwLTpi'2 (PWrap (Di pLTd) _ (Po pLTp) _) = Po $ pLTp ^+^ pLTd * 0.5
-pwRBpi'2 (PWrap _ (Di pRBd) _ (Po pRBp)) = Po $ pRBp ^-^ pRBd * 0.5
+pwNWpi'2, pwSEpi'2 :: Fractional a => Wrap True a -> Po a
+pwNWpi'2 (PWrap (Di pwNWd) _ (Po pwNWp) _) = Po $ pwNWp ^+^ pwNWd * 0.5
+pwSEpi'2 (PWrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd * 0.5
 
 pwPosIn'2          :: Fractional a => Wrap True a -> (Po a, Po a)
-pwPosIn'2 pw = (pwLTpi'2 pw, pwRBpi'2 pw)
-
---   TR and BL corners:
--- wLBd, wRTd :: Wrap False a -> V2 a
--- wLBd  (Wrap (V2 l _) (V2 _ b))     = V2 l b
--- wRTd  (Wrap (V2 _ t) (V2 r _))     = V2 r t
--- pLBd, pRTd :: Wrap True a -> V2 a
--- pLBd (PWrap (V2 l _) (V2 _ b) _ _) = V2 l b
--- pRTd (PWrap (V2 _ t) (V2 r _) _ _) = V2 r t
--- pLBp, pRTp :: Wrap True a -> V2 a
--- pLBp (PWrap _ _ (V2 l _) (V2 _ b)) = V2 l b
--- pRTp (PWrap _ _ (V2 _ t) (V2 r _)) = V2 r t
+pwPosIn'2 pw = (pwNWpi'2 pw, pwSEpi'2 pw)
 
 --   Is there a useful meaning for a monoid?
 -- instance (Num a, Monoid (V2 a)) => Monoid (Wrap a) where
@@ -263,22 +312,22 @@ pwPosIn'2 pw = (pwLTpi'2 pw, pwRBpi'2 pw)
 --- It's /clearly/ a profunctorial transform, but I don't care yet..
 type instance Element (Wrap p a) = V2 a
 instance MonoFunctor (Wrap p a) where
-  omap f  Wrap{..} =  Wrap (f'di wLTd) (f'di wRBd)
+  omap f  Wrap{..} =  Wrap (f'di wNWd) (f'di wSEd)
     where f'di = Di . f . fromDi
-  omap f PWrap{..} = PWrap (f'di pLTd) (f'di pRBd) (f'po pLTp) (f'po pRBp)
+  omap f PWrap{..} = PWrap (f'di pwNWd) (f'di pwSEd) (f'po pwNWp) (f'po pwSEp)
     where f'di = Di . f . fromDi
           f'po = Po . f . fromPo
 
 wDim :: Wrap s a -> Di a
-wDim  Wrap{..} = wLTd ^+^ wRBd
-wDim PWrap{..} = pLTd ^+^ pRBd
+wDim  Wrap{..} = wNWd ^+^ wSEd
+wDim PWrap{..} = pwNWd ^+^ pwSEd
 
--- | Make pLTp and pRBp the top-leftmost and bottom-rightmost pixels of the 'Wrap'.
+-- | Make pwNWp and pwSEp the top-leftmost and bottom-rightmost pixels of the 'Wrap'.
 --   Warning:  no check on whether the coordinates are compatible with the dimensions is performed.
 wPin :: Wrap False a -> Po a -> Po a -> Wrap True a
-wPin Wrap{..} pLTp pRBp = PWrap{..}
-  where pLTd = wLTd
-        pRBd = wRBd
+wPin Wrap{..} pwNWp pwSEp = PWrap{..}
+  where pwNWd = wNWd
+        pwSEd = wSEd
 
 -- | Smart constructors for 'Wrap'.
 wSymm :: Num a => a -> Wrap False a
@@ -287,6 +336,62 @@ wSymm d = Wrap (Di $ v2symm d) (Di $ v2symm d)
 wGoldSX, wGoldSY :: Double -> Wrap False Double
 wGoldSX x = Wrap w w where w = di2goldX x
 wGoldSY y = Wrap w w where w = di2goldY y
+
+-- | Wrap rendering as a rounder rectangle.
+wrapRoundedRectFeatures :: Floating a => Wrap True a -> R a -> Th a -> [RoundRectFeature a]
+wrapRoundedRectFeatures pw@PWrap{..} rr@(R r) th =
+  let SPo (V4 n e s w) = spoNarrow ((/2) <$> th) $ pwPosition pw
+      !degrees         = pi/180
+  in [RRSide ON  (po (w + r)  n)      (po (e - r) n)
+     ,RRCorn ONE (po (e - r) (n + r)) (an (-90 * degrees)   (0 * degrees)) rr
+     ,RRSide OE  (po  e      (n + r)) (po  e     (s - r))
+     ,RRCorn OSE (po (e - r) (s - r)) (an   (0 * degrees)  (90 * degrees)) rr
+     ,RRSide OS  (po (w + r)  s)      (po (e - r) s)
+     ,RRCorn OSW (po (w + r) (s - r)) (an  (90 * degrees) (180 * degrees)) rr
+     ,RRSide OW  (po  w      (n + r)) (po  w     (s - r))
+     ,RRCorn ONW (po (w + r) (n + r)) (an (180 * degrees) (270 * degrees)) rr]
+
+executeFeature :: Maybe (Co Double) -> Maybe (Co Double) -> RoundRectFeature Double -> GRC.Render ()
+executeFeature !cStart !cEnd !(RRSide _ (Po (V2 sx sy)) (Po (V2 ex ey))) = do
+  -- pat <- UN.unsafeInterleaveIO $ coPatternGradLinear rrsFr cStart rrsTo cEnd
+  if | cStart /= cEnd    -> error "Not implemented: sidewise gradients."
+     | Nothing <- cStart -> pure ()
+     | Just c  <- cStart -> coSetSourceColor c
+  GRC.moveTo sx sy
+  GRC.lineTo ex ey
+executeFeature !cStart !cEnd !(RRCorn o c@(Po (V2 cx cy)) (An (V2 sa ea)) r) = do
+  let (cs, ce) = oriCenterRChordCW o c r
+  pat <- liftIO $ UN.unsafeInterleaveIO $ coPatternGradLinear cs (fromJust cStart) ce (fromJust cEnd)
+  if | cStart /= cEnd    -> GRC.setSource pat
+     | Nothing <- cStart -> pure ()
+     | Just c  <- cStart -> coSetSourceColor c
+  GRC.arc cx cy (fromR r) sa ea
+
+poNWSERectArcCentersCW :: Num a => Po a -> Po a -> R a -> (Po a, Po a, Po a, Po a)
+poNWSERectArcCentersCW !lt@(Po (V2 ltx lty)) !rb@(Po (V2 rbx rby)) (R r) =
+  let (Po (V2 lbx lby), Po (V2 rtx rty)) = poRectOppo lt rb
+  in (Po (V2 (ltx + r) (lty + r))
+     ,Po (V2 (rtx - r) (rty + r))
+     ,Po (V2 (rbx - r) (rby - r))
+     ,Po (V2 (lbx + r) (lby - r)))
+
+aRectAnglesNWCW :: (Fractional a, Floating a) => (An a, An a, An a, An a)
+aRectAnglesNWCW
+  = (An $ V2 (180 * degrees) (270 * degrees)
+    ,An $ V2 (-90 * degrees)   (0 * degrees)
+    ,An $ V2   (0 * degrees)  (90 * degrees)
+    ,An $ V2  (90 * degrees) (180 * degrees))
+  where !degrees = pi/180
+
+aRectAnglesFromMidSWCW :: (Fractional a, Floating a) => (An a, An a, An a, An a, An a, An a)
+aRectAnglesFromMidSWCW
+  = (An $ V2 (135 * degrees) (180 * degrees)
+    ,An $ V2 (180 * degrees) (270 * degrees)
+    ,An $ V2 (-90 * degrees) (-45 * degrees)
+    ,An $ V2 (-45 * degrees)   (0 * degrees)
+    ,An $ V2   (0 * degrees)  (90 * degrees)
+    ,An $ V2  (90 * degrees) (135 * degrees))
+  where !degrees = pi/180
 
 
 ----
@@ -304,22 +409,22 @@ sDim :: Space False d a -> Di a
 sDim s@Spc{..} = wDim sWrap ^+^ sDim sInner
 sDim   End     = L.zero
 
--- | Compute the RB point for an un-pinned 'Space', given its LT point.
+-- | Compute the SE point for an un-pinned 'Space', given its NW point.
 --   Complexity: O(depth).
-sRB  :: Space False d a -> Po a -> Po a
-sRB  s@Spc{..} lt = Po $ fromPo lt ^+^ fromDi (sDim s) --  ^-^ V2 1 1
+sSE  :: Space False d a -> Po a -> Po a
+sSE  s@Spc{..} lt = Po $ fromPo lt ^+^ fromDi (sDim s) --  ^-^ V2 1 1
 
 -- | Pin space to the @lt
 sPin :: Num a => Space False n a -> Po a -> Space True n a
 sPin space lt = loop space L.zero rb
-  where rb = sRB space lt
+  where rb = sSE space lt
         loop :: Space False n a -> Po a -> Po a -> Space True n a
         loop  End        _       _        = End
         loop (Spc Wrap{..} swInner) lt rb =
-          Spc (PWrap { pLTd = wLTd, pRBd = wRBd, pLTp = lt, pRBp = rb })
+          Spc (PWrap { pwNWd = wNWd, pwSEd = wSEd, pwNWp = lt, pwSEp = rb })
           $   loop swInner
-              (lt ^+^ (Po . fromDi) wLTd)
-              (rb ^-^ (Po . fromDi) wRBd)
+              (lt ^+^ (Po . fromDi) wNWd)
+              (rb ^-^ (Po . fromDi) wSEd)
 
 -- This is the significant hack in the model: a contiguous area is represented as
 -- a wrap around a zero-sized point amidst the area.
@@ -684,8 +789,8 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     defaultTexture <- GL.uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
 
     canvas <- renderCanvasInitial storage shMapTexSlot
-              (CanvasRequest (sGrowS 1 $ sGrowS 4 $ sGrowS 1 $ sGrowS 16 $ sArea $ fromIntegral . ceiling <$> di2goldX 512)
-                loremIpsum (coGray 0.8 1) (coOpaq 0.1 0.1 0.5) (coGray 0.7 1) terminusFontDesc)
+              (CanvasRequest (sGrowS 2 $ sGrowS 5 $ sGrowS 2 $ sGrowS 16 $ sArea $ fromIntegral . ceiling <$> di2goldX 256)
+                loremIpsum (coGray 0.8 1) (coOpaq 0.1 0.1 0.5) (coGray 1 1) (coGray 0.5 1) (coGray 0.1 0.5) terminusFontDesc)
 
     putStrLn "loading textures:"
     -- load textures
@@ -841,7 +946,9 @@ data CanvasRequest where
     , crText       :: DT.Text
     , crCFore      :: Co Double
     , crCBack      :: Co Double
+    , crCLBez      :: Co Double
     , crCBord      :: Co Double
+    , crCDBez      :: Co Double
     , crFontDesc   :: GIP.FontDescription
     } -> CanvasRequest
 
@@ -862,7 +969,7 @@ data Canvas where
 renderCanvasInitial :: GL.GLStorage -> Map String CommonAttrs -> CanvasRequest -> IO Canvas
 renderCanvasInitial storage shMapTexSlot
   (CanvasRequest space@(Spc _ (Spc _ (Spc _ (Spc _ (Spc canvas End)))))
-   text fgColor bgColor borColor fontdesc) = do
+   text fgColor bgColor lBezColor bordColor dBezColor fontdesc) = do
   let total@(V2 totalw totalh) = ceiling <$> fromDi (sDim space)
       V2 canvw canvh = fromDi $ wDim canvas
 
@@ -877,71 +984,101 @@ renderCanvasInitial storage shMapTexSlot
   GIP.layoutSetEllipsize       gip GIP.EllipsizeModeEnd
   GIP.layoutSetWidth           gip =<< (GIP.unitsFromDouble canvw)
   GIP.layoutSetHeight          gip =<< (GIP.unitsFromDouble canvh)
-
   (`runReaderT` grc) $ GRC.runRender $ do
     -- ((layw, layh), ellipsized) <-
     (case sPin space (Po $ V2 0 0) of
       Spc obez (Spc bord (Spc ibez (Spc pad (Spc canv End)))) -> do
-        let d (Po (V2 x y)) (V4 r g b a) = GRC.setSourceRGBA r g b a >> GRC.rectangle (x) (y) 1 1 >> GRC.fill -- GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
-            roundedBoxArcs :: Wrap True Double -> Double -> GRCI.Render (Po Double, Po Double, Po Double, Po Double)
-            roundedBoxArcs wrap@PWrap{..} r = do
-              let (lti, rbi)           = pwPosIn'2 wrap
-                  (plt, prt, prb, plb) = poLTRBRectArcCentersCW lti rbi r
-                  (alt, art, arb, alb) = aLTRectAnglesCW
-              GRC.newPath
-              poArc plt r alt >> poArc prt r art
-              poArc prb r arb >> poArc plb r alb
-              GRC.closePath
-              pure (plt, prt, prb, plb)
+        let d (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >> GRC.rectangle (x) (y) 1 1 >> GRC.fill -- GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
+            dCorn (RRCorn _ pos _ _) col = d pos col
+            -- roundedBoxArcs :: Wrap True Double -> Double -> [Orient]
+            --                -> GRCI.Render (Po Double, Po Double, Po Double, Po Double)
+            -- roundedBoxArcs wrap@PWrap{..} r orients = do
+            --   let (lti, rbi)           = pwPosIn'2 wrap
+            --       (plt, prt, prb, plb) = poNWSERectArcCentersCW lti rbi r
+            --       (alt, art, arb, alb) = aRectAnglesNWCW
+            --   when drawNW $ poArc plt r alt
+            --   when drawRT $ poArc prt r art
+            --   when drawSE $ poArc prb r arb
+            --   when drawLB $ poArc plb r alb
+            --   pure (plt, prt, prb, plb)
             ths@[oth, bth, ith, pth]
-                          = fmap wL [obez, bord, ibez, pad]
+                          = fmap (Th . wL) [obez, bord, ibez, pad]
             totpadx       = sum ths
-            or            = totpadx - oth/2
-            br            = or - (oth+bth)*0.6
-            ir            = br - (bth+ith)/2
-        -- border arcs & background
-        -- coSetSource $ coGray 0.7 1
-        (blt, brt, brb, blb) <- roundedBoxArcs bord br
-        coSetSource bgColor
-        GRC.fillPreserve
-        -- border
-        coSetSource borColor
-        GRC.setLineWidth $ bth
-        GRC.stroke
-        -- obezel
-        (olt, ort, orb, olb) <- roundedBoxArcs obez or
-        coSetSource $ 0.6 `coMult` borColor
-        GRC.setLineWidth $ oth
-        GRC.stroke
-        -- ibezel
-        (ilt, irt, irb, ilb) <- roundedBoxArcs ibez ir
-        coSetSource $ 1.4 `coMult` borColor
-        GRC.setLineWidth $ ith
-        GRC.stroke
+            or            = R . fromTh $ totpadx - oth/2
+            br            = or - (R . fromTh $ (oth+bth)*0.6)
+            ir            = br - (R . fromTh $ (bth+ith)/2)
+        -- coSetSourceColor (co 0 1 0 1) >>
+        --   GRC.paint
+        -- background & border arcs
+        let bfeats@[n, ne, _, se, _, sw, _, nw] = wrapRoundedRectFeatures bord br bth
+        GRC.newPath >> thLineSet bth
+        forM_ [n, ne, se, sw, nw] $ executeFeature Nothing Nothing
+        coSetSourceColor bgColor >>
+          GRC.fillPreserve
+        coSetSourceColor bordColor >>
+          GRC.stroke
+        -- (dCorn nw $ co 1 0 0 1) >> (dCorn ne $ co 1 0 0 1) >> (dCorn sw $ co 1 0 0 1) >> (dCorn se $ co 1 0 0 1)
+
+        -- border bezels: light outer TL, dark outer SE
+        thLineSet oth
+        let ofeats@[n, ne, e, se, s, sw, w, nw] = wrapRoundedRectFeatures obez or oth
+        --
+        GRC.newPath
+        (coSetSourceColor $ lBezColor) >>
+          (forM_ [w, nw, n] $ executeFeature Nothing Nothing) >> GRC.stroke
+        (coSetSourceColor $ dBezColor) >>
+          (forM_ [e, se, s] $ executeFeature Nothing Nothing) >> GRC.stroke
+        (coSetSourceColor $ bordColor) >>
+          GRC.newPath >> (executeFeature (Just dBezColor) (Just lBezColor) sw) >> GRC.stroke >>
+          GRC.newPath >> (executeFeature (Just lBezColor) (Just dBezColor) ne) >> GRC.stroke
+        -- (dCorn ne $ co 0 1 0 1) >> (dCorn sw $ co 0 1 0 1) >> (dCorn nw $ co 0 1 0 1) >> (dCorn se $ co 0 1 0 1)
+
+        -- border bezels: dark inner TL, light inner SE
+        thLineSet ith
+        let [n, ne, e, se, s, sw, w, nw] = wrapRoundedRectFeatures ibez ir ith
+        --
+        GRC.newPath
+        (coSetSourceColor $ dBezColor) >>
+          (forM_ [w, nw, n] $ executeFeature Nothing Nothing) >> GRC.stroke
+        (coSetSourceColor $ lBezColor) >>
+          (forM_ [e, se, s] $ executeFeature Nothing Nothing) >> GRC.stroke
+        (coSetSourceColor $ bordColor) >>
+          GRC.newPath >> (executeFeature (Just lBezColor) (Just dBezColor) sw) >> GRC.stroke >>
+          GRC.newPath >> (executeFeature (Just dBezColor) (Just lBezColor) ne) >> GRC.stroke
+        -- (dCorn ne $ co 0 0 0 1) >> (dCorn sw $ co 0 0 0 1) >> (dCorn nw $ co 0 0 0 1) >> (dCorn se $ co 0 0 0 1)
+
         -- text
-        let Po (V2 cvx cvy) = pLTp canv
+        let Po (V2 cvx cvy) = pwNWp canv
         GRC.moveTo cvx cvy
-        coSetSource fgColor
+        coSetSourceColor fgColor
         --
         let text = DT.pack $ printf
                    (unlines
                     ["total=%d,%d  space=%s"
+                    ,"totpadx=%f  oth=%f  bth=%f  ith=%f"
+                    ,"or=%f  br=%f  ir=%f"
                     ,"%s"
-                    ,"%s   %s"
-                    ,"%s   %s"
-                    ,"or=%f  oth=%f"
                     ,"%s"
-                    ,"%s   %s"
-                    ,"%s   %s"
-                    ,"br=%f  bth=%f"
+                    ,"%s"
+                    ,"%s"
+                    -- ,"%s   %s"
+                    -- ,"%s   %s"
+                    -- ,"or=%f  oth=%f"
+                    -- ,"%s"
+                    -- ,"%s   %s"
+                    -- ,"%s   %s"
+                    -- ,"br=%f  bth=%f"
                     ,""])
                    totalw totalh (show $ sDim space)
-                   (ppShow obez)
-                   (show olt) (show ort) (show olb) (show orb)
-                   or oth
-                   (ppShow bord)
-                   (show blt) (show brt) (show blb) (show brb)
-                   br bth
+                   (fromTh totpadx) (fromTh oth) (fromTh bth) (fromTh ith)
+                   (fromR or) (fromR br) (fromR ir)
+                   -- (ppShow bfeats)
+                   (ppShow obez) (ppShow $ ofeats !! 7)
+                   -- (show olt) (show ort) (show olb) (show orb)
+                   -- (fromR or) oth
+                   (ppShow bord) (ppShow $ bfeats !! 7)
+                   -- (show blt) (show brt) (show blb) (show brb)
+                   -- (fromR br) bth
                    --(show $ orb ^+^ (V2 or or)) or
             r = V4 1 0 0 1; y = V4 1 1 0 1; b = V4 0 0 1 1
             --r = V4 1 0 0 1; y = V4 1 1 0 1; b = V4 0 0 1 1
@@ -950,8 +1087,8 @@ renderCanvasInitial storage shMapTexSlot
         GIPC.showLayout gic gip
         -- d blt borColor; d olt r
         -- d brb borColor; d orb r
-        -- d (pLTp bord) b; d (pLTp obez) y;
-        -- d (pRBp bord) b; d (pRBp obez) y;
+        -- d (pwNWp bord) b; d (pwNWp obez) y;
+        -- d (pwSEp bord) b; d (pwSEp obez) y;
         -- dpx (V2 0 0) (V3 0 0 1)
         ) :: GRCI.Render () -- XXX/GHC: an apparent type checker bug
         -- pure ((0,0),False)

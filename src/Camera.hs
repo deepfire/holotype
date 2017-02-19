@@ -12,7 +12,7 @@ import GameEngine.Data.BSP
 -- x axis to the right
 -- y axis to the top
 canvas :: Signal (Bool, Bool, Bool, Bool, Bool) -> SignalGen Float (Signal (Vec3, Vec3))
-canvas canvasPress = transfer (Vec3 0 0 0, Vec3 (-0.5) (0.5) (0)) calcCanvas canvasPress
+canvas canvasPress = transfer (Vec3 0 0 0, Vec3 (-0.25) (-0.2) (0)) calcCanvas canvasPress
   where
     calcCanvas :: Float -> (Bool, Bool, Bool, Bool, Bool) -> (Vec3, Vec3) -> (Vec3, Vec3)
     calcCanvas dt (kx,ky,kz,kshift,kalt) (Vec3 xr yr zr, Vec3 xp yp zp) = (Vec3 xr' yr' zr', Vec3 xp' yp' zp')
