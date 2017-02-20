@@ -272,7 +272,7 @@ edge s = transfer2 False (\_ cur prev _ -> cur && not prev) s =<< delay False s
 upEdge :: Signal Bool -> SignalGen p (Signal Bool)
 upEdge s = transfer2 False (\_ cur prev _ -> cur && prev == False) s =<< delay False s
 
-scene :: Window -> Engine.EngineContent -> Engine.EngineGraphics Engine.CanvasGPU
+scene :: Window -> Engine.EngineContent -> Engine.EngineGraphics
       -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool, Bool, Bool) -> Signal (Bool, Bool, Bool, Bool, Bool)
       -> SignalGen Float (Signal Bool)
 scene win levelData graphicsData mousePosition fblrPress canvasPress = do
