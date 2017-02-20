@@ -243,7 +243,7 @@ main = do
     -- soundPlay smp' 1.0 1.0 0.0 1.0
 
     (mousePosition,mousePositionSink) <- external (0,0)
-    (fblrPress,fblrPressSink)     <- external (False,False,False,False,False,False)
+    (fblrPress,fblrPressSink)     <- external (False,False,False,False,False,False,False)
     (canvasPress,canvasPressSink) <- external (False,False,False,False,False)
 
     let draw debugRender = do
@@ -272,8 +272,8 @@ edge s = transfer2 False (\_ cur prev _ -> cur && not prev) s =<< delay False s
 upEdge :: Signal Bool -> SignalGen p (Signal Bool)
 upEdge s = transfer2 False (\_ cur prev _ -> cur && prev == False) s =<< delay False s
 
-scene :: Window -> Engine.EngineContent -> Engine.EngineGraphics
-      -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool, Bool) -> Signal (Bool, Bool, Bool, Bool, Bool)
+scene :: Window -> Engine.EngineContent -> Engine.EngineGraphics Engine.CanvasGPU
+      -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool, Bool, Bool) -> Signal (Bool, Bool, Bool, Bool, Bool)
       -> SignalGen Float (Signal Bool)
 scene win levelData graphicsData mousePosition fblrPress canvasPress = do
     time <- stateful 0 (+)
@@ -284,8 +284,8 @@ scene win levelData graphicsData mousePosition fblrPress canvasPress = do
         bsp = getBSP levelData
         p0 = head . drop 1 . cycle $ getSpawnPoints levelData
     fblrPress' <- do
-      j' <- upEdge $ (\(w,a,s,d,t,j) -> j) <$> fblrPress
-      return $ (\(w,a,s,d,t,_) j' -> (w,a,s,d,t,j')) <$> fblrPress <*> j'
+      j' <- upEdge $ (\(w,a,s,d,t,j,r) -> j) <$> fblrPress
+      return $ (\(w,a,s,d,t,_,r) j' -> (w,a,s,d,t,j',r)) <$> fblrPress <*> j'
     controlledCamera <- userCamera (getTeleportFun levelData) bsp p0 mouseMove fblrPress'
     canvas           <- canvas canvasPress
 
@@ -315,8 +315,8 @@ readInput compileRequest compileReady pplName rendererRef storage win s mousePos
     (x,y) <- getCursorPos win
     mousePos (realToFrac x,realToFrac y)
 
-    fblrPress =<< ((,,,,,) <$> keyIsPressed Key'A <*> keyIsPressed Key'W <*> keyIsPressed Key'S <*> keyIsPressed Key'D
-                           <*> keyIsPressed Key'RightShift <*> keyIsPressed Key'Space)
+    fblrPress =<< ((,,,,,,) <$> keyIsPressed Key'A <*> keyIsPressed Key'W <*> keyIsPressed Key'S <*> keyIsPressed Key'D
+                            <*> keyIsPressed Key'RightShift <*> keyIsPressed Key'Space <*> keyIsPressed Key'R)
 
     canvasPress =<< ((,,,,) <$> keyIsPressed Key'X <*> keyIsPressed Key'Y <*> keyIsPressed Key'Z <*> keyIsPressed Key'LeftShift <*> keyIsPressed Key'LeftAlt)
 
