@@ -331,31 +331,23 @@ errorShader fb = accumulate fragCtx frag rast (errorShaderFill fb)
     frag = \((v)) -> ((V4 (1 - v%r) (1 - v%g) (1 - v%b) 1))
 
 addOverlay :: (String, CommonAttrs) -> FB -> FB
-addOverlay (name, ca) prevFB =  --prevFB
-  Accumulate aCtx (mapFragments fSh (maybe id filterFragments fFun (rasterizePrimitives rCtx (Smooth, Smooth) (mapPrimitives vSh input)))) prevFB
+addOverlay (name, ca) prevFB =
+  Accumulate                (mkaccumulationContext stage)
+  (mapFragments             (mkFragmentShader stage) $
+   maybe id filterFragments Nothing $
+   rasterizePrimitives      (TriangleCtx CullFront PolygonFill NoOffset LastVertex) (Smooth, Smooth) $
+   mapPrimitives            (mkVertexShader ca stage) $
+   fetch name               ( Attribute "position"   :: Vec 3 Float
+                            , Attribute "normal"     :: Vec 3 Float
+                            , Attribute "diffuseUV"  :: Vec 2 Float)) prevFB
   where
-    input   =  fetch name ( Attribute "position"   :: Vec 3 Double
-                          , Attribute "normal"     :: Vec 3 Double
-                          , Attribute "diffuseUV"  :: Vec 2 Float
-                          , Attribute "lightmapUV" :: Vec 2 Float
-                          , Attribute "color"      :: Vec 4 Float
-                          )
-    rCtx    = mkRasterContext ca
-    aCtx    = mkaccumulationContext sa
-    vSh     = mkVertexShader ca sa
-    fSh     = mkFragmentShader sa
-    fFun    = mkFilterFunction sa
-    sa      = head $ caStages ca
-    mkVertexShader ca sa = \(pos,n,d,l,c) ->
-      let
-        worldMat    = Uniform "worldMat" :: Mat 4 4 Double
-        viewMat     = Uniform "viewMat"  :: Mat 4 4 Double
-        viewProj    = Uniform "viewProj" :: Mat 4 4 Double
-        screenPos   = viewProj *. (worldMat *. snoc pos 1)
-        norm        = drop4 (viewMat *. (worldMat *. snoc n 0))
-        uv          = mkTexCoord pos n sa d l
-        color       = mkColor ca sa c
-      in (screenPos, uv, color)
+    mkVertexShader ca stage = \(pos, norm, diffuv) ->
+      let viewProj  = Uniform "viewProj" :: Mat 4 4 Float
+          screenPos = viewProj *. snoc pos 1
+      in (screenPos
+         ,mkTexCoord pos norm stage diffuv $ V2 0 0 -- last arg is UVL
+         ,mkColor ca stage $ V4 0 0 0 1)
+    stage           = head $ caStages ca
 
 unzipWith :: (a -> Bool) -> [a] -> ([a], [a])
 unzipWith f xs = loop xs [] []
