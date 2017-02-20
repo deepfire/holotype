@@ -30,7 +30,7 @@ canvas canvasPress = transfer (Vec3 0 0 0, Vec3 (-0.25) (-0.2) (0)) calcCanvas c
                  ,zr + kdelta 0.01 kz
                  ,xp, yp, zp)
 
-userCamera :: ([Int] -> Vec3 -> Vec3) -> BSPLevel -> Vec3 -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool, Bool)
+userCamera :: ([Int] -> Vec3 -> Vec3) -> BSPLevel -> Vec3 -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool, Bool, Bool)
            -> SignalGen Float (Signal (Vec3, Vec3, Vec3, [Int]))
 userCamera camTr bsp p mposs keyss = fmap (\(pos,target,up,i,_) -> (pos,target,up,i)) <$> transfer2 (p,zero,zero,[],(0,0,0)) calcCam mposs keyss
   where
@@ -45,10 +45,10 @@ userCamera camTr bsp p mposs keyss = fmap (\(pos,target,up,i,_) -> (pos,target,u
     height = 42
     calcCam :: Float
             -> (Float, Float)
-            -> (Bool, Bool, Bool, Bool, Bool, Bool)
+            -> (Bool, Bool, Bool, Bool, Bool, Bool, Bool)
             -> (Vec3, t, t, [Int], (Float, Float, Float))
             -> (Vec3, Vec3, Vec3, [Int], (Float, Float, Float))
-    calcCam dt (dmx,dmy) (left,up,down,right,turbo,jump) (p0,_,_,bIdx0,(mx,my,fallingSpeed)) =
+    calcCam dt (dmx,dmy) (left,up,down,right,turbo,jump,recompile) (p0,_,_,bIdx0,(mx,my,fallingSpeed)) =
       let nil c n = if c then n else zero
           p'  = nil left  (v &* (-t)) -- leftward
              &+ nil up    (d &* t)    -- forward

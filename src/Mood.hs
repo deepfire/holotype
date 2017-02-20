@@ -213,7 +213,7 @@ main = do
       putStrLn "start to compile"
       writeIORef compileRequest False
       writeIORef compileReady False
-      compileQuake3GraphicsCached pplName >>= writeIORef compileReady
+      compileQuake3Graphics pplName >>= writeIORef compileReady
       putStrLn "compile finished"
       let loop = do
             req <- readIORef compileRequest
@@ -334,10 +334,12 @@ readInput compileRequest compileReady pplName rendererRef storage win s mousePos
         case ppl of
           Nothing -> return ()
           Just a@GLRenderer{..}  -> do
-            printf "loaded pipeline:\n  slots:%s\n  canvas in: %s/%s\n"
+            printf "loaded pipeline:\n  slots:%s\n  canvas/canvasmtl/canvasstream in: %s,%s,%s\n"
                    (show $ glSlotNames)
                    (show $ elem "canvas" glSlotNames)
-                   (show $ elem "models/weapons2/shotgun/shotgun.tga" glSlotNames)
+                   (show $ elem "canvasmtl" glSlotNames)
+                   (show $ elem "canvasstream" glSlotNames)
+                   -- (show $ elem "models/weapons2/shotgun/shotgun.tga" glSlotNames)
             readIORef rendererRef >>= disposeRenderer
             writeIORef rendererRef a
     k <- keyIsPressed Key'Escape

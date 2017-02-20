@@ -14,6 +14,7 @@ module Engine
   , updateRenderInput
   -- temp
   , loadQuake3Graphics
+  , compileQuake3Graphics
   , compileQuake3GraphicsCached
   , getSpawnPoints
   , getBSP
@@ -21,7 +22,7 @@ module Engine
   , getTeleportFun
   , getMusicFile
   --
-  , EngineContent, EngineGraphics
+  , EngineContent, EngineGraphics, CanvasGPU
   ) where
 
 import GHC.Stack
@@ -37,7 +38,7 @@ import qualified Data.HashSet as HashSet
 import qualified Data.Set as Set
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
-import Data.List (isPrefixOf,partition,isInfixOf,elemIndex)
+import Data.List (delete, isPrefixOf, partition, isInfixOf, elemIndex)
 import Data.Maybe
 import Data.Vect
 import Data.Set (Set)
@@ -96,6 +97,7 @@ import Data.Vector.Mutable
 
 import qualified LambdaCube.GL     as GL
 import qualified LambdaCube.Linear as LCLin
+import LambdaCube.Mesh
 import LambdaCube.GL.Mesh
 import LambdaCube.GL.Type (TextureData(..))
 import Graphics.GL.Core33
@@ -459,18 +461,21 @@ type EngineContent =
   , Maybe String
   )
 
-type EngineGraphics =
+type EngineGraphics a =
   ( GL.GLStorage
   , [(Proj4, MD3Instance)]
   , [Character]
   , [(Proj4, (MD3.MD3Model, MD3Instance), (MD3.MD3Model, MD3Instance),(MD3.MD3Model, MD3Instance))]
   , V.Vector [GL.Object]
   , BSPLevel
-  , MD3Instance, Canvas
+  , MD3Instance, Canvas a
   , [(Float, GL.SetterFun TextureData, V.Vector TextureData)]
   )
 
 loremIpsum = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna\ \ aliqua. Ut enim ad minim veniam, quis nostrud exercitation\ \ ullamco laboris nisi ut aliquip ex ea commodo consequat.\ \ Duis aute irure dolor in reprehenderit in voluptate\ \ velit esse cillum dolore eu fugiat nulla pariatur.\ \ Excepteur sint occaecat cupidatat non proident, sunt in culpa\ \ qui officia deserunt mollit anim id est laborum."
+
+cvstream   = "canvas"
+cvmaterial = "canvas"
 
 createMoodRenderInfo :: Map FilePath CommonAttrs -> HashSet FilePath -> HashSet FilePath -> (GL.PipelineSchema, Map FilePath CommonAttrs)
 createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTexSlot) where
@@ -498,11 +503,11 @@ createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTe
   shMap = Map.fromList [mkShader True n | n <- HashSet.toList levelMaterials]  `Map.union`
           Map.fromList [mkShader False n | n <- HashSet.toList modelMaterials]
           `Map.union`
-          Map.fromList [("canvas"
+          Map.fromList [(cvmaterial
                         ,defaultCommonAttrs
                          { caSort   = 10.0
                          , caStages = [defaultStageAttrs
-                                        { saTexture     = ST_ClampMap "canvas"
+                                        { saTexture     = ST_ClampMap cvmaterial
                                         , saBlend       = Just ( B_SrcAlpha , B_OneMinusSrcAlpha )
                                         , saTCGen       = TG_Base
                                         , saDepthWrite  = True
@@ -527,6 +532,17 @@ createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTe
         ST_WhiteImage   -> []
 
       -}
+  debugSlotSchema =
+    GL.ObjectArraySchema GL.Triangles $ Map.fromList
+      [ ("position",    GL.Attribute_V3F)
+      , ("color",       GL.Attribute_V4F)
+      ]
+  canvasSchema =
+    GL.ObjectArraySchema GL.Triangles $ Map.fromList
+      [ ("diffuseUV",   GL.Attribute_V2F)
+      , ("normal",      GL.Attribute_V3F)
+      , ("position",    GL.Attribute_V3F)
+      ]
   quake3SlotSchema =
     GL.ObjectArraySchema GL.Triangles $ Map.fromList
       [ ("color",       GL.Attribute_V4F)
@@ -535,24 +551,13 @@ createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTe
       , ("position",    GL.Attribute_V3F)
       , ("lightmapUV",  GL.Attribute_V2F)
       ]
-  canvasSchema =
-    GL.ObjectArraySchema GL.Triangles $ Map.fromList
-      [ ("diffuseUV",   GL.Attribute_V2I)
-      , ("position",    GL.Attribute_V3F)
-      , ("normal",      GL.Attribute_V3F)
-      ]
-  debugSlotSchema =
-    GL.ObjectArraySchema GL.Triangles $ Map.fromList
-      [ ("position",    GL.Attribute_V3F)
-      , ("color",       GL.Attribute_V4F)
-      ]
-
+  quakeObjectStreamNames = delete cvstream $ Map.keys shMap
   inputSchema = {-TODO-}
     GL.PipelineSchema
     { objectArrays = Map.fromList $
       ("CollisionShape",debugSlotSchema)
-      : ("canvasses", canvasSchema)
-      : zip ("LightMapOnly":"missing shader": Map.keys shMap) (repeat quake3SlotSchema)
+      : (cvstream, canvasSchema)
+      : zip ("LightMapOnly":"missing shader": quakeObjectStreamNames) (repeat quake3SlotSchema)
     , uniforms = Map.fromList $ [ ("viewProj",      GL.M44F)
                                 , ("worldMat",      GL.M44F)
                                 , ("viewMat",       GL.M44F)
@@ -778,7 +783,7 @@ doRange from to action =
                               loop (n+1)
    in loop from
 
-setupStorage :: Map String Entry -> EngineContent -> GL.GLStorage -> IO EngineGraphics
+setupStorage :: Map String Entry -> EngineContent -> GL.GLStorage -> IO (EngineGraphics CanvasGPU)
 setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_,_,_,_) storage = do
     let slotU           = GL.uniformSetter storage
         entityRGB       = GL.uniformV3F "entityRGB" slotU
@@ -961,21 +966,21 @@ data CanvasRequest where
     , crFontDesc   :: GIP.FontDescription
     } -> CanvasRequest
 
-data Canvas where
+data Canvas a where
   Canvas ::
-    { cvMaterial :: String
+    { cvGPU      :: a
+    , cvMaterial :: String
     , cvMatSlot  :: GL.GLUniformName
     , cvTexture  :: TextureData
-    , cvMD3      :: MD3SInstance
     , cvGRCr     :: GRC.Cairo
     , cvGRCSurf  :: GRC.Surface
     , cvGICtx    :: GIC.Context
     , cvGIPLay   :: GIP.Layout
-    } -> Canvas
+    } -> Canvas a
 
 -- grcStrokeCanvas :: GRC.Context -> CanvasRequest ->
 
-renderCanvasInitial :: GL.GLStorage -> Map String CommonAttrs -> CanvasRequest -> IO Canvas
+renderCanvasInitial :: GL.GLStorage -> Map String CommonAttrs -> CanvasRequest -> IO (Canvas CanvasGPU)
 renderCanvasInitial storage shMapTexSlot
   (CanvasRequest space@(Spc _ (Spc _ (Spc _ (Spc _ (Spc canvas End)))))
    text fgColor bgColor lBezColor bordColor dBezColor fontdesc) = do
@@ -1107,14 +1112,13 @@ renderCanvasInitial storage shMapTexSlot
   pixels      <- GRCI.imageSurfaceGetData grcSurface
   cvTexture   <- uploadTexture2DToGPU'''' False False False False $ (stridePxs, totalh, GL_BGRA, pixels)
 
-  let cvMaterial = "canvas"
-      cvMatSlot  = head $ concat $ concatMap (\(shName,sh) -> [if shName == cvMaterial then [saTextureUniform sa] else [] | sa <- caStages sh]) $ Map.toList shMapTexSlot
+  let cvMatSlot  = head $ concat $ concatMap (\(shName,sh) -> [if shName == cvmaterial then [saTextureUniform sa] else [] | sa <- caStages sh]) $ Map.toList shMapTexSlot
       -- widthOfStride = fromIntegral totalw / fromIntegral stridePxs
       (dx, dy)       = (fromIntegral totalw, fromIntegral (-totalh)) --(fromIntegral reqw, -fromIntegral reqh)
       n              = (1) -- the normal
       cvSurface  = MD3.Surface
                    { srName      = "canvasSurface"
-                   , srShaders   = V.fromList  [MD3.Shader {shIndex = 0, shName = SB.pack cvMaterial }]
+                   , srShaders   = V.fromList  [MD3.Shader {shIndex = 0, shName = SB.pack cvmaterial }]
                    , srTriangles = SV.fromList [0,2,1,0,1,3]
                    , srTexCoords = SV.fromList [ Vec2 0 1, Vec2 1 0
                                                , Vec2 0 0, Vec2 1 1]
@@ -1125,18 +1129,21 @@ renderCanvasInitial storage shMapTexSlot
                           , frOrigin = Vec3 0 0 0
                           , frRadius = 1.42
                           , frName   = "baseframe" }
-  cvMD3       <- addMD3Surface storage cvSurface cvFrame mempty ["worldMat","viewProj"]
+  cvGPU <- addMD3Surface storage cvSurface cvFrame mempty ["viewProj"]
 
   GL.uniformFTexture2D (SB.pack cvMatSlot) (GL.uniformSetter storage) cvTexture
 
-  pure Canvas { cvMaterial = cvMaterial
-              , cvMD3      = cvMD3
+  pure Canvas { cvMaterial = cvmaterial
+              , cvGPU      = cvGPU
               , cvTexture  = cvTexture
               , cvMatSlot  = SB.pack cvMatSlot
               , cvGRCr     = grc
               , cvGRCSurf  = grcSurface
               , cvGICtx    = gic
               , cvGIPLay   = gip }
+
+-- type CanvasGPU = GL.Object
+type CanvasGPU = MD3SInstance
 
 -- * To screen space conversion matrix.  From hell knows what, yes.
 screenM :: Int -> Int -> Mat4
@@ -1148,7 +1155,7 @@ screenM w h =
   where (fw, fh) = (fromIntegral w, fromIntegral h)
 
 -- TODO
-updateRenderInput :: EngineGraphics
+updateRenderInput :: (EngineGraphics CanvasGPU)
                   -> (Vec3, Vec3, Vec3)
                   -> Int -> Int -> Float -> (Vec3, Vec3) -> IO ()
 updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs, bsp, lcMD3Weapon, canvas@Canvas{..}, animTex)
@@ -1186,7 +1193,9 @@ updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs,
             -- uploadTexture2DToGPU'' False False cvTexture $ ImageRGBA8 $ generateImage gen 256 256
             -- updateUniforms storage $ do
             --   cvMatSlot @= return cvTexture
-            forM_ (md3sinstanceObject cvMD3) $ \obj -> do
+            -- let obj = cvGPU
+            -- GL.uniformM44F "viewProj" (GL.objectUniformSetter obj) $ mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation cvpos)
+            forM_ (md3sinstanceObject cvGPU) $ \obj -> do
               GL.uniformM44F "viewProj" (GL.objectUniformSetter obj) $ mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation cvpos)
               GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) idM44F
 
