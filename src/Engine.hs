@@ -663,12 +663,22 @@ getTeleportFun levelData@(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSl
   --in head $ trace (show ("hitModels",hitModels,models)) hitModels ++ [p]
   in head $ hitModels ++ [p]
 
---- What do we lose?
--- 1. buffer per surface vs. per model
--- 2. frame lossage is ok, since we don't intend to have frames
--- 3. shader lossage is ok, since, well, no common shaders, yay, ok, no?
---
--- Frame {frMins = Vec3 (-10.765625) (-10.921875) (-5.84375), frMaxs = Vec3 10.828125 10.671875 15.75, frOrigin = Vec3 0.0 0.0 0.0, frRadius = 22.01359, frName = "(from ase)"}
+data GPUMD3S
+  = GPUMD3S
+  { gpumd3sBuffer    :: GL.Buffer
+  , gpumd3sStreams   :: (GL.IndexStream GL.Buffer,Map String (GL.Stream GL.Buffer)) -- index stream, attribute streams
+  , gpumd3sFrames    :: V.Vector [(Int, GL.Array)]
+  , gpumd3sShaders   :: HashSet String
+  , gpumd3sSurface   :: MD3.Surface
+  , gpumd3sFrame     :: MD3.Frame }
+data MD3SInstance
+  = MD3SInstance
+  { md3sinstanceObject  :: GL.Object
+  , md3sinstanceBuffer  :: GL.Buffer
+  , md3sinstanceFrames  :: V.Vector [(Int, GL.Array)]
+  , md3sinstanceSurface :: MD3.Surface }
+type MD3Skin = Map String String
+
 uploadMD3Surface :: MD3.Surface -> MD3.Frame -> IO GPUMD3S
 uploadMD3Surface surface@MD3.Surface{..} frame = do
   let cvtSurface :: MD3.Surface -> (GL.Array, GL.Array, V.Vector (GL.Array, GL.Array))
@@ -692,8 +702,8 @@ uploadMD3Surface surface@MD3.Surface{..} frame = do
   let nMdFrames   = 1
       numSurfaces = 1
       surfaceData idx MD3.Surface{..} = (index,attributes) where
-        index = GL.IndexStream buffer idx 0 (SV.length srTriangles)
-        countV = SV.length srTexCoords
+        countV     = SV.length srTexCoords
+        index      = GL.IndexStream buffer idx 0 (SV.length srTriangles)
         attributes = Map.fromList $
           [ ("diffuseUV",   GL.Stream GL.Attribute_V2F buffer (1 * numSurfaces + idx) 0 countV)
           , ("position",    GL.Stream GL.Attribute_V3F buffer (2 * numSurfaces + idx) 0 countV)
@@ -712,60 +722,23 @@ uploadMD3Surface surface@MD3.Surface{..} frame = do
     , gpumd3sFrames    = frames
     , gpumd3sShaders   = HashSet.fromList $ map (SB8.unpack . MD3.shName) $ V.toList srShaders
     , gpumd3sFrame     = frame
-    , gpumd3sSurface   = surface
-    }
-
-data GPUMD3S
-  = GPUMD3S
-  { gpumd3sBuffer    :: GL.Buffer
-  , gpumd3sStreams   :: (GL.IndexStream GL.Buffer,Map String (GL.Stream GL.Buffer)) -- index stream, attribute streams
-  , gpumd3sFrames    :: V.Vector [(Int, GL.Array)]
-  , gpumd3sShaders   :: HashSet String
-  , gpumd3sSurface   :: MD3.Surface
-  , gpumd3sFrame     :: MD3.Frame
-  }
-
-data MD3SInstance
-  = MD3SInstance
-  { md3sinstanceObject  :: [GL.Object]
-  , md3sinstanceBuffer  :: GL.Buffer
-  , md3sinstanceFrames  :: V.Vector [(Int, GL.Array)]
-  , md3sinstanceSurface :: MD3.Surface
-  }
-
-type MD3Skin = Map String String
+    , gpumd3sSurface   = surface }
 
 addGPUMD3Surface :: GL.GLStorage -> GPUMD3S -> MD3Skin -> [String] -> IO MD3SInstance
 addGPUMD3Surface r GPUMD3S{..} skin unis = do
-    let sf@MD3.Surface{..} = gpumd3sSurface
-    let (index, attrs) = gpumd3sStreams
-    objs <- do
+    let sf@MD3.Surface{..}         = gpumd3sSurface
+    let (indexStream, attrStreams) = gpumd3sStreams
+    obj <- do
         let materialName s = case Map.lookup (SB8.unpack $ srName) skin of
               Nothing -> SB8.unpack $ MD3.shName s
               Just a  -> a
-        objList <- concat <$> forM (V.toList $ srShaders) (\s -> do
-          printf "addObjectWithmaterial:\n  %s\n  %s\n\n" (show $ materialName s) (show unis) -- (ppShow attrs)
-          a <- addObjectWithMaterial r (materialName s) GL.TriangleList (Just index) attrs $ setNub $ "worldMat":unis
-          b <- GL.addObject          r "LightMapOnly"   GL.TriangleList (Just index) attrs $ setNub $ "worldMat":unis
-          return [a,b])
-
-        -- add collision geometry
-        let Frame{..} = gpumd3sFrame
-        collisionObjs <- do
-            sphereObj <- uploadMeshToGPU (sphere (GL.V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
-            boxObj <- uploadMeshToGPU (bbox (GL.V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
-            --when (frOrigin /= zero) $ putStrLn $ "frOrigin: " ++ show frOrigin
-            return [sphereObj,boxObj]
-
-        return $ objList ++ collisionObjs
-    -- question: how will be the referred shaders loaded?
-    --           general problem: should the gfx network contain all passes (every possible materials)?
+            s = srShaders V.! 0
+        addObjectWithMaterial r (materialName s) GL.TriangleList (Just indexStream) attrStreams unis
     return $ MD3SInstance
-        { md3sinstanceObject  = objs
+        { md3sinstanceObject  = obj
         , md3sinstanceBuffer  = gpumd3sBuffer
         , md3sinstanceFrames  = gpumd3sFrames
-        , md3sinstanceSurface = sf
-        }
+        , md3sinstanceSurface = sf }
 
 addMD3Surface :: GL.GLStorage -> MD3.Surface -> MD3.Frame -> MD3Skin -> [String] -> IO MD3SInstance
 addMD3Surface r surface frame skin unis = do
@@ -1129,7 +1102,18 @@ renderCanvasInitial storage shMapTexSlot
                           , frOrigin = Vec3 0 0 0
                           , frRadius = 1.42
                           , frName   = "baseframe" }
-  cvGPU <- addMD3Surface storage cvSurface cvFrame mempty ["viewProj"]
+      position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
+      normal   = V.fromList [ LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n ]
+      texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
+      cvMesh   = LambdaCube.Mesh.Mesh { mPrimitive  = P_Triangles
+                                      , mAttributes = Map.fromList [ ("position",  A_V3F position)
+                                                                   , ("normal",    A_V3F normal)
+                                                                   , ("diffuseUV", A_V2F texcoord) ] }
+  cvGPUMesh <- LambdaCube.GL.Mesh.uploadMeshToGPU cvMesh
+  cvGPU <- addMeshToObjectArray storage cvstream [cvMatSlot, "viewProj"] cvGPUMesh
+  GL.updateObjectUniforms cvGPU $ do
+    (SB.pack cvMatSlot) GL.@= return cvTexture
+  -- cvGPU <- addMD3Surface storage cvSurface cvFrame mempty ["viewProj"]
 
   GL.uniformFTexture2D (SB.pack cvMatSlot) (GL.uniformSetter storage) cvTexture
 
@@ -1142,8 +1126,8 @@ renderCanvasInitial storage shMapTexSlot
               , cvGICtx    = gic
               , cvGIPLay   = gip }
 
--- type CanvasGPU = GL.Object
-type CanvasGPU = MD3SInstance
+type CanvasGPU = GL.Object
+-- type CanvasGPU = MD3SInstance
 
 -- * To screen space conversion matrix.  From hell knows what, yes.
 screenM :: Int -> Int -> Mat4
@@ -1193,11 +1177,9 @@ updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs,
             -- uploadTexture2DToGPU'' False False cvTexture $ ImageRGBA8 $ generateImage gen 256 256
             -- updateUniforms storage $ do
             --   cvMatSlot @= return cvTexture
-            -- let obj = cvGPU
-            -- GL.uniformM44F "viewProj" (GL.objectUniformSetter obj) $ mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation cvpos)
-            forM_ (md3sinstanceObject cvGPU) $ \obj -> do
-              GL.uniformM44F "viewProj" (GL.objectUniformSetter obj) $ mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation cvpos)
-              GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) idM44F
+            let obj = cvGPU -- & md3sinstanceObject
+            GL.uniformM44F "viewProj" (GL.objectUniformSetter obj) $ mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation cvpos)
+            GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) idM44F
 
             -- set uniforms
             timeSetter $ time / 1
