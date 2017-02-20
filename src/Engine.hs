@@ -468,7 +468,7 @@ type EngineGraphics a =
   , [(Proj4, (MD3.MD3Model, MD3Instance), (MD3.MD3Model, MD3Instance),(MD3.MD3Model, MD3Instance))]
   , V.Vector [GL.Object]
   , BSPLevel
-  , Canvas a
+  , [Canvas]
   , [(Float, GL.SetterFun TextureData, V.Vector TextureData)]
   )
 
@@ -693,16 +693,19 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     let redBitmap x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
     defaultTexture <- GL.uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
 
-    canvas <- renderCanvasInitial storage shMapTexSlot
-              (CanvasRequest (sGrowS 2 $ sGrowS 5 $ sGrowS 2 $ sGrowS 16 $ sArea $ fromIntegral . ceiling <$> di2goldX 256)
-                loremIpsum (coGray 0.8 1) (coOpaq 0.1 0.1 0.5) (coGray 1 1) (coGray 0.5 1) (coGray 0.1 0.5) terminusFontDesc)
+    cv0 <- renderCanvasInitial storage shMapTexSlot
+           (CanvasRequest (sGrowS 2 $ sGrowS 5 $ sGrowS 2 $ sGrowS 16 $ sArea $ fromIntegral . ceiling <$> di2goldX 256)
+             loremIpsum (coGray 0.8 1) (coOpaq 0.1 0.1 0.5) (coGray 1 1) (coGray 0.5 1) (coGray 0.1 0.5) terminusFontDesc)
+    cv1 <- renderCanvasInitial storage shMapTexSlot
+           (CanvasRequest (sGrowS 2 $ sGrowS 5 $ sGrowS 2 $ sGrowS 16 $ sArea $ fromIntegral . ceiling <$> di2goldX 256)
+             loremIpsum (coGray 0.8 1) (coOpaq 0.5 0.1 0.1) (coGray 1 1) (coGray 0.5 1) (coGray 0.1 0.5) terminusFontDesc)
 
     putStrLn "loading textures:"
     -- load textures
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\(shName,sh) -> [(shName,saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ Map.toList shMapTexSlot) $
       \(shName,stageTex,texSlotName,noMip) -> do -- texSlotName :: Approx "Tex_3913048198"
         let texSetter = GL.uniformFTexture2D (SB.pack texSlotName) slotU
-            setTex isClamped img = if img == cvMaterial canvas -- don't touch our canvas..
+            setTex isClamped img = if img == cvMaterial cv0 -- don't touch our canvas..
                                    then return []
                                    else (texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data shName img) >> return []
         case stageTex of
@@ -738,7 +741,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
         lLC <- addMD3 storage lMD3 lSkin ["worldMat"]
         return (mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))
       )
-    return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,canvas,animTex)
+    return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,[cv0, cv1],animTex)
 
 uploadTexture2DToGPU''' :: Bool -> (Int, Int, Ptr Foreign.C.Types.CUChar) -> IO TextureData
 uploadTexture2DToGPU''' isMip (w, h, ptr) = do
@@ -851,9 +854,9 @@ data CanvasRequest where
     , crFontDesc   :: GIP.FontDescription
     } -> CanvasRequest
 
-data Canvas a where
+data Canvas where
   Canvas ::
-    { cvGPU      :: a
+    { cvGPU      :: GL.Object
     , cvMaterial :: String
     , cvMatSlot  :: GL.GLUniformName
     , cvTexture  :: TextureData
@@ -861,11 +864,11 @@ data Canvas a where
     , cvGRCSurf  :: GRC.Surface
     , cvGICtx    :: GIC.Context
     , cvGIPLay   :: GIP.Layout
-    } -> Canvas a
+    } -> Canvas
 
 -- grcStrokeCanvas :: GRC.Context -> CanvasRequest ->
 
-renderCanvasInitial :: GL.GLStorage -> Map String CommonAttrs -> CanvasRequest -> IO (Canvas CanvasGPU)
+renderCanvasInitial :: GL.GLStorage -> Map String CommonAttrs -> CanvasRequest -> IO Canvas
 renderCanvasInitial storage shMapTexSlot
   (CanvasRequest space@(Spc _ (Spc _ (Spc _ (Spc _ (Spc canvas End)))))
    text fgColor bgColor lBezColor bordColor dBezColor fontdesc) = do
@@ -1015,8 +1018,8 @@ renderCanvasInitial storage shMapTexSlot
 
   GL.uniformFTexture2D (SB.pack cvMatSlot) (GL.uniformSetter storage) cvTexture
 
-  pure Canvas { cvMaterial = cvmaterial
-              , cvGPU      = cvGPU
+  pure Canvas { cvGPU      = cvGPU
+              , cvMaterial = cvmaterial
               , cvTexture  = cvTexture
               , cvMatSlot  = SB.pack cvMatSlot
               , cvGRCr     = grc
@@ -1039,7 +1042,7 @@ screenM w h =
 updateRenderInput :: (EngineGraphics CanvasGPU)
                   -> (Vec3, Vec3, Vec3)
                   -> Int -> Int -> Float -> (Vec3, Vec3) -> IO ()
-updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs, bsp, canvas@Canvas{..}, animTex)
+updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs, bsp, cvs, animTex)
                   (camPos@(Vec3 cx cy cz), camTarget, camUp)
                   w h time (Vec3 cvx cvy cvz, cvpos) = do
             let slotU = GL.uniformSetter storage
@@ -1074,7 +1077,10 @@ updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs,
             -- uploadTexture2DToGPU'' False False cvTexture $ ImageRGBA8 $ generateImage gen 256 256
             -- updateUniforms storage $ do
             --   cvMatSlot @= return cvTexture
-            GL.uniformM44F "viewProj" (GL.objectUniformSetter cvGPU) $ mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation cvpos)
+            GL.uniformM44F "viewProj" (GL.objectUniformSetter . cvGPU $ cvs !! 0) $
+              mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation $ cvpos &+ Vec3 0   0.3  0)
+            GL.uniformM44F "viewProj" (GL.objectUniformSetter . cvGPU $ cvs !! 1) $
+              mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation $ cvpos &+ Vec3 0 (-0.3) 0)
 
             -- set uniforms
             timeSetter $ time / 1
