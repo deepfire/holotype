@@ -468,7 +468,7 @@ type EngineGraphics a =
   , [(Proj4, (MD3.MD3Model, MD3Instance), (MD3.MD3Model, MD3Instance),(MD3.MD3Model, MD3Instance))]
   , V.Vector [GL.Object]
   , BSPLevel
-  , MD3Instance, Canvas a
+  , Canvas a
   , [(Float, GL.SetterFun TextureData, V.Vector TextureData)]
   )
 
@@ -663,88 +663,6 @@ getTeleportFun levelData@(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSl
   --in head $ trace (show ("hitModels",hitModels,models)) hitModels ++ [p]
   in head $ hitModels ++ [p]
 
-data GPUMD3S
-  = GPUMD3S
-  { gpumd3sBuffer    :: GL.Buffer
-  , gpumd3sStreams   :: (GL.IndexStream GL.Buffer,Map String (GL.Stream GL.Buffer)) -- index stream, attribute streams
-  , gpumd3sFrames    :: V.Vector [(Int, GL.Array)]
-  , gpumd3sShaders   :: HashSet String
-  , gpumd3sSurface   :: MD3.Surface
-  , gpumd3sFrame     :: MD3.Frame }
-data MD3SInstance
-  = MD3SInstance
-  { md3sinstanceObject  :: GL.Object
-  , md3sinstanceBuffer  :: GL.Buffer
-  , md3sinstanceFrames  :: V.Vector [(Int, GL.Array)]
-  , md3sinstanceSurface :: MD3.Surface }
-type MD3Skin = Map String String
-
-uploadMD3Surface :: MD3.Surface -> MD3.Frame -> IO GPUMD3S
-uploadMD3Surface surface@MD3.Surface{..} frame = do
-  let cvtSurface :: MD3.Surface -> (GL.Array, GL.Array, V.Vector (GL.Array, GL.Array))
-      cvtSurface MD3.Surface{..} =
-        ( GL.Array GL.ArrWord32 (SV.length srTriangles) (withV srTriangles)
-        , GL.Array GL.ArrFloat (2 * SV.length srTexCoords) (withV srTexCoords)
-        , V.map cvtPosNorm srXyzNormal
-        )
-        where
-          withV a f = SV.unsafeWith a (\p -> f $ castPtr p)
-          cvtPosNorm (p,n) = (f p, f n) where f sv = GL.Array GL.ArrFloat (3 * SV.length sv) $ withV sv
-
-      addSurface sf (il,tl,pl,nl,pnl) = (i:il,t:tl,p:pl,n:nl,pn:pnl) where
-        (i,t,pn) = cvtSurface sf
-        (p,n)    = V.head pn
-
-      (il,tl,pl,nl,pnl) = addSurface surface ([],[],[],[],[])
-
-  buffer <- GL.compileBuffer (concat [il,tl,pl,nl])
-
-  let nMdFrames   = 1
-      numSurfaces = 1
-      surfaceData idx MD3.Surface{..} = (index,attributes) where
-        countV     = SV.length srTexCoords
-        index      = GL.IndexStream buffer idx 0 (SV.length srTriangles)
-        attributes = Map.fromList $
-          [ ("diffuseUV",   GL.Stream GL.Attribute_V2F buffer (1 * numSurfaces + idx) 0 countV)
-          , ("position",    GL.Stream GL.Attribute_V3F buffer (2 * numSurfaces + idx) 0 countV)
-          , ("normal",      GL.Stream GL.Attribute_V3F buffer (3 * numSurfaces + idx) 0 countV)
-          , ("color",       GL.ConstV4F (GL.V4 1 1 1 1))
-          , ("lightmapUV",  GL.ConstV2F (GL.V2 0 0))
-          ]
-      frames :: Data.Vector.Vector [(Int, GL.Array)]
-      frames = foldr addSurfaceFrames emptyFrame $ zip [0..] pnl where
-        emptyFrame = V.replicate nMdFrames []
-        addSurfaceFrames (idx,pn) f = V.zipWith (\l (p,n) -> (2 * numSurfaces + idx,p):(3 * numSurfaces + idx,n):l) f pn
-
-  return $ GPUMD3S
-    { gpumd3sBuffer    = buffer
-    , gpumd3sStreams   = surfaceData 0 surface
-    , gpumd3sFrames    = frames
-    , gpumd3sShaders   = HashSet.fromList $ map (SB8.unpack . MD3.shName) $ V.toList srShaders
-    , gpumd3sFrame     = frame
-    , gpumd3sSurface   = surface }
-
-addGPUMD3Surface :: GL.GLStorage -> GPUMD3S -> MD3Skin -> [String] -> IO MD3SInstance
-addGPUMD3Surface r GPUMD3S{..} skin unis = do
-    let sf@MD3.Surface{..}         = gpumd3sSurface
-    let (indexStream, attrStreams) = gpumd3sStreams
-    obj <- do
-        let materialName s = case Map.lookup (SB8.unpack $ srName) skin of
-              Nothing -> SB8.unpack $ MD3.shName s
-              Just a  -> a
-            s = srShaders V.! 0
-        addObjectWithMaterial r (materialName s) GL.TriangleList (Just indexStream) attrStreams unis
-    return $ MD3SInstance
-        { md3sinstanceObject  = obj
-        , md3sinstanceBuffer  = gpumd3sBuffer
-        , md3sinstanceFrames  = gpumd3sFrames
-        , md3sinstanceSurface = sf }
-
-addMD3Surface :: GL.GLStorage -> MD3.Surface -> MD3.Frame -> MD3Skin -> [String] -> IO MD3SInstance
-addMD3Surface r surface frame skin unis = do
-    gpuMD3 <- uploadMD3Surface surface frame
-    addGPUMD3Surface r gpuMD3 skin unis
-
 grcToGIC :: GRC.Cairo -> IO GIC.Context
 grcToGIC grc = GIC.Context <$> GI.newManagedPtr (castPtr $ GRC.unCairo grc) (return ())
 
@@ -809,12 +727,6 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
 
     lcMD3Objs <- pure [] --concat <$> forM md3Objs addMD3Obj
 
-    -- weapon
-    chunk <- loadMD3 "./chunk.md3"
-    let weapon_model = chunk -- (fromJust $ Map.lookup (SB.pack handWeapon) md3Map)
-    -- lcMD3Weapon <- addMD3 storage weapon_model mempty ["worldMat","viewProj"]
-    lcMD3Weapon <- addMD3 storage (fromJust $ Map.lookup (SB.pack handWeapon) md3Map) mempty ["worldMat","viewProj"]
-
     -- add characters
     lcCharacterObjs <- pure mempty -- forM characterObjs
       (\[(mat,(hSkin,hName)),(_,(uSkin,uName)),(_,(lSkin,lName))] -> do
@@ -826,7 +738,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
         lLC <- addMD3 storage lMD3 lSkin ["worldMat"]
         return (mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))
       )
-    return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,canvas,animTex)
+    return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,canvas,animTex)
 
 uploadTexture2DToGPU''' :: Bool -> (Int, Int, Ptr Foreign.C.Types.CUChar) -> IO TextureData
 uploadTexture2DToGPU''' isMip (w, h, ptr) = do
@@ -1089,19 +1001,6 @@ renderCanvasInitial storage shMapTexSlot
       -- widthOfStride = fromIntegral totalw / fromIntegral stridePxs
       (dx, dy)       = (fromIntegral totalw, fromIntegral (-totalh)) --(fromIntegral reqw, -fromIntegral reqh)
       n              = (1) -- the normal
-      cvSurface  = MD3.Surface
-                   { srName      = "canvasSurface"
-                   , srShaders   = V.fromList  [MD3.Shader {shIndex = 0, shName = SB.pack cvmaterial }]
-                   , srTriangles = SV.fromList [0,2,1,0,1,3]
-                   , srTexCoords = SV.fromList [ Vec2 0 1, Vec2 1 0
-                                               , Vec2 0 0, Vec2 1 1]
-                   , srXyzNormal = V.singleton ( SV.fromList [Vec3 0 dy 0, Vec3 dx 0 0, Vec3 0 0 0, Vec3 dx dy 0]
-                                               , SV.fromList [Vec3 0  0 n, Vec3  0 0 n, Vec3 0 0 n, Vec3  0  0 n] ) }
-      cvFrame = MD3.Frame { frMins   = Vec3 0 0 0
-                          , frMaxs   = Vec3 1 1 0
-                          , frOrigin = Vec3 0 0 0
-                          , frRadius = 1.42
-                          , frName   = "baseframe" }
       position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
       normal   = V.fromList [ LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n ]
       texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
@@ -1113,7 +1012,6 @@ renderCanvasInitial storage shMapTexSlot
   cvGPU <- addMeshToObjectArray storage cvstream [cvMatSlot, "viewProj"] cvGPUMesh
   GL.updateObjectUniforms cvGPU $ do
     (SB.pack cvMatSlot) GL.@= return cvTexture
-  -- cvGPU <- addMD3Surface storage cvSurface cvFrame mempty ["viewProj"]
 
   GL.uniformFTexture2D (SB.pack cvMatSlot) (GL.uniformSetter storage) cvTexture
 
@@ -1127,7 +1025,6 @@ renderCanvasInitial storage shMapTexSlot
               , cvGIPLay   = gip }
 
 type CanvasGPU = GL.Object
--- type CanvasGPU = MD3SInstance
 
 -- * To screen space conversion matrix.  From hell knows what, yes.
 screenM :: Int -> Int -> Mat4
@@ -1142,7 +1039,7 @@ screenM w h =
 updateRenderInput :: (EngineGraphics CanvasGPU)
                   -> (Vec3, Vec3, Vec3)
                   -> Int -> Int -> Float -> (Vec3, Vec3) -> IO ()
-updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs, bsp, lcMD3Weapon, canvas@Canvas{..}, animTex)
+updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs, bsp, canvas@Canvas{..}, animTex)
                   (camPos@(Vec3 cx cy cz), camTarget, camUp)
                   w h time (Vec3 cvx cvy cvz, cvpos) = do
             let slotU = GL.uniformSetter storage
@@ -1177,9 +1074,7 @@ updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs,
             -- uploadTexture2DToGPU'' False False cvTexture $ ImageRGBA8 $ generateImage gen 256 256
             -- updateUniforms storage $ do
             --   cvMatSlot @= return cvTexture
-            let obj = cvGPU -- & md3sinstanceObject
-            GL.uniformM44F "viewProj" (GL.objectUniformSetter obj) $ mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation cvpos)
-            GL.uniformM44F "worldMat" (GL.objectUniformSetter obj) idM44F
+            GL.uniformM44F "viewProj" (GL.objectUniformSetter cvGPU) $ mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation cvpos)
 
             -- set uniforms
             timeSetter $ time / 1
