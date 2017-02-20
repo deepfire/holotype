@@ -496,12 +496,13 @@ createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTe
         }
 
   shMap = Map.fromList [mkShader True n | n <- HashSet.toList levelMaterials]  `Map.union`
-          Map.fromList [mkShader False n | n <- HashSet.toList modelMaterials] `Map.union`
-          Map.fromList [("canvasMaterial"
+          Map.fromList [mkShader False n | n <- HashSet.toList modelMaterials]
+          `Map.union`
+          Map.fromList [("canvas"
                         ,defaultCommonAttrs
-                         { caSort   = 9.0
+                         { caSort   = 10.0
                          , caStages = [defaultStageAttrs
-                                        { saTexture     = ST_ClampMap "canvasMaterial"
+                                        { saTexture     = ST_ClampMap "canvas"
                                         , saBlend       = Just ( B_SrcAlpha , B_OneMinusSrcAlpha )
                                         , saTCGen       = TG_Base
                                         , saDepthWrite  = True
@@ -534,7 +535,12 @@ createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTe
       , ("position",    GL.Attribute_V3F)
       , ("lightmapUV",  GL.Attribute_V2F)
       ]
-
+  canvasSchema =
+    GL.ObjectArraySchema GL.Triangles $ Map.fromList
+      [ ("diffuseUV",   GL.Attribute_V2I)
+      , ("position",    GL.Attribute_V3F)
+      , ("normal",      GL.Attribute_V3F)
+      ]
   debugSlotSchema =
     GL.ObjectArraySchema GL.Triangles $ Map.fromList
       [ ("position",    GL.Attribute_V3F)
@@ -543,7 +549,10 @@ createMoodRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTe
 
   inputSchema = {-TODO-}
     GL.PipelineSchema
-    { objectArrays = Map.fromList $ ("CollisionShape",debugSlotSchema) : zip ("LightMapOnly":"missing shader": Map.keys shMap) (repeat quake3SlotSchema)
+    { objectArrays = Map.fromList $
+      ("CollisionShape",debugSlotSchema)
+      : ("canvasses", canvasSchema)
+      : zip ("LightMapOnly":"missing shader": Map.keys shMap) (repeat quake3SlotSchema)
     , uniforms = Map.fromList $ [ ("viewProj",      GL.M44F)
                                 , ("worldMat",      GL.M44F)
                                 , ("viewMat",       GL.M44F)
@@ -1098,7 +1107,7 @@ renderCanvasInitial storage shMapTexSlot
   pixels      <- GRCI.imageSurfaceGetData grcSurface
   cvTexture   <- uploadTexture2DToGPU'''' False False False False $ (stridePxs, totalh, GL_BGRA, pixels)
 
-  let cvMaterial = "canvasMaterial"
+  let cvMaterial = "canvas"
       cvMatSlot  = head $ concat $ concatMap (\(shName,sh) -> [if shName == cvMaterial then [saTextureUniform sa] else [] | sa <- caStages sh]) $ Map.toList shMapTexSlot
       -- widthOfStride = fromIntegral totalw / fromIntegral stridePxs
       (dx, dy)       = (fromIntegral totalw, fromIntegral (-totalh)) --(fromIntegral reqw, -fromIntegral reqh)

@@ -330,14 +330,67 @@ errorShader fb = accumulate fragCtx frag rast (errorShaderFill fb)
 --    frag :: Vec 4 Float -> (Depth, Color (Vec 4 Float))
     frag = \((v)) -> ((V4 (1 - v%r) (1 - v%g) (1 - v%b) 1))
 
-q3GFX :: [(String,CommonAttrs)] -> FB
-q3GFX shl = {-blurVH $ PrjFrameBuffer "" tix0 $ -}errorShader (foldl' mkShader clear ordered)
+addOverlay :: (String, CommonAttrs) -> FB -> FB
+addOverlay (name, ca) prevFB =  --prevFB
+  Accumulate aCtx (mapFragments fSh (maybe id filterFragments fFun (rasterizePrimitives rCtx (Smooth, Smooth) (mapPrimitives vSh input)))) prevFB
   where
+    input   =  fetch name ( Attribute "position"   :: Vec 3 Double
+                          , Attribute "normal"     :: Vec 3 Double
+                          , Attribute "diffuseUV"  :: Vec 2 Float
+                          , Attribute "lightmapUV" :: Vec 2 Float
+                          , Attribute "color"      :: Vec 4 Float
+                          )
+    rCtx    = mkRasterContext ca
+    aCtx    = mkaccumulationContext sa
+    vSh     = mkVertexShader ca sa
+    fSh     = mkFragmentShader sa
+    fFun    = mkFilterFunction sa
+    sa      = head $ caStages ca
+    mkVertexShader ca sa = \(pos,n,d,l,c) ->
+      let
+        worldMat    = Uniform "worldMat" :: Mat 4 4 Double
+        viewMat     = Uniform "viewMat"  :: Mat 4 4 Double
+        viewProj    = Uniform "viewProj" :: Mat 4 4 Double
+        screenPos   = viewProj *. (worldMat *. snoc pos 1)
+        norm        = drop4 (viewMat *. (worldMat *. snoc n 0))
+        uv          = mkTexCoord pos n sa d l
+        color       = mkColor ca sa c
+      in (screenPos, uv, color)
+
+unzipWith :: (a -> Bool) -> [a] -> ([a], [a])
+unzipWith f xs = loop xs [] []
+  where loop [] ls rs     = (ls, rs)
+        loop (x:xs) ls rs = if f x
+                            then loop xs (x:ls) rs
+                            else loop xs ls (x:rs)
+
+q3GFX :: [(String,CommonAttrs)] -> FB
+q3GFX shl = {-blurVH $ PrjFrameBuffer "" tix0 $ -}errorShader $ addOverlay (head canvas) $ foldl' mkShader clear noncanvas
+-- q3GFX shl = {-blurVH $ PrjFrameBuffer "" tix0 $ -}errorShader $ foldl' mkShader clear noncanvas
+  where
+    (canvas, noncanvas) = unzipWith (\(n,_) -> n == "canvas") ordered
     ordered = sortBy (\(_,a) (_,b) -> caSort a `compare` caSort b) shl
     clear   = FrameBuffer (depthImage1 1000, colorImage1 (zero :: Vec 4 Float))
 
 --main :: Output
 main = ScreenOut (q3GFX sampleMaterial)
+
+-- makeFrame (time :: Float)
+--           (texture :: Texture)
+--           (prims :: PrimitiveStream Triangle (Vec 2 Float, Vec 2 Float))
+
+--     = imageFrame ((emptyColorImage (V4 0 0 0.4 1)))
+--   `overlay`
+--       prims
+--     & mapPrimitives (\(p,uv) -> (rotMatrixZ time *. (V4 p%x p%y (-1) 1), uv))
+--     & rasterizePrimitives (TriangleCtx CullNone PolygonFill NoOffset LastVertex) ((Smooth))
+--     & mapFragments (\((uv)) -> ((texture2D (Sampler PointFilter MirroredRepeat texture) uv)))
+--     & accumulateWith ((ColorOp NoBlending (V4 True True True True)))
+
+-- main = renderFrame $
+--    makeFrame (Uniform "time")
+--              (Texture2DSlot "diffuseTexture")
+--              (fetch "objects" (Attribute "position", Attribute "uv"))
 
 -- Local Variables:
 -- eval: (progn (haskell-mode) (intero-disable))

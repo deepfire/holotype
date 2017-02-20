@@ -336,7 +336,7 @@ readInput compileRequest compileReady pplName rendererRef storage win s mousePos
           Just a@GLRenderer{..}  -> do
             printf "loaded pipeline:\n  slots:%s\n  canvas in: %s/%s\n"
                    (show $ glSlotNames)
-                   (show $ elem "canvasMaterial" glSlotNames)
+                   (show $ elem "canvas" glSlotNames)
                    (show $ elem "models/weapons2/shotgun/shotgun.tga" glSlotNames)
             readIORef rendererRef >>= disposeRenderer
             writeIORef rendererRef a
