@@ -76,8 +76,9 @@ holotype = proc _ → do
 
     GLFW.pollEvents
 
-    GL.uniformM44F "viewProj" (GL.uniformSetter storage) $
-      Q3.mat4ToM44F $! idmtx
+    let slotU           = GL.uniformSetter storage
+        overbrightBits  = 0
+    GL.uniformFloat "identityLight" slotU $ 1 / (2 ^ overbrightBits) -- used by lc:mkColor
 
     (screenW, screenH) ← GLFW.getFramebufferSize win
     let toScreen = screenM screenW screenH
