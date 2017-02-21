@@ -108,6 +108,7 @@ pipelineSchema cvObjStream cvTexture =
       , ("worldMat",         GL.M44F)
       , ("entityRGB",        GL.V3F)
       , ("entityAlpha",      GL.Float)
+      , ("identityLight",    GL.Float)
       , ("time",             GL.Float)
       , (unameStr cvTexture, GL.FTexture2D) ]
   }
