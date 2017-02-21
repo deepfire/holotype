@@ -7,6 +7,7 @@
 #, youtrack
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
 , lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo, gi-gtk, gi-gdk
+, wires
 }:
 mkDerivation {
   pname = "mood";
@@ -23,6 +24,7 @@ mkDerivation {
     # youtrack
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
     lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo gi-gtk gi-gdk
+    wires
   ];
   executableHaskellDepends = [
     base bytestring containers directory elerea filepath GLFW-b

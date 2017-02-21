@@ -1,7 +1,7 @@
 { nixpkgs     ? import <nixpkgs> {}
 , pkgs        ? nixpkgs.pkgs, haskell ? pkgs.haskell
 , compiler    ? "ghc801"
-, ghcOrig     ? pkgs.haskell.packages.${compiler}
+, ghcOrig     ? pkgs.haskell.packages."${compiler}"
 }:
 let
   overcabal = pkgs.haskell.lib.overrideCabal;
