@@ -52,14 +52,14 @@ holotype = proc _ → do
 
     let schema = pipelineSchema cvObjStream cvTexture
 
-    storage <- GL.allocStorage schema
+    storage ← GL.allocStorage schema
 
-    cv0 <- renderCanvasInitial storage cvObjStream cvTexture
-           (CanvasRequest (sGrowS 2 $ sGrowS 5 $ sGrowS 2 $ sGrowS 16 $ sArea $ fromIntegral . ceiling <$> di2goldX 256)
+    cv0 ← renderCanvasInitial storage cvObjStream cvTexture
+           (CanvasRequest (sGrowS 2 $ sGrowS 5 $ sGrowS 2 $ sGrowS 16 $ sArea $ fromIntegral ∘ ceiling <$> di2goldX 256)
              "yayyity"
              (coGray 0.8 1) (coOpaq 0.1 0.1 0.5) (coGray 1 1) (coGray 0.5 1) (coGray 0.1 0.5) terminusFontDesc)
-    cv1 <- renderCanvasInitial storage cvObjStream cvTexture
-           (CanvasRequest (sGrowS 2 $ sGrowS 5 $ sGrowS 2 $ sGrowS 16 $ sArea $ fromIntegral . ceiling <$> di2goldX 256)
+    cv1 ← renderCanvasInitial storage cvObjStream cvTexture
+           (CanvasRequest (sGrowS 2 $ sGrowS 5 $ sGrowS 2 $ sGrowS 16 $ sArea $ fromIntegral ∘ ceiling <$> di2goldX 256)
              "indeed, lollage"
              (coGray 0.8 1) (coOpaq 0.5 0.1 0.1) (coGray 1 1) (coGray 0.5 1) (coGray 0.1 0.5) terminusFontDesc)
 
@@ -83,9 +83,9 @@ holotype = proc _ → do
     (screenW, screenH) ← GLFW.getFramebufferSize win
     let toScreen = screenM screenW screenH
         cvpos    = Vec3 (-0.25) (-0.2) (0)
-    GL.uniformM44F "viewProj" (GL.objectUniformSetter . cvGPU $ cv0) $
+    GL.uniformM44F "viewProj" (GL.objectUniformSetter ∘ cvGPU $ cv0) $
       Q3.mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation $ cvpos &+ Vec3 0   0.3  0)
-    GL.uniformM44F "viewProj" (GL.objectUniformSetter . cvGPU $ cv1) $
+    GL.uniformM44F "viewProj" (GL.objectUniformSetter ∘ cvGPU $ cv1) $
       Q3.mat4ToM44F $! toScreen .*. (fromProjective $! Data.Vect.translation $ cvpos &+ Vec3 0 (-0.3) 0)
 
     GL.setScreenSize storage (fromIntegral screenW) (fromIntegral screenH)
