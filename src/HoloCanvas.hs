@@ -89,7 +89,7 @@ canvasCommonAttrs uname =
   { caSort   = 10.0
   , caStages =
     [ defaultStageAttrs
-      { saTexture        = ST_ClampMap . SB.unpack . fromUNS $ uname
+      { saTexture        = ST_ClampMap ∘ SB.unpack ∘ fromUNS $ uname
       , saTextureUniform = SB.unpack $ fromUNS uname
       , saBlend          = Just ( B_SrcAlpha , B_OneMinusSrcAlpha )
       , saTCGen          = TG_Base
@@ -130,7 +130,7 @@ bindPipeline storage pipelineJSON = do
     validPaths ← filterM FS.doesFileExist paths
     when (Prelude.null validPaths) $
       fail $ "GPU pipeline " ++ pipelineJSON ++ " couldn't be found in " ++ show paths
-    renderer <- printTimeDiff "-- allocating GPU pipeline (GL.allocRenderer)... " $ do
+    renderer ← printTimeDiff "-- allocating GPU pipeline (GL.allocRenderer)... " $ do
       AE.eitherDecode <$> LB.readFile (Prelude.head validPaths) >>= \case
         Left err  → fail err
         Right ppl → GL.allocRenderer ppl
@@ -138,7 +138,7 @@ bindPipeline storage pipelineJSON = do
     return $ Just renderer
 
 
--- * Cairo/Pango toolkit
+-- | Cairo/Pango toolkit
 
 grcToGIC ∷ GRC.Cairo → IO GIC.Context
 grcToGIC grc = GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
@@ -182,7 +182,7 @@ tryFontFamilyFace fa req = loop =<< GIP.fontFamilyListFaces fa
           else loop fs
 
 
--- * Toolkit
+-- ⋅ Toolkit
 
 uploadTexture2DToGPU'''' ∷ Bool → Bool → Bool → Bool → (Int, Int, GL.GLenum, F.Ptr F.CUChar) → IO GL.TextureData
 uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) = do
@@ -208,7 +208,7 @@ uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) =
     return $ GL.TextureData to
 
 
--- * Canvas
+-- | Canvas
 
 data PangoContext (attached ∷ Bool) where
   PangoContextDetached ∷
@@ -308,11 +308,11 @@ renderCanvasInitial storage objStream mtlUniform
         let d (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >> GRC.rectangle (x) (y) 1 1 >> GRC.fill -- GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
             dCorn (RRCorn _ pos _ _) col = d pos col
             ths@[oth, bth, ith, pth]
-                          = fmap (Th . wL) [obez, bord, ibez, pad]
+                          = fmap (Th ∘ wL) [obez, bord, ibez, pad]
             totpadx       = sum ths
-            or            = R . fromTh $ totpadx - oth/2
-            br            = or - (R . fromTh $ (oth+bth)*0.6)
-            ir            = br - (R . fromTh $ (bth+ith)/2)
+            or            = R ∘ fromTh $ totpadx - oth/2
+            br            = or - (R ∘ fromTh $ (oth+bth)*0.6)
+            ir            = br - (R ∘ fromTh $ (bth+ith)/2)
         -- coSetSourceColor (co 0 1 0 1) >> GRC.paint
         -- background & border arcs
         let bfeats@[n, ne, _, se, _, sw, _, nw] = wrapRoundedRectFeatures bord br bth
@@ -382,8 +382,8 @@ renderCanvasInitial storage objStream mtlUniform
               , cvGICtx    = gic
               , cvGIPLay   = gip }
 
--- * To screen space conversion matrix.
-screenM :: Int -> Int -> Mat4
+-- | To screen space conversion matrix.
+screenM :: Int → Int → Mat4
 screenM w h =
   Mat4 (Vec4 (1/fw)  0     0 0)
        (Vec4  0     (1/fh) 0 0)
