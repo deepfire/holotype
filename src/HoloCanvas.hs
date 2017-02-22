@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds, GADTs #-}
+{-# LANGUAGE DataKinds, GADTs, KindSignatures #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase, OverloadedStrings, RecordWildCards, TupleSections #-}
 {-# LANGUAGE UnicodeSyntax #-}
@@ -6,7 +6,10 @@
 module HoloCanvas where
 
 -- Basis
+import           Prelude                           hiding ((.))
 import           Prelude.Unicode
+import           Control.Category
+import           Control.Lens
 
 -- Types
 import           Control.Monad                            (when, forM_, filterM)
@@ -15,6 +18,7 @@ import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
 import           Data.Map                                 (Map)
 import qualified Data.Map                          as Map
+import           Data.Maybe                               (fromMaybe)
 import           Data.String                              (IsString)
 import           Data.Text                         as T
 import qualified Data.Vector                       as V
@@ -100,7 +104,6 @@ pipelineSchema cvObjStream cvTexture =
       Map.singleton (fromOANS cvObjStream) $
       GL.ObjectArraySchema GL.Triangles $ Map.fromList
       [ ("position",       GL.Attribute_V2F)
-      -- , ("normal",         GL.Attribute_V3F)
       , ("uv",             GL.Attribute_V2F) ]
   , uniforms =
       Map.fromList $
@@ -116,7 +119,7 @@ pipelineSchema cvObjStream cvTexture =
 compilePipeline ∷ FilePath → IO Bool
 compilePipeline jsonOutput = Q3.printTimeDiff "-- compiling graphics pipeline... " $ do
   let pipelineSrc = "Holotype.lc"
-  LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc >>= \case 
+  LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc >>= \case
     Left  err → printf "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err) >> return False
     Right ppl → LB.writeFile jsonOutput (AE.encode ppl)                   >> return True
 
@@ -207,8 +210,17 @@ uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) =
 
 -- * Canvas
 
+data PangoContext (attached ∷ Bool) where
+  PangoContextDetached ∷
+    { pcFontPUs    ∷ PU
+    , pcFontFamily ∷ FF String
+    , pcFontDesc   ∷ GIP.FontDescription
+    , pcCtx        ∷ GIP.Context
+    , pcdLayout    ∷ GIP.Layout -- only makes sense for a detached context
+    } → PangoContext False
+
 data CanvasRequest where
-  CanvasRequest  ∷
+  CanvasRequest ∷
     { crSpace    ∷ Space False 5 Double -- 5 = outer bezel, border, inner bezel, padding, drawing area
     , crText     ∷ Text
     , crCFore    ∷ Co Double
@@ -230,24 +242,65 @@ data Canvas where
     , cvGPU      ∷ GL.Object
     } → Canvas
 
+tryGetFontDesc ∷ PU → FF String → IO (Maybe GIP.FontDescription)
+tryGetFontDesc _pu (FF family)
+  | "Aurulent Sans" ← family = pure $ Just aurulentFontDesc
+  | "Terminus"      ← family = pure $ Just terminusFontDesc
+  | otherwise                = pure $ Nothing
+
+makePangoContextDetached ∷ GIP.FontDescription → IO (PangoContext False)
+makePangoContextDetached pcFontDesc = do
+  pcCtx        ← GIP.contextNew
+  -- XXX: this is slightly stuipid, that we have to re-obtain this info.
+  --      But such is the price of a cross-language barrier.
+  pcFontPUs    ← fromIntegral <$> GIP.fontDescriptionGetSize pcFontDesc
+  pcFontFamily ← GIP.fontDescriptionGetFamily pcFontDesc
+                 <&> ((fromMaybe $ error "Invariant failed: couldn't obtain family of a bespoke font description.")
+                      >>> T.unpack >>> FF)
+  GIP.contextSetFontDescription pcCtx pcFontDesc
+  --
+  pcdLayout    ← GIP.layoutNew  pcCtx
+  pure PangoContextDetached{..}
+
+pcdRunTextForHeight ∷ PangoContext False → Wi Double → Text → IO (He Double)
+pcdRunTextForHeight PangoContextDetached{..} width text = do
+  GIP.layoutSetWidth pcdLayout =<< (GIP.unitsFromDouble $ fromWi width)
+  GIP.layoutSetText  pcdLayout text (-1)
+  pure $ He 0
+
+gipSetup ∷ GIP.Layout → IO ()
+gipSetup gip = do
+  GIP.layoutSetWrap            gip GIP.WrapModeWord
+  GIP.layoutSetEllipsize       gip GIP.EllipsizeModeEnd
+
 renderCanvasInitial ∷ GL.GLStorage → ObjArrayNameS → UniformNameS → CanvasRequest → IO Canvas
 renderCanvasInitial storage objStream mtlUniform
-  (CanvasRequest space@(Spc _ (Spc _ (Spc _ (Spc _ (Spc canvas End)))))
+  (CanvasRequest space'@(Spc _ (Spc _ (Spc _ (Spc _ (Spc canvas End)))))
    text fgColor bgColor lBezColor bordColor dBezColor fontdesc) = do
-  let total@(V2 totalw totalh) = ceiling <$> fromDi (sDim space)
-      V2 canvw canvh = fromDi $ wDim canvas
 
+  -- Determine actual height
+  pcd  ← makePangoContextDetached fontdesc
+  let V2 cvWi cvMaxHe = fromDi $ wDim canvas
+  cvHe ← pcdRunTextForHeight pcd (Wi cvWi) text
+  -- Update the space
+  let space = sMapInnermostWrap (const $ wArea $ Di $ V2 cvWi (fromHe cvHe)) space'
+
+  -- Compute total dimension (XXX: this work replicated later during sPin)
+  let total@(V2 totalw totalh) = ceiling <$> fromDi (sDim space)
+  -- Allocate physical drawables
   grcSurface  ← GRC.createImageSurface GRC.FormatARGB32 totalw totalh
   strideBytes ← GRC.imageSurfaceGetStride grcSurface
   let stridePxs = strideBytes `div` 4
   grc         ← GRC.create grcSurface
   gic         ← grcToGIC grc
-  gip         ← GIPC.createLayout gic
-  GIP.layoutSetFontDescription gip (Just fontdesc)
-  GIP.layoutSetWrap            gip GIP.WrapModeWord
-  GIP.layoutSetEllipsize       gip GIP.EllipsizeModeEnd
-  GIP.layoutSetWidth           gip =<< (GIP.unitsFromDouble canvw)
-  GIP.layoutSetHeight          gip =<< (GIP.unitsFromDouble canvh)
+  --
+  gipc        ← GIPC.createContext gic
+  gip         ← GIP.layoutNew gipc
+  gipSetup gip
+  -- GIP.layoutSetFontDescription gip (Just fontdesc)
+  GIP.layoutSetText            gip text (-1)
+  GIP.layoutSetHeight          gip =<< (GIP.unitsFromDouble $ fromHe cvHe)
+
   (`runReaderT` grc) $ GRC.runRender $ do
     -- ((layw, layh), ellipsized) ←
     (case sPin space (Po $ V2 0 0) of
@@ -299,40 +352,20 @@ renderCanvasInitial storage objStream mtlUniform
         GRC.moveTo cvx cvy
         coSetSourceColor fgColor
         --
-        let text = T.pack $ printf
-                   (Prelude.unlines
-                    ["total=%d,%d  space=%s"
-                    ,"totpadx=%f  oth=%f  bth=%f  ith=%f"
-                    ,"or=%f  br=%f  ir=%f"
-                    ,"%s"
-                    ,"%s"
-                    ,"%s"
-                    ,"%s"
-                    ,""])
-                   totalw totalh (show $ sDim space)
-                   (fromTh totpadx) (fromTh oth) (fromTh bth) (fromTh ith)
-                   (fromR or) (fromR br) (fromR ir)
-                   (ppShow obez) (ppShow $ ofeats !! 7)
-                   (ppShow bord) (ppShow $ bfeats !! 7)
-            --(bc, oc) = (r, y) -- XXX/GHC: an apparent type checker bug
-        GIP.layoutSetText   gip text (-1)
         GIPC.showLayout gic gip
         ) ∷ GRCI.Render () -- XXX/GHC: an apparent type checker bug
         -- ellipsized ← GIP.layoutIsEllipsized gip
         -- (, ellipsized) <$> GIP.layoutGetPixelSize gip
 
   pixels      ← GRCI.imageSurfaceGetData grcSurface
-  cvTexture   ← uploadTexture2DToGPU'''' False False False False $ (stridePxs, totalh, GL_BGRA, pixels)
+  cvTexture   ← uploadTexture2DToGPU'''' False False False False $ (stridePxs, maxh, GL_BGRA, pixels)
 
-  let (dx, dy)       = (fromIntegral totalw, fromIntegral (-totalh)) --(fromIntegral reqw, -fromIntegral reqh)
-      -- n              = (1) -- the normal
+  let (dx, dy)       = (fromIntegral totalw, fromIntegral (-maxh)) --(fromIntegral reqw, -fromIntegral reqh)
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
-      -- normal   = V.fromList [ LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n, LCLin.V3  0  0 n ]
       position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
       texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
       cvMesh   = LC.Mesh { mPrimitive  = P_Triangles
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
-                                                      -- , ("normal",    A_V3F normal)
                                                       , ("uv",        A_V2F texcoord) ] }
   cvGPUMesh ← GL.uploadMeshToGPU cvMesh
   cvGPU ← GL.addMeshToObjectArray storage (fromOANS objStream) [unameStr mtlUniform, "viewProj"] cvGPUMesh

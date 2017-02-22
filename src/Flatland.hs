@@ -1,15 +1,22 @@
-{-# LANGUAGE DataKinds, KindSignatures #-}
-{-# LANGUAGE TypeFamilies, GADTs #-}
-{-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, StandaloneDeriving, TypeOperators #-}
-{-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DataKinds, KindSignatures #-}                                                    -- Kind
+{-# LANGUAGE FlexibleInstances, RankNTypes #-}                                                -- Computability restraints
+{-# LANGUAGE TypeFamilies, GADTs #-}                                                          -- Dependent types
+{-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, StandaloneDeriving, TypeOperators #-} -- Syntax
+{-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}                                    -- Deriving
+{-# LANGUAGE UnicodeSyntax #-}                                                                -- UNICODE!
 module Flatland where
+
+-- Basis
+import           Prelude.Unicode
 
 -- Generic types
 import           Control.Lens
 import           Data.Map (Map)
 import qualified Data.Map                          as Map
 import           Data.Maybe
+import           Data.Semigroup
 import           Data.MonoTraversable
+import           Data.String                              (IsString)
 import qualified Data.Text                         as DT
 import           GHC.TypeLits
 
@@ -22,9 +29,16 @@ import qualified Graphics.Rendering.Cairo.Internal as GRC (Render(..), create, i
 import qualified Graphics.Rendering.Cairo.Types    as GRC
 import qualified Graphics.Rendering.Cairo.Internal as GRCI
 
+-- glib-introspection -based Pango
+import qualified GI.Pango                          as GIP
+
 -- Misc
 import           Text.Printf                              (printf)
 import           Text.Show.Pretty                         (ppShow)
+
+-- Dirty stuff
+import qualified Foreign                           as F
+import qualified System.IO.Unsafe                  as UN
 
 ---
 --- XXX: HUGE NOTE: V2/Co/Wrap mass of code below is likely silliness,
@@ -44,22 +58,31 @@ v2negp (V2 d0 d1) = d0 < 0 || d1 < 0
 
 
 -- | Type-safe flat space types.
+newtype R   a = R   { fromR   ::    a }    deriving (Eq, Functor, Num)             -- ^ Radius
+newtype Th  a = Th  { fromTh  ::    a }    deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
+newtype He  a = He  { fromHe  ::    a }    deriving (Eq, Functor, Num)             -- ^ Height
+newtype Wi  a = Wi  { fromWi  ::    a }    deriving (Eq, Functor, Num)             -- ^ Width
+newtype PU    = PU  { fromPU  :: F.Int32 } deriving (Eq, Num, Show)                -- ^ Pango units
+newtype FF  a = FF  { fromFF  ::    a }    deriving (IsString)                     -- ^ Pango font family
+
 newtype Di  a = Di  { fromDi  :: V2 a } deriving (Additive, Eq, Functor) -- ^ Dimensions
 newtype Po  a = Po  { fromPo  :: V2 a } deriving (Additive, Eq, Functor) -- ^ Coordinates
 newtype SDi a = SDi { fromSDi :: V4 a } deriving           (Eq)          -- ^ Side-wise dimensions: north, east, south, west
 newtype SPo a = SPo { fromSpo :: V4 a } deriving           (Eq)          -- ^ Side-wise positions:  north, east, south, west
-newtype An  a = An  { fromAn  :: V2 a } deriving (Additive, Eq, Functor) -- ^ Angles
+
+newtype An  a = An  { fromAn  :: V2 a } deriving (Additive, Eq, Functor) -- ^ Unordered pair of angles
 newtype Co  a = Co  { fromCo  :: V4 a } deriving           (Eq, Functor) -- ^ Color
-newtype R   a = R   { fromR   ::    a } deriving           (Eq, Functor, Num) -- ^ Radius
-newtype Th  a = Th  { fromTh  ::    a } deriving           (Eq, Fractional, Functor, Num) -- ^ Thickness
+
+deriving instance Show a => Show (R a)
+deriving instance Show a => Show (Th a)
+deriving instance Show a => Show (He a)
+deriving instance Show a => Show (Wi a)
 deriving instance Show a => Show (Di a)
 deriving instance Show a => Show (Po a)
 deriving instance Show a => Show (SDi a)
 deriving instance Show a => Show (SPo a)
 deriving instance Show a => Show (An a)
 deriving instance Show a => Show (Co a)
-deriving instance Show a => Show (R a)
-deriving instance Show a => Show (Th a)
 
 di :: a -> a -> Di a
 di x y = Di $ V2 x y
@@ -72,6 +95,9 @@ co r g b a = Co $ V4 r g b a
 
 off :: Num a => Po a -> V2 a -> Po a
 off co = Po . (+ fromPo co)
+
+puFromDevice ∷ Double → PU
+puFromDevice = PU ∘ UN.unsafePerformIO ∘ GIP.unitsFromDouble
 
 -- | Orientation: from north-west, clockwise to west.
 data Orient = ONW | ON | ONE | OE | OSE | OS | OSW | OW
@@ -235,6 +261,10 @@ wPin Wrap{..} pwNWp pwSEp = PWrap{..}
         pwSEd = wSEd
 
 -- | Smart constructors for 'Wrap'.
+wArea ∷ Fractional a ⇒ Di a → Wrap False a
+wArea dim = Wrap half half
+  where half = dim ^/ 2.0
+
 wSymm :: Num a => a -> Wrap False a
 wSymm d = Wrap (Di $ v2symm d) (Di $ v2symm d)
 
@@ -300,11 +330,29 @@ aRectAnglesFromMidSWCW
 
 -- * Space partitioning
 
-data Space (pinned :: Bool) (depth :: Nat) a where
+data Space (pinned :: Bool) (n :: Nat) a where
   End :: Num a =>                 Space p  0    a
-  Spc :: Num a =>
+  Spc :: -- ∀ (p ∷ Bool) (n ∷ Nat) a .
+    (Num a, CmpNat n (m + 1) ~ EQ) =>
     { sWrap  :: !(Wrap p   a)
-    , sInner ::  Space p m a } -> Space p (n+1) a
+    , sInner ::  Space p m a } -> Space p n a
+
+-- | XXX/Lensify: update the wrap of the innermost space
+sMapInnermostWrap ∷ (Wrap p a → Wrap p a) → Space p d a → Space p d a
+sMapInnermostWrap f s
+  | Spc w End ← s = Spc (f w) End
+  | Spc w is  ← s = Spc w $ sMapInnermostWrap f is
+
+--- XXX: destroys the depth information
+-- sMapInnermost ∷ (Space p d a → Space p e a) → Space p f a → Space p g a
+-- sMapInnermost f s
+--   | Spc w End ← s = f s
+--   | Spc w is  ← s = Spc w $ sMapInnermost f is
+--- XXX: semigroup instance appears impossible, since it changes the type..
+-- instance Semigroup (Space False d a) where
+--   End <> s@(Spc _ _) = s
+--   s <> End = s
+--   l@(Spc _ li) <> r@(Spc _ ri) = undefined
 
 -- | Compute the total allocation for an un-pinned 'Space'.
 --   Complexity: O(depth).
@@ -332,8 +380,7 @@ sPin space lt = loop space zero rb
 -- This is the significant hack in the model: a contiguous area is represented as
 -- a wrap around a zero-sized point amidst the area.
 sArea :: Fractional a => Di a -> Space False 1 a
-sArea dim = Spc (Wrap half half) End
-            where half = dim ^/ 2.0
+sArea dim = Spc (wArea dim) End
 
 sGrowS :: Num a => a -> Space False d a -> Space False (d + 1) a
 sGrowS delta sp = Spc (wSymm delta) sp
