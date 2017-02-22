@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE DataKinds, KindSignatures #-}                                                    -- Kind
 {-# LANGUAGE FlexibleInstances, RankNTypes #-}                                                -- Computability restraints
 {-# LANGUAGE TypeFamilies, GADTs #-}                                                          -- Dependent types
@@ -9,16 +10,19 @@ module Flatland where
 -- Basis
 import           Prelude.Unicode
 
+-- Type-level
+import           GHC.TypeLits
+
 -- Generic types
 import           Control.Lens
 import           Data.Map (Map)
 import qualified Data.Map                          as Map
 import           Data.Maybe
 import           Data.Semigroup
+import           Data.MeasuredMonoid
 import           Data.MonoTraversable
 import           Data.String                              (IsString)
 import qualified Data.Text                         as DT
-import           GHC.TypeLits
 
 -- Algebra
 import           Linear
@@ -193,7 +197,7 @@ coPatternGradRadial !(Po (V2 xi yi)) !ir !ico !(Po (V2 xo yo)) !or !oco = do
 -- | A 'Wrap' is a rectangular "donut", wrapping something inside it.
 --   It effectively partitions space into:
 --   - the __/wrap area/__, around the /wrapped area/ -- this is what 'Wrap' corresponds to,
---   - the __/wrapped area/__, inside the 'Wrap' itself.
+--   - the __/wrapped area/__, that, which is inside the 'Wrap' itself.
 data Wrap (pinned :: Bool) a where
   Wrap  :: Num a => -- ^ The non-positioned, dimensional-only wrap.
     { wNWd  :: !(Di a) -- ^ The combined offsets from the left and top sides.
@@ -330,15 +334,22 @@ aRectAnglesFromMidSWCW
 
 -- * Space partitioning
 
-data Space (pinned :: Bool) (n :: Nat) a where
-  End :: Num a =>                 Space p  0    a
-  Spc :: -- ∀ (p ∷ Bool) (n ∷ Nat) a .
-    (Num a, CmpNat n (m + 1) ~ EQ) =>
-    { sWrap  :: !(Wrap p   a)
-    , sInner ::  Space p m a } -> Space p n a
+data Space (pinned :: Bool) a (n :: Nat) where
+  End :: Num a =>                 Space p a 0
+  Spc ::
+    (Num a, n ~ (m + 1)) =>
+    { sWrap  :: !(Wrap p a)
+    , sInner ::  Space p a m } -> Space p a n
+
+instance Num a ⇒ MeasuredMonoid (Space p a) where
+  mmempty    = End
+  mmappend     End         End      = End
+  mmappend     End      t@(Spc _ _) = t
+  mmappend  t@(Spc _ _)    End      = t
+  mmappend tl@(Spc pl nl)  tr       = Spc pl $ mmappend nl tr
 
 -- | XXX/Lensify: update the wrap of the innermost space
-sMapInnermostWrap ∷ (Wrap p a → Wrap p a) → Space p d a → Space p d a
+sMapInnermostWrap ∷ (Wrap p a → Wrap p a) → Space p a d → Space p a d
 sMapInnermostWrap f s
   | Spc w End ← s = Spc (f w) End
   | Spc w is  ← s = Spc w $ sMapInnermostWrap f is
@@ -348,28 +359,23 @@ sMapInnermostWrap f s
 -- sMapInnermost f s
 --   | Spc w End ← s = f s
 --   | Spc w is  ← s = Spc w $ sMapInnermost f is
---- XXX: semigroup instance appears impossible, since it changes the type..
--- instance Semigroup (Space False d a) where
---   End <> s@(Spc _ _) = s
---   s <> End = s
---   l@(Spc _ li) <> r@(Spc _ ri) = undefined
 
 -- | Compute the total allocation for an un-pinned 'Space'.
 --   Complexity: O(depth).
-sDim :: Space False d a -> Di a
+sDim :: Space False a d -> Di a
 sDim s@Spc{..} = wDim sWrap ^+^ sDim sInner
 sDim   End     = zero
 
 -- | Compute the SE point for an un-pinned 'Space', given its NW point.
 --   Complexity: O(depth).
-sSE  :: Space False d a -> Po a -> Po a
+sSE  :: Space False a d -> Po a -> Po a
 sSE  s@Spc{..} lt = Po $ fromPo lt ^+^ fromDi (sDim s) --  ^-^ V2 1 1
 
 -- | Pin space to the @lt
-sPin :: Num a => Space False n a -> Po a -> Space True n a
+sPin :: Num a => Space False a n -> Po a -> Space True a n
 sPin space lt = loop space zero rb
   where rb = sSE space lt
-        loop :: Space False n a -> Po a -> Po a -> Space True n a
+        loop :: Space False a n -> Po a -> Po a -> Space True a n
         loop  End        _       _        = End
         loop (Spc Wrap{..} swInner) lt rb =
           Spc (PWrap { pwNWd = wNWd, pwSEd = wSEd, pwNWp = lt, pwSEp = rb })
@@ -379,18 +385,18 @@ sPin space lt = loop space zero rb
 
 -- This is the significant hack in the model: a contiguous area is represented as
 -- a wrap around a zero-sized point amidst the area.
-sArea :: Fractional a => Di a -> Space False 1 a
+sArea :: Fractional a => Di a -> Space False a 1
 sArea dim = Spc (wArea dim) End
 
-sGrowS :: Num a => a -> Space False d a -> Space False (d + 1) a
+sGrowS :: Num a => a -> Space False a d -> Space False a (d + 1)
 sGrowS delta sp = Spc (wSymm delta) sp
 
-sGrowGX, sGrowGY :: Double -> Space False n Double -> Space False (n + 1) Double
+sGrowGX, sGrowGY :: Double -> Space False Double n -> Space False Double (n + 1)
 sGrowGX d sp = Spc (wGoldSX d) sp
 sGrowGY d sp = Spc (wGoldSY d) sp
 
-sCutOutsideS2 :: Di a -> Space False n a -> Space False (n+1) a
+sCutOutsideS2 :: Di a -> Space False a n -> Space False a (n + 1)
 sCutOutsideS2 cut s@Spc{..} = Spc (Wrap cut cut)                $ s { sWrap = omap (^-^ fromDi cut) sWrap }
 
-sCutInsideS2  :: Fractional a => Di a -> Space False n a -> Space False (n+1) a
+sCutInsideS2  :: Fractional a => Di a -> Space False a n -> Space False a (n+1)
 sCutInsideS2  cut s@Spc{..} = Spc (omap (^-^ fromDi cut) sWrap) $ s { sWrap = Wrap cut cut }
