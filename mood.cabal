@@ -61,6 +61,8 @@ executable holotype
                      , gi-gdk
                      , haskell-gi-base
 
+                     , ghc-typelits-natnormalise
+
 executable mood
   hs-source-dirs:      src
   main-is:             Mood.hs

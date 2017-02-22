@@ -8,6 +8,7 @@
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
 , lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo, gi-gtk, gi-gdk
 , wires
+, ghc-typelits-natnormalise
 }:
 mkDerivation {
   pname = "mood";
@@ -25,6 +26,7 @@ mkDerivation {
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
     lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo gi-gtk gi-gdk
     wires
+    ghc-typelits-natnormalise
   ];
   executableHaskellDepends = [
     base bytestring containers directory elerea filepath GLFW-b
