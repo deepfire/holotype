@@ -43,6 +43,8 @@
       - which leads to need for "pinning" values of those projections, for those
         values the user considered important
   12. reify *query results* as *projection* called *stage*, that is out of sync by definition
+  13. use cases:
+      - program type structure choice explanation
 
 * Inspiration
 
