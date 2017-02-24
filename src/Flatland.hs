@@ -66,8 +66,6 @@ newtype R   a = R   { fromR   ∷    a }    deriving (Eq, Functor, Num)         
 newtype Th  a = Th  { fromTh  ∷    a }    deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
 newtype He  a = He  { fromHe  ∷    a }    deriving (Eq, Functor, Num)             -- ^ Height
 newtype Wi  a = Wi  { fromWi  ∷    a }    deriving (Eq, Functor, Num)             -- ^ Width
-newtype PU    = PU  { fromPU  ∷ F.Int32 } deriving (Eq, Num, Show)                -- ^ Pango units
-newtype FF  a = FF  { fromFF  ∷    a }    deriving (IsString)                     -- ^ Pango font family
 
 newtype Di  a = Di  { fromDi  ∷ V2 a } deriving (Additive, Eq, Functor) -- ^ Dimensions
 newtype Po  a = Po  { fromPo  ∷ V2 a } deriving (Additive, Eq, Functor) -- ^ Coordinates
@@ -99,9 +97,6 @@ co r g b a = Co $ V4 r g b a
 
 off ∷ Num a ⇒ Po a → V2 a → Po a
 off co = Po ∘ (+ fromPo co)
-
-puFromDevice ∷ Double → PU
-puFromDevice = PU ∘ UN.unsafePerformIO ∘ GIP.unitsFromDouble
 
 -- | Orientation: from north-west, clockwise to west.
 data Orient = ONW | ON | ONE | OE | OSE | OS | OSW | OW
