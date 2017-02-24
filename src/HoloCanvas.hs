@@ -74,6 +74,7 @@ import           GameEngine.Utils                  as Q3
 
 -- Local imports
 import Flatland
+import HoloFont
 
 
 newtype UniformNameS  = UniformNameS  { fromUNS  ∷ SB.ByteString } deriving (IsString, Show)
@@ -142,47 +143,8 @@ bindPipeline storage pipelineJSON = do
 
 grcToGIC ∷ GRC.Cairo → IO GIC.Context
 grcToGIC grc = GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
-
-defaultFontDesc, terminusFontDesc, aurulentFontDesc ∷ GIP.FontDescription
-aurulentFontDesc = UN.unsafePerformIO $ fontDescriptionFromArgs "Aurulent Sans" GIP.StyleNormal 12288
-terminusFontDesc = UN.unsafePerformIO $ fontDescriptionFromArgs "Terminus" GIP.StyleNormal 12288
-defaultFontDesc = aurulentFontDesc --terminusFontDesc
-
-fontDescriptionFromArgs ∷ String → GIP.Style → Int → IO GIP.FontDescription
-fontDescriptionFromArgs family style pus = do
-  fd ← GIP.fontDescriptionNew
-  GIP.fontDescriptionSetFamily fd $ T.pack family
-  GIP.fontDescriptionSetStyle  fd style
-  GIP.fontDescriptionSetSize   fd $ fromIntegral pus
-  pure fd
-
-  -- fmap        ← GIPC.fontMapGetDefault
-  -- ffam        ← fromJust <$> (tryFontMapFamily  fmap $ DT.pack fontfamily)
-  -- fface       ← fromJust <$> (tryFontFamilyFace ffam $ DT.pack fontface)
-  -- fcsizes     ← fromJust <$> GIP.fontFaceListSizes fface
-  -- unless (elem (fromIntegral fontpts) fcsizes) $
-  --   error $ printf "No font size %dPU for font %s-%s.\nAvailable sizes: %s." fontpts fontfamily fontface (show fcsizes)
-  -- printf "------------ got: %s-%s-%s\n" (DT.unpack $ UN.unsafePerformIO $ GIP.fontFamilyGetName ffam) (DT.unpack $ UN.unsafePerformIO $ GIP.fontFaceGetFaceName fface) (show fcsizes)
-
-tryFontMapFamily ∷ GIP.FontMap → Text → IO (Maybe GIP.FontFamily)
-tryFontMapFamily fm req = loop =<< GIP.fontMapListFamilies fm
-  where loop []     = pure Nothing
-        loop (f:fs) = do
-          name ← GIP.fontFamilyGetName f
-          if name == req
-          then pure $ Just f
-          else loop fs
-tryFontFamilyFace ∷ GIP.FontFamily → Text → IO (Maybe GIP.FontFace)
-tryFontFamilyFace fa req = loop =<< GIP.fontFamilyListFaces fa
-  where loop []     = pure Nothing
-        loop (f:fs) = do
-          name ← GIP.fontFaceGetFaceName f
-          if name == req
-          then pure $ Just f
-          else loop fs
-
 
--- ⋅ Toolkit
+-- | Toolkit
 
 uploadTexture2DToGPU'''' ∷ Bool → Bool → Bool → Bool → (Int, Int, GL.GLenum, F.Ptr F.CUChar) → IO GL.TextureData
 uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) = do
@@ -241,12 +203,6 @@ data Canvas where
     , cvTexture  ∷ GL.TextureData
     , cvGPU      ∷ GL.Object
     } → Canvas
-
-tryGetFontDesc ∷ PU → FF String → IO (Maybe GIP.FontDescription)
-tryGetFontDesc _pu (FF family)
-  | "Aurulent Sans" ← family = pure $ Just aurulentFontDesc
-  | "Terminus"      ← family = pure $ Just terminusFontDesc
-  | otherwise                = pure $ Nothing
 
 makePangoContextDetached ∷ GIP.FontDescription → IO (PangoContext False)
 makePangoContextDetached pcFontDesc = do
