@@ -1,10 +1,10 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
-{-# LANGUAGE DataKinds, KindSignatures #-}                                                    -- Kind
-{-# LANGUAGE FlexibleInstances, RankNTypes #-}                                                -- Computability restraints
-{-# LANGUAGE TypeFamilies, GADTs #-}                                                          -- Dependent types
-{-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, StandaloneDeriving, TypeOperators #-} -- Syntax
-{-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}                                    -- Deriving
-{-# LANGUAGE UnicodeSyntax #-}                                                                -- UNICODE!
+{-# LANGUAGE DataKinds, KindSignatures #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes #-}
+{-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies #-}
+{-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, StandaloneDeriving, TypeOperators #-}
+{-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE UnicodeSyntax #-}
 module Flatland where
 
 -- Basis
@@ -13,7 +13,7 @@ import           Prelude.Unicode
 -- Type-level
 import           GHC.TypeLits
 
--- Generic types
+-- General types
 import           Control.Lens
 import           Data.Map (Map)
 import qualified Data.Map                          as Map
@@ -29,12 +29,10 @@ import           Linear
 
 -- Manually-bound Cairo
 import qualified Graphics.Rendering.Cairo          as GRC
-import qualified Graphics.Rendering.Cairo.Internal as GRC (Render(..), create, imageSurfaceCreate)
-import qualified Graphics.Rendering.Cairo.Types    as GRC
 import qualified Graphics.Rendering.Cairo.Internal as GRCI
 
 -- glib-introspection -based Pango
-import qualified GI.Pango                          as GIP
+import qualified GI.Pango                          as GIP (unitsToDouble, unitsFromDouble)
 
 -- Misc
 import           Text.Printf                              (printf)
@@ -44,13 +42,111 @@ import           Text.Show.Pretty                         (ppShow)
 import qualified Foreign                           as F
 import qualified System.IO.Unsafe                  as UN
 
----
---- XXX: HUGE NOTE: V2/Co/Wrap mass of code below is likely silliness,
----      easily replaced with a couple of short lens operators.
----      Nevertheless, it is what it is -- because of blissful lack of education.
----      Typical.
----
 
+-- * Dimensional density.
+
+newtype PPI = PPI { ppiVal ∷ Double } deriving (Num, Show)
+ppi ∷ PPI
+ppi = 72
+
+newtype DPI = DPI { fromDPI ∷ Double } deriving (Num, Show)
+
+-- $Note [Pango resolution & unit conversion]
+--  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--   > Sets the resolution for the fontmap. This is a scale factor between
+--   > points specified in a #PangoFontDescription and Cairo units. The
+--   > default value is 96, meaning that a 10 point font will be 13
+--   > units high. (10 * 96. / 72. = 13.3).
+--   cited from: https://git.gnome.org/browse/pango/tree/pango/pangocairo-fontmap.c#n236
+--   I.e.:
+--     units  = points ⋅ dpi / ppi
+--     points = units  / dpi ⋅ ppi
+--
+--   A good situation report is also at:
+--     https://mail.gnome.org/archives/gtk-i18n-list/2002-May/msg00004.html
+--
+-- double pango_units_to_double   (int i)    { return (double)i / PANGO_SCALE; }
+-- int    pango_units_from_double (double d) { return (int)floor (d * PANGO_SCALE + 0.5); }
+
+
+-- * Universal, multi-density linear size.
+
+data KSize = PU | PI | Pt
+
+type instance Element (Size PU) = Double
+type instance Element (Size PI) = F.Int32
+type instance Element (Size Pt) = F.Int32
+
+data Size (a ∷ KSize) where
+  PUs ∷ { fromPU ∷ !(Element (Size PU)) } → Size PU -- ^ Pango size, in device units
+  PIs ∷ { fromPI ∷ !(Element (Size PI)) } → Size PI -- ^ Pango size, in device units, scaled by PANGO_SCALE
+  Pts ∷ { fromPt ∷ !(Element (Size Pt)) } → Size Pt -- ^ Pango size, in points (at 72ppi--see PPI above--rate), device-agnostic
+type family SizeType a = r | r → a where
+  SizeType (Size PU) = PU
+  SizeType (Size PI) = PI
+  SizeType (Size Pt) = Pt
+
+-- <Boilerplate>
+deriving instance Eq   (Size a)
+deriving instance Show (Size a)
+instance MonoFunctor (Size PU) where omap f (PUs x) = PUs (f x)
+instance MonoFunctor (Size PI) where omap f (PIs x) = PIs (f x)
+instance MonoFunctor (Size Pt) where omap f (Pts x) = Pts (f x)
+instance Ord (Size PU) where PUs l <= PUs r = l <= r
+instance Ord (Size PI) where PIs l <= PIs r = l <= r
+instance Ord (Size Pt) where Pts l <= Pts r = l <= r
+instance Num (Size PU) where fromInteger = PUs ∘ fromIntegral; PUs x + PUs y = PUs $ x + y; PUs x * PUs y = PUs $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
+instance Num (Size PI) where fromInteger = PIs ∘ fromIntegral; PIs x + PIs y = PIs $ x + y; PIs x * PIs y = PIs $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
+instance Num (Size Pt) where fromInteger = Pts ∘ fromIntegral; Pts x + Pts y = Pts $ x + y; Pts x * Pts y = Pts $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
+-- </Boilerplate>
+
+-- | Conversion between unit sizes -- See Note [Pango resolution & unit conversion]
+-- class a ~ (Size (SizeType a)) ⇒ Sizely a where
+--   fromSz ∷ Sizely b ⇒ DPI → b → a
+class Sizely a where
+  fromSz ∷ Sizely (Size b) ⇒ DPI → (Size b) → a
+
+instance Sizely (Size PU) where
+  fromSz _         x@(PUs _)   = x
+  fromSz _         x@(PIs pis) = PUs $ UN.unsafePerformIO ∘ GIP.unitsToDouble   $ pis -- fromIntegral pis / fromIntegral GIP.SCALE
+  fromSz (DPI dpi) x@(Pts pts) = PUs $ (fromIntegral pts) ⋅ dpi / ppiVal ppi
+instance Sizely (Size PI) where
+  fromSz _         x@(PIs _)   = x
+  fromSz _         x@(PUs pus) = PIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ pus -- floor $ pus ⋅ fromIntegral GIP.SCALE
+  fromSz (DPI dpi) x@(Pts pts) = PIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ fromIntegral pts ⋅ dpi / ppiVal ppi
+instance Sizely (Size Pt) where
+  fromSz _         x@(Pts _)   = x
+  fromSz (DPI dpi) x@(PUs pus) = Pts $ floor $                                                                 pus ⋅ ppiVal ppi / dpi
+  fromSz (DPI dpi) x@(PIs pis) = Pts $ floor $ UN.unsafePerformIO ∘ GIP.unitsToDouble ∘ floor $ (fromIntegral pis) ⋅ ppiVal ppi / dpi
+
+-- instance Sizely (Size a) where
+--   fromSz dπ x = fromSz dπ x
+-- not sure if this even has any added value..
+-- class (Functor a, Sizely b) ⇒ Sizeable a b where
+--   fromSzable ∷ Sizeable a (Size c) ⇒ DPI → a (Size c) → a b
+--   fromSzable dπ = fmap (fromSz dπ)
+
+
+-- * Specialized linear dimension classification:
+
+newtype R   a = R   { fromR   ∷     a } deriving (Eq, Functor, Num)             -- ^ Radius
+newtype Th  a = Th  { fromTh  ∷     a } deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
+newtype He  a = He  { fromHe  ∷     a } deriving (Eq, Functor, Num)             -- ^ Height
+newtype Wi  a = Wi  { fromWi  ∷     a } deriving (Eq, Functor, Num)             -- ^ Width
+deriving instance Show a ⇒ Show (R  a)
+deriving instance Show a ⇒ Show (Th a)
+deriving instance Show a ⇒ Show (He a)
+deriving instance Show a ⇒ Show (Wi a)
+--instance Sizeable R (Size a); instance Sizeable Th (Size a); instance Sizeable He (Size a); instance Sizeable Wi (Size a)
+
+
+-- * Pairing dimensions:
+--
+-- XXX: HUGE NOTE: V2/Co/Wrap mass of code below is likely silliness,
+--      easily replaced with a couple of short lens operators.
+--      Nevertheless, it is what it is -- because of blissful lack of education.
+--      Typical.
+--
 goldenRatio ∷ Double
 goldenRatio = 1.61803398875
 
@@ -60,34 +156,21 @@ v2symm x = V2 x x
 v2negp ∷ (Num a, Ord a) ⇒ V2 a → Bool
 v2negp (V2 d0 d1) = d0 < 0 || d1 < 0
 
-
--- | Type-safe flat space types.
-newtype R   a = R   { fromR   ∷    a }    deriving (Eq, Functor, Num)             -- ^ Radius
-newtype Th  a = Th  { fromTh  ∷    a }    deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
-newtype He  a = He  { fromHe  ∷    a }    deriving (Eq, Functor, Num)             -- ^ Height
-newtype Wi  a = Wi  { fromWi  ∷    a }    deriving (Eq, Functor, Num)             -- ^ Width
+newtype  Di a =  Di { fromDi  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Dimensions
+newtype  Po a =  Po { fromPo  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Coordinates
+newtype SDi a = SDi { fromSDi ∷ V4 a } deriving                        (Eq, Functor) -- ^ Side-wise dimensions: N, E, S, W
+newtype SPo a = SPo { fromSpo ∷ V4 a } deriving                        (Eq, Functor) -- ^ Side-wise positions:  N, E, S, W
+-- deriving instance Additive Di
+deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show (SDi a); deriving instance Show a ⇒ Show (SPo a)
+--instance           Sizeable Di (Size a); instance           Sizeable Po (Size a); instance          Sizeable SDi (Size a); instance          Sizeable SPo (Size a)
 
-newtype Di  a = Di  { fromDi  ∷ V2 a } deriving (Additive, Eq, Functor) -- ^ Dimensions
-newtype Po  a = Po  { fromPo  ∷ V2 a } deriving (Additive, Eq, Functor) -- ^ Coordinates
-newtype SDi a = SDi { fromSDi ∷ V4 a } deriving           (Eq)          -- ^ Side-wise dimensions: north, east, south, west
-newtype SPo a = SPo { fromSpo ∷ V4 a } deriving           (Eq)          -- ^ Side-wise positions:  north, east, south, west
-
-newtype An  a = An  { fromAn  ∷ V2 a } deriving (Additive, Eq, Functor) -- ^ Unordered pair of angles
-newtype Co  a = Co  { fromCo  ∷ V4 a } deriving           (Eq, Functor) -- ^ Color
-
-deriving instance Show a ⇒ Show (R a)
-deriving instance Show a ⇒ Show (Th a)
-deriving instance Show a ⇒ Show (He a)
-deriving instance Show a ⇒ Show (Wi a)
-deriving instance Show a ⇒ Show (Di a)
-deriving instance Show a ⇒ Show (Po a)
-deriving instance Show a ⇒ Show (SDi a)
-deriving instance Show a ⇒ Show (SPo a)
+newtype An  a = An  { fromAn  ∷ V2 a } deriving (Eq, Functor) -- ^ Unordered pair of angles
+newtype Co  a = Co  { fromCo  ∷ V4 a } deriving (Eq, Functor) -- ^ Color
 deriving instance Show a ⇒ Show (An a)
 deriving instance Show a ⇒ Show (Co a)
 
-di ∷ a → a → Di a
-di x y = Di $ V2 x y
+di ∷ Wi a → He a  → Di a
+di  (Wi x) (He y) = Di $ V2 x y
 po ∷ a → a → Po a
 po x y = Po $ V2 x y
 an ∷ a → a → An a
@@ -367,8 +450,8 @@ sSE  ∷ Space False a d → Po a → Po a
 sSE  s@Spc{..} lt = Po $ fromPo lt ^+^ fromDi (sDim s) --  ^-^ V2 1 1
 
 -- | Pin space to the @lt
-sPin ∷ Num a ⇒ Space False a n → Po a → Space True a n
-sPin space lt = loop space zero rb
+sPin ∷ Num a ⇒ Po a → Space False a n → Space True a n
+sPin lt space = loop space zero rb
   where rb = sSE space lt
         loop ∷ Space False a n → Po a → Po a → Space True a n
         loop  End        _       _        = End
