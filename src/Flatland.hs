@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE DataKinds, KindSignatures #-}                                                    -- Kind
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes #-}       -- Computability restraints
+{-# LANGUAGE AllowAmbiguousTypes, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes #-}       -- Computability restraints
 {-# LANGUAGE TypeFamilies, GADTs #-}                                                          -- Dependent types
 {-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, StandaloneDeriving, TypeOperators #-} -- Syntax
 {-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}                                    -- Deriving
@@ -75,45 +75,48 @@ newtype DPI = DPI { fromDPI ∷ Double } deriving (Num, Show)
 
 data SizeKind = PU | PI | Pt
 
-type instance Element (Size PU) = Double
-type instance Element (Size PI) = F.Int32
-type instance Element (Size Pt) = F.Int32
-
-data Size (a ∷ SizeKind) where
-  PUs ∷ { fromPU ∷ !(Element (Size PU)) } → Size PU -- ^ Pango size, in device units
-  PIs ∷ { fromPI ∷ !(Element (Size PI)) } → Size PI -- ^ Pango size, in device units, scaled by PANGO_SCALE
-  Pts ∷ { fromPt ∷ !(Element (Size Pt)) } → Size Pt -- ^ Pango size, in points (at 72ppi--see PPI above--rate), device-agnostic
+newtype PUs = PUs { fromPU ∷ (Element (Size PU)) } -- ^ Pango size, in device units
+newtype PIs = PIs { fromPI ∷ (Element (Size PI)) } -- ^ Pango size, in device units, scaled by PANGO_SCALE
+newtype Pts = Pts { fromPt ∷ (Element (Size Pt)) } -- ^ Pango size, in points (at 72ppi--see PPI above--rate), device-agnostic
+type family Size (s ∷ SizeKind) where
+  Size PU = PUs
+  Size PI = PIs
+  Size Pt = Pts
+type instance Element PUs = Double
+type instance Element PIs = F.Int32
+type instance Element Pts = F.Int32
 
 -- <Boilerplate>
-deriving instance Eq   (Size a)
---deriving instance Ord  (Size a)
-deriving instance Show (Size a)
-instance MonoFunctor   (Size a) where
-  omap f (PUs x) = PUs (f x); omap f (PIs x) = PIs (f x); omap f (Pts x) = Pts (f x)
-instance Num (Size PU) where
+deriving instance Eq PUs; deriving instance Ord PUs; deriving instance Show PUs
+deriving instance Eq PIs; deriving instance Ord PIs; deriving instance Show PIs
+deriving instance Eq Pts; deriving instance Ord Pts; deriving instance Show Pts
+instance MonoFunctor PUs where; omap f (PUs x) = PUs (f x)
+instance MonoFunctor PIs where; omap f (PIs x) = PIs (f x)
+instance MonoFunctor Pts where; omap f (Pts x) = Pts (f x)
+instance Num PUs where
   fromInteger = PUs ∘ UN.unsafePerformIO ∘ GIP.unitsToDouble ∘ fromIntegral; PUs x + PUs y = PUs $ x + y; PUs x * PUs y = PUs $ x * y
   abs = omap abs; signum = omap signum; negate = omap negate
-instance Num (Size PI) where
+instance Num PIs where
   fromInteger = PIs ∘ fromIntegral;                                          PIs x + PIs y = PIs $ x + y; PIs x * PIs y = PIs $ x * y
   abs = omap abs; signum = omap signum; negate = omap negate
-instance Num (Size Pt) where
+instance Num Pts where
   fromInteger = Pts ∘ fromIntegral;                                          Pts x + Pts y = Pts $ x + y; Pts x * Pts y = Pts $ x * y
   abs = omap abs; signum = omap signum; negate = omap negate
 -- </Boilerplate>
 
 -- | Conversion between unit sizes -- See Note [Pango resolution & unit conversion]
 class Sizely a where
-  fromSz ∷ Sizely (Size b) ⇒ DPI → Size b → a
+  fromSz ∷ Sizely (Size b) ⇒ DPI → (Size b) → a
 
-instance Sizely (Size PU) where
+instance Sizely PUs where
   fromSz _         x@(PUs _)   = x
   fromSz _         x@(PIs pis) = PUs $ UN.unsafePerformIO ∘ GIP.unitsToDouble   $ pis -- fromIntegral pis / fromIntegral GIP.SCALE
   fromSz (DPI dpi) x@(Pts pts) = PUs $ (fromIntegral pts) ⋅ dpi / ppiVal ppi
-instance Sizely (Size PI) where
+instance Sizely PIs where
   fromSz _         x@(PIs _)   = x
   fromSz _         x@(PUs pus) = PIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ pus -- floor $ pus ⋅ fromIntegral GIP.SCALE
   fromSz (DPI dpi) x@(Pts pts) = PIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ fromIntegral pts ⋅ dpi / ppiVal ppi
-instance Sizely (Size Pt) where
+instance Sizely Pts where
   fromSz _         x@(Pts _)   = x
   fromSz (DPI dpi) x@(PUs pus) = Pts $ floor $                                                                 pus ⋅ ppiVal ppi / dpi
   fromSz (DPI dpi) x@(PIs pis) = Pts $ floor $ UN.unsafePerformIO ∘ GIP.unitsToDouble ∘ floor $ (fromIntegral pis) ⋅ ppiVal ppi / dpi
