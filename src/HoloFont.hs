@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds, GADTs, KindSignatures, TypeFamilies #-}
 {-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving, StandaloneDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
 {-# LANGUAGE LambdaCase, MultiWayIf, OverloadedStrings, RecordWildCards, ScopedTypeVariables, TupleSections #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
@@ -57,6 +57,10 @@ import qualified Foreign                           as F
 import qualified Foreign.Ptr                       as F
 import qualified System.IO.Unsafe                  as UN
 
+-- Local imports
+import Flatland
+
+
 -- $Font choice strategy.
 --
 -- The current font choice strategy is based on preference lists -- a list of
@@ -82,58 +86,10 @@ import qualified System.IO.Unsafe                  as UN
 -- 1. This library is specific to GI.PangoCairo.Context, which is a specialization of GI.Pango.Context.
 --
 
-newtype PPI = PPI { ppiVal ∷ Double } deriving (Num, Show)
-ppi ∷ PPI
-ppi = 72
-
-newtype DPI = DPI { fromDPI ∷ Double } deriving (Num, Show)
--- ^ Pango fontmap resolution:
---   > Sets the resolution for the fontmap. This is a scale factor between
---   > points specified in a #PangoFontDescription and Cairo units. The
---   > default value is 96, meaning that a 10 point font will be 13
---   > units high. (10 * 96. / 72. = 13.3).
---   cited from: https://git.gnome.org/browse/pango/tree/pango/pangocairo-fontmap.c#n236
---   I.e.:
---     units  = points ⋅ dpi / ppi
---     points = units  / dpi ⋅ ppi
---
---   A good situation report is also at:
---     https://mail.gnome.org/archives/gtk-i18n-list/2002-May/msg00004.html
---
--- double pango_units_to_double   (int i)    { return (double)i / PANGO_SCALE; }
--- int    pango_units_from_double (double d) { return (int)floor (d * PANGO_SCALE + 0.5); }
-
-toPU ∷ DPI → Size a → Size PU
-toPU _ x@(PUs _)         = x
-toPU (DPI dpi) (Pts pts) = PUs $ (fromIntegral pts) ⋅ dpi / ppiVal ppi
-toPt ∷ DPI → Size a → Size Pt
-toPt _ x@(Pts _)         = x
-toPt (DPI dpi) (PUs pus) = Pts $ floor $ pus ⋅ ppiVal ppi / dpi
-sizeCoerce ∷ DPI → Size b → Size a → Size b
-sizeCoerce _      (PUs _) x@(PUs _) = x
-sizeCoerce _      (Pts _) x@(Pts _) = x
-sizeCoerce dpi to@(Pts _) x@(PUs _) = toPt dpi x
-sizeCoerce dpi to@(PUs _) x@(Pts _) = toPU dpi x
-
--- pcResolution ∷ GIP.Context → IO DPI
--- pcResolution ctx = DPI <$> GIPC.contextGetResolution ctx
--- pcSetResolution ∷ GIP.Context → DPI → IO ()
--- pcSetResolution ctx = GIPC.contextSetResolution ctx ∘ fromDPI
-
--- | Get fontmap resolution.
--- This function isn't in IO, because the resolution mutation function isn't defined.
--- If ever something is exported that changes the fontmap resolution, this function's
--- signature must be moved to IO.
-fmResolution ∷ GIPC.FontMap → DPI
-fmResolution = DPI ∘ UN.unsafePerformIO ∘ GIPC.fontMapGetResolution
--- fmSetResolution ∷ GIPC.FontMap → DPI → IO ()
--- fmSetResolution fm = GIPC.fontMapSetResolution fm ∘ fromDPI
-
 -- Note [Fontmap type]
 -- ~~~~~~~~~~~~~~~~~~~
 -- We choose to entirely avoid GI.Pango.FontMap,
--- because it has no intrinsic concept of resolution,
--- which we heavily rely upon.
+-- because it has no intrinsic concept of resolution, which we heavily rely upon.
 -- Hence, we opt to GI.PangoCairo.FontMap everywhere.
 --
 instance Show GIPC.FontMap where
@@ -159,47 +115,31 @@ ffacName = UN.unsafePerformIO ∘ GIP.fontFaceGetFaceName
 ffacPUSizes ∷ GIP.FontFace → Maybe [Size PU]
 ffacPUSizes fface = (fromIntegral <$>) <$> (UN.unsafePerformIO (GIP.fontFaceListSizes fface))
 
+-- | Get fontmap resolution.
+-- This function isn't in IO, because the resolution mutation function isn't defined.
+-- If ever something is exported that changes the fontmap resolution, this function's
+-- signature must be moved to IO.
+fmResolution ∷ GIPC.FontMap → DPI
+fmResolution = DPI ∘ UN.unsafePerformIO ∘ GIPC.fontMapGetResolution
+-- fmSetResolution ∷ GIPC.FontMap → DPI → IO ()
+-- fmSetResolution fm = GIPC.fontMapSetResolution fm ∘ fromDPI
+
+-- pcResolution ∷ GIP.Context → IO DPI
+-- pcResolution ctx = DPI <$> GIPC.contextGetResolution ctx
+-- pcSetResolution ∷ GIP.Context → DPI → IO ()
+-- pcSetResolution ctx = GIPC.contextSetResolution ctx ∘ fromDPI
+
 
--- * Font sizes & resolution
-data SizeKind = PU | Pt
-data Size (a ∷ SizeKind) where
-  PUs ∷ { fromPU ∷ !Double }  → Size PU -- ^ Pango font size, in device units
-  Pts ∷ { fromPt ∷ !F.Int32 } → Size Pt -- ^ Pango font size, in points (at 72ppi rate), device-agnostic
-
--- <Boilerplate>
-deriving instance Eq   (Size a)
-deriving instance Ord  (Size a)
-deriving instance Show (Size a)
-type instance Element (Size PU) = Double
-type instance Element (Size Pt) = F.Int32
-instance MonoFunctor (Size a) where
-  omap f (PUs x) = PUs (f x)
-  omap f (Pts x) = Pts (f x)
-instance Num (Size PU) where
-  fromInteger = PUs ∘ UN.unsafePerformIO ∘ GIP.unitsToDouble ∘ fromIntegral; PUs x + PUs y = PUs $ x + y; PUs x * PUs y = PUs $ x * y
-  abs = omap abs; signum = omap signum; negate = omap negate
-instance Num (Size Pt) where
-  fromInteger = Pts ∘ fromIntegral;                                          Pts x + Pts y = Pts $ x + y; Pts x * Pts y = Pts $ x * y
-  abs = omap abs; signum = omap signum; negate = omap negate
--- </Boilerplate>
-
+-- * Font sizes
 fdSetSize ∷ GIP.FontDescription → Size a → IO ()
 fdSetSize fd (PUs us)  = GIP.fontDescriptionSetAbsoluteSize fd us
 fdSetSize fd (Pts pts) = GIP.fontDescriptionSetSize         fd pts
 
---- XXX/Pipedream: interchangeable font sizes unsustainable due to necessity of font scale context
--- newtype PUss     = PUss     { fromPUss     ∷ Double }  deriving (Num, Show)
--- newtype FSPoints  = FSPoints  { fromFSPoints  ∷ F.Int32 } deriving (Num, Show)
--- instance SizeValue a ⇒ SizeValue (SizeRequest a) where
---   fsPUs    = fsPUs    ∘ fsValue
---   fsPoints = fsPoints ∘ fsValue
---   fdSetSize = \fd → fdSetSize fd ∘ fsValue
-
 data SizeRequest a where
-  FSROutline ∷
+  FSROutline ∷ Sizely (Size a) ⇒
     { fsValue   ∷ Size a
     } → SizeRequest a
-  FSRBitmap  ∷
+  FSRBitmap  ∷ Sizely (Size a) ⇒
     { fsValue   ∷ Size a
     , fsbPolicy ∷ Ordering
     } → SizeRequest a
@@ -238,7 +178,7 @@ instance Show (Font True a) where
     printf "Font { family = %s, face = %s, size = %s }"
     (fromFamilyName fFamilyName) (fromFaceName fFaceName) (show fSize)
 
-validateFont ∷ GIPC.FontMap → Font False a → IO (Either String (Font True a))
+validateFont ∷ Sizely (Size a) ⇒ GIPC.FontMap → Font False a → IO (Either String (Font True a))
 validateFont fMap (FontReq
                    fFamilyName@(FamilyName ffamname)
                    fFaceName@(FaceName ffacename)
@@ -246,7 +186,7 @@ validateFont fMap (FontReq
   let fams  = filter ((≡ ffamname)  ∘ ffamName) $ fmFamilies fMap
       faces = filter ((≡ ffacename) ∘ ffacName) $ concat $ ffamFaces <$> fams
       dpi   = fmResolution fMap
-      fPU   = toPU dpi $ fsValue fSizeRequest
+      fPU   = fromSz dpi $ fsValue fSizeRequest
   in case (fams, faces) of
     ([],_)           → pure ∘ Left $ printf "Missing font family '%s'." ffamname
     (ffam:_,[])      → pure ∘ Left $ printf "No face '%s' in family '%s'." ffacename ffamname
@@ -269,7 +209,7 @@ validateFont fMap (FontReq
                                             | otherwise   → ((<), sortOn id   fPUSizes)
                   in case find (findp fPU) ordered of
                        Nothing → Left failure
-                       Just sz → Right $ sizeCoerce dpi (fsValue fSizeRequest) sz
+                       Just sz → Right $ fromSz dpi sz
               where failure = printf "Bitmap font face '%s' of family '%s' does not have font sizes matching policy %s against size %s, among %s."
                               ffacename ffamname (show policy) (show $ fromPU fPU) (show $ fromPU <$> fPUSizes)
       case eifSizeFail of
@@ -278,9 +218,9 @@ validateFont fMap (FontReq
           fdSetSize fDesc fSize
           pure $ Right $ Font{..}
 
-chooseFont ∷ GIPC.FontMap → [Font False a] → IO (Maybe (Font True a), [String])
+chooseFont ∷ Sizely (Size a) ⇒ GIPC.FontMap → [Font False a] → IO (Maybe (Font True a), [String])
 chooseFont fMap freqs = loop freqs []
-  where loop ∷ [Font False a] → [String] → IO (Maybe (Font True a), [String])
+  where loop ∷ Sizely (Size a) ⇒ [Font False a] → [String] → IO (Maybe (Font True a), [String])
         loop [] failures  = pure (Nothing, failures)
         loop (fr:rest) fs = validateFont fMap fr
                             >>= (\case

@@ -38,6 +38,7 @@ import qualified LambdaCube.GL                     as GL
 -- Local imports
 import Flatland
 import HoloCanvas
+import HoloFont
 import WindowSys
 
 

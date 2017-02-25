@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds, GADTs, KindSignatures #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase, OverloadedStrings, RecordWildCards, TupleSections #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings, RecordWildCards, ScopedTypeVariables, TupleSections #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
 module HoloCanvas where
@@ -12,18 +13,20 @@ import           Control.Category
 import           Control.Lens
 
 -- Types
-import           Control.Monad                            (when, forM_, filterM)
+import           Control.Monad                            (unless, when, forM_, filterM)
 import           Control.Monad.Trans.Reader               (ReaderT(..))
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
 import           Data.Map                                 (Map)
 import qualified Data.Map                          as Map
 import           Data.Maybe                               (fromMaybe)
+import           Data.MeasuredMonoid
 import           Data.String                              (IsString)
 import           Data.Text                         as T
 import qualified Data.Vector                       as V
 import qualified Data.Vect                         as Vc
 import           Data.Vect                                (Mat4(..), Vec3(..), Vec4(..))
+import           Numeric.Extra                            (floatToDouble, doubleToFloat)
 
 -- Algebra
 import           Linear
@@ -77,13 +80,96 @@ import Flatland
 import HoloFont
 
 
-newtype UniformNameS  = UniformNameS  { fromUNS  ∷ SB.ByteString } deriving (IsString, Show)
-newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (IsString, Show)
+-- | Pango contextuary
 
-unameStr ∷ UniformNameS → String
-unameStr = SB.unpack ∘ fromUNS
+data PangoContext (attached ∷ Bool) (size ∷ SizeKind) where
+  PangoContextDetached ∷
+    { _pcDPI    ∷ DPI
+    , _pcFont   ∷ Font True size
+    , _pcCtx    ∷ GIP.Context
+    , pcdLayout ∷ GIP.Layout -- only makes sense for a detached context
+    } → PangoContext False size
+pcDPI  ∷ PangoContext a s → DPI;         pcDPI  (PangoContextDetached x _ _ _) = x
+pcFont ∷ PangoContext a s → Font True s; pcFont (PangoContextDetached _ x _ _) = x
+pcCtx  ∷ PangoContext a s → GIP.Context; pcCtx  (PangoContextDetached _ _ x _) = x
+
+makePangoLayout ∷ PangoContext a s → IO (GIP.Layout)
+makePangoLayout pc = do
+  gip ← GIP.layoutNew (pcCtx pc)
+  GIP.layoutSetWrap      gip GIP.WrapModeWord
+  GIP.layoutSetEllipsize gip GIP.EllipsizeModeEnd
+  pure gip
+
+gipSetWidth ∷ GIP.Layout → DPI → Wi (Size s) → IO ()
+gipSetWidth lay dpi (Wi sz) =
+  GIP.layoutSetWidth lay =<< (GIP.unitsFromDouble $ fromPU $ toPU dpi sz)
+
+gipSize ∷ GIP.Layout → DPI → IO (Di (Size s))
+gipSize = do
+  (pux, puy) ← GIP.layoutGetSize pcdLayout
+  pure $ Di ()
+
+makePangoContextDetached ∷ DPI → Font True s → IO (PangoContext False s)
+makePangoContextDetached pcDPI pcFont@Font{..} = do
+  pcCtx     ← GIP.contextNew
+  GIP.contextSetFontDescription pcCtx fDesc
+  let pc = PangoContextDetached{..}
+  pcdLayout ← makePangoLayout pc
+  pure pc { pcdLayout = pcdLayout }
+
+pcdRunTextForSize ∷ PangoContext False s → Wi (Size s) → Text → IO (Di (Size s))
+pcdRunTextForSize PangoContextDetached{..} width text = do
+  gipSetWidth pcdLayout _pcDPI width
+  GIP.layoutSetText  pcdLayout text (-1)
+
+  He ∘ fromIntegral ∘ view _2 <$>
 
 
+-- * Widgets
+
+type WidgetSpace p s = Space p Double s
+type WSpace      p s = WidgetSpace p s
+--
+type RRectWSpace p   = WSpace p 4
+
+data RRectStyle where
+  RRectStyle ∷
+    { rrsPGCtx    ∷ PangoContext False PU
+    , rrsWSpace   ∷ RRectWSpace  False
+    , rrsColors   ∷ [Co Double]
+    } → RRectStyle
+
+-- makeRRectStyle ∷
+-- makeRRectStyle
+--   pcd  ← makePangoContextDetached fontdesc
+
+
+-- * Request the content renderer to produce a renderable object.
+data CanvasRequest where
+  CanvasRequest ∷
+    { crRRectStyle ∷ Co Double
+    , crText       ∷ Text
+    , crSpace      ∷ Space True Double 5 -- 5 = outer bezel, border, inner bezel, padding, drawing area
+    } → CanvasRequest
+
+makeCanvasRequest ∷ RRectStyle → Wi Double → Text → IO CanvasRequest
+makeCanvasRequest RRectStyle{..} textWi crText = do
+  textHe ← pcdRunTextForHeight rrsPGCtx textWi crText
+  let crSpace = sPin (po 0 0) $
+                rrsWSpace <> sArea (di textWi textHe)
+  pure CanvasRequest{..}
+
+
+data RenderContext where
+  RenderContext ∷
+    { rcStorage  ∷ GL.GLStorage
+    , rcObjArray ∷ ObjArrayNameS
+    , rcUniform  ∷ UniformNameS
+    } → RenderContext
+
+
+-- * Shader attributery
+
 canvasCommonAttrs ∷ UniformNameS → CommonAttrs
 canvasCommonAttrs uname =
   defaultCommonAttrs
@@ -97,6 +183,15 @@ canvasCommonAttrs uname =
       , saDepthWrite     = True
       , saRGBGen         = RGB_IdentityLighting
       }]}
+
+
+-- * Pipelinistan
+
+newtype UniformNameS  = UniformNameS  { fromUNS  ∷ SB.ByteString } deriving (IsString, Show)
+newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (IsString, Show)
+
+unameStr ∷ UniformNameS → String
+unameStr = SB.unpack ∘ fromUNS
 
 pipelineSchema ∷ ObjArrayNameS → UniformNameS → GL.PipelineSchema
 pipelineSchema cvObjStream cvTexture =
@@ -139,13 +234,7 @@ bindPipeline storage pipelineJSON = do
     return $ Just renderer
 
 
--- | Cairo/Pango toolkit
-
-grcToGIC ∷ GRC.Cairo → IO GIC.Context
-grcToGIC grc = GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
-
--- | Toolkit
-
+-- * Toolkit
 uploadTexture2DToGPU'''' ∷ Bool → Bool → Bool → Bool → (Int, Int, GL.GLenum, F.Ptr F.CUChar) → IO GL.TextureData
 uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) = do
     glPixelStorei GL_UNPACK_ALIGNMENT 1
@@ -170,29 +259,11 @@ uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) =
     return $ GL.TextureData to
 
 
--- | Canvas
+-- | Cairo contextuary
+grcToGIC ∷ GRC.Cairo → IO GIC.Context
+grcToGIC grc = GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
 
-data PangoContext (attached ∷ Bool) where
-  PangoContextDetached ∷
-    { pcFontPUs    ∷ PU
-    , pcFontFamily ∷ FF String
-    , pcFontDesc   ∷ GIP.FontDescription
-    , pcCtx        ∷ GIP.Context
-    , pcdLayout    ∷ GIP.Layout -- only makes sense for a detached context
-    } → PangoContext False
-
-data CanvasRequest where
-  CanvasRequest ∷
-    { crSpace    ∷ Space False 5 Double -- 5 = outer bezel, border, inner bezel, padding, drawing area
-    , crText     ∷ Text
-    , crCFore    ∷ Co Double
-    , crCBack    ∷ Co Double
-    , crCLBez    ∷ Co Double
-    , crCBord    ∷ Co Double
-    , crCDBez    ∷ Co Double
-    , crFontDesc ∷ GIP.FontDescription
-    } → CanvasRequest
-
+
 data Canvas where
   Canvas ∷
     { cvGRCSurf  ∷ GRC.Surface
@@ -204,45 +275,8 @@ data Canvas where
     , cvGPU      ∷ GL.Object
     } → Canvas
 
-makePangoContextDetached ∷ GIP.FontDescription → IO (PangoContext False)
-makePangoContextDetached pcFontDesc = do
-  pcCtx        ← GIP.contextNew
-  -- XXX: this is slightly stuipid, that we have to re-obtain this info.
-  --      But such is the price of a cross-language barrier.
-  pcFontPUs    ← fromIntegral <$> GIP.fontDescriptionGetSize pcFontDesc
-  pcFontFamily ← GIP.fontDescriptionGetFamily pcFontDesc
-                 <&> ((fromMaybe $ error "Invariant failed: couldn't obtain family of a bespoke font description.")
-                      >>> T.unpack >>> FF)
-  GIP.contextSetFontDescription pcCtx pcFontDesc
-  --
-  pcdLayout    ← GIP.layoutNew  pcCtx
-  pure PangoContextDetached{..}
-
-pcdRunTextForHeight ∷ PangoContext False → Wi Double → Text → IO (He Double)
-pcdRunTextForHeight PangoContextDetached{..} width text = do
-  GIP.layoutSetWidth pcdLayout =<< (GIP.unitsFromDouble $ fromWi width)
-  GIP.layoutSetText  pcdLayout text (-1)
-  pure $ He 0
-
-gipSetup ∷ GIP.Layout → IO ()
-gipSetup gip = do
-  GIP.layoutSetWrap            gip GIP.WrapModeWord
-  GIP.layoutSetEllipsize       gip GIP.EllipsizeModeEnd
-
-renderCanvasInitial ∷ GL.GLStorage → ObjArrayNameS → UniformNameS → CanvasRequest → IO Canvas
-renderCanvasInitial storage objStream mtlUniform
-  (CanvasRequest space'@(Spc _ (Spc _ (Spc _ (Spc _ (Spc canvas End)))))
-   text fgColor bgColor lBezColor bordColor dBezColor fontdesc) = do
-
-  -- Determine actual height
-  pcd  ← makePangoContextDetached fontdesc
-  let V2 cvWi cvMaxHe = fromDi $ wDim canvas
-  cvHe ← pcdRunTextForHeight pcd (Wi cvWi) text
-  -- Update the space
-  let space = sMapInnermostWrap (const $ wArea $ Di $ V2 cvWi (fromHe cvHe)) space'
-
-  -- Compute total dimension (XXX: this work replicated later during sPin)
-  let total@(V2 totalw totalh) = ceiling <$> fromDi (sDim space)
+renderCanvasInitial ∷ RenderContext → CanvasRequest → IO Canvas
+renderCanvasInitial RenderContext{..} CanvasRequest{..} = do
   -- Allocate physical drawables
   grcSurface  ← GRC.createImageSurface GRC.FormatARGB32 totalw totalh
   strideBytes ← GRC.imageSurfaceGetStride grcSurface
@@ -254,8 +288,8 @@ renderCanvasInitial storage objStream mtlUniform
   gip         ← GIP.layoutNew gipc
   gipSetup gip
   -- GIP.layoutSetFontDescription gip (Just fontdesc)
-  GIP.layoutSetText            gip text (-1)
-  GIP.layoutSetHeight          gip =<< (GIP.unitsFromDouble $ fromHe cvHe)
+  GIP.layoutSetText   gip text (-1)
+  GIP.layoutSetHeight gip =<< (GIP.unitsFromDouble $ fromHe cvHe)
 
   (`runReaderT` grc) $ GRC.runRender $ do
     -- ((layw, layh), ellipsized) ←
@@ -314,9 +348,9 @@ renderCanvasInitial storage objStream mtlUniform
         -- (, ellipsized) <$> GIP.layoutGetPixelSize gip
 
   pixels      ← GRCI.imageSurfaceGetData grcSurface
-  cvTexture   ← uploadTexture2DToGPU'''' False False False False $ (stridePxs, maxh, GL_BGRA, pixels)
+  cvTexture   ← uploadTexture2DToGPU'''' False False False False $ (stridePxs, ceiling $ fromHe cvHe, GL_BGRA, pixels)
 
-  let (dx, dy)       = (fromIntegral totalw, fromIntegral (-maxh)) --(fromIntegral reqw, -fromIntegral reqh)
+  let (dx, dy)       = (fromIntegral totalw, doubleToFloat $ -fromHe cvHe) --(fromIntegral reqw, -fromIntegral reqh)
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
       position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
       texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
