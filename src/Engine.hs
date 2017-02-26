@@ -461,7 +461,7 @@ type EngineContent =
   , Maybe String
   )
 
-type EngineGraphics a =
+type EngineGraphics =
   ( GL.GLStorage
   , [(Proj4, MD3Instance)]
   , [Character]
@@ -674,7 +674,7 @@ doRange from to action =
                               loop (n+1)
    in loop from
 
-setupStorage :: Map String Entry -> EngineContent -> GL.GLStorage -> IO (EngineGraphics CanvasGPU)
+setupStorage :: Map String Entry -> EngineContent -> GL.GLStorage -> IO EngineGraphics
 setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_,_,_,_) storage = do
     let slotU           = GL.uniformSetter storage
         entityRGB       = GL.uniformV3F "entityRGB" slotU
@@ -876,8 +876,6 @@ renderCanvasInitial storage shMapTexSlot
       V2 canvw canvh = fromDi $ wDim canvas
 
   grcSurface  <- GRC.createImageSurface GRC.FormatARGB32 totalw totalh
-  strideBytes <- GRC.imageSurfaceGetStride grcSurface
-  let stridePxs = strideBytes `div` 4
   grc         <- GRC.create grcSurface
   gic         <- grcToGIC grc
   gip         <- GIPC.createLayout gic
@@ -886,6 +884,9 @@ renderCanvasInitial storage shMapTexSlot
   GIP.layoutSetEllipsize       gip GIP.EllipsizeModeEnd
   GIP.layoutSetWidth           gip =<< (GIP.unitsFromDouble canvw)
   GIP.layoutSetHeight          gip =<< (GIP.unitsFromDouble canvh)
+
+  strideBytes <- GRC.imageSurfaceGetStride grcSurface
+  let stridePxs = strideBytes `div` 4
   (`runReaderT` grc) $ GRC.runRender $ do
     -- ((layw, layh), ellipsized) <-
     (case sPin space (Po $ V2 0 0) of
@@ -1039,7 +1040,7 @@ screenM w h =
   where (fw, fh) = (fromIntegral w, fromIntegral h)
 
 -- TODO
-updateRenderInput :: (EngineGraphics CanvasGPU)
+updateRenderInput :: EngineGraphics
                   -> (Vec3, Vec3, Vec3)
                   -> Int -> Int -> Float -> (Vec3, Vec3) -> IO ()
 updateRenderInput (storage, lcMD3Objs, characters, lcCharacterObjs, surfaceObjs, bsp, cvs, animTex)
