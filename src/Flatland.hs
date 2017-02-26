@@ -45,11 +45,11 @@ import qualified System.IO.Unsafe                  as UN
 
 -- * Dimensional density.
 
-newtype PPI = PPI { ppiVal ∷ Double } deriving (Num, Show)
-ppi ∷ PPI
-ppi = 72
+newtype PΠ = PΠ { pπVal ∷ Double } deriving (Num, Show)
+pπ ∷ PΠ
+pπ = 72
 
-newtype DPI = DPI { fromDPI ∷ Double } deriving (Num, Show)
+newtype DΠ = DΠ { fromDΠ ∷ Double } deriving (Num, Show)
 
 -- $Note [Pango resolution & unit conversion]
 --  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -59,8 +59,8 @@ newtype DPI = DPI { fromDPI ∷ Double } deriving (Num, Show)
 --   > units high. (10 * 96. / 72. = 13.3).
 --   cited from: https://git.gnome.org/browse/pango/tree/pango/pangocairo-fontmap.c#n236
 --   I.e.:
---     units  = points ⋅ dpi / ppi
---     points = units  / dpi ⋅ ppi
+--     units  = points ⋅ dπ / pπ
+--     points = units  / dπ ⋅ pπ
 --
 --   A good situation report is also at:
 --     https://mail.gnome.org/archives/gtk-i18n-list/2002-May/msg00004.html
@@ -71,59 +71,61 @@ newtype DPI = DPI { fromDPI ∷ Double } deriving (Num, Show)
 
 -- * Universal, multi-density linear size.
 
-data KSize = PU | PI | Pt
+data KUnit = PU | PUI | Pt
 
-type instance Element (Size PU) = Double
-type instance Element (Size PI) = F.Int32
-type instance Element (Size Pt) = F.Int32
+type instance Element (Size PU)  = Double
+type instance Element (Size PUI) = F.Int32
+type instance Element (Size Pt)  = F.Int32
 
-data Size (a ∷ KSize) where
-  PUs ∷ { fromPU ∷ !(Element (Size PU)) } → Size PU -- ^ Pango size, in device units
-  PIs ∷ { fromPI ∷ !(Element (Size PI)) } → Size PI -- ^ Pango size, in device units, scaled by PANGO_SCALE
-  Pts ∷ { fromPt ∷ !(Element (Size Pt)) } → Size Pt -- ^ Pango size, in points (at 72ppi--see PPI above--rate), device-agnostic
+data Size (u ∷ KUnit) where
+  PUs  ∷ { fromPU  ∷ !(Element (Size PU))  } → Size PU  -- ^ Pango size, in device units
+  PUIs ∷ { fromPUI ∷ !(Element (Size PUI)) } → Size PUI -- ^ Pango size, in device units, scaled by PANGO_SCALE
+  Pts  ∷ { fromPt  ∷ !(Element (Size Pt))  } → Size Pt  -- ^ Pango size, in points (at 72ppi--see PΠ above--rate), device-agnostic
 type family SizeType a = r | r → a where
-  SizeType (Size PU) = PU
-  SizeType (Size PI) = PI
-  SizeType (Size Pt) = Pt
+  SizeType (Size PU)  = PU
+  SizeType (Size PUI) = PUI
+  SizeType (Size Pt)  = Pt
 
 -- <Boilerplate>
-deriving instance Eq   (Size a)
-deriving instance Show (Size a)
-instance MonoFunctor (Size PU) where omap f (PUs x) = PUs (f x)
-instance MonoFunctor (Size PI) where omap f (PIs x) = PIs (f x)
-instance MonoFunctor (Size Pt) where omap f (Pts x) = Pts (f x)
-instance Ord (Size PU) where PUs l <= PUs r = l <= r
-instance Ord (Size PI) where PIs l <= PIs r = l <= r
-instance Ord (Size Pt) where Pts l <= Pts r = l <= r
-instance Num (Size PU) where fromInteger = PUs ∘ fromIntegral; PUs x + PUs y = PUs $ x + y; PUs x * PUs y = PUs $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
-instance Num (Size PI) where fromInteger = PIs ∘ fromIntegral; PIs x + PIs y = PIs $ x + y; PIs x * PIs y = PIs $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
-instance Num (Size Pt) where fromInteger = Pts ∘ fromIntegral; Pts x + Pts y = Pts $ x + y; Pts x * Pts y = Pts $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
+deriving instance Eq   (Size u)
+deriving instance Show (Size u)
+instance Fractional (Size PU) where
+  fromRational x = PUs $ fromRational x
+  recip          = omap recip
+instance MonoFunctor (Size PU)  where omap f (PUs x)  = PUs (f x)
+instance MonoFunctor (Size PUI) where omap f (PUIs x) = PUIs (f x)
+instance MonoFunctor (Size Pt)  where omap f (Pts x)  = Pts (f x)
+instance Ord (Size PU)  where PUs  l <= PUs  r = l <= r
+instance Ord (Size PUI) where PUIs l <= PUIs r = l <= r
+instance Ord (Size Pt)  where Pts  l <= Pts  r = l <= r
+instance Num (Size PU)  where fromInteger = PUs  ∘ fromIntegral; PUs  x + PUs  y = PUs  $ x + y; PUs  x * PUs  y = PUs  $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
+instance Num (Size PUI) where fromInteger = PUIs ∘ fromIntegral; PUIs x + PUIs y = PUIs $ x + y; PUIs x * PUIs y = PUIs $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
+instance Num (Size Pt)  where fromInteger = Pts  ∘ fromIntegral; Pts  x + Pts  y = Pts  $ x + y; Pts  x * Pts  y = Pts  $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
 -- </Boilerplate>
 
 -- | Conversion between unit sizes -- See Note [Pango resolution & unit conversion]
 -- class a ~ (Size (SizeType a)) ⇒ Sizely a where
---   fromSz ∷ Sizely b ⇒ DPI → b → a
+--   fromSz ∷ Sizely b ⇒ DΠ → b → a
 class Sizely a where
-  fromSz ∷ Sizely (Size b) ⇒ DPI → (Size b) → a
+  fromSz ∷ Sizely (Size b) ⇒ DΠ → (Size b) → a
 
 instance Sizely (Size PU) where
-  fromSz _         x@(PUs _)   = x
-  fromSz _         x@(PIs pis) = PUs $ UN.unsafePerformIO ∘ GIP.unitsToDouble   $ pis -- fromIntegral pis / fromIntegral GIP.SCALE
-  fromSz (DPI dpi) x@(Pts pts) = PUs $ (fromIntegral pts) ⋅ dpi / ppiVal ppi
-instance Sizely (Size PI) where
-  fromSz _         x@(PIs _)   = x
-  fromSz _         x@(PUs pus) = PIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ pus -- floor $ pus ⋅ fromIntegral GIP.SCALE
-  fromSz (DPI dpi) x@(Pts pts) = PIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ fromIntegral pts ⋅ dpi / ppiVal ppi
+  fromSz _       x@(PUs _)    = x
+  fromSz _       x@(PUIs pis) = PUs $ UN.unsafePerformIO ∘ GIP.unitsToDouble   $ pis -- fromIntegral pis / fromIntegral GIP.SCALE
+  fromSz (DΠ dπ) x@(Pts pts)  = PUs $ (fromIntegral pts) ⋅ dπ / pπVal pπ
+instance Sizely (Size PUI) where
+  fromSz _       x@(PUIs _)   = x
+  fromSz _       x@(PUs pus)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ pus -- floor $ pus ⋅ fromIntegral GIP.SCALE
+  fromSz (DΠ dπ) x@(Pts pts)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ fromIntegral pts ⋅ dπ / pπVal pπ
 instance Sizely (Size Pt) where
-  fromSz _         x@(Pts _)   = x
-  fromSz (DPI dpi) x@(PUs pus) = Pts $ floor $                                                                 pus ⋅ ppiVal ppi / dpi
-  fromSz (DPI dpi) x@(PIs pis) = Pts $ floor $ UN.unsafePerformIO ∘ GIP.unitsToDouble ∘ floor $ (fromIntegral pis) ⋅ ppiVal ppi / dpi
-
--- instance Sizely (Size a) where
+  fromSz _       x@(Pts _)    = x
+  fromSz (DΠ dπ) x@(PUs pus)  = Pts $ floor $                                                                 pus ⋅ pπVal pπ / dπ
+  fromSz (DΠ dπ) x@(PUIs pis) = Pts $ floor $ UN.unsafePerformIO ∘ GIP.unitsToDouble ∘ floor $ (fromIntegral pis) ⋅ pπVal pπ / dπ
+-- instance Sizely (Size u) where
 --   fromSz dπ x = fromSz dπ x
 -- not sure if this even has any added value..
 -- class (Functor a, Sizely b) ⇒ Sizeable a b where
---   fromSzable ∷ Sizeable a (Size c) ⇒ DPI → a (Size c) → a b
+--   fromSzable ∷ Sizeable a (Size c) ⇒ DΠ → a (Size c) → a b
 --   fromSzable dπ = fmap (fromSz dπ)
 
 
@@ -137,7 +139,7 @@ deriving instance Show a ⇒ Show (R  a)
 deriving instance Show a ⇒ Show (Th a)
 deriving instance Show a ⇒ Show (He a)
 deriving instance Show a ⇒ Show (Wi a)
---instance Sizeable R (Size a); instance Sizeable Th (Size a); instance Sizeable He (Size a); instance Sizeable Wi (Size a)
+--instance Sizeable R (Size u); instance Sizeable Th (Size u); instance Sizeable He (Size u); instance Sizeable Wi (Size u)
 
 
 -- * Pairing dimensions:
@@ -162,7 +164,7 @@ newtype SDi a = SDi { fromSDi ∷ V4 a } deriving                        (Eq, Fu
 newtype SPo a = SPo { fromSpo ∷ V4 a } deriving                        (Eq, Functor) -- ^ Side-wise positions:  N, E, S, W
 -- deriving instance Additive Di
 deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show (SDi a); deriving instance Show a ⇒ Show (SPo a)
---instance           Sizeable Di (Size a); instance           Sizeable Po (Size a); instance          Sizeable SDi (Size a); instance          Sizeable SPo (Size a)
+--instance           Sizeable Di (Size u); instance           Sizeable Po (Size u); instance          Sizeable SDi (Size u); instance          Sizeable SPo (Size u)
 
 newtype An  a = An  { fromAn  ∷ V2 a } deriving (Eq, Functor) -- ^ Unordered pair of angles
 newtype Co  a = Co  { fromCo  ∷ V4 a } deriving (Eq, Functor) -- ^ Color
@@ -287,13 +289,14 @@ data Wrap (pinned ∷ Bool) a where
     , pwNWp ∷ !(Po a) -- ^ Coordinates of the top-leftmost pixel of the wrap area.
     , pwSEp ∷ !(Po a) -- ^ Coordinates of the bottom-rightmost pixel of the wrap area.
     } → Wrap True a
-deriving instance Show a ⇒ Show (Wrap p a)
+deriving instance Show u ⇒ Show (Wrap p u)
 
-wL, wT, wR, wB ∷ Wrap p a → a
-wL  Wrap{..} = (view _x) $ fromDi wNWd; wL PWrap{..} = (view _x) $ fromDi pwNWd
-wT  Wrap{..} = (view _y) $ fromDi wNWd; wT PWrap{..} = (view _y) $ fromDi pwNWd
-wR  Wrap{..} = (view _x) $ fromDi wSEd; wR PWrap{..} = (view _x) $ fromDi pwSEd
-wB  Wrap{..} = (view _y) $ fromDi wSEd; wB PWrap{..} = (view _y) $ fromDi pwSEd
+wL, wR ∷ Wrap p u → Wi u
+wT, wB ∷ Wrap p u → He u
+wL  Wrap{..} = Wi ∘ (view _x) $ fromDi wNWd; wL PWrap{..} = Wi ∘ (view _x) $ fromDi pwNWd
+wT  Wrap{..} = He ∘ (view _y) $ fromDi wNWd; wT PWrap{..} = He ∘ (view _y) $ fromDi pwNWd
+wR  Wrap{..} = Wi ∘ (view _x) $ fromDi wSEd; wR PWrap{..} = Wi ∘ (view _x) $ fromDi pwSEd
+wB  Wrap{..} = He ∘ (view _y) $ fromDi wSEd; wB PWrap{..} = He ∘ (view _y) $ fromDi pwSEd
 
 pwPosition ∷ Wrap True a → SPo a
 pwPosition (PWrap _ _ (Po (V2 nwx nwy)) (Po (V2 sex sey))) =
@@ -331,9 +334,10 @@ instance MonoFunctor (Wrap p a) where
     where f'di = Di ∘ f ∘ fromDi
           f'po = Po ∘ f ∘ fromPo
 
-wDim ∷ Wrap s a → Di a
+wDim ∷ Wrap False a → Di a
 wDim  Wrap{..} = wNWd ^+^ wSEd
-wDim PWrap{..} = pwNWd ^+^ pwSEd
+pwDim ∷ Wrap True a → Di a
+pwDim PWrap{..} = Di ∘ fromPo $ pwSEp ^-^ pwNWp
 
 -- | Make pwNWp and pwSEp the top-leftmost and bottom-rightmost pixels of the 'Wrap'.
 --   Warning:  no check on whether the coordinates are compatible with the dimensions is performed.
@@ -354,7 +358,7 @@ wGoldSX, wGoldSY ∷ Double → Wrap False Double
 wGoldSX x = Wrap w w where w = di2goldX x
 wGoldSY y = Wrap w w where w = di2goldY y
 
--- | Wrap rendering as a rounder rectangle.
+-- | Wrap rendering as a rounded rectangle.
 wrapRoundedRectFeatures ∷ Floating a ⇒ Wrap True a → R a → Th a → [RoundRectFeature a]
 wrapRoundedRectFeatures pw@PWrap{..} rr@(R r) th =
   let SPo (V4 n e s w) = spoNarrow ((/2) <$> th) $ pwPosition pw
@@ -427,7 +431,7 @@ instance Num a ⇒ MeasuredMonoid (Space p a) where
   mmappend tl@(Spc pl nl)  tr       = Spc pl $ mmappend nl tr
 
 -- | XXX/Lensify: update the wrap of the innermost space
-sMapInnermostWrap ∷ (Wrap p a → Wrap p a) → Space p a d → Space p a d
+sMapInnermostWrap ∷ (Wrap p u → Wrap p u) → Space p u d → Space p u d
 sMapInnermostWrap f s
   | Spc w End ← s = Spc (f w) End
   | Spc w is  ← s = Spc w $ sMapInnermostWrap f is
@@ -438,11 +442,12 @@ sMapInnermostWrap f s
 --   | Spc w End ← s = f s
 --   | Spc w is  ← s = Spc w $ sMapInnermost f is
 
--- | Compute the total allocation for an un-pinned 'Space'.
---   Complexity: O(depth).
-sDim ∷ Space False a d → Di a
-sDim s@Spc{..} = wDim sWrap ^+^ sDim sInner
-sDim   End     = zero
+-- | Compute the total allocation for a 'Space'.
+--   Complexity: O(depth) for un-pinned, O(1) for pinned.
+sDim ∷ Space p u d → Di u
+sDim  End                            = zero
+sDim (Spc  w@(Wrap  _ _)     sInner) =  wDim w ^+^ sDim sInner
+sDim (Spc pw@(PWrap _ _ _ _) sInner) = pwDim pw
 
 -- | Compute the SE point for an un-pinned 'Space', given its NW point.
 --   Complexity: O(depth).

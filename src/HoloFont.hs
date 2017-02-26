@@ -112,7 +112,7 @@ import Flatland
 -- Hence, we opt to GI.PangoCairo.FontMap everywhere.
 --
 instance Show GIPC.FontMap where
-  show = printf "FontMap { resolution = %fDPI }" ∘ fromDPI ∘ fmResolution
+  show = printf "FontMap { resolution = %fDΠ }" ∘ fromDΠ ∘ fmResolution
 instance Show GIP.FontFamily where
   show = printf "FontFamily { name = '%s' }" ∘ ffamName
 instance Show GIP.FontFace where
@@ -128,15 +128,15 @@ fmFamilies = UN.unsafePerformIO ∘ GIP.fontMapListFamilies
 -- This function isn't in IO, because the resolution mutation function isn't defined.
 -- If ever something is exported that changes the fontmap resolution, this function's
 -- signature must be moved to IO.
-fmResolution ∷ GIPC.FontMap → DPI
-fmResolution = DPI ∘ UN.unsafePerformIO ∘ GIPC.fontMapGetResolution
--- fmSetResolution ∷ GIPC.FontMap → DPI → IO ()
--- fmSetResolution fm = GIPC.fontMapSetResolution fm ∘ fromDPI
+fmResolution ∷ GIPC.FontMap → DΠ
+fmResolution = DΠ ∘ UN.unsafePerformIO ∘ GIPC.fontMapGetResolution
+-- fmSetResolution ∷ GIPC.FontMap → DΠ → IO ()
+-- fmSetResolution fm = GIPC.fontMapSetResolution fm ∘ fromDΠ
 
--- pcResolution ∷ GIP.Context → IO DPI
--- pcResolution ctx = DPI <$> GIPC.contextGetResolution ctx
--- pcSetResolution ∷ GIP.Context → DPI → IO ()
--- pcSetResolution ctx = GIPC.contextSetResolution ctx ∘ fromDPI
+-- pcResolution ∷ GIP.Context → IO DΠ
+-- pcResolution ctx = DΠ <$> GIPC.contextGetResolution ctx
+-- pcSetResolution ∷ GIP.Context → DΠ → IO ()
+-- pcSetResolution ctx = GIPC.contextSetResolution ctx ∘ fromDΠ
 
 ffamName ∷ GIP.FontFamily → Text
 ffamName = UN.unsafePerformIO ∘ GIP.fontFamilyGetName
@@ -145,25 +145,25 @@ ffamFaces = UN.unsafePerformIO ∘ GIP.fontFamilyListFaces
 
 ffacName ∷ GIP.FontFace → Text
 ffacName = UN.unsafePerformIO ∘ GIP.fontFaceGetFaceName
-ffacPISizes ∷ GIP.FontFace → Maybe [Size PI]
+ffacPISizes ∷ GIP.FontFace → Maybe [Size PUI]
 ffacPISizes fface = (fromIntegral <$>) <$> (UN.unsafePerformIO (GIP.fontFaceListSizes fface))
 
 
 -- * Font sizes
-fdSetSize ∷ GIP.FontDescription → Size a → IO ()
-fdSetSize fd (PUs us)  = GIP.fontDescriptionSetAbsoluteSize fd us
-fdSetSize fd (PIs is)  = GIP.fontDescriptionSetAbsoluteSize fd =<< GIP.unitsToDouble is
-fdSetSize fd (Pts pts) = GIP.fontDescriptionSetSize         fd pts
+fdSetSize ∷ GIP.FontDescription → Size u → IO ()
+fdSetSize fd (PUs  us)  = GIP.fontDescriptionSetAbsoluteSize fd us
+fdSetSize fd (PUIs is)  = GIP.fontDescriptionSetAbsoluteSize fd =<< GIP.unitsToDouble is
+fdSetSize fd (Pts  pts) = GIP.fontDescriptionSetSize         fd pts
 
-data FontSizeRequest a where
-  FSROutline ∷ Sizely (Size a) ⇒
-    { fsValue   ∷ Size a
-    } → FontSizeRequest a
-  FSRBitmap  ∷ Sizely (Size a) ⇒
-    { fsValue   ∷ Size a
+data FontSizeRequest u where
+  FSROutline ∷ Sizely (Size u) ⇒
+    { fsValue   ∷ Size u
+    } → FontSizeRequest u
+  FSRBitmap  ∷ Sizely (Size u) ⇒
+    { fsValue   ∷ Size u
     , fsbPolicy ∷ Ordering
-    } → FontSizeRequest a
-deriving instance Show (FontSizeRequest a)
+    } → FontSizeRequest u
+deriving instance Show (FontSizeRequest u)
 
 --- XXX/expressivity:
 -- let ascending = True in sortOn (if ascending then id else Down)
@@ -180,33 +180,33 @@ deriving instance Show (FontSizeRequest a)
 newtype FamilyName = FamilyName { fromFamilyName ∷ Text } deriving (Eq, Show, IsString) -- ^ Pango font family name
 newtype FaceName   = FaceName   { fromFaceName   ∷ Text } deriving (Eq, Show, IsString) -- ^ Pango font face name
 
-data Font (valid ∷ Bool) (a ∷ KSize) where
+data Font (valid ∷ Bool) (u ∷ KUnit) where
   FontReq ∷
     { frFamilyName  ∷ FamilyName
     , frFaceName    ∷ FaceName
-    , frSizeRequest ∷ FontSizeRequest a
-    } → Font False a
+    , frSizeRequest ∷ FontSizeRequest u
+    } → Font False u
   Font ∷
     { fFamilyName ∷ FamilyName
     , fFaceName   ∷ FaceName
     , fFace       ∷ GIP.FontFace
-    , fSize       ∷ Size a
+    , fSize       ∷ Size u
     , fDesc       ∷ GIP.FontDescription
-    } → Font True a
-instance Show (Font True a) where
+    } → Font True u
+instance Show (Font True u) where
   show Font{..} =
     printf "Font { family = %s, face = %s, size = %s }"
     (fromFamilyName fFamilyName) (fromFaceName fFaceName) (show fSize)
 
-validateFont ∷ Sizely (Size a) ⇒ GIPC.FontMap → Font False a → IO (Either String (Font True a))
+validateFont ∷ Sizely (Size u) ⇒ GIPC.FontMap → Font False u → IO (Either String (Font True u))
 validateFont fMap (FontReq
                    fFamilyName@(FamilyName ffamname)
                    fFaceName@(FaceName ffacename)
                    fSizeRequest) =
   let fams  = filter ((≡ ffamname)  ∘ ffamName) $ fmFamilies fMap
       faces = filter ((≡ ffacename) ∘ ffacName) $ concat $ ffamFaces <$> fams
-      dpi   = fmResolution fMap
-      fPI   = fromSz dpi $ fsValue fSizeRequest
+      dπ   = fmResolution fMap
+      fPI   = fromSz dπ $ fsValue fSizeRequest
   in case (fams, faces) of
     ([],_)           → pure ∘ Left $ printf "Missing font family '%s'." ffamname
     (ffam:_,[])      → pure ∘ Left $ printf "No face '%s' in family '%s'." ffacename ffamname
@@ -229,18 +229,18 @@ validateFont fMap (FontReq
                                             | otherwise   → ((<), sortOn id   fPISizes)
                   in case find (findp fPI) ordered of
                        Nothing → Left failure
-                       Just sz → Right $ fromSz dpi sz
+                       Just sz → Right $ fromSz dπ sz
               where failure = printf "Bitmap font face '%s' of family '%s' does not have font sizes matching policy %s against size %s, among %s."
-                              ffacename ffamname (show policy) (show $ fromPU $ fromSz dpi fPI) (show $ (fromPU ∘ fromSz dpi) <$> fPISizes)
+                              ffacename ffamname (show policy) (show $ fromPU $ fromSz dπ fPI) (show $ (fromPU ∘ fromSz dπ) <$> fPISizes)
       case eifSizeFail of
         Left failure → pure $ Left failure
         Right  fSize → do
           fdSetSize fDesc fSize
           pure $ Right $ Font{..}
 
-chooseFont ∷ Sizely (Size a) ⇒ GIPC.FontMap → [Font False a] → IO (Maybe (Font True a), [String])
+chooseFont ∷ Sizely (Size u) ⇒ GIPC.FontMap → [Font False u] → IO (Maybe (Font True u), [String])
 chooseFont fMap freqs = loop freqs []
-  where loop ∷ Sizely (Size a) ⇒ [Font False a] → [String] → IO (Maybe (Font True a), [String])
+  where loop ∷ Sizely (Size u) ⇒ [Font False u] → [String] → IO (Maybe (Font True u), [String])
         loop [] failures  = pure (Nothing, failures)
         loop (fr:rest) fs = validateFont fMap fr
                             >>= (\case
@@ -250,22 +250,22 @@ chooseFont fMap freqs = loop freqs []
 
 -- * Text
 laySetWidth ∷ Sizely (Size s) ⇒
-              GIP.Layout → DPI → Wi (Size s) → IO ()
-laySetWidth lay dpi (Wi sz) =
-  GIP.layoutSetWidth lay $ fromPI $ fromSz dpi sz
+              GIP.Layout → DΠ → Wi (Size s) → IO ()
+laySetWidth lay dπ (Wi sz) =
+  GIP.layoutSetWidth lay ∘ fromPUI $ fromSz dπ sz
 
 layGetSize ∷ Sizely (Size s) ⇒
-             GIP.Layout → DPI → IO (Di (Size s))
-layGetSize lay dpi = do
+             GIP.Layout → DΠ → IO (Di (Size s))
+layGetSize lay dπ = do
   (pix, piy) ← GIP.layoutGetPixelSize lay
-  pure $ Di $ V2 (fromSz dpi $ PIs pix) (fromSz dpi $ PIs piy)
+  pure $ Di $ V2 (fromSz dπ $ PUIs pix) (fromSz dπ $ PUIs piy)
 
 layRunTextForSize ∷ (Sizely (Size s), Sizely (Size t)) ⇒
-                    GIP.Layout → DPI → Wi (Size s) → Text → IO (Di (Size t))
-layRunTextForSize lay dpi width text = do
-  laySetWidth       lay dpi width
+                    GIP.Layout → DΠ → Wi (Size s) → Text → IO (Di (Size t))
+layRunTextForSize lay dπ width text = do
+  laySetWidth       lay dπ width
   GIP.layoutSetText lay text (-1)
-  layGetSize        lay dpi
+  layGetSize        lay dπ
 
 -- 
 -- defaultFontDesc, terminusFontDesc, aurulentFontDesc ∷ GIP.FontDescription
