@@ -169,18 +169,6 @@ uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) =
     when isMip $ glGenerateMipmap GL_TEXTURE_2D
     return $ GL.TextureData to
 
-
--- | Canvas
-
-data PangoContext (attached ∷ Bool) where
-  PangoContextDetached ∷
-    { pcFontPUs    ∷ PU
-    , pcFontFamily ∷ FF String
-    , pcFontDesc   ∷ GIP.FontDescription
-    , pcCtx        ∷ GIP.Context
-    , pcdLayout    ∷ GIP.Layout -- only makes sense for a detached context
-    } → PangoContext False
-
 data CanvasRequest where
   CanvasRequest ∷
     { crSpace    ∷ Space False 5 Double -- 5 = outer bezel, border, inner bezel, padding, drawing area
@@ -203,31 +191,6 @@ data Canvas where
     , cvTexture  ∷ GL.TextureData
     , cvGPU      ∷ GL.Object
     } → Canvas
-
-makePangoContextDetached ∷ GIP.FontDescription → IO (PangoContext False)
-makePangoContextDetached pcFontDesc = do
-  pcCtx        ← GIP.contextNew
-  -- XXX: this is slightly stuipid, that we have to re-obtain this info.
-  --      But such is the price of a cross-language barrier.
-  pcFontPUs    ← fromIntegral <$> GIP.fontDescriptionGetSize pcFontDesc
-  pcFontFamily ← GIP.fontDescriptionGetFamily pcFontDesc
-                 <&> ((fromMaybe $ error "Invariant failed: couldn't obtain family of a bespoke font description.")
-                      >>> T.unpack >>> FF)
-  GIP.contextSetFontDescription pcCtx pcFontDesc
-  --
-  pcdLayout    ← GIP.layoutNew  pcCtx
-  pure PangoContextDetached{..}
-
-pcdRunTextForHeight ∷ PangoContext False → Wi Double → Text → IO (He Double)
-pcdRunTextForHeight PangoContextDetached{..} width text = do
-  GIP.layoutSetWidth pcdLayout =<< (GIP.unitsFromDouble $ fromWi width)
-  GIP.layoutSetText  pcdLayout text (-1)
-  pure $ He 0
-
-gipSetup ∷ GIP.Layout → IO ()
-gipSetup gip = do
-  GIP.layoutSetWrap            gip GIP.WrapModeWord
-  GIP.layoutSetEllipsize       gip GIP.EllipsizeModeEnd
 
 renderCanvasInitial ∷ GL.GLStorage → ObjArrayNameS → UniformNameS → CanvasRequest → IO Canvas
 renderCanvasInitial storage objStream mtlUniform

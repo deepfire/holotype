@@ -21,7 +21,8 @@ module HoloFont
   , fdSetSize
 
   -- * Text
-  , laySetWidth, layGetSize, layRunTextForSize
+  , KTextSettings(..), TextSettings(..), makeTextSettings, makeTextContext
+  , makeTextLayout, laySetWidth, layGetSize, layRunTextForSize
   )
 where
 
@@ -249,6 +250,47 @@ chooseFont fMap freqs = loop freqs []
 
 
 -- * Text
+data KTextSettings
+  = TSProto
+  | TSPhys
+
+data TextSettings (k ∷ KTextSettings) (u ∷ KUnit) where
+  TextSettings ∷
+    { tsDΠ       ∷ DΠ
+    , tsFont     ∷ Font True u
+    , tsDetached ∷ GIP.Context
+    , tsLayout   ∷ GIP.Layout
+    } → TextSettings TSProto u
+  TextContext ∷
+    { tsProto    ∷ TextSettings TSProto u
+    , tsPhysical ∷ GIP.Context
+    } → TextSettings TSPhys u
+
+tsContext ∷ TextSettings k u → GIP.Context
+tsContext TextSettings{..} = tsDetached
+tsContext TextContext{..}  = tsPhysical
+
+makeTextSettings ∷ DΠ → Font True u → IO (TextSettings TSProto u)
+makeTextSettings tsDΠ@(DΠ dπ) tsFont@Font{..} = do
+  tsContext ← GIP.contextNew
+  GIP.contextSetFontDescription tsContext fDesc
+  GIPC.contextSetResolution     tsContext dπ
+  let ts = TextSettings{..}
+  tsLayout ← makeTextLayout ts
+  pure ts { tsLayout = tsLayout }
+
+makeTextContext ∷ TextSettings TSProto u → GIC.Context → IO (TextSettings TSPhys u)
+makeTextContext tsProto cr = do
+  tsPhysical ← GIPC.createContext cr
+  pure TextContext{..}
+
+makeTextLayout ∷ TextSettings k u → IO (GIP.Layout)
+makeTextLayout ts = do
+  gip ← GIP.layoutNew $ tsContext ts
+  GIP.layoutSetWrap      gip GIP.WrapModeWord
+  GIP.layoutSetEllipsize gip GIP.EllipsizeModeEnd
+  pure gip
+
 laySetWidth ∷ Sizely (Size s) ⇒
               GIP.Layout → DΠ → Wi (Size s) → IO ()
 laySetWidth lay dπ (Wi sz) =
