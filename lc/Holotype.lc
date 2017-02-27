@@ -142,7 +142,7 @@ addOverlay name ca prevFB =
 --main :: Output
 main = ScreenOut $
        addOverlay "canvasStream" canvasMtl $
-       FrameBuffer (depthImage1 1000, colorImage1 (V4 0 0 0.2 1))
+       FrameBuffer (depthImage1 1000, colorImage1 (V4 0.002 0.002 0.008 1))
 
 canvasMtl :: CommonAttrs
 canvasMtl =
