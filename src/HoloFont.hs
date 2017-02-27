@@ -155,10 +155,14 @@ ffacPISizes fface = (fromIntegral <$>) <$> (UN.unsafePerformIO (GIP.fontFaceList
 
 
 -- * Font sizes
+
+-- | Set font size: XXX/upstream/inconsistency -- Double, yet PANGO_SCALE-d:
+--   https://hackage.haskell.org/package/gi-pango-1.0.11/docs/GI-Pango-Structs-FontDescription.html#v:fontDescriptionSetAbsoluteSize
+--   https://hackage.haskell.org/package/gi-pango-1.0.11/docs/GI-Pango-Structs-FontDescription.html#v:fontDescriptionSetSize
 fdSetSize ∷ GIP.FontDescription → Size u → IO ()
-fdSetSize fd (PUs  us)  = GIP.fontDescriptionSetAbsoluteSize fd us
-fdSetSize fd (PUIs is)  = GIP.fontDescriptionSetAbsoluteSize fd =<< GIP.unitsToDouble is
-fdSetSize fd (Pts  pts) = GIP.fontDescriptionSetSize         fd pts
+fdSetSize fd (PUs  us)  = GIP.fontDescriptionSetAbsoluteSize fd $ us * fromIntegral GIP.SCALE
+fdSetSize fd (PUIs is)  = GIP.fontDescriptionSetAbsoluteSize fd $ fromIntegral is
+fdSetSize fd (Pts  pts) = GIP.fontDescriptionSetSize         fd $ pts * GIP.SCALE
 
 data FontSizeRequest u where
   FSROutline ∷ Sizely (Size u) ⇒
