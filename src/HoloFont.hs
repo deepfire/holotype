@@ -202,6 +202,10 @@ data Font (valid ∷ Bool) (u ∷ KUnit) where
     , fSize       ∷ Size u
     , fDesc       ∷ GIP.FontDescription
     } → Font True u
+instance Show (Font False u) where
+  show FontReq{..} =
+    printf "FontReq { family = %s, face = %s, size = %s }"
+    (fromFamilyName frFamilyName) (fromFaceName frFaceName) (show frSizeRequest)
 instance Show (Font True u) where
   show Font{..} =
     printf "Font { family = %s, face = %s, size = %s }"
@@ -264,7 +268,8 @@ data KTextSettings
 
 data TextSettings (k ∷ KTextSettings) (u ∷ KUnit) where
   TextSettings ∷
-    { tsDΠ       ∷ DΠ
+    { tsFontMap  ∷ GIP.FontMap
+    , tsDΠ       ∷ DΠ
     , tsFont     ∷ Font True u
     , tsDetached ∷ GIP.Context
     , tsLayout   ∷ GIP.Layout
@@ -278,18 +283,20 @@ tsContext ∷ TextSettings k u → GIP.Context
 tsContext TextSettings{..} = tsDetached
 tsContext TextContext{..}  = tsPhysical
 
-makeTextSettings ∷ DΠ → Font True u → IO (TextSettings TSProto u)
-makeTextSettings tsDΠ@(DΠ dπ) tsFont@Font{..} = do
-  tsContext ← GIP.contextNew
-  GIP.contextSetFontDescription tsContext fDesc
-  GIPC.contextSetResolution     tsContext dπ
+makeTextSettings ∷ GIP.FontMap → DΠ → Font True u → IO (TextSettings TSProto u)
+makeTextSettings tsFontMap tsDΠ@(DΠ dπ) tsFont@Font{..} = do
+  tsDetached ← GIP.fontMapCreateContext tsFontMap
+  GIP.contextSetFontDescription tsDetached fDesc
+  GIPC.contextSetResolution     tsDetached dπ
   let ts = TextSettings{..}
   tsLayout ← makeTextLayout ts
   pure ts { tsLayout = tsLayout }
 
 makeTextContext ∷ TextSettings TSProto u → GIC.Context → IO (TextSettings TSPhys u)
-makeTextContext tsProto cr = do
-  tsPhysical ← GIPC.createContext cr
+makeTextContext tsProto@TextSettings{..} gic = do
+  tsPhysical ← GIPC.createContext gic
+  GIP.contextSetFontDescription tsPhysical (fDesc tsFont)
+  GIPC.contextSetResolution     tsPhysical (fromDΠ tsDΠ)
   pure TextContext{..}
 
 makeTextLayout ∷ TextSettings k u → IO (GIP.Layout)
@@ -308,7 +315,8 @@ layGetSize ∷ Sizely (Size s) ⇒
              GIP.Layout → DΠ → IO (Di (Size s))
 layGetSize lay dπ = do
   (pix, piy) ← GIP.layoutGetPixelSize lay
-  pure $ Di $ V2 (fromSz dπ $ PUIs pix) (fromSz dπ $ PUIs piy)
+  t ← GIP.layoutGetText lay
+  pure $ Di $ V2 (fromSz dπ $ PUs $ fromIntegral pix) (fromSz dπ $ PUs $ fromIntegral piy)
 
 layRunTextForSize ∷ (Sizely (Size s), Sizely (Size t)) ⇒
                     GIP.Layout → DΠ → Wi (Size s) → Text → IO (Di (Size t))
@@ -316,17 +324,3 @@ layRunTextForSize lay dπ width text = do
   laySetWidth       lay dπ width
   GIP.layoutSetText lay text (-1)
   layGetSize        lay dπ
-
--- 
--- defaultFontDesc, terminusFontDesc, aurulentFontDesc ∷ GIP.FontDescription
--- aurulentFontDesc = UN.unsafePerformIO $ fontDescriptionFromArgs "Aurulent Sans" GIP.StyleNormal 12288
--- terminusFontDesc = UN.unsafePerformIO $ fontDescriptionFromArgs "Terminus"      GIP.StyleNormal 12288
--- defaultFontDesc = terminusFontDesc -- aurulentFontDesc
---
--- fontDescriptionFromArgs ∷ String → GIP.Style → Int → IO GIP.FontDescription
--- fontDescriptionFromArgs family style pus = do
---   fd ← GIP.fontDescriptionNew
---   GIP.fontDescriptionSetFamily fd $ T.pack family
---   GIP.fontDescriptionSetStyle  fd style
---   GIP.fontDescriptionSetSize   fd $ fromIntegral pus
---   pure fd
