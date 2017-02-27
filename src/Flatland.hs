@@ -423,6 +423,8 @@ data Space (pinned ∷ Bool) a (n ∷ Nat) where
     { sWrap  ∷ !(Wrap p a)
     , sInner ∷  Space p a m } → Space p a n
 
+deriving instance Show a ⇒  Show (Space p a n)
+
 instance Num a ⇒ MeasuredMonoid (Space p a) where
   mmempty    = End
   mmappend     End         End      = End
