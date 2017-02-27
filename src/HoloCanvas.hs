@@ -103,28 +103,60 @@ data Canvas where
     , cStridePixels ∷ Wi Int
     , cGRC          ∷ GRC.Cairo
     , cGIC          ∷ GIC.Context
-    -- , dTexture      ∷ GL.TextureData
-    -- , dGPU          ∷ GL.Object
+    , cTexture      ∷ GL.TextureData
+    --
+    , cMesh         ∷ LC.Mesh
+    , cGPUMesh      ∷ GL.GPUMesh
+    , cGLObject     ∷ GL.Object
     } → Canvas
 
+grcToGIC ∷ GRC.Cairo → IO GIC.Context
+grcToGIC grc = GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
+
 makeCanvas ∷ ObjectStream → Di Double → IO Canvas
-makeCanvas cObjectStream cDi' = do
+makeCanvas cObjectStream@ObjectStream{..} cDi' = do
   let cDi@(Di (V2 w h)) = fmap ceiling cDi'
   cSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
   cStrideBytes  ← Wi <$> GRC.imageSurfaceGetStride cSurface
-  let cStridePixels     = (`div` 4) <$> cStrideBytes
-  -- let stridePxs = dStrideBytes `div` 4
+  let cStridePixels = (`div` 4) <$> cStrideBytes
   cGRC          ← GRC.create cSurface
   cGIC          ← grcToGIC cGRC
-  -- XXX: uninitialized: dTexture
+
+  -- pixels        ← GRCI.imageSurfaceGetData cSurface -- XXX/eff: convert to imageSurfaceGetPixels
+  -- cTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi cStridePixels, h, GL_BGRA, pixels)
+  -- XXX/not initialised: cTexture
+
+  let (dx, dy) = (fromIntegral w, fromIntegral $ -h)
+      -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
+      position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
+      texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
+      cMesh    = LC.Mesh { mPrimitive  = P_Triangles
+                         , mAttributes = Map.fromList [ ("position",  A_V2F position)
+                                                      , ("uv",        A_V2F texcoord) ] }
+  cGPUMesh      ← GL.uploadMeshToGPU cMesh
+  cGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [unameStr osUniform, "viewProj"] cGPUMesh
+
   pure Canvas{..}
 
-canvasUpdateGPUSide ∷ Canvas → IO ()
-canvasUpdateGPUSide Canvas{..} = do
-  let (Di (V2 w h)) = cDi
-  pixels   ← GRCI.imageSurfaceGetData cSurface -- XXX/eff: convert to imageSurfaceGetPixels
-  cTexture ← uploadTexture2DToGPU'''' False False False False $ (fromWi cStridePixels, h, GL_BGRA, pixels)
-  pure ()
+canvasContentToGPU ∷ Canvas → IO ()
+canvasContentToGPU Canvas{..} = do
+  let ObjectStream{..} = cObjectStream
+
+  -- XXX/temp hack:
+  let h = (view _y) ∘ fromDi $ cDi
+  pixels        ← GRCI.imageSurfaceGetData cSurface -- XXX/eff: convert to imageSurfaceGetPixels
+  cTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi cStridePixels, h, GL_BGRA, pixels)
+
+  GL.updateObjectUniforms cGLObject $ do
+    fromUNS osUniform GL.@= return cTexture
+  GL.uniformFTexture2D (fromUNS osUniform) (GL.uniformSetter osStorage) cTexture
+
+canvasPosition ∷ Canvas → Di Int → Po Float → IO ()
+canvasPosition Canvas{..} (Di (V2 screenW screenH)) (Po (V2 x y)) = do
+  let cvpos    = Vec3 x y 0
+      toScreen = screenM screenW screenH
+  GL.uniformM44F "viewProj" (GL.objectUniformSetter $ cGLObject) $
+    Q3.mat4ToM44F $! toScreen Vc..*. (Vc.fromProjective $! Vc.translation cvpos)
 
 
 -- * Very early generic widget code.
@@ -183,8 +215,6 @@ data Text u (p ∷ Phase) a where
     , tCanvas       ∷ Canvas
     } → Text u Bound a
 
--- let rrtSpace = sPin (po 0 0) $
-
 instance Widget (Text u) where
   type  FillArg (Text u) = Wi (Size PU)
   type  BindArg (Text u) = TextSettings TSPhys u
@@ -212,8 +242,8 @@ instance Widget (Text u) where
 -- * Rounded rectangle: widget component
 data RRect (p ∷ Phase) a where
   RRect ∷
-    { rrCLBezel, rrCBorder, rrCDBezel, rrCBG   ∷ Co Double
-    , rrThBez,   rrThBord,             rrThPad ∷ Th Double
+    { rrCLBezel, rrCBorder, rrCDBezel, rrCBG ∷ Co Double
+    , rrThBezel, rrThBorder, rrThPadding ∷ Th Double
     } → RRect Shell a
   CRRect ∷
     { rrShell        ∷ RRect Shell a
@@ -225,9 +255,6 @@ data RRect (p ∷ Phase) a where
     , rrCanvas       ∷ Canvas
     } → RRect Bound a
 
--- let rrtSpace = sPin (po 0 0) $
---                rrsWSpace <> (sArea $ fromPU ∘ fromSz dπ <$> di)
-
 instance Widget RRect where
   type  FillArg RRect = ()
   type  BindArg RRect = ()
@@ -235,13 +262,13 @@ instance Widget RRect where
   fill rrShell rrInside _ =
     pure CRRect{..}
   spaceRequest (CRRect RRect{..} _) =
-    sGrowS (fromTh rrThBez) $ sGrowS (fromTh rrThBord) $ sGrowS (fromTh rrThBez) $ sGrowS (fromTh rrThPad) End
+    sGrowS (fromTh rrThBezel) $ sGrowS (fromTh rrThBorder) $ sGrowS (fromTh rrThBezel) $ sGrowS (fromTh rrThPadding) End
 
   bind rrContent rrCanvas rrPSpace () =
     pure PRRect{..}
   render (PRRect (CRRect RRect{..} _)
                  (Spc obez (Spc bord (Spc ibez (Spc pad _))))
-                 (Canvas _ _ _ _ _ cGRC cGIC)) = do
+                 (Canvas _ _ _ _ _ cGRC cGIC _ _ _ _)) = do
     (`runReaderT` cGRC) $ GRC.runRender $ do
       -- ((layw, layh), ellipsized) ←
       let d (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >> GRC.rectangle (x) (y) 1 1 >> GRC.fill -- GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
@@ -304,34 +331,6 @@ canvasCommonAttrs uname =
       , saDepthWrite     = True
       , saRGBGen         = RGB_IdentityLighting
       }]}
-
-
--- | Cairo contextuary
-grcToGIC ∷ GRC.Cairo → IO GIC.Context
-grcToGIC grc = GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
-
-
--- renderCanvasInitial ∷ ObjectStream → RRText → IO (Canvas d)
--- renderCanvasInitial ObjectStream{..} RRText{..} = do
-
---   pixels      ← GRCI.imageSurfaceGetData grcSurface
---   cvTexture   ← uploadTexture2DToGPU'''' False False False False $ (stridePxs, ceiling $ fromHe cvHe, GL_BGRA, pixels)
-
---   let (dx, dy)       = (fromIntegral totalw, doubleToFloat $ -fromHe cvHe) --(fromIntegral reqw, -fromIntegral reqh)
---       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
---       position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
---       texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
---       cvMesh   = LC.Mesh { mPrimitive  = P_Triangles
---                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
---                                                       , ("uv",        A_V2F texcoord) ] }
---   cvGPUMesh ← GL.uploadMeshToGPU cvMesh
---   cvGPU ← GL.addMeshToObjectArray storage (fromOANS objStream) [unameStr mtlUniform, "viewProj"] cvGPUMesh
---   GL.updateObjectUniforms cvGPU $ do
---     fromUNS mtlUniform GL.@= return cvTexture
-
---   GL.uniformFTexture2D (fromUNS mtlUniform) (GL.uniformSetter storage) cvTexture
-
---   pure ()
 
 
 -- * Pipelinistan
