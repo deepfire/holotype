@@ -1,14 +1,14 @@
 { mkDerivation, stdenv, src ? ./.
 , aeson, attoparsec, base, base-unicode-symbols, binary, bytestring
 , bytestring-trie, containers, data-binary-ieee754, deepseq, digest
-, directory, elerea, extra, filepath, GLFW-b, JuicyPixels
+, directory, elerea, extra, filepath, free, GLFW-b, JuicyPixels
 , microlens-platform, MissingH, MonadRandom, mono-traversable, OpenGLRaw
 , pretty-show, process, proteaaudio, time, transformers, vect, vector, zlib
 #, youtrack
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
 , lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo, gi-gtk, gi-gdk
 , wires
-, ghc-typelits-natnormalise
+, ghc-typelits-extra, ghc-typelits-natnormalise
 }:
 mkDerivation {
   pname = "mood";
@@ -19,14 +19,14 @@ mkDerivation {
   doHaddock = false;
   libraryHaskellDepends = [
     aeson attoparsec base base-unicode-symbols binary bytestring bytestring-trie containers
-    data-binary-ieee754 deepseq digest directory extra filepath JuicyPixels
+    data-binary-ieee754 deepseq digest directory extra filepath free JuicyPixels
     microlens-platform MissingH MonadRandom mono-traversable pretty-show process
     time transformers vect vector zlib
     # youtrack
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
     lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo gi-gtk gi-gdk
     wires
-    ghc-typelits-natnormalise
+    ghc-typelits-extra ghc-typelits-natnormalise
   ];
   executableHaskellDepends = [
     base bytestring containers directory elerea filepath GLFW-b

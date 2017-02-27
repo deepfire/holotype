@@ -26,6 +26,7 @@ executable holotype
                      , exceptions >= 0.8.2.1
                      , extra
                      , filepath
+                     , free
                      , ghc-prim >=0.4
                      , hashable >= 1.2.3.3
                      , lens >= 4.13.2
@@ -61,7 +62,10 @@ executable holotype
                      , gi-gdk
                      , haskell-gi-base
 
+                     , ghc-typelits-extra
                      , ghc-typelits-natnormalise
+
+                     , mtl
 
 executable mood
   hs-source-dirs:      src
