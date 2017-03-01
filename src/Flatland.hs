@@ -22,7 +22,6 @@ import           Data.Semigroup
 import           Data.MeasuredMonoid
 import           Data.MonoTraversable
 import           Data.String                              (IsString)
-import qualified Data.Text                         as DT
 
 -- Algebra
 import           Linear

@@ -278,6 +278,9 @@ data TextSettings (k ∷ KTextSettings) (u ∷ KUnit) where
     { tsProto    ∷ TextSettings TSProto u
     , tsPhysical ∷ GIP.Context
     } → TextSettings TSPhys u
+instance Show (TextSettings k u) where
+  show              (TextSettings _ dπ font _ _)    = printf "TextSettings { dpi = %f, font = %s }" (show dπ) (show font)
+  show (TextContext (TextSettings _ dπ font _ _) _) = printf  "TextContext { dpi = %f, font = %s }" (show dπ) (show font)
 
 tsContext ∷ TextSettings k u → GIP.Context
 tsContext TextSettings{..} = tsDetached
