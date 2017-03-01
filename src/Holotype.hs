@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE PackageImports #-}
@@ -41,13 +43,12 @@ import           Control.Wire.Controller
 import "GLFW-b"  Graphics.UI.GLFW                  as GLFW
 
 -- LambdaCube
-import qualified GameEngine.Data.Material          as Q3
-import qualified GameEngine.Utils                  as Q3
 import qualified LambdaCube.GL                     as GL
 
 -- Local imports
 import Flatland
 import HoloCanvas
+import HoloCube
 import HoloFont
 import WindowSys
 
@@ -57,7 +58,16 @@ holotype = proc _ → do
   initial -< liftIO $ do
     Sys.hSetBuffering Sys.stdout Sys.NoBuffering
 
-    -- surface gen
+    -- Once: make RC
+    win ← makeGLWindow "holotype"
+    let streamDesc = ("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS)
+    r' ← makeRenderer [streamDesc]
+    let r@Renderer{..} = case r' of
+                           Left failure → error $ printf "FATAL: failed to create a renderer: %s" failure
+                           Right r → r
+        stream = rStream r streamDesc & fromMaybe (error $ "Silly invariant #1 failure.")
+
+    -- Once: define the visual style
     let dπ        = 96
         fontPrefs =
           [ FontReq "Aurulent Sans" "Regular" $ FSROutline (PUs 12)
@@ -66,66 +76,35 @@ holotype = proc _ → do
     (mFont ∷ Maybe (Font True PU), failures) ← chooseFont fm fontPrefs
     let font = mFont &
           fromMaybe (error $ printf "FATAL: no suitable font among requested: %s.  Failures: %s" (show fontPrefs) (show failures))
-
     textSettings ← makeTextSettings fm dπ font
-    let text = Text textSettings $ coGray 1 1
-        rect = RRect
-               { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
-               , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 }
-
-    cText ← fill text "lollestry" (Wi 256)
-    let tS   = spaceRequest cText
-        -- tPS  = sPin (po 0 0) tS
-
-    cRect ← fill rect cText ()
-    let rS   = spaceRequest cRect
-        rPS  = sPin (po 0 0) rS
-        tPS  = (⊥)
-        -- tPS  = (case rPS of
-        --            (Spc _ (Spc _ (Spc _  (Spc _ x)))) → x) ∷ Space True Double 1
-
     --
-    win ← makeGLWindow "holotype"
+    let style = In (CanvasS textSettings)
+                   (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
+                               , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 })
+                       (TextS textSettings $ coGray 1 1))
+    -- *XXX
+    -- - font defaulting   → make something a Monoid?
+    -- - concern isolation → make it a DSL?
 
-    let objStreamN = "canvasStream" ∷ ObjArrayNameS
-        textureN   = "canvasMtl"    ∷ UniformNameS
+    -- Once: fill the visual structure with data
+    let content = "Process intero killed\
+                  Starting:\
+                  stack ghci --with-ghc intero '--docker-run-args=--interactive=true --tty=false' --no-build --no-load --ghci-options -odir=/home/deepfire/src/mood/.stack-work/intero/intero17462TiM --ghci-options -hidir=/home/deepfire/src/mood/.stack-work/intero/intero17462TiM mood\
+                  Intero 0.1.20 (GHC 8.0.1)\
+                  Type :intro and press enter for an introduction of the standard commands."
 
-    let schema = pipelineSchema objStreamN textureN
+    w ← assemble stream style ("lollestry", Wi 256)
+    render w
 
-    storage ← GL.allocStorage schema
-    let stream = ObjectStream storage objStreamN textureN
-
-    let pipelineJSON = "Holotype.json"
-    success ← compilePipeline pipelineJSON
-    unless success $
-      fail "FATAL: failed to compile the GPU pipeline."
-    renderer' ← bindPipeline storage pipelineJSON
-    unless (isJust renderer') $
-      fail "FATAL: failed to bind the compiled GPU pipeline."
-    let renderer = fromJust renderer'
-    GL.setStorage renderer storage
-
-    canvas ← makeCanvas stream (sDim rPS)
-    pText ← bind cText canvas tPS =<< (makeTextContext textSettings $ cGIC canvas)
-    pRect ← bind cRect canvas rPS ()
-    -- render pText
-    render pRect
-
-    -- surface upload
-    canvasContentToGPU canvas
-
+    -- Frame: GL setup
     GLFW.pollEvents
-
-    let slotU           = GL.uniformSetter storage
+    let slotU           = GL.uniformSetter rGLStorage
         overbrightBits  = 0
     GL.uniformFloat "identityLight" slotU $ 1 / (2 ^ overbrightBits) -- used by lc:mkColor
-
     (screenW, screenH) ← GLFW.getFramebufferSize win
-    canvasPosition canvas (Di $ V2 screenW screenH) (Po $ V2 (-0.25) (-0.2))
-
-    GL.setScreenSize storage (fromIntegral screenW) (fromIntegral screenH)
-
-    GL.renderFrame renderer
+    drawablePosition (drawableOf w) (Di $ V2 screenW screenH) (Po $ V2 (-0.25) (-0.2))
+    GL.setScreenSize rGLStorage (fromIntegral screenW) (fromIntegral screenH)
+    GL.renderFrame rGLRenderer
     GLFW.swapBuffers win
     GLFW.pollEvents
 

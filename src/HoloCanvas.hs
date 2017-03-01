@@ -1,24 +1,33 @@
-{-# LANGUAGE DataKinds, GADTs, KindSignatures, TypeFamilies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
+{-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes #-}
-{-# LANGUAGE LambdaCase, OverloadedStrings, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators #-}
+{-# LANGUAGE ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators #-}
 {-# LANGUAGE UnicodeSyntax #-}
+-- {-# OPTIONS_GHC -ddump-deriv #-}
 
 module HoloCanvas where
 
 -- Basis
 import           Prelude                           hiding ((.))
 import           Prelude.Unicode
+import           Control.Applicative
+import           Control.Applicative.Free
 import           Control.Category
 import           Control.Lens
+import           Control.Monad.Identity
+import           Data.Functor.Apply
 
 -- Type-level
+import           GHC.Types
 import           GHC.TypeLits                      hiding (Text)
+import           GHC.TypeLits.Extra
 
 -- Types
 import           Control.Arrow                            ((***))
-import           Control.Monad                            (join, unless, when, forM_, filterM)
+import           Control.Monad                            (join, unless, when, forM_)
 import           Control.Monad.Trans.Reader               (ReaderT(..))
 import qualified Data.ByteString.Char8             as SB
 import           Data.Map                                 (Map)
@@ -81,33 +90,33 @@ import HoloCube
 
 
 -- | A GL/Cairo drawable.
-data Canvas where
-  Canvas ∷
-    { cObjectStream ∷ ObjectStream
-    , cDi           ∷ Di Int
-    , cSurface      ∷ GRC.Surface
-    , cStrideBytes  ∷ Wi Int
-    , cStridePixels ∷ Wi Int
-    , cGRC          ∷ GRC.Cairo
-    , cGIC          ∷ GIC.Context
-    , cTexture      ∷ GL.TextureData
+data Drawable where
+  Drawable ∷
+    { dObjectStream ∷ ObjectStream
+    , dDi           ∷ Di Int
+    , dSurface      ∷ GRC.Surface
+    , dStrideBytes  ∷ Wi Int
+    , dStridePixels ∷ Wi Int
+    , dGRC          ∷ GRC.Cairo
+    , dGIC          ∷ GIC.Context
+    , dTexture      ∷ GL.TextureData
     --
-    , cMesh         ∷ LC.Mesh
-    , cGPUMesh      ∷ GL.GPUMesh
-    , cGLObject     ∷ GL.Object
-    } → Canvas
+    , dMesh         ∷ LC.Mesh
+    , dGPUMesh      ∷ GL.GPUMesh
+    , dGLObject     ∷ GL.Object
+    } → Drawable
 
 grcToGIC ∷ GRC.Cairo → IO GIC.Context
 grcToGIC grc = GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
 
-makeCanvas ∷ ObjectStream → Di Double → IO Canvas
-makeCanvas cObjectStream@ObjectStream{..} cDi' = do
-  let cDi@(Di (V2 w h)) = fmap ceiling cDi'
-  cSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
-  cStrideBytes  ← Wi <$> GRC.imageSurfaceGetStride cSurface
-  let cStridePixels = (`div` 4) <$> cStrideBytes
-  cGRC          ← GRC.create cSurface
-  cGIC          ← grcToGIC cGRC
+makeDrawable ∷ ObjectStream → Di Double → IO Drawable
+makeDrawable dObjectStream@ObjectStream{..} dDi' = do
+  let dDi@(Di (V2 w h)) = fmap ceiling dDi'
+  dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
+  dStrideBytes  ← Wi <$> GRC.imageSurfaceGetStride dSurface
+  let dStridePixels = (`div` 4) <$> dStrideBytes
+  dGRC          ← GRC.create dSurface
+  dGIC          ← grcToGIC dGRC
 
   -- pixels        ← GRCI.imageSurfaceGetData cSurface -- XXX/eff: convert to imageSurfaceGetPixels
   -- cTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi cStridePixels, h, GL_BGRA, pixels)
@@ -117,145 +126,188 @@ makeCanvas cObjectStream@ObjectStream{..} cDi' = do
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
       position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
       texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
-      cMesh    = LC.Mesh { mPrimitive  = P_Triangles
+      dMesh    = LC.Mesh { mPrimitive  = P_Triangles
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                       , ("uv",        A_V2F texcoord) ] }
-  cGPUMesh      ← GL.uploadMeshToGPU cMesh
-  cGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [unameStr osUniform, "viewProj"] cGPUMesh
+  dGPUMesh      ← GL.uploadMeshToGPU dMesh
+  dGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [unameStr osUniform, "viewProj"] dGPUMesh
 
-  pure Canvas{..}
+  pure Drawable{..}
 
-canvasContentToGPU ∷ Canvas → IO ()
-canvasContentToGPU Canvas{..} = do
-  let ObjectStream{..} = cObjectStream
+drawableContentToGPU ∷ Drawable → IO ()
+drawableContentToGPU Drawable{..} = do
+  let ObjectStream{..} = dObjectStream
 
   -- XXX/temp hack:
-  let h = (view _y) ∘ fromDi $ cDi
-  pixels        ← GRCI.imageSurfaceGetData cSurface -- XXX/eff: convert to imageSurfaceGetPixels
-  cTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi cStridePixels, h, GL_BGRA, pixels)
+  let h = (view _y) ∘ fromDi $ dDi
+  pixels   ← GRCI.imageSurfaceGetData dSurface -- XXX/eff: convert to imageSurfaceGetPixels
+  cTexture ← uploadTexture2DToGPU'''' False False False False $ (fromWi dStridePixels, h, GL_BGRA, pixels)
 
-  GL.updateObjectUniforms cGLObject $ do
+  GL.updateObjectUniforms dGLObject $ do
     fromUNS osUniform GL.@= return cTexture
-  GL.uniformFTexture2D (fromUNS osUniform) (GL.uniformSetter osStorage) cTexture
 
-canvasPosition ∷ Canvas → Di Int → Po Float → IO ()
-canvasPosition Canvas{..} (Di (V2 screenW screenH)) (Po (V2 x y)) = do
+drawablePosition ∷ Drawable → Di Int → Po Float → IO ()
+drawablePosition Drawable{..} (Di (V2 screenW screenH)) (Po (V2 x y)) = do
   let cvpos    = Vec3 x y 0
       toScreen = screenM screenW screenH
-  GL.uniformM44F "viewProj" (GL.objectUniformSetter $ cGLObject) $
+  GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
     Q3.mat4ToM44F $! toScreen Vc..*. (Vc.fromProjective $! Vc.translation cvpos)
 
 
+-- * Very early style code.
+
+-- | Free Applicative Element
+data FAE s where
+  FAE ∷ { fromFAE ∷ s } → FAE s
+deriving instance Show w ⇒ Show (FAE w)
+
+type Style = Ap FAE
+style ∷ s → Style s
+style s = liftAp $ FAE s
+
+-- | The key point of analysis -- vain, as yet, yet still..
+runStyle ∷ Style s → s
+runStyle s = runIdentity $ runAp (return ∘ fromFAE) s
+
+
 -- * Very early generic widget code.
-type CanvasSpace p d = Space p Double d
-type WidgetSpace   d = CanvasSpace False d
+type DrawableSpace p d = Space p Double d
+type WidgetSpace   d = DrawableSpace False d
 
--- | Lifecycle phase of a 'Widget'.
-data Phase
-  = Shell      -- ^ A fully-parametrized widget, with, however, no content or canvas,
-               --   and no dimension or position information at all.
-  | Contentful -- ^ Content available, dimension requirements specified, unpositioned.
-  | Bound      -- ^ Canvas available, position and dimensions fully specified.
+class Show (StyleOf a) ⇒ Visual a where
+  type StyleOf a = (r ∷ Type) | r → a
+  type Content a ∷ Type
+  type   Depth a ∷ Nat
 
-class Widget  (w ∷ Phase → * → *) where
-  type FillArg w ∷ *
-  type BindArg w ∷ *
-  type   Depth w ∷ Nat
-  fill         ∷ w Shell a      → a         → FillArg w → IO (w Contentful a)
-  spaceRequest ∷ w Contentful a → CanvasSpace False (Depth w)
-  bind         ∷ w Contentful a → Canvas    → CanvasSpace True (Depth w) → BindArg w → IO (w Bound a)
-  render       ∷ w Bound a      → IO ()
+class   Visual w ⇒ Container w where
+  type   Inner w ∷ Type
+  innerOf        ∷ w → Inner w
+  spaceToInner   ∷ w → DrawableSpace p (Depth w) → DrawableSpace p (Depth (Inner w))
+  styleToInner   ∷ w → StyleOf w → StyleOf (Inner w)
 
-
--- * Void: null widget
-data Void (p ∷ Phase) a where
-  Void  ∷ Void Shell a
-  CVoid ∷ Void Contentful a
-  PVoid ∷ Void Bound a
+class Visual w ⇒ Widget w where
+  -- | Query size: style meets content → compute spatial parameters.
+  query          ∷           StyleOf w → Content w → IO (DrawableSpace False (Depth w))
+  -- | Add target and space: given a drawable and a pinned space, prepare for 'render'.
+  make           ∷ CanvasW → StyleOf w → Content w →     DrawableSpace True  (Depth w) → IO w
+  -- | Per-content-change: mutate pixels of the bound drawable.
+  draw           ∷ CanvasW → w → IO ()
 
-instance Widget Void where
-  type  FillArg Void = ()
-  type  BindArg Void = ()
-  type    Depth Void = 0
-  fill Void _ ()      = pure CVoid
-  spaceRequest _      = End
-  bind CVoid _ End () = pure PVoid
-  render PVoid        = pure ()
+class Container w ⇒ WDrawable w where
+  assemble       ∷ ObjectStream → StyleOf w → Content w → IO w
+  drawableOf     ∷ w → Drawable
+  render         ∷ w → IO ()
 
 
--- * Text: end-point widget
-data Text u (p ∷ Phase) a where
-  Text ∷ a ~ T.Text ⇒
+-- * Styles
+-- Widget composition is inherently parametrized.
+-- Different kinds of composition are parametrized differently.
+-- Different instances of composition compose different kinds of widgets.
+-- Applicative much?
+
+data In o i where
+  In ∷ --(Widget wo, Widget wi, StyleOf wo ~ o, StyleOf wi ~ i) ⇒ -- disabled by XXX/recursive pain
+    { insideOf ∷ o
+    , internal ∷ i
+    } → In o i
+deriving instance (Show o, Show i) ⇒ Show (In o i)
+
+data By o b where
+  By ∷ --(Widget wo, Widget wb, StyleOf wo ~ o, StyleOf wb ~ b) ⇒
+    { bOrigin  ∷ o
+    , bOrient  ∷ Orient
+    , bBeside  ∷ b
+    } → By o b
+deriving instance (Show o, Show b) ⇒ Show (By o b)
+
+data RRectS where
+  RRectS ∷
+    { rrCLBezel, rrCBorder, rrCDBezel, rrCBG ∷ Co Double
+    , rrThBezel, rrThBorder, rrThPadding ∷ Th Double
+    } → RRectS
+deriving instance Show RRectS
+
+
+-- * (): a null widget
+instance Visual () where
+  type  StyleOf () = ()
+  type  Content () = ()
+  type    Depth () = 0
+instance Widget () where
+  query        _style _content = pure End
+  make  CW{..} _style _content        End = pure ()
+  draw  CW{..}                             _widget = pure ()
+
+
+-- * Text
+data TextS (u ∷ KUnit) where
+  TextS ∷
     { tSettings     ∷ TextSettings TSProto u
     , tColor        ∷ Co Double
-    } → Text u Shell a
-  CText ∷ a ~ T.Text ⇒
-    { tShell        ∷ Text u Shell a
-    , tInitialText  ∷ a
-    , tUSpace       ∷ CanvasSpace False 1
-    } → Text u Contentful a
-  PText ∷ a ~ T.Text ⇒
-    { tContent      ∷ Text u Contentful a
-    , tPSpace       ∷ CanvasSpace True 1
+    } → TextS u
+deriving instance Show (TextS u)
+
+data Text where
+  Text ∷
+    { tPSpace       ∷ DrawableSpace True 1
+    , tStyle        ∷ StyleOf Text
     , tLayout       ∷ GIP.Layout
     , tText         ∷ T.Text
-    , tCanvas       ∷ Canvas
-    } → Text u Bound a
+    } → Text
 
-instance Widget (Text u) where
-  type  FillArg (Text u) = Wi (Size PU)
-  type  BindArg (Text u) = TextSettings TSPhys u
-  type    Depth (Text u) = 1
-  fill tShell@(Text TextSettings{..} _) tInitialText maxWi = do
-    di ∷ Di (Size PU) ← layRunTextForSize tsLayout tsDΠ maxWi tInitialText -- XXX/GHC/inference: weak
-    let tUSpace = sArea $ fromPU ∘ fromSz tsDΠ <$> di
-    pure CText{..}
-  spaceRequest = tUSpace
-
-  bind tContent@(CText Text{..} tInitialText _) tCanvas@Canvas{..} tPSpace tc = do
-    let tText = tInitialText
-    tLayout ← makeTextLayout tc
-    pure PText{..}
-  render (PText (CText Text{..} _ _)
-                (Spc (PWrap _ _ (Po (V2 cvx cvy)) _) End) lay text
-                 Canvas{..}) = do
-    (`runReaderT` cGRC) $ GRC.runRender $ do
+instance Visual Text where
+  type  StyleOf Text = TextS PU
+  type  Content Text = (T.Text, Wi (Size PU))
+  type    Depth Text = 1
+instance Widget Text where
+  query (TextS TextSettings{..} _) (initialText, maxWi) = do
+    di ∷ Di (Size PU) ← layRunTextForSize tsLayout tsDΠ maxWi initialText -- XXX/GHC/inference: weak
+    pure $ sArea $ fromPU ∘ fromSz tsDΠ <$> di
+  make (CW (Canvas Drawable{..} _ _ textContext _))
+       tStyle@(TextS TextSettings{..} _) (tText, _maxWi) tPSpace = do
+    tLayout ← makeTextLayout textContext
+    pure Text{..}
+  draw (CW (Canvas (Drawable{..}) _ _ _ _))
+       (Text (Spc (PWrap _ _ (Po (V2 cvx cvy)) _) End)
+             (TextS TextSettings{..} tColor)
+             lay text) = do
+    (`runReaderT` dGRC) $ GRC.runRender $ do
       GRC.moveTo cvx cvy
       coSetSourceColor tColor
       GIP.layoutSetText lay text (-1)
-      GIPC.showLayout cGIC lay
+      GIPC.showLayout dGIC lay
 
 
--- * Rounded rectangle: widget component
-data RRect (p ∷ Phase) a where
+-- * Rounded rectangle
+data RRect a where
   RRect ∷
-    { rrCLBezel, rrCBorder, rrCDBezel, rrCBG ∷ Co Double
-    , rrThBezel, rrThBorder, rrThPadding ∷ Th Double
-    } → RRect Shell a
-  CRRect ∷
-    { rrShell        ∷ RRect Shell a
-    , rrInside       ∷ a
-    } → RRect Contentful a
-  PRRect ∷
-    { rrContent      ∷ RRect Contentful a
-    , rrPSpace       ∷ CanvasSpace True 4
-    , rrCanvas       ∷ Canvas
-    } → RRect Bound a
+    { rrPSpace ∷ DrawableSpace True (Depth (RRect a))
+    , rrStyle ∷ StyleOf (RRect a)
+    , rrInner ∷ a
+    } → RRect a
+deriving instance (Show a, Show (StyleOf a)) ⇒ Show (RRect a)
 
-instance Widget RRect where
-  type  FillArg RRect = ()
-  type  BindArg RRect = ()
-  type    Depth RRect = 4
-  fill rrShell rrInside _ =
-    pure CRRect{..}
-  spaceRequest (CRRect RRect{..} _) =
-    sGrowS (fromTh rrThBezel) $ sGrowS (fromTh rrThBorder) $ sGrowS (fromTh rrThBezel) $ sGrowS (fromTh rrThPadding) End
+instance Visual a ⇒ Visual (RRect a) where
+  type             StyleOf (RRect a) = In RRectS (StyleOf a) -- XXX/recursive pain
+  type             Content (RRect a) = Content a
+  type               Depth (RRect a) = 4 + Depth a
+instance Widget a ⇒ Container (RRect a) where
+  type Inner (RRect a) = a
+  innerOf                 = rrInner
+  styleToInner w (In _ s) = s
+  spaceToInner _ (Spc _ (Spc _ (Spc _ (Spc _ s)))) = s
 
-  bind rrContent rrCanvas rrPSpace () =
-    pure PRRect{..}
-  render (PRRect (CRRect RRect{..} _)
-                 (Spc obez (Spc bord (Spc ibez (Spc pad _))))
-                 (Canvas _ _ _ _ _ cGRC cGIC _ _ _ _)) = do
+instance Widget a ⇒ Widget (RRect a) where
+  query (In RRectS{..} inner) internals = do
+    innerSpace ← query inner internals
+    pure $ (sGrowS (fromTh rrThBezel) $ sGrowS (fromTh rrThBorder) $ sGrowS (fromTh rrThBezel) $ sGrowS (fromTh rrThPadding) End)
+           <> innerSpace
+  make drawable rrStyle rrContent rrPSpace = do
+    let w = RRect{..} where rrInner = (⊥)    -- resolve circularity due to *ToInner..
+    make drawable (styleToInner w rrStyle) rrContent (spaceToInner w rrPSpace) <&> (\x→ w { rrInner = x }) -- XXX/lens
+  draw canvas@(CW (Canvas (Drawable _ _ _ _ _ cGRC cGIC _ _ _ _) _ _ _ _))
+       (RRect (Spc obez (Spc bord (Spc ibez (Spc pad _))))
+              (In RRectS{..} _) inner) = do
     (`runReaderT` cGRC) $ GRC.runRender $ do
       -- ((layw, layh), ellipsized) ←
       let d (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >> GRC.rectangle (x) (y) 1 1 >> GRC.fill -- GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
@@ -301,6 +353,7 @@ instance Widget RRect where
        ∷ GRCI.Render () -- XXX/GHC: an apparent type checker bug
       -- ellipsized ← GIP.layoutIsEllipsized gip
       -- (, ellipsized) <$> GIP.layoutGetPixelSize gip
+    draw canvas inner
 
 
 -- * Canvas
@@ -310,3 +363,36 @@ data CanvasS (u ∷ KUnit) where
     } → CanvasS u
 deriving instance Show (CanvasS u)
 
+data Canvas a where
+  Canvas ∷
+    { cDrawable     ∷ Drawable
+    , cPSpace       ∷ DrawableSpace True (Depth a)
+    , cStyle        ∷ StyleOf (Canvas a)
+    , cTextContext  ∷ TextSettings TSPhys PU
+    , cInner        ∷ a
+    } → Canvas a
+data CanvasW where
+  CW ∷ { cPoly ∷ Canvas a } → CanvasW
+
+instance Widget a ⇒ Visual (Canvas a) where
+  type             StyleOf (Canvas a) = In (CanvasS PU) (StyleOf a)
+  type             Content (Canvas a) = Content a
+  type             Depth   (Canvas a) = Depth a
+instance Widget a ⇒ Container (Canvas a) where
+  type                  Inner (Canvas a) = a
+  innerOf                   = cInner
+  styleToInner   _ (In _ s) = s
+  spaceToInner   _       s  = s
+
+instance Widget a ⇒ WDrawable (Canvas a) where
+  assemble stream cStyle@(In (CanvasS ts@TextSettings{..}) innerStyle) innerContent = do
+    cPSpace   ← sPin (po 0 0) <$> query innerStyle innerContent
+    cDrawable ← makeDrawable stream (sDim cPSpace)
+    cTextContext ← makeTextContext ts $ dGIC cDrawable
+    let w = Canvas{..} where cInner = (⊥)                -- resolve circularity due to *ToInner..
+    cInner ← make (CW w) innerStyle innerContent cPSpace
+    pure w { cInner = cInner }
+  drawableOf = cDrawable
+  render self@Canvas{..} = do
+    draw (CW self) cInner
+    drawableContentToGPU cDrawable
