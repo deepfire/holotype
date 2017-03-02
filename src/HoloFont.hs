@@ -21,7 +21,8 @@ module HoloFont
   , fdSetSize
 
   -- * Text
-  , makeTextLayout, laySetWidth, layGetSize, layRunTextForSize
+  , makeTextLayout, laySetWidth, laySetHeight, laySetSize, layGetSize, laySetMaxParaLines, layRunTextForSize
+  , layPrintLimits
 
   -- * FontMap
   , FontKey(..), FontAlias(..), FontPreferences(..), FontMap(..)
@@ -297,17 +298,36 @@ makeTextLayout gipc = do
   GIP.layoutSetEllipsize gip GIP.EllipsizeModeEnd
   pure gip
 
-laySetWidth ∷ Sizely (Size s) ⇒
-              GIP.Layout → DΠ → Wi (Size s) → IO ()
-laySetWidth lay dπ (Wi sz) =
-  GIP.layoutSetWidth lay ∘ fromPUI $ fromSz dπ sz
+laySetWidth ∷ Sizely (Size s) ⇒ GIP.Layout → DΠ → Wi (Size s) → IO ()
+laySetWidth lay dπ (Wi sz) = do
+  let csz = fromPUI $ fromSz dπ sz
+  GIP.layoutSetWidth lay csz
 
-layGetSize ∷ Sizely (Size s) ⇒
-             GIP.Layout → DΠ → IO (Di (Size s))
+laySetHeight ∷ Sizely (Size s) ⇒ GIP.Layout → DΠ → Wi (Size s) → IO ()
+laySetHeight lay dπ (Wi sz) = do
+  let csz = fromPUI $ fromSz dπ sz
+  GIP.layoutSetHeight lay csz
+
+laySetMaxParaLines ∷ GIP.Layout → Int → IO ()
+laySetMaxParaLines lay maxParaLines = do
+  GIP.layoutSetHeight lay $ fromIntegral (-1 ⋅ abs maxParaLines)
+
+laySetSize ∷ Sizely (Size s) ⇒ GIP.Layout → DΠ → Di (Size s) → IO ()
+laySetSize lay dπ sz = do
+  let (Di (V2 cx cy)) = fromPUI ∘ fromSz dπ <$> sz
+  GIP.layoutSetWidth  lay cx
+  GIP.layoutSetHeight lay cy
+
+layGetSize ∷ Sizely (Size s) ⇒ GIP.Layout → DΠ → IO (Di (Size s))
 layGetSize lay dπ = do
   (pix, piy) ← GIP.layoutGetPixelSize lay
-  t ← GIP.layoutGetText lay
   pure $ Di $ V2 (fromSz dπ $ PUs $ fromIntegral pix) (fromSz dπ $ PUs $ fromIntegral piy)
+
+layPrintLimits ∷ String → GIP.Layout → IO ()
+layPrintLimits key lay = do
+  w ← GIP.layoutGetWidth  lay
+  h ← GIP.layoutGetHeight lay
+  GRC.liftIO $ printf "-- %s  limw: %s, limh: %s\n" key (show w) (show h)
 
 layRunTextForSize ∷ (Sizely (Size s), Sizely (Size t)) ⇒
                     GIP.Layout → DΠ → Wi (Size s) → Text → IO (Di (Size t))
