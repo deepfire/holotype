@@ -239,11 +239,16 @@ instance Widget () where
   make  _settings CW{..} _style _content        End = pure ()
   draw            CW{..}                             _widget = pure ()
 
+d (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >>
+                                    -- GRC.rectangle (x) (y) 1 1 >> GRC.fill
+                                    GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
+
 
 -- * Text
 data TextS (u ∷ Unit) where
   TextS ∷
-    { tFont         ∷ FontKey
+    { tFontKey      ∷ FontKey
+    , tMaxParaLines ∷ Int
     , tColor        ∷ Co Double
     } → TextS u
 deriving instance Show (TextS u)
@@ -262,18 +267,21 @@ instance Visual Text where
   type  Content Text = (T.Text, Wi (Size PU))
   type    Depth Text = 1
 instance Widget Text where
-  query Settings{..} (TextS fKey _) (initialText, maxWi) = do
-    let Font{..} = lookupFont' fontmap fKey
+  query Settings{..} TextS{..} (initialText, maxWi) = do
+    let Font{..} = lookupFont' fontmap tFontKey
+    laySetMaxParaLines fDetachedLayout tMaxParaLines
     di ∷ Di (Size PU) ← layRunTextForSize fDetachedLayout fDΠ maxWi initialText -- XXX/GHC/inference: weak
     pure $ sArea $ fromPU ∘ fromSz fDΠ <$> di
   make Settings{..} (CW (Canvas Drawable{..} _ _ tFont@FontBinding{..} _))
-       tStyle@(TextS fKey _) (tText, _maxWi) tPSpace = do
+       tStyle@(TextS fKey _ _) (tText, _maxWi) tPSpace = do
     tLayout ← makeTextLayout fbContext
     pure Text{..}
   draw (CW (Canvas (Drawable{..}) _ _ _ _))
-       (Text (Spc (PWrap _ _ (Po (V2 cvx cvy)) _) End)
-             (TextS fKey tColor)
-             _font lay text) = do
+       (Text (Spc (PWrap _ _ (Po lt@(V2 cvx cvy)) (Po rb@(V2 cvxe cvye))) End)
+             TextS{..}
+             (FontBinding Font{..} _) lay text) = do
+    laySetSize         lay fDΠ (Di (PUs <$> (rb ^-^ lt)))
+    laySetMaxParaLines lay tMaxParaLines
     (`runReaderT` dGRC) $ GRC.runRender $ do
       GRC.moveTo cvx cvy
       coSetSourceColor tColor
@@ -313,8 +321,7 @@ instance Widget a ⇒ Widget (RRect a) where
               (In RRectS{..} _) inner) = do
     (`runReaderT` cGRC) $ GRC.runRender $ do
       -- ((layw, layh), ellipsized) ←
-      let d (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >> GRC.rectangle (x) (y) 1 1 >> GRC.fill -- GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
-          dCorn (RRCorn _ pos _ _) col = d pos col
+      let dCorn (RRCorn _ pos _ _) col = d pos col
           ths@[oth, bth, ith, pth]
                         = fmap (Th ∘ fromWi ∘ wL) [obez, bord, ibez, pad]
           totpadx       = sum ths
