@@ -182,7 +182,11 @@ rendererSetupFrame Renderer{..} = do
 rendererFinaliseFrame ∷ Renderer → IO ()
 rendererFinaliseFrame Renderer{..} = do
   GL.renderFrame rGLRenderer
+
+rendererWaitForVSync ∷ Renderer → IO ()
+rendererWaitForVSync Renderer{..} = do
   GLFW.swapBuffers rWindow
+  GLFW.pollEvents
 
 
 -- * Shader attributery

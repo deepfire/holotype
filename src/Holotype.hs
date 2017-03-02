@@ -87,9 +87,7 @@ holotype = proc _ → do
     drawablePosition (drawableOf c) (Di $ V2 screenW screenH) (Po $ V2 (-0.25) (-0.2))
 
     rendererFinaliseFrame renderer
-
-    GLFW.pollEvents
-
+    rendererWaitForVSync renderer
     pure ()
 
   id -< never
