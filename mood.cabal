@@ -41,6 +41,7 @@ executable holotype
                      , vector
 
                      , wires
+                     , clock
 
                      , hxt
 

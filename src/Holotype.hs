@@ -34,6 +34,7 @@ import           Text.Printf                              (printf)
 import           Linear
 
 -- System
+import qualified System.Clock                      as Sys
 import qualified System.IO                         as Sys
 
 -- Wires
@@ -70,7 +71,7 @@ holotype = proc _ → do
     let style = In (CanvasS @PU "default")
                    (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
                                , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 })
-                       (TextS @PU "default" 7 $ coGray 1 1)) -- XXX/typing: Lines! : -)
+                       (TextS @PU "default" 7 $ coGray 1 1)) -- XXX/typing: Lines!
 
     let content = "Process intero killed\
                    Starting:\
