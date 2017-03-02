@@ -68,7 +68,7 @@ holotype = proc _ → do
                            Right r → r
         stream = rStream r streamDesc & fromMaybe (error $ "Silly invariant #1 failure.")
 
-    Settings{..} ← defaultSettings
+    settings@Settings{..} ← defaultSettings
 
     let font = lookupFont' fontmap "defaultMono"
     textSettings ← makeTextSettings fmDefault dπ font
@@ -88,7 +88,7 @@ holotype = proc _ → do
                    Intero 0.1.20 (GHC 8.0.1)\
                    Type :intro and press enter for an introduction of the standard commands."
 
-    c ← assemble stream style ("lollestry", Wi 256)
+    c ← assemble settings stream style ("lollestry", Wi 256)
     render c
 
     -- Frame: GL setup

@@ -87,6 +87,7 @@ import           GameEngine.Utils                  as Q3
 import Flatland
 import HoloFont
 import HoloCube
+import HoloSettings
 
 
 -- | A GL/Cairo drawable.
@@ -187,14 +188,14 @@ class   Visual w ⇒ Container w where
 
 class Visual w ⇒ Widget w where
   -- | Query size: style meets content → compute spatial parameters.
-  query          ∷           StyleOf w → Content w → IO (DrawableSpace False (Depth w))
+  query          ∷ Settings PU           → StyleOf w → Content w → IO (DrawableSpace False (Depth w))
   -- | Add target and space: given a drawable and a pinned space, prepare for 'render'.
-  make           ∷ CanvasW → StyleOf w → Content w →     DrawableSpace True  (Depth w) → IO w
+  make           ∷ Settings PU → CanvasW → StyleOf w → Content w →     DrawableSpace True  (Depth w) → IO w
   -- | Per-content-change: mutate pixels of the bound drawable.
   draw           ∷ CanvasW → w → IO ()
 
 class Container w ⇒ WDrawable w where
-  assemble       ∷ ObjectStream → StyleOf w → Content w → IO w
+  assemble       ∷ Settings PU → ObjectStream → StyleOf w → Content w → IO w
   drawableOf     ∷ w → Drawable
   render         ∷ w → IO ()
 
@@ -234,9 +235,9 @@ instance Visual () where
   type  Content () = ()
   type    Depth () = 0
 instance Widget () where
-  query        _style _content = pure End
-  make  CW{..} _style _content        End = pure ()
-  draw  CW{..}                             _widget = pure ()
+  query _settings        _style _content = pure End
+  make  _settings CW{..} _style _content        End = pure ()
+  draw            CW{..}                             _widget = pure ()
 
 
 -- * Text
@@ -260,10 +261,10 @@ instance Visual Text where
   type  Content Text = (T.Text, Wi (Size PU))
   type    Depth Text = 1
 instance Widget Text where
-  query (TextS TextSettings{..} _) (initialText, maxWi) = do
+  query Settings{..} (TextS TextSettings{..} _) (initialText, maxWi) = do
     di ∷ Di (Size PU) ← layRunTextForSize tsLayout tsDΠ maxWi initialText -- XXX/GHC/inference: weak
     pure $ sArea $ fromPU ∘ fromSz tsDΠ <$> di
-  make (CW (Canvas Drawable{..} _ _ textContext _))
+  make Settings{..} (CW (Canvas Drawable{..} _ _ textContext _))
        tStyle@(TextS TextSettings{..} _) (tText, _maxWi) tPSpace = do
     tLayout ← makeTextLayout textContext
     pure Text{..}
@@ -298,13 +299,13 @@ instance Widget a ⇒ Container (RRect a) where
   spaceToInner _ (Spc _ (Spc _ (Spc _ (Spc _ s)))) = s
 
 instance Widget a ⇒ Widget (RRect a) where
-  query (In RRectS{..} inner) internals = do
-    innerSpace ← query inner internals
+  query st@Settings{..} (In RRectS{..} inner) internals = do
+    innerSpace ← query st inner internals
     pure $ (sGrowS (fromTh rrThBezel) $ sGrowS (fromTh rrThBorder) $ sGrowS (fromTh rrThBezel) $ sGrowS (fromTh rrThPadding) End)
            <> innerSpace
-  make drawable rrStyle rrContent rrPSpace = do
+  make st@Settings{..} drawable rrStyle rrContent rrPSpace = do
     let w = RRect{..} where rrInner = (⊥)    -- resolve circularity due to *ToInner..
-    make drawable (styleToInner w rrStyle) rrContent (spaceToInner w rrPSpace) <&> (\x→ w { rrInner = x }) -- XXX/lens
+    make st drawable (styleToInner w rrStyle) rrContent (spaceToInner w rrPSpace) <&> (\x→ w { rrInner = x }) -- XXX/lens
   draw canvas@(CW (Canvas (Drawable _ _ _ _ _ cGRC cGIC _ _ _ _) _ _ _ _))
        (RRect (Spc obez (Spc bord (Spc ibez (Spc pad _))))
               (In RRectS{..} _) inner) = do
@@ -385,12 +386,12 @@ instance Widget a ⇒ Container (Canvas a) where
   spaceToInner   _       s  = s
 
 instance Widget a ⇒ WDrawable (Canvas a) where
-  assemble stream cStyle@(In (CanvasS ts@TextSettings{..}) innerStyle) innerContent = do
-    cPSpace   ← sPin (po 0 0) <$> query innerStyle innerContent
+  assemble settings@Settings{..} stream cStyle@(In (CanvasS ts@TextSettings{..}) innerStyle) innerContent = do
+    cPSpace   ← sPin (po 0 0) <$> query settings innerStyle innerContent
     cDrawable ← makeDrawable stream (sDim cPSpace)
     cTextContext ← makeTextContext ts $ dGIC cDrawable
     let w = Canvas{..} where cInner = (⊥)                -- resolve circularity due to *ToInner..
-    cInner ← make (CW w) innerStyle innerContent cPSpace
+    cInner ← make settings (CW w) innerStyle innerContent cPSpace
     pure w { cInner = cInner }
   drawableOf = cDrawable
   render self@Canvas{..} = do
