@@ -28,6 +28,7 @@ import           GHC.TypeLits.Extra
 -- Types
 import           Control.Arrow                            ((***))
 import           Control.Monad                            (join, unless, when, forM_)
+import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import           Control.Monad.Trans.Reader               (ReaderT(..))
 import qualified Data.ByteString.Char8             as SB
 import           Data.Map                                 (Map)
@@ -112,6 +113,13 @@ data Frame where
   Frame ∷
     { fDim ∷ Di Int
     } → Frame
+
+-- | Make 'Renderer' produce a new 'Frame' to draw on.
+rendererFinaliseToNewFrame ∷ (MonadIO m) ⇒ Renderer → m Frame
+rendererFinaliseToNewFrame renderer = do
+  liftIO $ rendererFinaliseFrame renderer
+  liftIO $ rendererWaitForVSync renderer
+  Frame <$> (liftIO $ rendererSetupFrame renderer)
 
 grcToGIC ∷ GRC.Cairo → IO GIC.Context
 grcToGIC grc = GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
