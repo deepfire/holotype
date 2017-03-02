@@ -57,6 +57,9 @@ import qualified LambdaCube.Compiler               as LCC
 import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Type                as GL
 
+-- Local imports
+import Flatland
+
 
 -- | Render context for all objects with the same GL pipeline.
 data ObjectStream where
@@ -124,6 +127,7 @@ data Renderer where
     { rGLStorage  ∷ GL.GLStorage
     , rGLRenderer ∷ GL.GLRenderer
     , rStreams    ∷ Map (ObjArrayNameS, UniformNameS) ObjectStream
+    , rWindow     ∷ GLFW.Window
     } → Renderer
 
 -- | Setup a 'Renderer', with streams where 'Canvas' objects have be attached,
@@ -131,8 +135,8 @@ data Renderer where
 --   'ous' is a list of object array/texture uniform name pairs, that have to be
 --   recognized by the Lambdacube pipeline.
 --   A GL context must have already been set up in 'IO', with f.e. 'makeGLWindow'.
-makeRenderer ∷ [(ObjArrayNameS, UniformNameS)] → IO (Either String Renderer)
-makeRenderer ous = do
+makeRenderer ∷ GLFW.Window → [(ObjArrayNameS, UniformNameS)] → IO (Either String Renderer)
+makeRenderer rWindow ous = do
     let schema = pipelineSchema ous
 
     rGLStorage ← GL.allocStorage schema
@@ -155,6 +159,30 @@ makeRenderer ous = do
 
 rStream ∷ Renderer → (ObjArrayNameS, UniformNameS) → Maybe ObjectStream
 rStream Renderer{..} = flip Map.lookup rStreams
+
+makeSimpleRenderedStream ∷ GLFW.Window → (ObjArrayNameS, UniformNameS) → IO (Renderer, ObjectStream)
+makeSimpleRenderedStream rWindow streamDesc = do
+  rend' ← makeRenderer rWindow [streamDesc]
+  let rend@Renderer{..} = case rend' of
+                            Left failure → error $ printf "FATAL: failed to create a renderer: %s" failure
+                            Right r → r
+  let stream = rStream rend streamDesc
+               & fromMaybe (error $ "Silly invariant #1 failure.")
+  pure (rend, stream)
+
+rendererSetupFrame ∷ Renderer → IO (Di Int)
+rendererSetupFrame Renderer{..} = do
+  let slotU           = GL.uniformSetter rGLStorage
+      overbrightBits  = 0
+  GL.uniformFloat "identityLight" slotU $ 1 / (2 ^ overbrightBits) -- used by lc:mkColor
+  (screenW, screenH) ← GLFW.getFramebufferSize rWindow
+  GL.setScreenSize rGLStorage (fromIntegral screenW) (fromIntegral screenH)
+  pure $ di (Wi screenW) (He screenH)
+
+rendererFinaliseFrame ∷ Renderer → IO ()
+rendererFinaliseFrame Renderer{..} = do
+  GL.renderFrame rGLRenderer
+  GLFW.swapBuffers rWindow
 
 
 -- * Shader attributery

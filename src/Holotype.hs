@@ -62,25 +62,16 @@ holotype = proc _ → do
 
     -- Once: make RC
     win ← makeGLWindow "holotype"
-    let streamDesc = ("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS)
-    r' ← makeRenderer [streamDesc]
-    let r@Renderer{..} = case r' of
-                           Left failure → error $ printf "FATAL: failed to create a renderer: %s" failure
-                           Right r → r
-        stream = rStream r streamDesc & fromMaybe (error $ "Silly invariant #1 failure.")
+
+    (renderer, stream) ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
 
     settings@Settings{..} ← defaultSettings
 
-    --
     let style = In (CanvasS @PU "default")
                    (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
                                , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 })
                        (TextS @PU "default" $ coGray 1 1))
-    -- *XXX
-    -- - font defaulting   → make something a Monoid?
-    -- - concern isolation → make it a DSL?
 
-    -- Once: fill the visual structure with data
     let content = "Process intero killed\
                    Starting:\
                    stack ghci --with-ghc intero '--docker-run-args=--interactive=true --tty=false' --no-build --no-load --ghci-options -odir=/home/deepfire/src/mood/.stack-work/intero/intero17462TiM --ghci-options -hidir=/home/deepfire/src/mood/.stack-work/intero/intero17462TiM mood\
@@ -90,16 +81,12 @@ holotype = proc _ → do
     c ← assemble settings stream style ("lollestry", Wi 256)
     render c
 
-    -- Frame: GL setup
-    GLFW.pollEvents
-    let slotU           = GL.uniformSetter rGLStorage
-        overbrightBits  = 0
-    GL.uniformFloat "identityLight" slotU $ 1 / (2 ^ overbrightBits) -- used by lc:mkColor
-    (screenW, screenH) ← GLFW.getFramebufferSize win
+    screenDim@(Di (V2 screenW screenH)) ← rendererSetupFrame renderer
+
     drawablePosition (drawableOf c) (Di $ V2 screenW screenH) (Po $ V2 (-0.25) (-0.2))
-    GL.setScreenSize rGLStorage (fromIntegral screenW) (fromIntegral screenH)
-    GL.renderFrame rGLRenderer
-    GLFW.swapBuffers win
+
+    rendererFinaliseFrame renderer
+
     GLFW.pollEvents
 
     pure ()
