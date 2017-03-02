@@ -13,6 +13,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Holotype where
 
@@ -71,10 +72,10 @@ holotype = proc _ → do
     settings@Settings{..} ← defaultSettings
 
     --
-    let style = In (CanvasS "default")
+    let style = In (CanvasS @PU "default")
                    (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
                                , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 })
-                       (TextS "default" $ coGray 1 1))
+                       (TextS @PU "default" $ coGray 1 1))
     -- *XXX
     -- - font defaulting   → make something a Monoid?
     -- - concern isolation → make it a DSL?
