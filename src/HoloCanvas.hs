@@ -243,7 +243,7 @@ instance Widget () where
 -- * Text
 data TextS (u ∷ Unit) where
   TextS ∷
-    { tFont         ∷ FontKey
+    { tFont         ∷ FontKey u
     , tColor        ∷ Co Double
     } → TextS u
 deriving instance Show (TextS u)
@@ -361,7 +361,7 @@ instance Widget a ⇒ Widget (RRect a) where
 -- * Canvas
 data CanvasS (u ∷ Unit) where
   CanvasS ∷
-    { cFontKey      ∷ FontKey
+    { cFontKey      ∷ FontKey u
     } → CanvasS u
 deriving instance Show (CanvasS u)
 

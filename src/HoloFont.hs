@@ -322,21 +322,21 @@ layRunTextForSize lay dπ width text = do
 
 -- | Fontmap: give fonts semantic names.
 
-newtype FontKey
+newtype FontKey (u ∷ Unit)
   =          FK { fromFK ∷ T.Text }
   deriving (Eq, Ord, Show, IsString)
 
-newtype FontAlias
-  =          Alias { fromAlias ∷ FontKey }
+newtype FontAlias (u ∷ Unit)
+  =          Alias { fromAlias ∷ FontKey u }
   deriving (Eq, Ord, Show, IsString)
 
 newtype FontPreferences u
-  =     FontPreferences [(FontKey, Either FontAlias [Font False u])]
+  =     FontPreferences [(FontKey u, Either (FontAlias u) [Font False u])]
 
 data FontMap u where
   FontMap ∷
     { fmDΠ    ∷ DΠ
-    , fmFonts ∷ (Map FontKey (Font True u))
+    , fmFonts ∷ (Map (FontKey u) (Font True u))
     } → FontMap u
 
 makeFontMap ∷ Sizely (Size u) ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → IO (FontMap u)
@@ -356,9 +356,9 @@ makeFontMap dπ gipcFM (FontPreferences prefsAndAliases) =
         (aliases, prefs) = flip partition prefsAndAliases
                            (\(_, aEp) → isLeft aEp)
 
-lookupFont ∷ FontMap u → FontKey → Maybe (Font True u)
+lookupFont ∷ FontMap u → FontKey u → Maybe (Font True u)
 lookupFont (FontMap _ fm) fk = Map.lookup fk fm
 
-lookupFont' ∷ FontMap u → FontKey → Font True u
+lookupFont' ∷ FontMap u → FontKey u → Font True u
 lookupFont' fm fk = lookupFont fm fk
                     & fromMaybe (error $ printf "ERROR: unexpected missing fontkey '%s'." (show fk))
