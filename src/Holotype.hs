@@ -71,12 +71,12 @@ holotype = proc _ → do
     settings@Settings{..} ← defaultSettings
 
     let font = lookupFont' fontmap "defaultMono"
-    textSettings ← makeTextSettings fmDefault dπ font
+    -- textSettings ← makeTextSettings fmDefault dπ font
     --
-    let style = In (CanvasS textSettings)
+    let style = In (CanvasS font)
                    (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
                                , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 })
-                       (TextS textSettings $ coGray 1 1))
+                       (TextS font $ coGray 1 1))
     -- *XXX
     -- - font defaulting   → make something a Monoid?
     -- - concern isolation → make it a DSL?

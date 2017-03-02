@@ -243,7 +243,7 @@ instance Widget () where
 -- * Text
 data TextS (u ∷ Unit) where
   TextS ∷
-    { tSettings     ∷ TextSettings TSProto u
+    { tSettings     ∷ Font True u
     , tColor        ∷ Co Double
     } → TextS u
 deriving instance Show (TextS u)
@@ -261,16 +261,16 @@ instance Visual Text where
   type  Content Text = (T.Text, Wi (Size PU))
   type    Depth Text = 1
 instance Widget Text where
-  query Settings{..} (TextS TextSettings{..} _) (initialText, maxWi) = do
-    di ∷ Di (Size PU) ← layRunTextForSize tsLayout tsDΠ maxWi initialText -- XXX/GHC/inference: weak
-    pure $ sArea $ fromPU ∘ fromSz tsDΠ <$> di
-  make Settings{..} (CW (Canvas Drawable{..} _ _ textContext _))
-       tStyle@(TextS TextSettings{..} _) (tText, _maxWi) tPSpace = do
-    tLayout ← makeTextLayout textContext
+  query Settings{..} (TextS Font{..} _) (initialText, maxWi) = do
+    di ∷ Di (Size PU) ← layRunTextForSize fDetachedLayout fDΠ maxWi initialText -- XXX/GHC/inference: weak
+    pure $ sArea $ fromPU ∘ fromSz fDΠ <$> di
+  make Settings{..} (CW (Canvas Drawable{..} _ _ TextContext{..} _))
+       tStyle@(TextS Font{..} _) (tText, _maxWi) tPSpace = do
+    tLayout ← makeTextLayout tcPhysical
     pure Text{..}
   draw (CW (Canvas (Drawable{..}) _ _ _ _))
        (Text (Spc (PWrap _ _ (Po (V2 cvx cvy)) _) End)
-             (TextS TextSettings{..} tColor)
+             (TextS Font{..} tColor)
              lay text) = do
     (`runReaderT` dGRC) $ GRC.runRender $ do
       GRC.moveTo cvx cvy
@@ -360,7 +360,7 @@ instance Widget a ⇒ Widget (RRect a) where
 -- * Canvas
 data CanvasS (u ∷ Unit) where
   CanvasS ∷
-    { tSettings     ∷ TextSettings TSProto u
+    { tSettings     ∷ Font True u
     } → CanvasS u
 deriving instance Show (CanvasS u)
 
@@ -369,7 +369,7 @@ data Canvas a where
     { cDrawable     ∷ Drawable
     , cPSpace       ∷ DrawableSpace True (Depth a)
     , cStyle        ∷ StyleOf (Canvas a)
-    , cTextContext  ∷ TextSettings TSPhys PU
+    , cTextContext  ∷ TextContext PU
     , cInner        ∷ a
     } → Canvas a
 data CanvasW where
@@ -386,10 +386,10 @@ instance Widget a ⇒ Container (Canvas a) where
   spaceToInner   _       s  = s
 
 instance Widget a ⇒ WDrawable (Canvas a) where
-  assemble settings@Settings{..} stream cStyle@(In (CanvasS ts@TextSettings{..}) innerStyle) innerContent = do
+  assemble settings@Settings{..} stream cStyle@(In (CanvasS font@Font{..}) innerStyle) innerContent = do
     cPSpace   ← sPin (po 0 0) <$> query settings innerStyle innerContent
     cDrawable ← makeDrawable stream (sDim cPSpace)
-    cTextContext ← makeTextContext ts $ dGIC cDrawable
+    cTextContext ← makeTextContext font $ dGIC cDrawable
     let w = Canvas{..} where cInner = (⊥)                -- resolve circularity due to *ToInner..
     cInner ← make settings (CW w) innerStyle innerContent cPSpace
     pure w { cInner = cInner }

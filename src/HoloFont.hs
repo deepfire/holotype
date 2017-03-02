@@ -21,7 +21,7 @@ module HoloFont
   , fdSetSize
 
   -- * Text
-  , KTextSettings(..), TextSettings(..), makeTextSettings, makeTextContext
+  , TextContext(..), makeTextContext
   , makeTextLayout, laySetWidth, layGetSize, layRunTextForSize
 
   -- * FontMap
@@ -209,6 +209,10 @@ data Font (valid ∷ Bool) (u ∷ Unit) where
     , fFace       ∷ GIP.FontFace
     , fSize       ∷ Size u
     , fDesc       ∷ GIP.FontDescription
+    , fFontMap    ∷ GIPC.FontMap
+    , fDΠ         ∷ DΠ
+    , fDetachedContext ∷ GIP.Context
+    , fDetachedLayout  ∷ GIP.Layout
     } → Font True u
 instance Show (Font False u) where
   show FontReq{..} =
@@ -220,14 +224,14 @@ instance Show (Font True u) where
     (fromFamilyName fFamilyName) (fromFaceName fFaceName) (show fSize)
 
 validateFont ∷ Sizely (Size u) ⇒ GIPC.FontMap → Font False u → IO (Either String (Font True u))
-validateFont fMap (FontReq
-                   fFamilyName@(FamilyName ffamname)
-                   fFaceName@(FaceName ffacename)
-                   fSizeRequest) =
-  let fams  = filter ((≡ ffamname)  ∘ ffamName) $ fmFamilies fMap
+validateFont fFontMap (FontReq
+                       fFamilyName@(FamilyName ffamname)
+                       fFaceName@(FaceName ffacename)
+                       fSizeRequest) =
+  let fams  = filter ((≡ ffamname)  ∘ ffamName) $ fmFamilies fFontMap
       faces = filter ((≡ ffacename) ∘ ffacName) $ concat $ ffamFaces <$> fams
-      dπ   = fmResolution fMap
-      fPI   = fromSz dπ $ fsValue fSizeRequest
+      fDΠ   = fmResolution fFontMap
+      fPI   = fromSz fDΠ $ fsValue fSizeRequest
   in case (fams, faces) of
     ([],_)           → pure ∘ Left $ printf "Missing font family '%s'." ffamname
     (ffam:_,[])      → pure ∘ Left $ printf "No face '%s' in family '%s'." ffacename ffamname
@@ -250,13 +254,17 @@ validateFont fMap (FontReq
                                             | otherwise   → ((<), sortOn id   fPISizes)
                   in case find (findp fPI) ordered of
                        Nothing → Left failure
-                       Just sz → Right $ fromSz dπ sz
+                       Just sz → Right $ fromSz fDΠ sz
               where failure = printf "Bitmap font face '%s' of family '%s' does not have font sizes matching policy %s against size %s, among %s."
-                              ffacename ffamname (show policy) (show $ fromPU $ fromSz dπ fPI) (show $ (fromPU ∘ fromSz dπ) <$> fPISizes)
+                              ffacename ffamname (show policy) (show $ fromPU $ fromSz fDΠ fPI) (show $ (fromPU ∘ fromSz fDΠ) <$> fPISizes)
       case eifSizeFail of
         Left failure → pure $ Left failure
         Right  fSize → do
           fdSetSize fDesc fSize
+          fDetachedContext ← GIP.fontMapCreateContext fFontMap
+          GIP.contextSetFontDescription    fDetachedContext fDesc
+          GIPC.contextSetResolution        fDetachedContext (fromDΠ fDΠ)
+          fDetachedLayout ← makeTextLayout fDetachedContext
           pure $ Right $ Font{..}
 
 chooseFont ∷ Sizely (Size u) ⇒ GIPC.FontMap → [Font False u] → IO (Maybe (Font True u), [String])
@@ -270,49 +278,24 @@ chooseFont fMap freqs = loop freqs []
 
 
 -- * Text
-data KTextSettings
-  = TSProto
-  | TSPhys
-
-data TextSettings (k ∷ KTextSettings) (u ∷ Unit) where
-  TextSettings ∷
-    { tsFontMap  ∷ GIP.FontMap
-    , tsDΠ       ∷ DΠ
-    , tsFont     ∷ Font True u
-    , tsDetached ∷ GIP.Context
-    , tsLayout   ∷ GIP.Layout
-    } → TextSettings TSProto u
+data TextContext (u ∷ Unit) where
   TextContext ∷
-    { tsProto    ∷ TextSettings TSProto u
-    , tsPhysical ∷ GIP.Context
-    } → TextSettings TSPhys u
-instance Show (TextSettings k u) where
-  show              (TextSettings _ dπ font _ _)    = printf "TextSettings { dpi = %f, font = %s }" (show dπ) (show font)
-  show (TextContext (TextSettings _ dπ font _ _) _) = printf  "TextContext { dpi = %f, font = %s }" (show dπ) (show font)
+    { tcFont     ∷ Font True u
+    , tcPhysical ∷ GIP.Context
+    } → TextContext u
+instance Show (TextContext u) where
+  show (TextContext font _) = printf  "TextContext { font = %s }" (show font)
 
-tsContext ∷ TextSettings k u → GIP.Context
-tsContext TextSettings{..} = tsDetached
-tsContext TextContext{..}  = tsPhysical
-
-makeTextSettings ∷ GIP.FontMap → DΠ → Font True u → IO (TextSettings TSProto u)
-makeTextSettings tsFontMap tsDΠ@(DΠ dπ) tsFont@Font{..} = do
-  tsDetached ← GIP.fontMapCreateContext tsFontMap
-  GIP.contextSetFontDescription tsDetached fDesc
-  GIPC.contextSetResolution     tsDetached dπ
-  let ts = TextSettings{..}
-  tsLayout ← makeTextLayout ts
-  pure ts { tsLayout = tsLayout }
-
-makeTextContext ∷ TextSettings TSProto u → GIC.Context → IO (TextSettings TSPhys u)
-makeTextContext tsProto@TextSettings{..} gic = do
-  tsPhysical ← GIPC.createContext gic
-  GIP.contextSetFontDescription tsPhysical (fDesc tsFont)
-  GIPC.contextSetResolution     tsPhysical (fromDΠ tsDΠ)
+makeTextContext ∷ Font True u → GIC.Context → IO (TextContext u)
+makeTextContext tcFont@Font{..} gic = do
+  tcPhysical ← GIPC.createContext gic
+  GIP.contextSetFontDescription tcPhysical fDesc
+  GIPC.contextSetResolution     tcPhysical (fromDΠ fDΠ)
   pure TextContext{..}
 
-makeTextLayout ∷ TextSettings k u → IO (GIP.Layout)
-makeTextLayout ts = do
-  gip ← GIP.layoutNew $ tsContext ts
+makeTextLayout ∷ GIP.Context → IO (GIP.Layout)
+makeTextLayout gipc = do
+  gip ← GIP.layoutNew gipc
   GIP.layoutSetWrap      gip GIP.WrapModeWord
   GIP.layoutSetEllipsize gip GIP.EllipsizeModeEnd
   pure gip
