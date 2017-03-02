@@ -243,7 +243,7 @@ instance Widget () where
 -- * Text
 data TextS (u ∷ Unit) where
   TextS ∷
-    { tSettings     ∷ Font True u
+    { tFont         ∷ FontKey
     , tColor        ∷ Co Double
     } → TextS u
 deriving instance Show (TextS u)
@@ -261,16 +261,17 @@ instance Visual Text where
   type  Content Text = (T.Text, Wi (Size PU))
   type    Depth Text = 1
 instance Widget Text where
-  query Settings{..} (TextS Font{..} _) (initialText, maxWi) = do
+  query Settings{..} (TextS fKey _) (initialText, maxWi) = do
+    let Font{..} = lookupFont' fontmap fKey
     di ∷ Di (Size PU) ← layRunTextForSize fDetachedLayout fDΠ maxWi initialText -- XXX/GHC/inference: weak
     pure $ sArea $ fromPU ∘ fromSz fDΠ <$> di
   make Settings{..} (CW (Canvas Drawable{..} _ _ TextContext{..} _))
-       tStyle@(TextS Font{..} _) (tText, _maxWi) tPSpace = do
+       tStyle@(TextS fKey _) (tText, _maxWi) tPSpace = do
     tLayout ← makeTextLayout tcPhysical
     pure Text{..}
   draw (CW (Canvas (Drawable{..}) _ _ _ _))
        (Text (Spc (PWrap _ _ (Po (V2 cvx cvy)) _) End)
-             (TextS Font{..} tColor)
+             (TextS fKey tColor)
              lay text) = do
     (`runReaderT` dGRC) $ GRC.runRender $ do
       GRC.moveTo cvx cvy
@@ -360,7 +361,7 @@ instance Widget a ⇒ Widget (RRect a) where
 -- * Canvas
 data CanvasS (u ∷ Unit) where
   CanvasS ∷
-    { tSettings     ∷ Font True u
+    { cFontKey      ∷ FontKey
     } → CanvasS u
 deriving instance Show (CanvasS u)
 
@@ -386,10 +387,10 @@ instance Widget a ⇒ Container (Canvas a) where
   spaceToInner   _       s  = s
 
 instance Widget a ⇒ WDrawable (Canvas a) where
-  assemble settings@Settings{..} stream cStyle@(In (CanvasS font@Font{..}) innerStyle) innerContent = do
+  assemble settings@Settings{..} stream cStyle@(In (CanvasS cFontKey) innerStyle) innerContent = do
     cPSpace   ← sPin (po 0 0) <$> query settings innerStyle innerContent
     cDrawable ← makeDrawable stream (sDim cPSpace)
-    cTextContext ← makeTextContext font $ dGIC cDrawable
+    cTextContext ← makeTextContext (lookupFont' fontmap cFontKey) $ dGIC cDrawable
     let w = Canvas{..} where cInner = (⊥)                -- resolve circularity due to *ToInner..
     cInner ← make settings (CW w) innerStyle innerContent cPSpace
     pure w { cInner = cInner }
