@@ -197,7 +197,7 @@ deriving instance Show (FontSizeRequest u)
 newtype FamilyName = FamilyName { fromFamilyName ∷ Text } deriving (Eq, Show, IsString) -- ^ Pango font family name
 newtype FaceName   = FaceName   { fromFaceName   ∷ Text } deriving (Eq, Show, IsString) -- ^ Pango font face name
 
-data Font (valid ∷ Bool) (u ∷ KUnit) where
+data Font (valid ∷ Bool) (u ∷ Unit) where
   FontReq ∷
     { frFamilyName  ∷ FamilyName
     , frFaceName    ∷ FaceName
@@ -274,7 +274,7 @@ data KTextSettings
   = TSProto
   | TSPhys
 
-data TextSettings (k ∷ KTextSettings) (u ∷ KUnit) where
+data TextSettings (k ∷ KTextSettings) (u ∷ Unit) where
   TextSettings ∷
     { tsFontMap  ∷ GIP.FontMap
     , tsDΠ       ∷ DΠ

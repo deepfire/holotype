@@ -240,7 +240,7 @@ instance Widget () where
 
 
 -- * Text
-data TextS (u ∷ KUnit) where
+data TextS (u ∷ Unit) where
   TextS ∷
     { tSettings     ∷ TextSettings TSProto u
     , tColor        ∷ Co Double
@@ -357,7 +357,7 @@ instance Widget a ⇒ Widget (RRect a) where
 
 
 -- * Canvas
-data CanvasS (u ∷ KUnit) where
+data CanvasS (u ∷ Unit) where
   CanvasS ∷
     { tSettings     ∷ TextSettings TSProto u
     } → CanvasS u
