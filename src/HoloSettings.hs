@@ -12,8 +12,8 @@ import HoloFont
 defaultFontPreferences ∷ FontPreferences PU
 defaultFontPreferences =
   FontPreferences
-  [ ("default",     Left $ Alias "defaultSans" )
-  , ("defaultSans", Right $ [ FontReq "Aurulent Sans" "Regular" $ FSROutline (PUs 12) ])
+  [ ("default",     Left $ Alias "defaultMono" )
+  -- , ("defaultSans", Right $ [ FontReq "Aurulent Sans" "Regular" $ FSROutline (PUs 12) ])
   , ("defaultMono", Right $ [ FontReq "Terminus"      "Regular" $ FSRBitmap  (PUs 12) LT ])
   ]
 

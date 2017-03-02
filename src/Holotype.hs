@@ -70,7 +70,7 @@ holotype = proc _ → do
 
     Settings{..} ← defaultSettings
 
-    let font = lookupFont' fontmap "defaultSans"
+    let font = lookupFont' fontmap "defaultMono"
     textSettings ← makeTextSettings fmDefault dπ font
     --
     let style = In (CanvasS textSettings)
