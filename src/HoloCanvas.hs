@@ -90,7 +90,7 @@ import HoloCube
 import HoloSettings
 
 
--- | A GL/Cairo drawable.
+-- | A Cairo-capable 'Drawable' to display on a GL 'Frame'.
 data Drawable where
   Drawable ∷
     { dObjectStream ∷ ObjectStream
@@ -106,6 +106,12 @@ data Drawable where
     , dGPUMesh      ∷ GL.GPUMesh
     , dGLObject     ∷ GL.Object
     } → Drawable
+
+-- | A GL 'Frame' to display a Cairo-capable 'Drawable'.
+data Frame where
+  Frame ∷
+    { fDim ∷ Di Int
+    } → Frame
 
 grcToGIC ∷ GRC.Cairo → IO GIC.Context
 grcToGIC grc = GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
@@ -147,8 +153,17 @@ drawableContentToGPU Drawable{..} = do
   GL.updateObjectUniforms dGLObject $ do
     fromUNS osUniform GL.@= return cTexture
 
-drawablePosition ∷ Drawable → Di Int → Po Float → IO ()
-drawablePosition Drawable{..} (Di (V2 screenW screenH)) (Po (V2 x y)) = do
+-- | To screen space conversion matrix.
+screenM :: Int → Int → Mat4
+screenM w h =
+  Vc.Mat4 (Vc.Vec4 (1/fw)  0     0 0)
+          (Vc.Vec4  0     (1/fh) 0 0)
+          (Vc.Vec4  0      0     1 0)
+          (Vc.Vec4  0      0     0 0.5) -- where does that 0.5 factor COMEFROM?
+  where (fw, fh) = (fromIntegral w, fromIntegral h)
+
+framePutDrawable ∷ Frame → Drawable → Po Float → IO ()
+framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = do
   let cvpos    = Vec3 x y 0
       toScreen = screenM screenW screenH
   GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
@@ -382,7 +397,7 @@ data Canvas a where
     , cInner        ∷ a
     } → Canvas a
 data CanvasW where
-  CW ∷ { cPoly ∷ Canvas a } → CanvasW
+  CW ∷ Widget a ⇒ { cPoly ∷ Canvas a } → CanvasW
 
 instance Widget a ⇒ Visual (Canvas a) where
   type             StyleOf (Canvas a) = In (CanvasS PU) (StyleOf a)
@@ -406,3 +421,12 @@ instance Widget a ⇒ WDrawable (Canvas a) where
   render self@Canvas{..} = do
     draw (CW self) cInner
     drawableContentToGPU cDrawable
+
+makeCanvas ∷ Widget w ⇒ Settings PU → ObjectStream → StyleOf (Canvas w) → Content (Canvas w) → IO CanvasW
+makeCanvas sts os sty co = CW <$> assemble sts os sty co
+
+renderCanvas ∷ CanvasW → IO ()
+renderCanvas (CW c) = render c
+
+placeCanvas ∷ CanvasW → Frame → Po Double → IO ()
+placeCanvas (CW c) f = framePutDrawable f (drawableOf c) ∘ (doubleToFloat <$>)

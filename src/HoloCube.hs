@@ -228,12 +228,3 @@ uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) =
     glTexImage2D GL_TEXTURE_2D 0 internalFormat (fromIntegral w) (fromIntegral h) 0 format GL_UNSIGNED_BYTE $ F.castPtr ptr
     when isMip $ glGenerateMipmap GL_TEXTURE_2D
     return $ GL.TextureData to
-
--- | To screen space conversion matrix.
-screenM :: Int → Int → Mat4
-screenM w h =
-  Mat4 (Vec4 (1/fw)  0     0 0)
-       (Vec4  0     (1/fh) 0 0)
-       (Vec4  0      0     1 0)
-       (Vec4  0      0     0 0.5) -- where does that 0.5 factor COMEFROM?
-  where (fw, fh) = (fromIntegral w, fromIntegral h)

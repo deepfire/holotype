@@ -79,12 +79,12 @@ holotype = proc _ → do
                    Intero 0.1.20 (GHC 8.0.1)\
                    Type :intro and press enter for an introduction of the standard commands."
         content2 = "Type :intro and press enter for an introduction of the standard commands."
-    c ← assemble settings stream style (content, Wi 256)
-    render c
+    c ← makeCanvas settings stream style (content, Wi 256)
+    renderCanvas c
 
     screenDim@(Di (V2 screenW screenH)) ← rendererSetupFrame renderer
 
-    drawablePosition (drawableOf c) (Di $ V2 screenW screenH) (Po $ V2 (-0.25) (-0.2))
+    placeCanvas c (Frame screenDim) $ po (-0.25) (-0.2)
 
     rendererFinaliseFrame renderer
     rendererWaitForVSync renderer
