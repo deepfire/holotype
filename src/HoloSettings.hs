@@ -13,8 +13,8 @@ defaultFontPreferences ∷ FontPreferences PU
 defaultFontPreferences =
   FontPreferences
   [ ("default",     Left $ Alias "defaultMono" )
-  -- , ("defaultSans", Right $ [ FontReq "Aurulent Sans" "Regular" $ FSROutline (PUs 12) ])
-  , ("defaultMono", Right $ [ FontReq "Terminus"      "Regular" $ FSRBitmap  (PUs 12) LT ])
+  -- , ("defaultSans", Right $ [ FontSpec "Aurulent Sans" "Regular" $ FSROutline (PUs 12) ])
+  , ("defaultMono", Right $ [ FontSpec "Terminus"      "Regular" $ FSRBitmap  (PUs 12) LT ])
   ]
 
 data Settings u where

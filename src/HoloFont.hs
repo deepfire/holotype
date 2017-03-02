@@ -5,7 +5,7 @@
 {-# LANGUAGE UnicodeSyntax #-}
 
 module HoloFont
-  ( Font(..)
+  ( Font(..), FKind(..)
   , FontSizeRequest(..)
   , FamilyName, FaceName
 
@@ -15,13 +15,12 @@ module HoloFont
   , ffacName, ffacPISizes
 
   -- * Main API
-  , validateFont, chooseFont
+  , validateFont, chooseFont, bindFont
 
   -- * Ancillary
   , fdSetSize
 
   -- * Text
-  , TextContext(..), makeTextContext
   , makeTextLayout, laySetWidth, layGetSize, layRunTextForSize
 
   -- * FontMap
@@ -197,34 +196,40 @@ deriving instance Show (FontSizeRequest u)
 newtype FamilyName = FamilyName { fromFamilyName ∷ Text } deriving (Eq, Show, IsString) -- ^ Pango font family name
 newtype FaceName   = FaceName   { fromFaceName   ∷ Text } deriving (Eq, Show, IsString) -- ^ Pango font face name
 
-data Font (valid ∷ Bool) (u ∷ Unit) where
-  FontReq ∷
-    { frFamilyName  ∷ FamilyName
-    , frFaceName    ∷ FaceName
-    , frSizeRequest ∷ FontSizeRequest u
-    } → Font False u
+data FKind = Spec | Found | Bound
+
+data Font (k ∷ FKind) u where
+  FontSpec ∷
+    { frFamilyName     ∷ FamilyName
+    , frFaceName       ∷ FaceName
+    , frSizeRequest    ∷ FontSizeRequest u
+    } → Font Spec u
   Font ∷
-    { fFamilyName ∷ FamilyName
-    , fFaceName   ∷ FaceName
-    , fFace       ∷ GIP.FontFace
-    , fSize       ∷ Size u
-    , fDesc       ∷ GIP.FontDescription
-    , fFontMap    ∷ GIPC.FontMap
-    , fDΠ         ∷ DΠ
+    { fFamilyName      ∷ FamilyName
+    , fFaceName        ∷ FaceName
+    , fSize            ∷ Size u
+    , fDesc            ∷ GIP.FontDescription
+    , fFontMap         ∷ GIPC.FontMap
+    , fDΠ              ∷ DΠ
     , fDetachedContext ∷ GIP.Context
     , fDetachedLayout  ∷ GIP.Layout
-    } → Font True u
-instance Show (Font False u) where
-  show FontReq{..} =
-    printf "FontReq { family = %s, face = %s, size = %s }"
+    } → Font Found u
+  FontBinding ∷
+    { fbFont           ∷ Font Found u
+    , fbContext        ∷ GIP.Context
+    } → Font Bound u
+
+instance Show (Font Spec u) where
+  show FontSpec{..} =
+    printf "FontSpec { family = %s, face = %s, size = %s }"
     (fromFamilyName frFamilyName) (fromFaceName frFaceName) (show frSizeRequest)
-instance Show (Font True u) where
+instance Show (Font Found u) where
   show Font{..} =
     printf "Font { family = %s, face = %s, size = %s }"
     (fromFamilyName fFamilyName) (fromFaceName fFaceName) (show fSize)
 
-validateFont ∷ Sizely (Size u) ⇒ GIPC.FontMap → Font False u → IO (Either String (Font True u))
-validateFont fFontMap (FontReq
+validateFont ∷ Sizely (Size u) ⇒ GIPC.FontMap → Font Spec u → IO (Either String (Font Found u))
+validateFont fFontMap (FontSpec
                        fFamilyName@(FamilyName ffamname)
                        fFaceName@(FaceName ffacename)
                        fSizeRequest) =
@@ -267,32 +272,24 @@ validateFont fFontMap (FontReq
           fDetachedLayout ← makeTextLayout fDetachedContext
           pure $ Right $ Font{..}
 
-chooseFont ∷ Sizely (Size u) ⇒ GIPC.FontMap → [Font False u] → IO (Maybe (Font True u), [String])
+chooseFont ∷ Sizely (Size u) ⇒ GIPC.FontMap → [Font Spec u] → IO (Maybe (Font Found u), [String])
 chooseFont fMap freqs = loop freqs []
-  where loop ∷ Sizely (Size u) ⇒ [Font False u] → [String] → IO (Maybe (Font True u), [String])
+  where loop ∷ Sizely (Size u) ⇒ [Font Spec u] → [String] → IO (Maybe (Font Found u), [String])
         loop [] failures  = pure (Nothing, failures)
         loop (fr:rest) fs = validateFont fMap fr
                             >>= (\case
                                     Right font → pure (Just font, fs)
                                     Left  fail → loop rest $ fail:fs)
 
+bindFont ∷ Font Found u → GIC.Context → IO (Font Bound u)
+bindFont fbFont@Font{..} gic = do
+  fbContext ← GIPC.createContext gic
+  GIP.contextSetFontDescription fbContext fDesc
+  GIPC.contextSetResolution     fbContext (fromDΠ fDΠ)
+  pure FontBinding{..}
+
 
 -- * Text
-data TextContext (u ∷ Unit) where
-  TextContext ∷
-    { tcFont     ∷ Font True u
-    , tcPhysical ∷ GIP.Context
-    } → TextContext u
-instance Show (TextContext u) where
-  show (TextContext font _) = printf  "TextContext { font = %s }" (show font)
-
-makeTextContext ∷ Font True u → GIC.Context → IO (TextContext u)
-makeTextContext tcFont@Font{..} gic = do
-  tcPhysical ← GIPC.createContext gic
-  GIP.contextSetFontDescription tcPhysical fDesc
-  GIPC.contextSetResolution     tcPhysical (fromDΠ fDΠ)
-  pure TextContext{..}
-
 makeTextLayout ∷ GIP.Context → IO (GIP.Layout)
 makeTextLayout gipc = do
   gip ← GIP.layoutNew gipc
@@ -331,12 +328,12 @@ newtype FontAlias
   deriving (Eq, Ord, Show, IsString)
 
 newtype FontPreferences u
-  =     FontPreferences [(FontKey, Either FontAlias [Font False u])]
+  =     FontPreferences [(FontKey, Either FontAlias [Font Spec u])]
 
 data FontMap u where
   FontMap ∷
     { fmDΠ    ∷ DΠ
-    , fmFonts ∷ (Map FontKey (Font True u))
+    , fmFonts ∷ (Map FontKey (Font Found u))
     } → FontMap u
 
 makeFontMap ∷ Sizely (Size u) ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → IO (FontMap u)
@@ -356,9 +353,9 @@ makeFontMap dπ gipcFM (FontPreferences prefsAndAliases) =
         (aliases, prefs) = flip partition prefsAndAliases
                            (\(_, aEp) → isLeft aEp)
 
-lookupFont ∷ FontMap u → FontKey → Maybe (Font True u)
+lookupFont ∷ FontMap u → FontKey → Maybe (Font Found u)
 lookupFont (FontMap _ fm) fk = Map.lookup fk fm
 
-lookupFont' ∷ FontMap u → FontKey → Font True u
+lookupFont' ∷ FontMap u → FontKey → Font Found u
 lookupFont' fm fk = lookupFont fm fk
                     & fromMaybe (error $ printf "ERROR: unexpected missing fontkey '%s'." (show fk))

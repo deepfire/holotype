@@ -252,6 +252,7 @@ data Text where
   Text ∷
     { tPSpace       ∷ DrawableSpace True 1
     , tStyle        ∷ StyleOf Text
+    , tFont         ∷ Font Bound PU
     , tLayout       ∷ GIP.Layout
     , tText         ∷ T.Text
     } → Text
@@ -265,14 +266,14 @@ instance Widget Text where
     let Font{..} = lookupFont' fontmap fKey
     di ∷ Di (Size PU) ← layRunTextForSize fDetachedLayout fDΠ maxWi initialText -- XXX/GHC/inference: weak
     pure $ sArea $ fromPU ∘ fromSz fDΠ <$> di
-  make Settings{..} (CW (Canvas Drawable{..} _ _ TextContext{..} _))
+  make Settings{..} (CW (Canvas Drawable{..} _ _ tFont@FontBinding{..} _))
        tStyle@(TextS fKey _) (tText, _maxWi) tPSpace = do
-    tLayout ← makeTextLayout tcPhysical
+    tLayout ← makeTextLayout fbContext
     pure Text{..}
   draw (CW (Canvas (Drawable{..}) _ _ _ _))
        (Text (Spc (PWrap _ _ (Po (V2 cvx cvy)) _) End)
              (TextS fKey tColor)
-             lay text) = do
+             _font lay text) = do
     (`runReaderT` dGRC) $ GRC.runRender $ do
       GRC.moveTo cvx cvy
       coSetSourceColor tColor
@@ -370,7 +371,7 @@ data Canvas a where
     { cDrawable     ∷ Drawable
     , cPSpace       ∷ DrawableSpace True (Depth a)
     , cStyle        ∷ StyleOf (Canvas a)
-    , cTextContext  ∷ TextContext PU
+    , cFont         ∷ Font Bound PU
     , cInner        ∷ a
     } → Canvas a
 data CanvasW where
@@ -390,7 +391,7 @@ instance Widget a ⇒ WDrawable (Canvas a) where
   assemble settings@Settings{..} stream cStyle@(In (CanvasS cFontKey) innerStyle) innerContent = do
     cPSpace   ← sPin (po 0 0) <$> query settings innerStyle innerContent
     cDrawable ← makeDrawable stream (sDim cPSpace)
-    cTextContext ← makeTextContext (lookupFont' fontmap cFontKey) $ dGIC cDrawable
+    cFont     ← bindFont (lookupFont' fontmap cFontKey) $ dGIC cDrawable
     let w = Canvas{..} where cInner = (⊥)                -- resolve circularity due to *ToInner..
     cInner ← make settings (CW w) innerStyle innerContent cPSpace
     pure w { cInner = cInner }
