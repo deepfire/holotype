@@ -23,18 +23,26 @@ module HoloFont
   -- * Text
   , KTextSettings(..), TextSettings(..), makeTextSettings, makeTextContext
   , makeTextLayout, laySetWidth, layGetSize, layRunTextForSize
+
+  -- * FontMap
+  , FontKey(..), FontAlias(..), FontPreferences(..), FontMap(..)
+  , makeFontMap, lookupFont, lookupFont'
   )
 where
 
 -- Basis
 import           Prelude.Unicode
+import           Control.Arrow
 import           Control.Lens
+import           GHC.Stack
 
 -- Types
-import           Control.Monad                            (unless, when, forM_, filterM)
+import           Control.Monad                            (unless, when, forM_, foldM, filterM)
 import           Control.Monad.Trans.Reader               (ReaderT(..))
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
+import           Data.Either
+import           Data.Either.Extra
 import           Data.List
 import           Data.Map                                 (Map)
 import           Data.Ord
@@ -327,3 +335,47 @@ layRunTextForSize lay dπ width text = do
   laySetWidth       lay dπ width
   GIP.layoutSetText lay text (-1)
   layGetSize        lay dπ
+
+
+-- | Fontmap: give fonts semantic names.
+
+newtype FontKey
+  =          FK { fromFK ∷ T.Text }
+  deriving (Eq, Ord, Show, IsString)
+
+newtype FontAlias
+  =          Alias { fromAlias ∷ FontKey }
+  deriving (Eq, Ord, Show, IsString)
+
+newtype FontPreferences u
+  =     FontPreferences [(FontKey, Either FontAlias [Font False u])]
+
+data FontMap u where
+  FontMap ∷
+    { fmDΠ    ∷ DΠ
+    , fmFonts ∷ (Map FontKey (Font True u))
+    } → FontMap u
+
+makeFontMap ∷ Sizely (Size u) ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → IO (FontMap u)
+makeFontMap dπ gipcFM (FontPreferences prefsAndAliases) =
+                         foldM resolvePrefs Map.empty ((id *** fromRight) <$> prefs)
+  <&> FontMap dπ ∘ flip (foldl resolveAlias)          ((id *** fromLeft)  <$> aliases)
+  where resolvePrefs acc (fkey, freqs) = do
+          (mFont, errs) ← chooseFont gipcFM freqs
+          let font = mFont &
+                fromMaybe (error $ printf "FATAL: while searching font for slot '%s', no suitable font among: %s.  Failures: %s" (show fkey) (show freqs) (show errs))
+          pure $ Map.insert fkey font acc
+        resolveAlias fontmap (fk, (Alias alias)) = flip (Map.insert fk) fontmap
+                                                   $ Map.lookup alias fontmap
+                                                   & flip fromMaybe
+                                                   $ error $ printf "ERROR: while resolving alias for slot '%s', no slot named '%s' exists."
+                                                             (T.unpack $ fromFK fk) (T.unpack $ fromFK alias)
+        (aliases, prefs) = flip partition prefsAndAliases
+                           (\(_, aEp) → isLeft aEp)
+
+lookupFont ∷ FontMap u → FontKey → Maybe (Font True u)
+lookupFont (FontMap _ fm) fk = Map.lookup fk fm
+
+lookupFont' ∷ FontMap u → FontKey → Font True u
+lookupFont' fm fk = lookupFont fm fk
+                    & fromMaybe (error $ printf "ERROR: unexpected missing fontkey '%s'." (show fk))
