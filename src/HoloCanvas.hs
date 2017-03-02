@@ -175,10 +175,11 @@ runStyle s = runIdentity $ runAp (return ∘ fromFAE) s
 type DrawableSpace p d = Space p Double d
 type WidgetSpace   d = DrawableSpace False d
 
-class Show (StyleOf a) ⇒ Visual a where
+class (Sizely (Size (Units a)), Show (StyleOf a)) ⇒ Visual a where
   type StyleOf a = (r ∷ Type) | r → a
   type Content a ∷ Type
   type   Depth a ∷ Nat
+  type   Units a ∷ Unit
 
 class   Visual w ⇒ Container w where
   type   Inner w ∷ Type
@@ -234,6 +235,8 @@ instance Visual () where
   type  StyleOf () = ()
   type  Content () = ()
   type    Depth () = 0
+  type    Units () = PU
+
 instance Widget () where
   query _settings        _style _content = pure End
   make  _settings CW{..} _style _content        End = pure ()
@@ -260,6 +263,7 @@ instance Visual Text where
   type  StyleOf Text = TextS PU
   type  Content Text = (T.Text, Wi (Size PU))
   type    Depth Text = 1
+  type    Units Text = PU
 instance Widget Text where
   query Settings{..} (TextS fKey _) (initialText, maxWi) = do
     let Font{..} = lookupFont' fontmap fKey
@@ -284,8 +288,8 @@ instance Widget Text where
 data RRect a where
   RRect ∷
     { rrPSpace ∷ DrawableSpace True (Depth (RRect a))
-    , rrStyle ∷ StyleOf (RRect a)
-    , rrInner ∷ a
+    , rrStyle  ∷ StyleOf (RRect a)
+    , rrInner  ∷ a
     } → RRect a
 deriving instance (Show a, Show (StyleOf a)) ⇒ Show (RRect a)
 
@@ -293,6 +297,7 @@ instance Visual a ⇒ Visual (RRect a) where
   type             StyleOf (RRect a) = In RRectS (StyleOf a) -- XXX/recursive pain
   type             Content (RRect a) = Content a
   type               Depth (RRect a) = 4 + Depth a
+  type               Units (RRect a) = PU
 instance Widget a ⇒ Container (RRect a) where
   type Inner (RRect a) = a
   innerOf                 = rrInner
@@ -380,6 +385,7 @@ instance Widget a ⇒ Visual (Canvas a) where
   type             StyleOf (Canvas a) = In (CanvasS PU) (StyleOf a)
   type             Content (Canvas a) = Content a
   type             Depth   (Canvas a) = Depth a
+  type             Units   (Canvas a) = PU
 instance Widget a ⇒ Container (Canvas a) where
   type                  Inner (Canvas a) = a
   innerOf                   = cInner
