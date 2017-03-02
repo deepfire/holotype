@@ -70,15 +70,15 @@ holotype = proc _ → do
     let style = In (CanvasS @PU "default")
                    (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
                                , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 })
-                       (TextS @PU "default" $ coGray 1 1))
+                       (TextS @PU "default" 7 $ coGray 1 1)) -- XXX/typing: Lines! : -)
 
     let content = "Process intero killed\
                    Starting:\
                    stack ghci --with-ghc intero '--docker-run-args=--interactive=true --tty=false' --no-build --no-load --ghci-options -odir=/home/deepfire/src/mood/.stack-work/intero/intero17462TiM --ghci-options -hidir=/home/deepfire/src/mood/.stack-work/intero/intero17462TiM mood\
                    Intero 0.1.20 (GHC 8.0.1)\
                    Type :intro and press enter for an introduction of the standard commands."
-
-    c ← assemble settings stream style ("lollestry", Wi 256)
+        content2 = "Type :intro and press enter for an introduction of the standard commands."
+    c ← assemble settings stream style (content, Wi 256)
     render c
 
     screenDim@(Di (V2 screenW screenH)) ← rendererSetupFrame renderer
