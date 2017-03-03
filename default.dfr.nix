@@ -7,7 +7,7 @@
 #, youtrack
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
 , lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo, gi-gtk, gi-gdk
-, wires
+, wires, rapid
 , ghc-typelits-extra, ghc-typelits-natnormalise
 }:
 mkDerivation {
@@ -25,7 +25,7 @@ mkDerivation {
     # youtrack
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
     lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo gi-gtk gi-gdk
-    wires
+    wires rapid
     ghc-typelits-extra ghc-typelits-natnormalise
   ];
   executableHaskellDepends = [

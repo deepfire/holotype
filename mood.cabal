@@ -43,6 +43,7 @@ executable holotype
                      , wires
                      , clock
                      , stm
+                     , rapid
 
                      , hxt
 
