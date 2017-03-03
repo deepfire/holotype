@@ -3,7 +3,7 @@
 , bytestring-trie, clock, containers, data-binary-ieee754, deepseq, digest
 , directory, elerea, extra, filepath, free, GLFW-b, JuicyPixels
 , microlens-platform, MissingH, MonadRandom, mono-traversable, OpenGLRaw
-, pretty-show, process, proteaaudio, time, transformers, vect, vector, zlib
+, pretty-show, process, proteaaudio, stm, time, transformers, vect, vector, zlib
 #, youtrack
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
 , lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo, gi-gtk, gi-gdk
@@ -21,7 +21,7 @@ mkDerivation {
     aeson attoparsec base base-unicode-symbols binary bytestring bytestring-trie clock containers
     data-binary-ieee754 deepseq digest directory extra filepath free JuicyPixels
     microlens-platform MissingH MonadRandom mono-traversable pretty-show process
-    time transformers vect vector zlib
+    stm time transformers vect vector zlib
     # youtrack
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
     lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo gi-gtk gi-gdk

@@ -42,6 +42,7 @@ executable holotype
 
                      , wires
                      , clock
+                     , stm
 
                      , hxt
 
