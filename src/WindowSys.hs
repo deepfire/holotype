@@ -21,3 +21,6 @@ makeGLWindow title = do
   GL.glEnable GL.GL_FRAMEBUFFER_SRGB
   swapInterval 0
   return win
+
+keyIsPressed ∷ GLFW.Window → GLFW.Key → IO Bool
+keyIsPressed win k = fmap (==KeyState'Pressed) $ GLFW.getKey win k
