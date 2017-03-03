@@ -38,6 +38,7 @@ import           GHC.Stack
 
 -- Types
 import           Control.Monad                            (unless, when, forM_, foldM, filterM)
+import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import           Control.Monad.Trans.Reader               (ReaderT(..))
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
@@ -167,7 +168,7 @@ ffacPISizes fface = (fromIntegral <$>) <$> (UN.unsafePerformIO (GIP.fontFaceList
 -- | Set font size: XXX/upstream/inconsistency -- Double, yet PANGO_SCALE-d:
 --   https://hackage.haskell.org/package/gi-pango-1.0.11/docs/GI-Pango-Structs-FontDescription.html#v:fontDescriptionSetAbsoluteSize
 --   https://hackage.haskell.org/package/gi-pango-1.0.11/docs/GI-Pango-Structs-FontDescription.html#v:fontDescriptionSetSize
-fdSetSize ∷ GIP.FontDescription → Size u → IO ()
+fdSetSize ∷ (MonadIO m) ⇒ GIP.FontDescription → Size u → m ()
 fdSetSize fd (PUs  us)  = GIP.fontDescriptionSetAbsoluteSize fd $ us * fromIntegral GIP.SCALE
 fdSetSize fd (PUIs is)  = GIP.fontDescriptionSetAbsoluteSize fd $ fromIntegral is
 fdSetSize fd (Pts  pts) = GIP.fontDescriptionSetSize         fd $ pts * GIP.SCALE
@@ -229,7 +230,7 @@ instance Show (Font Found u) where
     printf "Font { family = %s, face = %s, size = %s }"
     (fromFamilyName fFamilyName) (fromFaceName fFaceName) (show fSize)
 
-validateFont ∷ Sizely (Size u) ⇒ GIPC.FontMap → Font Spec u → IO (Either String (Font Found u))
+validateFont ∷ (MonadIO m) ⇒ Sizely (Size u) ⇒ GIPC.FontMap → Font Spec u → m (Either String (Font Found u))
 validateFont fFontMap (FontSpec
                        fFamilyName@(FamilyName ffamname)
                        fFaceName@(FaceName ffacename)
@@ -273,16 +274,16 @@ validateFont fFontMap (FontSpec
           fDetachedLayout ← makeTextLayout fDetachedContext
           pure $ Right $ Font{..}
 
-chooseFont ∷ Sizely (Size u) ⇒ GIPC.FontMap → [Font Spec u] → IO (Maybe (Font Found u), [String])
+chooseFont ∷ (MonadIO m) ⇒ Sizely (Size u) ⇒ GIPC.FontMap → [Font Spec u] → m (Maybe (Font Found u), [String])
 chooseFont fMap freqs = loop freqs []
-  where loop ∷ Sizely (Size u) ⇒ [Font Spec u] → [String] → IO (Maybe (Font Found u), [String])
+  where loop ∷ (MonadIO m) ⇒ Sizely (Size u) ⇒ [Font Spec u] → [String] → m (Maybe (Font Found u), [String])
         loop [] failures  = pure (Nothing, failures)
         loop (fr:rest) fs = validateFont fMap fr
                             >>= (\case
                                     Right font → pure (Just font, fs)
                                     Left  fail → loop rest $ fail:fs)
 
-bindFont ∷ Font Found u → GIC.Context → IO (Font Bound u)
+bindFont ∷ (MonadIO m) ⇒ Font Found u → GIC.Context → m (Font Bound u)
 bindFont fbFont@Font{..} gic = do
   fbContext ← GIPC.createContext gic
   GIP.contextSetFontDescription fbContext fDesc
@@ -291,46 +292,46 @@ bindFont fbFont@Font{..} gic = do
 
 
 -- * Text
-makeTextLayout ∷ GIP.Context → IO (GIP.Layout)
+makeTextLayout ∷ (MonadIO m) ⇒ GIP.Context → m (GIP.Layout)
 makeTextLayout gipc = do
   gip ← GIP.layoutNew gipc
   GIP.layoutSetWrap      gip GIP.WrapModeWord
   GIP.layoutSetEllipsize gip GIP.EllipsizeModeEnd
   pure gip
 
-laySetWidth ∷ Sizely (Size s) ⇒ GIP.Layout → DΠ → Wi (Size s) → IO ()
+laySetWidth ∷ (MonadIO m) ⇒ Sizely (Size s) ⇒ GIP.Layout → DΠ → Wi (Size s) → m ()
 laySetWidth lay dπ (Wi sz) = do
   let csz = fromPUI $ fromSz dπ sz
   GIP.layoutSetWidth lay csz
 
-laySetHeight ∷ Sizely (Size s) ⇒ GIP.Layout → DΠ → Wi (Size s) → IO ()
+laySetHeight ∷ (MonadIO m) ⇒ Sizely (Size s) ⇒ GIP.Layout → DΠ → Wi (Size s) → m ()
 laySetHeight lay dπ (Wi sz) = do
   let csz = fromPUI $ fromSz dπ sz
   GIP.layoutSetHeight lay csz
 
-laySetMaxParaLines ∷ GIP.Layout → Int → IO ()
+laySetMaxParaLines ∷ (MonadIO m) ⇒ GIP.Layout → Int → m ()
 laySetMaxParaLines lay maxParaLines = do
   GIP.layoutSetHeight lay $ fromIntegral (-1 ⋅ abs maxParaLines)
 
-laySetSize ∷ Sizely (Size s) ⇒ GIP.Layout → DΠ → Di (Size s) → IO ()
+laySetSize ∷ (MonadIO m) ⇒ Sizely (Size s) ⇒ GIP.Layout → DΠ → Di (Size s) → m ()
 laySetSize lay dπ sz = do
   let (Di (V2 cx cy)) = fromPUI ∘ fromSz dπ <$> sz
   GIP.layoutSetWidth  lay cx
   GIP.layoutSetHeight lay cy
 
-layGetSize ∷ Sizely (Size s) ⇒ GIP.Layout → DΠ → IO (Di (Size s))
+layGetSize ∷ (MonadIO m) ⇒ Sizely (Size s) ⇒ GIP.Layout → DΠ → m (Di (Size s))
 layGetSize lay dπ = do
   (pix, piy) ← GIP.layoutGetPixelSize lay
   pure $ Di $ V2 (fromSz dπ $ PUs $ fromIntegral pix) (fromSz dπ $ PUs $ fromIntegral piy)
 
-layPrintLimits ∷ String → GIP.Layout → IO ()
+layPrintLimits ∷ (MonadIO m) ⇒ String → GIP.Layout → m ()
 layPrintLimits key lay = do
   w ← GIP.layoutGetWidth  lay
   h ← GIP.layoutGetHeight lay
   GRC.liftIO $ printf "-- %s  limw: %s, limh: %s\n" key (show w) (show h)
 
-layRunTextForSize ∷ (Sizely (Size s), Sizely (Size t)) ⇒
-                    GIP.Layout → DΠ → Wi (Size s) → Text → IO (Di (Size t))
+layRunTextForSize ∷ (MonadIO m) ⇒ (Sizely (Size s), Sizely (Size t)) ⇒
+                    GIP.Layout → DΠ → Wi (Size s) → Text → m (Di (Size t))
 layRunTextForSize lay dπ width text = do
   laySetWidth       lay dπ width
   GIP.layoutSetText lay text (-1)
@@ -356,7 +357,7 @@ data FontMap u where
     , fmFonts ∷ (Map FontKey (Font Found u))
     } → FontMap u
 
-makeFontMap ∷ Sizely (Size u) ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → IO (FontMap u)
+makeFontMap ∷ (MonadIO m) ⇒ Sizely (Size u) ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → m (FontMap u)
 makeFontMap dπ gipcFM (FontPreferences prefsAndAliases) =
                          foldM resolvePrefs Map.empty ((id *** fromRight) <$> prefs)
   <&> FontMap dπ ∘ flip (foldl resolveAlias)          ((id *** fromLeft)  <$> aliases)

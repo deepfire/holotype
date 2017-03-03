@@ -121,11 +121,11 @@ rendererFinaliseToNewFrame renderer = do
   liftIO $ rendererWaitForVSync renderer
   Frame <$> (liftIO $ rendererSetupFrame renderer)
 
-grcToGIC ∷ GRC.Cairo → IO GIC.Context
-grcToGIC grc = GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
+grcToGIC ∷ (MonadIO m) ⇒ GRC.Cairo → m GIC.Context
+grcToGIC grc = liftIO $ GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
 
-makeDrawable ∷ ObjectStream → Di Double → IO Drawable
-makeDrawable dObjectStream@ObjectStream{..} dDi' = do
+makeDrawable ∷ (MonadIO m) ⇒ ObjectStream → Di Double → m Drawable
+makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
   dStrideBytes  ← Wi <$> GRC.imageSurfaceGetStride dSurface
@@ -149,8 +149,8 @@ makeDrawable dObjectStream@ObjectStream{..} dDi' = do
 
   pure Drawable{..}
 
-drawableContentToGPU ∷ Drawable → IO ()
-drawableContentToGPU Drawable{..} = do
+drawableContentToGPU ∷ (MonadIO m) ⇒ Drawable → m ()
+drawableContentToGPU Drawable{..} = liftIO $ do
   let ObjectStream{..} = dObjectStream
 
   -- XXX/temp hack:
@@ -174,8 +174,7 @@ framePutDrawable ∷ (MonadIO m) ⇒ Frame → Drawable → Po Float → m ()
 framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = do
   let cvpos    = Vec3 x y 0
       toScreen = screenM screenW screenH
-  liftIO $
-    GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
+  liftIO $ GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
     Q3.mat4ToM44F $! toScreen Vc..*. (Vc.fromProjective $! Vc.translation cvpos)
 
 
@@ -212,16 +211,16 @@ class   Visual w ⇒ Container w where
 
 class Visual w ⇒ Widget w where
   -- | Query size: style meets content → compute spatial parameters.
-  query          ∷ Settings PU           → StyleOf w → Content w → IO (DrawableSpace False (Depth w))
+  query          ∷ (MonadIO m) ⇒ Settings PU           → StyleOf w → Content w → m (DrawableSpace False (Depth w))
   -- | Add target and space: given a drawable and a pinned space, prepare for 'render'.
-  make           ∷ Settings PU → CanvasW → StyleOf w → Content w →     DrawableSpace True  (Depth w) → IO w
+  make           ∷ (MonadIO m) ⇒ Settings PU → CanvasW → StyleOf w → Content w →    DrawableSpace True  (Depth w) → m w
   -- | Per-content-change: mutate pixels of the bound drawable.
-  draw           ∷ CanvasW → w → IO ()
+  draw           ∷ (MonadIO m) ⇒ CanvasW → w → m ()
 
 class Container w ⇒ WDrawable w where
-  assemble       ∷ Settings PU → ObjectStream → StyleOf w → Content w → IO w
+  assemble       ∷ (MonadIO m) ⇒ Settings PU → ObjectStream → StyleOf w → Content w → m w
   drawableOf     ∷ w → Drawable
-  render         ∷ w → IO ()
+  render         ∷ (MonadIO m) ⇒ w → m ()
 
 
 -- * Styles
@@ -306,7 +305,7 @@ instance Widget Text where
              (FontBinding Font{..} _) lay text) = do
     laySetSize         lay fDΠ (Di (PUs <$> (rb ^-^ lt)))
     laySetMaxParaLines lay tMaxParaLines
-    (`runReaderT` dGRC) $ GRC.runRender $ do
+    liftIO $ (`runReaderT` dGRC) $ GRC.runRender $ do
       GRC.moveTo cvx cvy
       coSetSourceColor tColor
       GIP.layoutSetText lay text (-1)
@@ -343,7 +342,7 @@ instance Widget a ⇒ Widget (RRect a) where
   draw canvas@(CW (Canvas (Drawable _ _ _ _ _ cGRC cGIC _ _ _ _) _ _ _ _))
        (RRect (Spc obez (Spc bord (Spc ibez (Spc pad _))))
               (In RRectS{..} _) inner) = do
-    (`runReaderT` cGRC) $ GRC.runRender $ do
+    liftIO $ (`runReaderT` cGRC) $ GRC.runRender $ do
       -- ((layw, layh), ellipsized) ←
       let dCorn (RRCorn _ pos _ _) col = d pos col
           ths@[oth, bth, ith, pth]
@@ -431,10 +430,10 @@ instance Widget a ⇒ WDrawable (Canvas a) where
     draw (CW self) cInner
     drawableContentToGPU cDrawable
 
-makeCanvas ∷ Widget w ⇒ Settings PU → ObjectStream → StyleOf (Canvas w) → Content (Canvas w) → IO CanvasW
+makeCanvas ∷ (MonadIO m, Widget w) ⇒ Settings PU → ObjectStream → StyleOf (Canvas w) → Content (Canvas w) → m CanvasW
 makeCanvas sts os sty co = CW <$> assemble sts os sty co
 
-renderCanvas ∷ CanvasW → IO ()
+renderCanvas ∷ (MonadIO m) ⇒ CanvasW → m ()
 renderCanvas (CW c) = render c
 
 placeCanvas ∷ (MonadIO m) ⇒ CanvasW → Frame → Po Double → m ()

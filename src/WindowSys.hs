@@ -2,11 +2,12 @@
 {-# LANGUAGE UnicodeSyntax #-}
 module WindowSys where
 
+import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import "GLFW-b"  Graphics.UI.GLFW   as GLFW
 import qualified Graphics.GL.Core33 as GL
 
-makeGLWindow ∷ String → IO GLFW.Window
-makeGLWindow title = do
+makeGLWindow ∷ (MonadIO m) ⇒ String → m GLFW.Window
+makeGLWindow title = liftIO $ do
   let (width, height) = (1024, 768)
   GLFW.init
   defaultWindowHints
@@ -22,5 +23,5 @@ makeGLWindow title = do
   swapInterval 0
   return win
 
-keyIsPressed ∷ GLFW.Window → GLFW.Key → IO Bool
-keyIsPressed win k = fmap (==KeyState'Pressed) $ GLFW.getKey win k
+keyIsPressed ∷ (MonadIO m) ⇒ GLFW.Window → GLFW.Key → m Bool
+keyIsPressed win k = liftIO $ fmap (==KeyState'Pressed) $ GLFW.getKey win k

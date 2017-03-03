@@ -13,6 +13,7 @@ import           Control.Lens
 
 -- Generic
 import           Control.Monad                            (join, unless, when, forM_, filterM)
+import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
 import           Data.Function                     hiding (id)
@@ -98,16 +99,16 @@ pipelineSchema schemaPairs =
       ++ zip textures (repeat GL.FTexture2D)
   }
 
-compilePipeline ∷ FilePath → IO Bool
-compilePipeline jsonOutput = Q3.printTimeDiff "-- compiling graphics pipeline... " $ do
+compilePipeline ∷ (MonadIO m) ⇒ FilePath → m Bool
+compilePipeline jsonOutput = liftIO $ Q3.printTimeDiff "-- compiling graphics pipeline... " $ do
   let pipelineSrc = "Holotype.lc"
   LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc >>= \case
     Left  err → printf "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err) >> return False
     Right ppl → LB.writeFile jsonOutput (AE.encode ppl)                   >> return True
 
-bindPipeline ∷ GL.GLStorage → String → IO (Maybe GL.GLRenderer)
-bindPipeline storage pipelineJSON = do
-    putStrLn $ "-- reading GPU pipeline from " ++ pipelineJSON
+bindPipeline ∷ (MonadIO m) ⇒ GL.GLStorage → String → m (Maybe GL.GLRenderer)
+bindPipeline storage pipelineJSON = liftIO $ do
+    printf $ "-- reading GPU pipeline from " ++ pipelineJSON
     let paths = [pipelineJSON]
     validPaths ← filterM FS.doesFileExist paths
     when (Prelude.null validPaths) $
@@ -135,8 +136,8 @@ data Renderer where
 --   'ous' is a list of object array/texture uniform name pairs, that have to be
 --   recognized by the Lambdacube pipeline.
 --   A GL context must have already been set up in 'IO', with f.e. 'makeGLWindow'.
-makeRenderer ∷ GLFW.Window → [(ObjArrayNameS, UniformNameS)] → IO (Either String Renderer)
-makeRenderer rWindow ous = do
+makeRenderer ∷ (MonadIO m) ⇒ GLFW.Window → [(ObjArrayNameS, UniformNameS)] → m (Either String Renderer)
+makeRenderer rWindow ous = liftIO $ do
     let schema = pipelineSchema ous
 
     rGLStorage ← GL.allocStorage schema
@@ -160,7 +161,7 @@ makeRenderer rWindow ous = do
 rStream ∷ Renderer → (ObjArrayNameS, UniformNameS) → Maybe ObjectStream
 rStream Renderer{..} = flip Map.lookup rStreams
 
-makeSimpleRenderedStream ∷ GLFW.Window → (ObjArrayNameS, UniformNameS) → IO (Renderer, ObjectStream)
+makeSimpleRenderedStream ∷ (MonadIO m) ⇒ GLFW.Window → (ObjArrayNameS, UniformNameS) → m (Renderer, ObjectStream)
 makeSimpleRenderedStream rWindow streamDesc = do
   rend' ← makeRenderer rWindow [streamDesc]
   let rend@Renderer{..} = case rend' of
@@ -170,13 +171,13 @@ makeSimpleRenderedStream rWindow streamDesc = do
                & fromMaybe (error $ "Silly invariant #1 failure.")
   pure (rend, stream)
 
-rendererQueryFrameSize ∷ Renderer → IO (Di Int)
-rendererQueryFrameSize Renderer{..} = do
+rendererQueryFrameSize ∷ (MonadIO m) ⇒ Renderer → m (Di Int)
+rendererQueryFrameSize Renderer{..} = liftIO $ do
   (screenW, screenH) ← GLFW.getFramebufferSize rWindow
   pure $ di (Wi screenW) (He screenH)
 
-rendererSetupFrame ∷ Renderer → IO (Di Int)
-rendererSetupFrame r@Renderer{..} = do
+rendererSetupFrame ∷ (MonadIO m) ⇒ Renderer → m (Di Int)
+rendererSetupFrame r@Renderer{..} = liftIO $ do
   let slotU           = GL.uniformSetter rGLStorage
       overbrightBits  = 0
   GL.uniformFloat "identityLight" slotU $ 1 / (2 ^ overbrightBits) -- used by lc:mkColor
@@ -184,12 +185,12 @@ rendererSetupFrame r@Renderer{..} = do
   GL.setScreenSize rGLStorage (fromIntegral screenW) (fromIntegral screenH)
   pure d
 
-rendererFinaliseFrame ∷ Renderer → IO ()
-rendererFinaliseFrame Renderer{..} = do
+rendererFinaliseFrame ∷ (MonadIO m) ⇒ Renderer → m ()
+rendererFinaliseFrame Renderer{..} = liftIO $ do
   GL.renderFrame rGLRenderer
 
-rendererWaitForVSync ∷ Renderer → IO ()
-rendererWaitForVSync Renderer{..} = do
+rendererWaitForVSync ∷ (MonadIO m) ⇒ Renderer → m ()
+rendererWaitForVSync Renderer{..} = liftIO $ do
   GLFW.swapBuffers rWindow
   GLFW.pollEvents
 
@@ -211,8 +212,8 @@ canvasCommonAttrs uname =
 
 
 -- * GL Toolkit
-uploadTexture2DToGPU'''' ∷ Bool → Bool → Bool → Bool → (Int, Int, GL.GLenum, F.Ptr F.CUChar) → IO GL.TextureData
-uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) = do
+uploadTexture2DToGPU'''' ∷ (MonadIO m) ⇒ Bool → Bool → Bool → Bool → (Int, Int, GL.GLenum, F.Ptr F.CUChar) → m GL.TextureData
+uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) = liftIO $ do
     glPixelStorei GL_UNPACK_ALIGNMENT 1
     to ← F.alloca $! \pto → glGenTextures 1 pto >> F.peek pto
     glBindTexture GL_TEXTURE_2D to

@@ -4,6 +4,7 @@
 module HoloSettings
 where
 
+import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import qualified System.IO.Unsafe as UN
 
 import Flatland
@@ -23,7 +24,7 @@ data Settings u where
     , fontmap ∷ FontMap u
     } → Settings u
 
-defaultSettings ∷ IO (Settings PU)
+defaultSettings ∷ (MonadIO m) ⇒ m (Settings PU)
 defaultSettings = do
   let dπ = 96
   fontmap ← makeFontMap dπ fmDefault defaultFontPreferences
