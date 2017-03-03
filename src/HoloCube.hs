@@ -170,14 +170,19 @@ makeSimpleRenderedStream rWindow streamDesc = do
                & fromMaybe (error $ "Silly invariant #1 failure.")
   pure (rend, stream)
 
+rendererQueryFrameSize ∷ Renderer → IO (Di Int)
+rendererQueryFrameSize Renderer{..} = do
+  (screenW, screenH) ← GLFW.getFramebufferSize rWindow
+  pure $ di (Wi screenW) (He screenH)
+
 rendererSetupFrame ∷ Renderer → IO (Di Int)
-rendererSetupFrame Renderer{..} = do
+rendererSetupFrame r@Renderer{..} = do
   let slotU           = GL.uniformSetter rGLStorage
       overbrightBits  = 0
   GL.uniformFloat "identityLight" slotU $ 1 / (2 ^ overbrightBits) -- used by lc:mkColor
-  (screenW, screenH) ← GLFW.getFramebufferSize rWindow
+  d@(Di (V2 screenW screenH)) ← rendererQueryFrameSize r
   GL.setScreenSize rGLStorage (fromIntegral screenW) (fromIntegral screenH)
-  pure $ di (Wi screenW) (He screenH)
+  pure d
 
 rendererFinaliseFrame ∷ Renderer → IO ()
 rendererFinaliseFrame Renderer{..} = do
