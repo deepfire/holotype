@@ -170,11 +170,12 @@ screenM w h =
           (Vc.Vec4  0      0     0 0.5) -- where does that 0.5 factor COMEFROM?
   where (fw, fh) = (fromIntegral w, fromIntegral h)
 
-framePutDrawable ∷ Frame → Drawable → Po Float → IO ()
+framePutDrawable ∷ (MonadIO m) ⇒ Frame → Drawable → Po Float → m ()
 framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = do
   let cvpos    = Vec3 x y 0
       toScreen = screenM screenW screenH
-  GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
+  liftIO $
+    GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
     Q3.mat4ToM44F $! toScreen Vc..*. (Vc.fromProjective $! Vc.translation cvpos)
 
 
@@ -436,5 +437,5 @@ makeCanvas sts os sty co = CW <$> assemble sts os sty co
 renderCanvas ∷ CanvasW → IO ()
 renderCanvas (CW c) = render c
 
-placeCanvas ∷ CanvasW → Frame → Po Double → IO ()
+placeCanvas ∷ (MonadIO m) ⇒ CanvasW → Frame → Po Double → m ()
 placeCanvas (CW c) f = framePutDrawable f (drawableOf c) ∘ (doubleToFloat <$>)
