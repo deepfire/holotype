@@ -9,6 +9,9 @@
 , lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo, gi-gtk, gi-gdk
 , wires, rapid
 , ghc-typelits-extra, ghc-typelits-natnormalise
+, dlist
+, text-lens, text-zipper, yi-core
+, hspec
 }:
 mkDerivation {
   pname = "mood";
@@ -27,6 +30,9 @@ mkDerivation {
     lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo gi-gtk gi-gdk
     wires rapid
     ghc-typelits-extra ghc-typelits-natnormalise
+    dlist
+    text-lens text-zipper yi-core
+    hspec
   ];
   executableHaskellDepends = [
     base bytestring containers directory elerea filepath GLFW-b
