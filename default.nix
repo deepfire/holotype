@@ -7,11 +7,12 @@
 #, youtrack
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
 , lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo, gi-gtk, gi-gdk
-, wires, rapid
+, reflex
+, rapid
 , ghc-typelits-extra, ghc-typelits-natnormalise
-, dlist
-, text-lens, text-zipper, yi-core
-, hspec
+, dlist, dependent-sum, these
+, text-lens, text-zipper
+, hspec, OpenGL
 }:
 mkDerivation {
   pname = "mood";
@@ -28,11 +29,12 @@ mkDerivation {
     # youtrack
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
     lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo gi-gtk gi-gdk
-    wires rapid
+    reflex dependent-sum
+    rapid
     ghc-typelits-extra ghc-typelits-natnormalise
-    dlist
-    text-lens text-zipper yi-core
-    hspec
+    dlist these
+    text-lens text-zipper
+    hspec OpenGL
   ];
   executableHaskellDepends = [
     base bytestring containers directory elerea filepath GLFW-b

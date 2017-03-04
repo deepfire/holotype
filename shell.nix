@@ -14,8 +14,7 @@ let
     overrides = with haskell.lib; new: old:
     let parent = (oldArgs.overrides or (_: _: {})) new old;
     in with new; parent // {
-      halive = overhub   old.halive "lukexi/halive" "e9011910d326a5036f447e4f733235a86dd1987f" "149wdrm07b41d19wjw1hp2xhbb55a2x8ydz6nm9jl281wl8dc6xa" { doCheck = false; };
-      elerea = overhage  old.elerea                                                    "2.8.0" "1sc71775f787dh70ay9fm6x6npsn81yci9yr984ai87ddz023sab" {};
+      halive = overhub   old.halive "lukexi/halive" "2f1c4c4b00a2a046a2df21432456d7dd9c87ea7f" "0if5pdvkkxcyl2ybnvsmavg453l8c7is72lyy0i6c7d3hh3rcgnb" { doCheck = false; };
       haskell-gi = old.haskell-gi_0_20;
       haskell-gi-base = old.haskell-gi-base_0_20;
       gi-atk = old.gi-atk_2_0_11;
@@ -64,6 +63,34 @@ let
         description = "first person shooter game engine";
         license = "BSD";
       };
+      reflex = new.callPackage
+         ({ stdenv, mkDerivation, base, containers, data-default, dependent-map, dependent-sum
+          , exception-transformers, haskell-src-exts, haskell-src-meta, hlint
+          , MemoTrie, lens, monad-control, mtl, primitive, prim-uniq, ref-tf, reflection, semigroups, split, syb
+          , template-haskell, these, transformers, transformers-compat
+          }:
+          mkDerivation {
+            pname = "reflex";
+            version = "0.5.0";
+	    src = pkgs.fetchFromGitHub {
+	      owner = "reflex-frp";
+	      repo = "reflex";
+              rev = "d78ba4318c425ca9b942dc387d7c5c7ab2d2e095";
+              sha256 = "10sryvwdf88ajkp35yma8llkb38cp63vjr5mq2hba4s2d8yg649q";
+            };
+            libraryHaskellDepends = [
+              base containers data-default dependent-map dependent-sum exception-transformers
+              haskell-src-exts haskell-src-meta hlint lens MemoTrie monad-control mtl primitive prim-uniq ref-tf reflection
+	      semigroups split syb template-haskell these transformers transformers-compat
+            ];
+            testHaskellDepends = [
+              base containers dependent-map MemoTrie mtl ref-tf
+            ];
+            homepage = "https://github.com/reflex-frp/reflex";
+            description = "Higher-order Functional Reactive Programming";
+            license = stdenv.lib.licenses.bsd3;
+            hydraPlatforms = stdenv.lib.platforms.none;
+          }) {};
       youtrack =
       new.mkDerivation {
         pname = "youtrack";
