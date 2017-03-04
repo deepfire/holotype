@@ -25,9 +25,12 @@ import           Prelude.Unicode
 -- Generic
 import qualified Control.Concurrent.Chan           as CH
 import qualified Control.Concurrent.STM            as STM (TQueue, atomically, newTQueueIO, readTQueue, writeTQueue)
+import           Data.Foldable
 import           Data.Function                     hiding ((.), id)
 import           Data.Maybe
 import           Data.MeasuredMonoid
+import           Data.Profunctor
+import qualified Data.Sequence as Seq
 import qualified Data.Text                         as T
 import           Data.Vect
 import           Control.Monad                            (when, unless)
@@ -63,20 +66,19 @@ import WindowSys
 
 holotype ∷ (MonadIO m) ⇒ Wire m a (Event ())
 holotype = proc _ → do
-  ()           ← initial -< liftIO $ Sys.hSetBuffering Sys.stdout Sys.NoBuffering
+  ()            ← initial        -< liftIO $ Sys.hSetBuffering Sys.stdout Sys.NoBuffering
 
-  win          ← initial -< liftIO $ makeGLWindow "holotype"
-  eventChannel ← initial -< liftIO $ makeEventChannel win
-  (renderer, stream)
-               ← initial -< liftIO $ makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
-  settings@Settings{..}
-               ← initial -< liftIO $ defaultSettings
-  style ←
+  winV          ← initial        -< makeGLWindow "holotype"
+  (rendererV, streamV)
+                ← initial        -< makeSimpleRenderedStream winV (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
+  settingsV@Settings{..}
+                ← initial        -< defaultSettings
+  styleV        ←
     hold (In (CanvasS @PU "default")
              (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
                          , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 })
                  (TextS @PU "default" 7 $ coGray 1 1))) -< never
-  content ←
+  contentV      ←
     hold (T.unlines
            [ "Press 'q' to quit.\n\n"
            , "Process intero killed"
@@ -84,19 +86,23 @@ holotype = proc _ → do
            , "stack ghci --with-ghc intero '--docker-run-args=--interactive=true --tty=false' --no-build --no-load --ghci-options -odir=/home/deepfire/src/mood/.stack-work/intero/intero17462TiM --ghci-options -hidir=/home/deepfire/src/mood/.stack-work/intero/intero17462TiM mood"
            , "Intero 0.1.20 (GHC 8.0.1)"
            , "Type :intro and press enter for an introduction of the standard commands." ]) -< never
-  canvas       ← initial -< liftIO $ makeCanvas settings stream style (content, Wi 256)
-  ()           ← initial -< liftIO $ renderCanvas canvas
+  canvasV       ← initial        -< makeCanvas settingsV streamV styleV (contentV, Wi 256)
+  ()            ← initial        -< renderCanvas canvasV
 
-  time   ← newTickEvent -< ()
-  frameE ← newFrame     -< renderer
-  inputE ← inputEvents  -< eventChannel
-  worldE ← id -< translateEvent canvas <$> inputE
+  -- The dynamic part.
+  timeDeltaE    ← newTickWE      -< ()
+  fpsV          ← hold 0 . (fmap recip <$> averageEWE 25) -< timeDeltaE
 
-  newWorld  ← scan Void -< worldMergeEvent <$> worldE
+  frameE        ← newFrameVWE    -< rendererV
+  eventChannelV ← initial        -< makeEventChannel winV
+  inputE        ← inputEventsVWE -< eventChannelV
+  worldE        ← id             -< translateEvent canvasV <$> inputE
+
+  newWorld ← scan Void -< worldMergeEvent <$> worldE
 
   onEvent -< producePicture newWorld <$> frameE
 
-  onEvent -< closeHolotype <$> (renderer <$ filterE (\case Shutdown → True; _ → False) worldE)
+  onEvent -< closeHolotype <$> (rendererV <$ filterE (\case Shutdown → True; _ → False) worldE)
 
 worldMergeEvent ∷ WorldEvent → World → World
 worldMergeEvent NonEvent = id
@@ -128,8 +134,8 @@ translateEvent c (EventChar _ 'c') = Spawn c
 translateEvent _ _                 = NonEvent
 
 
-newFrame ∷ (MonadIO m) ⇒ Wire m Renderer (Event Frame)
-newFrame = proc renderer → do
+newFrameVWE ∷ (MonadIO m) ⇒ Wire m Renderer (Event Frame)
+newFrameVWE = proc renderer → do
   newEvent -< Just <$> rendererFinaliseToNewFrame renderer
 
 producePicture ∷ (MonadIO m) ⇒ World → Frame → m ()
@@ -137,8 +143,8 @@ producePicture Void _ = pure ()
 producePicture Singleton{..} frame = do
   placeCanvas canvas frame posn
 
-inputEvents ∷ (MonadIO m) ⇒ Wire m (CH.Chan InputEvent) (Event InputEvent)
-inputEvents = proc eventChan →
+inputEventsVWE ∷ (MonadIO m) ⇒ Wire m (CH.Chan InputEvent) (Event InputEvent)
+inputEventsVWE = proc eventChan →
   newEvent -< liftIO $ do
     b ← CH.isEmptyChan eventChan
     if b then pure Nothing else Just <$> CH.readChan eventChan
@@ -161,14 +167,24 @@ closeHolotype Renderer{..} = liftIO $ do
   GLFW.destroyWindow rWindow
   pure ()
 
-newTickEvent ∷ (MonadIO m) ⇒ Wire m a (Event Double)
-newTickEvent = proc _ -> do
+newTickWE ∷ (MonadIO m) ⇒ Wire m a (Event Double)
+newTickWE = proc _ -> do
     times ← newEvent -< Just <$> getT
     withM_ unfoldE getT -< fmap (\t t' → (secs (t - t'), t)) times
 
     where
     secs = (/ 1000000000) ∘ fromInteger ∘ Sys.toNanoSecs
     getT = liftIO (Sys.getTime Sys.Monotonic)
+
+-- | Average of the given event's payload over the last given number of
+-- occurrences.
+averageEWE ∷ (Fractional a, Monad m) ⇒ Int → Wire m (Event a) (Event a)
+averageEWE n = lmap (fmap go) (unfoldE Seq.empty)
+    where
+    go x xs' =
+        let xs = Seq.take n (x Seq.<| xs')
+        in (foldl' (+) 0 xs / fromIntegral (Seq.length xs),
+            xs)
 
 
 -- * Efficient input handling in GLFW
