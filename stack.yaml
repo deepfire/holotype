@@ -1,1 +1,6 @@
-stack.dfr.yaml
+nix:
+  enable: false
+system-ghc: true
+resolver: ghc-8.0.1
+packages:
+- '.'
