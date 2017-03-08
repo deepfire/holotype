@@ -185,18 +185,18 @@ runStyle s = runIdentity $ runAp (return ∘ fromFAE) s
 type DrawableSpace p d = Space p Double d
 type WidgetSpace   d = DrawableSpace False d
 
-class Show (StyleOf a) ⇒ Visual a where
+class Show (StyleOf a) ⇒ Element a where
   type StyleOf a = (r ∷ Type) | r → a
   type Content a ∷ Type
   type   Depth a ∷ Nat
 
-class   Visual w ⇒ Container w where
+class   Element w ⇒ Container w where
   type   Inner w ∷ Type
   innerOf        ∷ w → Inner w
   spaceToInner   ∷ w → DrawableSpace p (Depth w) → DrawableSpace p (Depth (Inner w))
   styleToInner   ∷ w → StyleOf w → StyleOf (Inner w)
 
-class Visual w ⇒ Widget w where
+class Element w ⇒ Widget w where
   -- | Query size: style meets content → compute spatial parameters.
   query          ∷ (MonadIO m) ⇒ Settings PU           → StyleOf w → Content w → m (DrawableSpace False (Depth w))
   -- | Add target and space: given a drawable and a pinned space, prepare for 'render'.
@@ -240,7 +240,7 @@ deriving instance Show RRectS
 
 
 -- * (): a null widget
-instance Visual () where
+instance Element () where
   type  StyleOf () = ()
   type  Content () = ()
   type    Depth () = 0
@@ -272,7 +272,7 @@ data Text where
     , tText         ∷ T.Text
     } → Text
 
-instance Visual Text where
+instance Element Text where
   type  StyleOf Text = TextS PU
   type  Content Text = (T.Text, Wi (Size PU))
   type    Depth Text = 1
@@ -308,7 +308,7 @@ data RRect a where
     } → RRect a
 deriving instance (Show a, Show (StyleOf a)) ⇒ Show (RRect a)
 
-instance Visual a ⇒ Visual (RRect a) where
+instance Element a ⇒ Element (RRect a) where
   type             StyleOf (RRect a) = In RRectS (StyleOf a) -- XXX/recursive pain
   type             Content (RRect a) = Content a
   type               Depth (RRect a) = 4 + Depth a
@@ -394,7 +394,7 @@ data Canvas a where
 data CanvasW where
   CW ∷ Widget a ⇒ { cPoly ∷ Canvas a } → CanvasW
 
-instance Widget a ⇒ Visual (Canvas a) where
+instance Widget a ⇒ Element (Canvas a) where
   type             StyleOf (Canvas a) = In (CanvasS PU) (StyleOf a)
   type             Content (Canvas a) = Content a
   type             Depth   (Canvas a) = Depth a
