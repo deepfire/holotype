@@ -65,6 +65,7 @@ import qualified GI.PangoCairo.Interfaces.FontMap  as GIPC
 import qualified GI.PangoCairo.Functions           as GIPC
 
 -- Dirty stuff
+import qualified Data.IORef                        as IO
 import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
 import qualified Foreign.Ptr                       as F
@@ -107,7 +108,6 @@ data Drawable where
     , dGPUMesh      ∷ GL.GPUMesh
     , dGLObject     ∷ GL.Object
     } → Drawable
-
 
 grcToGIC ∷ (MonadIO m) ⇒ GRC.Cairo → m GIC.Context
 grcToGIC grc = liftIO $ GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
@@ -274,16 +274,16 @@ data Text where
 
 instance Element Text where
   type  StyleOf Text = TextS PU
-  type  Content Text = (T.Text, Wi (Size PU))
+  type  Content Text = T.Text
   type    Depth Text = 1
 instance Widget Text where
-  query Settings{..} TextS{..} (initialText, maxWi) = do
+  query Settings{..} TextS{..} initialText = do
     let Font{..} = lookupFont' fontmap tFontKey
     laySetMaxParaLines fDetachedLayout tMaxParaLines
-    di ∷ Di (Size PU) ← layRunTextForSize fDetachedLayout fDΠ maxWi initialText -- XXX/GHC/inference: weak
+    di ∷ Di (Size PU) ← layRunTextForSize fDetachedLayout fDΠ defaultWidth initialText -- XXX/GHC/inference: weak
     pure $ sArea $ fromPU ∘ fromSz fDΠ <$> di
   make Settings{..} (CW (Canvas Drawable{..} _ _ tFont@FontBinding{..} _))
-       tStyle@(TextS fKey _ _) (tText, _maxWi) tPSpace = do
+       tStyle@(TextS fKey _ _) tText tPSpace = do
     tLayout ← makeTextLayout fbContext
     pure Text{..}
   draw (CW (Canvas (Drawable{..}) _ _ _ _))
