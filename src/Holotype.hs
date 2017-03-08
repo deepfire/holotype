@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE LambdaCase #-}
@@ -52,6 +52,9 @@ import           Linear
 -- System
 import qualified System.Clock                      as Sys
 import qualified System.IO                         as Sys
+
+-- Dirty stuff
+import qualified Data.IORef                        as IO
 
 -- Reflex
 import           Reflex
@@ -107,47 +110,46 @@ holotype ∷ ReflexGLFWCtx t m
             → Settings PU
             → m (Behavior t Bool)
 holotype streamV initiallyE frameE inputE settingsV@Settings{..} = do
-  initialWorldV    ← sample $ constant (Singleton (po 0 0) $ zft ["Press 'q' to quit.", "", "..."])
-
-  -- timeDeltaE       ← newTickWE
   -- fpsE             ← (T.pack ∘ show ∘ recip <$>) <$> averageEWE 25 timeDeltaE
   frameTimeE       ← performEvent $ fmap (\_ → liftIO $ Sys.getTime Sys.Monotonic) frameE
-  initialCanvasV   ← liftIO $ assemble settingsV streamV dasStyle "Press 'q' to quit."
-  -- canvasE          ← visual settingsV streamV dasStyle $ T.pack ∘ show <$> frameTimeE
 
-  -- CRISIS: we need a /persistent/ canvas, sorry
-  -- Hmm, let's see how horribly it'll break with a non-persistent one, first?
-  -- ..it does break horribly, see https://github.com/lambdacube3d/lambdacube-gl/issues/9
   let worldE   = translateEvent <$> inputE
-      spawnE   = ffilter (\case Spawn → True; _ → False) worldE
-  canvassesE       ← performEvent $ spawnE $> (liftIO $ do
+      spawnE   = ffilter (\case Spawn    → True; _ → False) worldE
+      editE    = ffilter (\case Edit{..} → True; _ → False) worldE
+  holoE            ← performEvent $ spawnE $> (liftIO $ do
                                                   t ← Sys.getTime Sys.Monotonic
-                                                  c ← assemble settingsV streamV dasStyle
-                                                    (T.pack $ printf "Press 'Esc' to quit.\n\n%s" $ show t)
-                                                  render c
-                                                  pure c)
-  canvassesD       ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ canvassesE
-  let drawReqE = attachPromptlyDyn canvassesD frameE
+                                                  pure $ zft $ [T.pack $ printf "Press 'Esc' to quit.\n\n%s" $ show t])
+  holosomE         ← visual settingsV streamV dasStyle holoE
+  holosomD         ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomE
+
+  let drawReqE   = attachPromptlyDyn holosomD frameE
   _                ← performEvent $ drawReqE <&>
-                     \((_, cs), f@Frame{..})→
-                       forM_ cs $ \(n, c) → do
-                         placeCanvas c f ((po (-0.5) (0.5)) ^+^ (po 0.1 (-0.1)) ^* n)
+                     \((_, cs), f@Frame{..}) →
+                       forM_ cs $ \(n, h@Holosome{..}) → do
+                         placeCanvas holoVisual f ((po (-0.5) (0.5)) ^+^ (po 0.1 (-0.1)) ^* n)
 
-  -- newWorldE        ← scanE Void     -< worldMergeEvent <$> worldEventE
-  -- ()               ← initial        -< renderCanvas canvasV
+  let topsomD    = ffor holosomD (\case (_,[]) → Nothing
+                                        (_,(_,h):_) → Just h)
+      editReqE   = attachPromptlyDyn topsomD editE
+  _                ← performEvent $ editReqE <&>
+                     \case
+                       (Nothing, _)→ pure ()
+                       (Just h, Edit{..}) →
+                         update settingsV h weEdit
 
-  -- onEvent -< producePicture initialCanvasV newWorldE <$> frameE
+  hold False ((\case Shutdown → True; _ → False)
+              <$> worldE)
 
-  -- onEvent -< closeHolotype <$> (rendererV <$ filterE (\case Shutdown → True; _ → False) worldEventE)
-
-  hold False ((\case (EventKey  _ GLFW.Key'Escape _ _ _) → True
-                     _ → False)
-              <$> inputE)
-
-instance Holo T.Text where
-  type Visual T.Text = Canvas (RRect H.Text)
-  -- visualise x = do
-  --   assemble
+instance Holo (T.TextZipper T.Text) where
+  type Visual (T.TextZipper T.Text) = Canvas (RRect H.Text)
+  visualise stts strea sty tzip = do
+    vis ← assemble stts strea sty $ T.unlines $ T.getText tzip
+    render vis
+    pure vis
+  updateVisual _ _ canvas tzip = do
+    let H.Text{..} = (innerOf ∘ innerOf) canvas
+    liftIO $ IO.writeIORef tTextRef $ T.unlines $ T.getText tzip
+    render canvas
 
 worldMergeEvent ∷ WorldEvent → World → World
 worldMergeEvent NonEvent = id
@@ -186,16 +188,6 @@ translateEvent (EventKey  _ GLFW.Key'Delete _ _ _)    = Edit $ T.deleteChar
 translateEvent (EventKey  _ GLFW.Key'Insert _ _ _) = Spawn
 translateEvent (EventKey  _ GLFW.Key'Escape _ _ _) = Shutdown
 translateEvent _                                   = NonEvent
-
-
--- newFrameVWE ∷ (MonadIO m) ⇒ Wire m Renderer (Event Frame)
--- newFrameVWE = proc renderer → do
---   newEvent -< Just <$> rendererFinaliseToNewFrame renderer
-
--- producePicture ∷ (MonadIO m, Widget a) ⇒ Canvas a → World → Frame → m ()
--- producePicture canvas Void _ = pure ()
--- producePicture canvas Singleton{..} frame = do
---   placeCanvas canvas frame posn
 
 
 data Viewport a where
