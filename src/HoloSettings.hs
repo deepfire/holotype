@@ -22,11 +22,15 @@ data Settings u where
   Settings ∷
     { dπ      ∷ DΠ
     , fontmap ∷ FontMap u
+    -- ⋅ hardcode ⋅
+    , defaultWidth ∷ Wi (Size PU)
     } → Settings u
 deriving instance Show (Settings u)
 
-defaultSettings ∷ (MonadIO m) ⇒ m (Settings PU)
+-- defaultSettings ∷ (MonadIO m) ⇒ m (Settings PU)
+defaultSettings ∷ IO (Settings PU)
 defaultSettings = do
-  let dπ = 96
+  let dπ           = 96
+      defaultWidth = 256
   fontmap ← makeFontMap dπ fmDefault defaultFontPreferences
   pure Settings{..}
