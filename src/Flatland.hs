@@ -48,6 +48,7 @@ import           Text.Show.Pretty                         (ppShow)
 
 -- System
 import           System.Random
+import           Reflex.Random
 
 -- Dirty stuff
 import qualified Foreign                           as F
