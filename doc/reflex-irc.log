@@ -1,0 +1,67 @@
+-- 09:05 <deepfire> ryantrinkle: trying to figure out how to implement
+--                  PerformEvent instances, but can't find a single example..
+-- 09:07 <ryantrinkle> deepfire: Reflex.PerformEvent.Base ?
+-- 09:08 <ryantrinkle> you should be able to reuse that, most likely
+-- 09:08 <ryantrinkle> rather than needing to implement it yourself
+-- 09:08 <ryantrinkle> if you want to implement a passthrough instance, take a
+--                     look at, e.g., Reflex.PerformEvent.Class
+-- 09:08 <ryantrinkle> which has an instance for ReaderT
+-- 09:08 <deepfire> ryantrinkle: thank you, looking!
+-- 09:08 <ryantrinkle> np :
+-- 09:10 <deepfire> turns out Reflex.PerformEvent.Base was what I was staring at :
+--                  -
+-- 09:10 <ryantrinkle> haha nice
+-- 09:10 <ryantrinkle> really, it's just a weird specialization of Requester
+-- 09:10 <ryantrinkle> Requester is where the real action is :
+-- 09:14 <deepfire> hmm, I guess I'm conceptually stumped.. I'm not sure what type
+--                  I should have PerformEvent implemented for
+-- 09:15 <deepfire> I have added a PerformEvent t m => context to the application
+--                  type, but there seems to be no instance for PerformEvent
+--                  (SpiderTimeline Global) (SpiderHostFrame Global)
+-- 09:16 <deepfire> ..and that sounds like a fundamental enough type that a
+--                  pass-through instance for it likely won't go?
+-- 09:18 <ryantrinkle> you just need to call hostPerformEventT
+-- 09:18 <ryantrinkle> it'll wrap SpiderHostFrame in a PerformEventT
+-- 09:28 <deepfire> ryantrinkle: so what hostPerformEventT does is to extract the
+--                  requested IO execution events from a single frame run, so that
+--                  the host can execute them separately?
+-- 09:29 <deepfire> ryantrinkle: so what hostPerformEventT does is extracting the
+--                  requested IO execution events from a single frame run, so that
+--                  the host can execute them separately?
+-- 09:29 <deepfire> ..into a FireCommand
+-- 09:30 <ryantrinkle> deepfire: well, it also runs the IO actions
+-- 09:30 <ryantrinkle> but yes, that's right
+-- 09:31 <deepfire> wait, it does run them itself?
+-- 09:31 <ryantrinkle> (that's on the line that binds 'responses')
+-- 09:31 <deepfire> does my host implementation need to do anything with the
+--                  returned FireCommand?
+-- 09:32 <ryantrinkle> yes: it should use that, instead of fireEvents, to fire
+--                     events
+-- 09:32 <ryantrinkle> otherwise, the events won't get performed
+-- 09:33 <deepfire> I see, it it so that it can "thread" the IO action events with
+--                  the main events, right?
+-- 09:34 <deepfire> well, "main", "usual" etc -- the idea is to allow it to handle
+--                  interdependencies
+-- 09:34 <deepfire> ..interdependencies between the usual events and IO action
+--                  events, that is
+-- 09:36 <deepfire> hmm..
+-- 09:36 <deepfire> now the question is about monadic ordering
+-- 09:38 <deepfire> the develop/examples/host.hs example does the event firing
+--                  /before/ it runs the FRP network with runHostFrame
+-- 09:39 <ryantrinkle> runHostFrame doesn't do much
+-- 09:39 <ryantrinkle> it's just a way of doing certain things, such as running
+--                     'hold', while events aren't propagating
+-- 09:40 <ryantrinkle> fireEvents* is what actually runs the FRP network
+-- 09:40 <deepfire> ..but still, it wants the event variables to pass to the FRP
+--                  network..
+-- 09:40 <ryantrinkle> oh, you mean in hostPerformEventT?
+-- 09:41 <ryantrinkle> yeah, that *particular* runHostFrame is producing values
+--                     that will be fired in events
+-- 09:41 <ryantrinkle> bu tthe actual firing happens in the fireEventsAndRead
+--                     above that
+-- 09:58 <ryantrinkle> deepfire: i'm signing off; i'll be around tomorrow if you
+--                     have any questions!
+-- 09:59 <deepfire> ryantrinkle: one last question -- runHostFrame now asks for a
+--                  MonadReflexHost instance
+-- 10:01 <deepfire> ..in  hostPerformEventT $ runHostFrame $ sample b -- where b =
+--                  runHostFrame $ myGuest stream e -- from examples/host.hs
