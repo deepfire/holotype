@@ -188,6 +188,8 @@ translateEvent (EventKey  _ GLFW.Key'Left _ _ _)      = Edit $ T.moveLeft
 translateEvent (EventKey  _ GLFW.Key'Up _ _ _)        = Edit $ T.moveUp
 translateEvent (EventKey  _ GLFW.Key'Right _ _ _)     = Edit $ T.moveRight
 translateEvent (EventKey  _ GLFW.Key'Down _ _ _)      = Edit $ T.moveDown
+translateEvent (EventKey  _ GLFW.Key'Home _ _ _)      = Edit $ T.gotoBOL
+translateEvent (EventKey  _ GLFW.Key'End _ _ _)       = Edit $ T.gotoEOL
 -- how to process key chords?
 translateEvent (EventKey  _ GLFW.Key'Insert _ _ _) = Spawn
 translateEvent (EventKey  _ GLFW.Key'Escape _ _ _) = Shutdown
