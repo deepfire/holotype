@@ -269,8 +269,12 @@ data Text where
     , tStyle        ∷ StyleOf Text
     , tFont         ∷ Font Bound PU
     , tLayout       ∷ GIP.Layout
-    , tText         ∷ T.Text
+    , tTextRef      ∷ IO.IORef T.Text
     } → Text
+
+-- | Sets the text content of WText, but doesn't update its rendering.
+wtextSetText ∷ (MonadIO m) ⇒ Text → T.Text → m ()
+wtextSetText Text{..} textVal = liftIO $ IO.writeIORef tTextRef textVal
 
 instance Element Text where
   type  StyleOf Text = TextS PU
@@ -284,17 +288,19 @@ instance Widget Text where
     pure $ sArea $ fromPU ∘ fromSz fDΠ <$> di
   make Settings{..} (CW (Canvas Drawable{..} _ _ tFont@FontBinding{..} _))
        tStyle@(TextS fKey _ _) tText tPSpace = do
-    tLayout ← makeTextLayout fbContext
+    tLayout  ← makeTextLayout fbContext
+    tTextRef ← liftIO $ IO.newIORef tText
     pure Text{..}
   draw (CW (Canvas (Drawable{..}) _ _ _ _))
        (Text (Spc (PWrap _ _ (Po lt@(V2 cvx cvy)) (Po rb@(V2 cvxe cvye))) End)
              TextS{..}
-             (FontBinding Font{..} _) lay text) = do
+             (FontBinding Font{..} _) lay textRef) = do
     laySetSize         lay fDΠ (Di (PUs <$> (rb ^-^ lt)))
     laySetMaxParaLines lay tMaxParaLines
     liftIO $ (`runReaderT` dGRC) $ GRC.runRender $ do
       GRC.moveTo cvx cvy
       coSetSourceColor tColor
+      text ← liftIO $ IO.readIORef textRef
       GIP.layoutSetText lay text (-1)
       GIPC.showLayout dGIC lay
 
