@@ -7,6 +7,7 @@
 module HoloInput
   ( InputEvent(..)
   , makeEventChannel
+  , readEvent
   )
 where
 
@@ -40,9 +41,16 @@ makeEventChannel win = liftIO $ do
    -- GLFW.setCursorPosCallback       win $ Just $ cursorPosCallback       eventChan
    -- GLFW.setCursorEnterCallback     win $ Just $ cursorEnterCallback     eventChan
    -- GLFW.setScrollCallback          win $ Just $ scrollCallback          eventChan
-   -- GLFW.setKeyCallback             win $ Just $ keyCallback             eventChan
+   GLFW.setKeyCallback             win $ Just $ keyCallback             eventChan
    GLFW.setCharCallback            win $ Just $ charCallback            eventChan
    pure eventChan
+
+readEvent ∷ (MonadIO m) ⇒ CH.Chan InputEvent → m (Maybe InputEvent)
+readEvent eventChan = liftIO $ do
+  GLFW.pollEvents
+  b ← CH.isEmptyChan eventChan
+  if b then pure Nothing else Just <$> CH.readChan eventChan
+
 
 
 data InputEvent =
