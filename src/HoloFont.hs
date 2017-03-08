@@ -356,6 +356,7 @@ data FontMap u where
     { fmDΠ    ∷ DΠ
     , fmFonts ∷ (Map FontKey (Font Found u))
     } → FontMap u
+deriving instance Show (FontMap u)
 
 makeFontMap ∷ (MonadIO m) ⇒ Sizely (Size u) ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → m (FontMap u)
 makeFontMap dπ gipcFM (FontPreferences prefsAndAliases) =

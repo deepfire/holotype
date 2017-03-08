@@ -1,5 +1,5 @@
 {-# LANGUAGE DataKinds, GADTs #-}
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, StandaloneDeriving #-}
 {-# LANGUAGE UnicodeSyntax #-}
 module HoloSettings
 where
@@ -23,6 +23,7 @@ data Settings u where
     { dπ      ∷ DΠ
     , fontmap ∷ FontMap u
     } → Settings u
+deriving instance Show (Settings u)
 
 defaultSettings ∷ (MonadIO m) ⇒ m (Settings PU)
 defaultSettings = do
