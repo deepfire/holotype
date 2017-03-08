@@ -423,11 +423,5 @@ instance Widget a ⇒ WDrawable (Canvas a) where
     draw (CW self) cInner
     drawableContentToGPU cDrawable
 
-makeCanvas ∷ (MonadIO m, Widget w) ⇒ Settings PU → ObjectStream → StyleOf (Canvas w) → Content (Canvas w) → m CanvasW
-makeCanvas sts os sty co = CW <$> assemble sts os sty co
-
-renderCanvas ∷ (MonadIO m) ⇒ CanvasW → m ()
-renderCanvas (CW c) = render c
-
-placeCanvas ∷ (MonadIO m) ⇒ CanvasW → Frame → Po Double → m ()
-placeCanvas (CW c) f = framePutDrawable f (drawableOf c) ∘ (doubleToFloat <$>)
+placeCanvas ∷ (MonadIO m, Widget a) ⇒ Canvas a → Frame → Po Double → m ()
+placeCanvas c f = framePutDrawable f (drawableOf c) ∘ (doubleToFloat <$>)
