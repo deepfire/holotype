@@ -226,7 +226,7 @@ deriving instance (Show o, Show i) ⇒ Show (In o i)
 data By o b where
   By ∷ --(Widget wo, Widget wb, StyleOf wo ~ o, StyleOf wb ~ b) ⇒
     { bOrigin  ∷ o
-    , bOrient  ∷ Orient
+    , bOrient  ∷ Orient Card
     , bBeside  ∷ b
     } → By o b
 deriving instance (Show o, Show b) ⇒ Show (By o b)
@@ -337,8 +337,7 @@ instance Widget a ⇒ Widget (RRect a) where
        (RRect (Spc obez (Spc bord (Spc ibez (Spc pad _))))
               (In RRectS{..} _) inner) = do
     liftIO $ (`runReaderT` cGRC) $ GRC.runRender $ do
-      -- ((layw, layh), ellipsized) ←
-      let dCorn (RRCorn _ pos _ _) col = d pos col
+      let -- dCorn (RRCorn _ pos _ _) col = d pos col
           ths@[oth, bth, ith, pth]
                         = fmap (Th ∘ _wiV ∘ l) [obez, bord, ibez, pad]
           totpadx       = sum ths

@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE DataKinds, KindSignatures, TypeApplications, TypeInType #-}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, NoMonomorphismRestriction, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
 {-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies #-}
 {-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, StandaloneDeriving, TypeOperators #-}
 {-# LANGUAGE DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving #-}
@@ -236,10 +236,20 @@ poSub ∷ Num a ⇒ Po a → Po a → Di a
 poSub (Po v) (Po v') = Di $ v ^-^ v'
 
 -- | Orientation: _ north-west, clockwise to west.
-data Orient = ONW | ON | ONE | OE | OSE | OS | OSW | OW
-  deriving (Eq, Show)
+data OKind  = Card | Corn
+data Orient (k ∷ OKind) where
+  ONW ∷ Orient Corn
+  ON  ∷ Orient Card
+  ONE ∷ Orient Corn
+  OE  ∷ Orient Card
+  OSE ∷ Orient Corn
+  OS  ∷ Orient Card
+  OSW ∷ Orient Corn
+  OW  ∷ Orient Card
+deriving instance Eq   (Orient k)
+deriving instance Show (Orient k)
 
-vROri ∷ Num a ⇒ R a → Orient → (V2 a, V2 a)
+vROri ∷ Num a ⇒ R a → Orient b → (V2 a, V2 a)
 vROri (R r) o | ON  ← o = (z, n) | ONE ← o = (e, n)
               | OE  ← o = (e, z) | OSE ← o = (e, s)
               | OS  ← o = (z, s) | OSW ← o = (w, s)
@@ -248,9 +258,9 @@ vROri (R r) o | ON  ← o = (z, n) | ONE ← o = (e, n)
         s = V2  0  r
         e = V2  r  0
         w = V2(-r) 0
-        z = zero
+        z = V2  0  0
 
-oriCenterRChordCW ∷ Num a ⇒ Orient → Po a → R a → (Po a, Po a)
+oriCenterRChordCW ∷ Num a ⇒ Orient Corn → Po a → R a → (Po a, Po a)
 oriCenterRChordCW o c r
   | ONE ← o = (oy, ox)
   | OSE ← o = (ox, oy)
@@ -273,19 +283,22 @@ thLineSet !(Th th)
   = GRC.setLineWidth th
 
 -- | Description of rounded rectangle features -- sides and corners.
-data RoundRectFeature a where
+data RoundRectFeature dk a where
   RRCorn ∷
-    { rrOri ∷ !Orient
-    , rraCt ∷ !(Po a)
-    , rraAn ∷ !(An a)
-    , rraR  ∷ !(R a)
-    } → RoundRectFeature a
+    { rrcOri ∷ !(Orient Corn)
+    , rrcCt ∷ !(Po a)
+    , rrcAn ∷ !(An a)
+    , rrcR  ∷ !(R a)
+    } → RoundRectFeature Corn a
   RRSide ∷
-    { rrOri ∷ !Orient
+    { rrsOri ∷ !(Orient Card)
     , rrsFr ∷ !(Po a)
     , rrsTo ∷ !(Po a)
-    } → RoundRectFeature a
-deriving instance Show a ⇒ Show (RoundRectFeature a)
+    } → RoundRectFeature Card a
+deriving instance Show a ⇒ Show (RoundRectFeature dk a)
+
+data WRoundRectFeature a where
+  WRR ∷ RoundRectFeature dk a → WRoundRectFeature a
 
 poArc ∷ Po Double → Double → An Double → GRCI.Render ()
 poArc !(Po (V2 x y)) !r !(An (V2 angs ange))
@@ -432,22 +445,11 @@ area a@PArea{..} = a
 area (PWrap _ _ (Po nw) (Po se)) =
   PArea (Di $ se ^-^ nw) (Po nw)
 
-areaSubtract ∷ S Area p a → S Area p a → S Area p a
+areaSubtract ∷ S Area False a → S Area False a → S Area False a
 FArea l `areaSubtract` FArea r = FArea $ l ^-^ r
 
--- newtype ProS p co pr = ProS { _ProS ∷ S Area p pr }
--- instance Profunctor (ProS p) where
---   dimap con (cov ∷ ) (ProS x) = ProS $ cov x
-
--- ..for inspiration:
--- instance Profunctor (->) where
---   dimap con cov f = cov ∘ f ∘ con
---         con     ∷   a    ←   c
---             cov ∷     b  →     d
---   dimap con cov ∷ f a b  → f c d
-
 
--- * General transformations (parametrized combinators)
+-- * General transformations
 --
 narrowByTh ∷ Th a → S Area p a → S Area p a
 narrowByTh (Th d) (FArea (Di a))        = FArea (Di $ a ^-^ (V2 d d) ^* 2)
@@ -468,29 +470,29 @@ pinWrap FWrap{..} _pwNWp _pwSEp = PWrap{..}
 
 -- * Drawing
 -- | Wrap rendering as a rounded rectangle.
-wrapRoundedRectFeatures ∷ Floating a ⇒ S Wrap True a → R a → Th a → [RoundRectFeature a]
+wrapRoundedRectFeatures ∷ Floating a ⇒ S Wrap True a → R a → Th a → [WRoundRectFeature a]
 wrapRoundedRectFeatures pw@PWrap{..} rr@(R r) th =
   let pa@(PArea (Di (V2 wi he)) (Po (V2 w n))) = narrowByTh ((/2) <$> th) $ area pw
       V2 e s = _poV $ paSEp pa
       !degrees         = pi/180
-  in [RRSide ON  (po (w + r)  n)      (po (e - r) n)
-     ,RRCorn ONE (po (e - r) (n + r)) (an (-90 ⋅ degrees)   (0 ⋅ degrees)) rr
-     ,RRSide OE  (po  e      (n + r)) (po  e     (s - r))
-     ,RRCorn OSE (po (e - r) (s - r)) (an   (0 ⋅ degrees)  (90 ⋅ degrees)) rr
-     ,RRSide OS  (po (w + r)  s)      (po (e - r) s)
-     ,RRCorn OSW (po (w + r) (s - r)) (an  (90 ⋅ degrees) (180 ⋅ degrees)) rr
-     ,RRSide OW  (po  w      (n + r)) (po  w     (s - r))
-     ,RRCorn ONW (po (w + r) (n + r)) (an (180 ⋅ degrees) (270 ⋅ degrees)) rr]
+  in [WRR $ RRSide ON  (po (w + r)  n)      (po (e - r) n)
+     ,WRR $ RRCorn ONE (po (e - r) (n + r)) (an (-90 ⋅ degrees)   (0 ⋅ degrees)) rr
+     ,WRR $ RRSide OE  (po  e      (n + r)) (po  e     (s - r))
+     ,WRR $ RRCorn OSE (po (e - r) (s - r)) (an   (0 ⋅ degrees)  (90 ⋅ degrees)) rr
+     ,WRR $ RRSide OS  (po (w + r)  s)      (po (e - r) s)
+     ,WRR $ RRCorn OSW (po (w + r) (s - r)) (an  (90 ⋅ degrees) (180 ⋅ degrees)) rr
+     ,WRR $ RRSide OW  (po  w      (n + r)) (po  w     (s - r))
+     ,WRR $ RRCorn ONW (po (w + r) (n + r)) (an (180 ⋅ degrees) (270 ⋅ degrees)) rr]
 
-executeFeature ∷ Maybe (Co Double) → Maybe (Co Double) → RoundRectFeature Double → GRC.Render ()
-executeFeature !cStart !cEnd !(RRSide _ (Po (V2 sx sy)) (Po (V2 ex ey))) = do
+executeFeature ∷ Maybe (Co Double) → Maybe (Co Double) → WRoundRectFeature Double → GRC.Render ()
+executeFeature !cStart !cEnd !(WRR (RRSide _ (Po (V2 sx sy)) (Po (V2 ex ey)))) = do
   -- pat ← UN.unsafeInterleaveIO $ coPatternGradLinear rrsFr cStart rrsTo cEnd
   if | cStart ≢ cEnd    → error "Not implemented: sidewise gradients."
      | Nothing ← cStart → pure ()
      | Just c  ← cStart → coSetSourceColor c
   GRC.moveTo sx sy
   GRC.lineTo ex ey
-executeFeature !cStart !cEnd !(RRCorn o c@(Po (V2 cx cy)) (An (V2 sa ea)) r) = do
+executeFeature !cStart !cEnd !(WRR (RRCorn o c@(Po (V2 cx cy)) (An (V2 sa ea)) r)) = do
   let (cs, ce) = oriCenterRChordCW o c r
   if | cStart ≢ cEnd    → GRC.setSource =<< (GRC.liftIO $ coPatternGradLinear cs (fromJust cStart) ce (fromJust cEnd))
      | Nothing ← cStart → pure ()
