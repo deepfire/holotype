@@ -2,9 +2,9 @@
 
 module Main (main) where
 
-import Control.Wire.Controller (control)
-import Holotype                (holotype)
+import HoloFlex                (host)
+import Holotype                (initialiser)
 
 -- | A FRP implementation meets a FRP network.
 main ∷ IO ()
-main = control holotype
+main = host initialiser
