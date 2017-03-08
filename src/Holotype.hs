@@ -184,6 +184,10 @@ translateEvent (EventChar _ c)                        = Edit $ T.insertChar c
 translateEvent (EventKey  _ GLFW.Key'Enter _ _ _)     = Edit $ T.breakLine
 translateEvent (EventKey  _ GLFW.Key'Backspace _ _ _) = Edit $ T.deletePrevChar
 translateEvent (EventKey  _ GLFW.Key'Delete _ _ _)    = Edit $ T.deleteChar
+translateEvent (EventKey  _ GLFW.Key'Left _ _ _)      = Edit $ T.moveLeft
+translateEvent (EventKey  _ GLFW.Key'Up _ _ _)        = Edit $ T.moveUp
+translateEvent (EventKey  _ GLFW.Key'Right _ _ _)     = Edit $ T.moveRight
+translateEvent (EventKey  _ GLFW.Key'Down _ _ _)      = Edit $ T.moveDown
 -- how to process key chords?
 translateEvent (EventKey  _ GLFW.Key'Insert _ _ _) = Spawn
 translateEvent (EventKey  _ GLFW.Key'Escape _ _ _) = Shutdown
