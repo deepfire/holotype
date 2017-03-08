@@ -4,21 +4,26 @@
 {-# LANGUAGE UnicodeSyntax #-}
 
 module Holo
-  ( -- * Basis
-    Holo
-  , Visual
+  (
+  -- * Define this:
+    Holo, Visual
   , visualise, updateVisual
-  -- * Wires
+  -- * Get that:
+  , Holosome(..)
   , visual
+  , update
   )
 where
 
 import           GHC.Types
-import           GHC.Stack
 import           Prelude                           hiding ((.), id)
 import           Prelude.Unicode
+import           Control.Lens
+import           Data.Function
+import           Data.Functor
 
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
+import qualified Data.IORef                        as IO
 
 import           Reflex
 
@@ -30,12 +35,33 @@ import HoloFlex
 import HoloSettings (Settings)
 
 
-class (WDrawable (Visual a), Content (Visual a) ~ a) ⇒ Holo a where
-  type Visual a = (r ∷ Type) | r → a
-  visualise    ∷ (MonadIO m) ⇒ a → m (Visual a)        -- ^ Produce an initial visualisation of 'a'.
-  updateVisual ∷ (MonadIO m) ⇒ a →   (Visual a) → m () -- ^ Update a visualisation of 'a'.
+-- | 'Holo': anything visualisable.
+class (WDrawable (Visual a)) ⇒ Holo a where
+  type Visual a ∷ Type
+  visualise     ∷ (MonadIO m) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → a → m (Visual a) -- ^ Produce an initial visualisation of 'a'.
+  updateVisual  ∷ (MonadIO m) ⇒ Settings PU → ObjectStream →         (Visual a) → a → m ()         -- ^ Update a visualisation of 'a'.
 
--- | A non-caching wire from a 'Holo' to its 'Visual'.
-visual ∷ (HasCallStack, ReflexGLFWCtx t m, Holo a) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → Event t a → m (Event t (Visual a))
-visual settings stream style holoE =
-  performEvent $ (liftIO ∘ assemble settings stream style) <$> holoE
+
+-- | 'Holosome':  pair a 'Holo' with its visualisation context.
+data Holosome a where
+  Holosome ∷ (Holo a, WDrawable (Visual a)) ⇒
+    { holoRef    ∷ IO.IORef a
+    , holoStyle  ∷ StyleOf (Visual a)
+    , holoStream ∷ ObjectStream
+    , holoVisual ∷ Visual a
+    } → Holosome a
+
+visual ∷ (ReflexGLFWCtx t m, Holo a) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → Event t a → m (Event t (Holosome a))
+visual stts holoStream holoStyle holoE =
+  performEvent $ (holoE <&> (\holo → liftIO $ do
+                                holoVisual ← visualise stts holoStream holoStyle holo
+                                render holoVisual
+                                holoRef ← IO.newIORef holo
+                                pure Holosome{..}))
+
+update ∷ (MonadIO m, Holo a) ⇒ Settings PU → Holosome a → (a → a) → m ()
+update stts Holosome{..} f = do
+  old ← liftIO $ IO.readIORef holoRef
+  let new = f old
+  liftIO $ IO.writeIORef holoRef new
+  updateVisual stts holoStream holoVisual new
