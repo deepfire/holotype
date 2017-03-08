@@ -141,9 +141,9 @@ drawableContentToGPU Drawable{..} = liftIO $ do
   let ObjectStream{..} = dObjectStream
 
   -- XXX/temp hack:
-  let h = (view _y) ∘ fromDi $ dDi
+  let h = dDi ^. diV ∘ _y
   pixels   ← GRCI.imageSurfaceGetData dSurface -- XXX/eff: convert to imageSurfaceGetPixels
-  cTexture ← uploadTexture2DToGPU'''' False False False False $ (fromWi dStridePixels, h, GL_BGRA, pixels)
+  cTexture ← uploadTexture2DToGPU'''' False False False False $ (dStridePixels ^. wiV, h, GL_BGRA, pixels)
 
   GL.updateObjectUniforms dGLObject $ do
     fromUNS osUniform GL.@= return cTexture
@@ -186,8 +186,8 @@ type DrawableSpace p d = Space p Double d
 type WidgetSpace   d = DrawableSpace False d
 
 class Show (StyleOf a) ⇒ Element a where
-  type StyleOf a = (r ∷ Type) | r → a
-  type Content a ∷ Type
+  type   StyleOf a = (r ∷ Type) | r → a
+  type   Content a ∷ Type
   type   Depth a ∷ Nat
 
 class   Element w ⇒ Container w where
@@ -204,10 +204,10 @@ class Element w ⇒ Widget w where
   -- | Per-content-change: mutate pixels of the bound drawable.
   draw           ∷ (MonadIO m) ⇒ CanvasW → w → m ()
 
-class Container w ⇒ WDrawable w where
-  assemble       ∷ (MonadIO m) ⇒ Settings PU → ObjectStream → StyleOf w → Content w → m w
-  drawableOf     ∷ w → Drawable
-  render         ∷ (MonadIO m) ⇒ w → m ()
+class Container d ⇒ WDrawable d where
+  assemble       ∷ (MonadIO m) ⇒ Settings PU → ObjectStream → StyleOf d → Content d → m d
+  drawableOf     ∷ d → Drawable
+  render         ∷ (MonadIO m) ⇒ d → m ()
 
 
 -- * Styles
@@ -285,16 +285,17 @@ instance Widget Text where
     let Font{..} = lookupFont' fontmap tFontKey
     laySetMaxParaLines fDetachedLayout tMaxParaLines
     di ∷ Di (Size PU) ← layRunTextForSize fDetachedLayout fDΠ defaultWidth initialText -- XXX/GHC/inference: weak
-    pure $ sArea $ fromPU ∘ fromSz fDΠ <$> di
+    pure $ makeArea $ fromPU ∘ fromSz fDΠ <$> di
   make Settings{..} (CW (Canvas Drawable{..} _ _ tFont@FontBinding{..} _))
        tStyle@(TextS fKey _ _) tText tPSpace = do
     tLayout  ← makeTextLayout fbContext
     tTextRef ← liftIO $ IO.newIORef tText
     pure Text{..}
   draw (CW (Canvas (Drawable{..}) _ _ _ _))
-       (Text (Spc (PWrap _ _ (Po lt@(V2 cvx cvy)) (Po rb@(V2 cvxe cvye))) End)
+       (Text (SArea area@(PArea di (Po lt@(V2 cvx cvy))))
              TextS{..}
              (FontBinding Font{..} _) lay textRef) = do
+    let Po rb@(V2 cvxe cvye) = paSEp area
     laySetSize         lay fDΠ (Di (PUs <$> (rb ^-^ lt)))
     laySetMaxParaLines lay tMaxParaLines
     liftIO $ (`runReaderT` dGRC) $ GRC.runRender $ do
@@ -327,7 +328,7 @@ instance Widget a ⇒ Container (RRect a) where
 instance Widget a ⇒ Widget (RRect a) where
   query st@Settings{..} (In RRectS{..} inner) internals = do
     innerSpace ← query st inner internals
-    pure $ (sGrowS (fromTh rrThBezel) $ sGrowS (fromTh rrThBorder) $ sGrowS (fromTh rrThBezel) $ sGrowS (fromTh rrThPadding) End)
+    pure $ (growSymm rrThBezel $ growSymm rrThBorder $ growSymm rrThBezel $ growSymm rrThPadding End)
            <> innerSpace
   make st@Settings{..} drawable rrStyle rrContent rrPSpace = do
     let w = RRect{..} where rrInner = (⊥)    -- resolve circularity due to *ToInner..
@@ -339,11 +340,11 @@ instance Widget a ⇒ Widget (RRect a) where
       -- ((layw, layh), ellipsized) ←
       let dCorn (RRCorn _ pos _ _) col = d pos col
           ths@[oth, bth, ith, pth]
-                        = fmap (Th ∘ fromWi ∘ wL) [obez, bord, ibez, pad]
+                        = fmap (Th ∘ _wiV ∘ l) [obez, bord, ibez, pad]
           totpadx       = sum ths
-          or            =       R ∘ fromTh $ (totpadx - oth/2)
-          br            = or - (R ∘ fromTh $ (oth+bth)*0.6)
-          ir            = br - (R ∘ fromTh $ (bth+ith)/2)
+          or            =       R ∘ _thV $ (totpadx - oth/2)
+          br            = or - (R ∘ _thV $ (oth+bth)*0.6)
+          ir            = br - (R ∘ _thV $ (bth+ith)/2)
       -- coSetSourceColor (co 0 1 0 1) >> GRC.paint
       -- background & border arcs
       let bfeats@[n, ne, _, se, _, sw, _, nw] = wrapRoundedRectFeatures bord br bth
@@ -413,7 +414,7 @@ instance Widget a ⇒ Container (Canvas a) where
 instance Widget a ⇒ WDrawable (Canvas a) where
   assemble settings@Settings{..} stream cStyle@(In (CanvasS cFontKey) innerStyle) innerContent = do
     cPSpace   ← sPin (po 0 0) <$> query settings innerStyle innerContent
-    cDrawable ← makeDrawable stream (sDim cPSpace)
+    cDrawable ← makeDrawable stream $ spaceDim cPSpace
     cFont     ← bindFont (lookupFont' fontmap cFontKey) $ dGIC cDrawable
     let w = Canvas{..} where cInner = (⊥)                -- resolve circularity due to *ToInner..
     cInner ← make settings (CW w) innerStyle innerContent cPSpace

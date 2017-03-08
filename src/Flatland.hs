@@ -1,9 +1,11 @@
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
-{-# LANGUAGE DataKinds, KindSignatures #-}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes #-}
+{-# LANGUAGE DataKinds, KindSignatures, TypeApplications, TypeInType #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
 {-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies #-}
 {-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, StandaloneDeriving, TypeOperators #-}
-{-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UnicodeSyntax #-}
 module Flatland where
 
@@ -14,10 +16,17 @@ import           Prelude.Unicode
 import           GHC.TypeLits
 
 -- General types
+import qualified GHC.Generics                      as GHC
+import           Control.Applicative
 import           Control.Lens
+import           Control.Lens.TH
+import           Control.Monad.Random
+import           Control.Monad.State
+import           Data.Function
 import           Data.Map (Map)
 import qualified Data.Map                          as Map
 import           Data.Maybe
+import           Data.Profunctor
 import           Data.Semigroup
 import           Data.MeasuredMonoid
 import           Data.MonoTraversable
@@ -36,6 +45,9 @@ import qualified GI.Pango                          as GIP (unitsToDouble, unitsF
 -- Misc
 import           Text.Printf                              (printf)
 import           Text.Show.Pretty                         (ppShow)
+
+-- System
+import           System.Random
 
 -- Dirty stuff
 import qualified Foreign                           as F
@@ -100,6 +112,25 @@ instance Ord (Size Pt)  where Pts  l <= Pts  r = l <= r
 instance Num (Size PU)  where fromInteger = PUs  ∘ fromIntegral; PUs  x + PUs  y = PUs  $ x + y; PUs  x * PUs  y = PUs  $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
 instance Num (Size PUI) where fromInteger = PUIs ∘ fromIntegral; PUIs x + PUIs y = PUIs $ x + y; PUIs x * PUIs y = PUIs $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
 instance Num (Size Pt)  where fromInteger = Pts  ∘ fromIntegral; Pts  x + Pts  y = Pts  $ x + y; Pts  x * Pts  y = Pts  $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
+
+instance Random (Size PU) where
+  randomR (PUs a, PUs a')   = runState $ liftA PUs $ state $ randomR (a, a')
+  random                    = runState $ liftA PUs $ state random
+instance Random (Size PUI) where
+  randomR (PUIs a, PUIs a') = runState $ liftA PUIs $ state $ randomR (a, a')
+  random                    = runState $ liftA PUIs $ state random
+instance Random (Size Pt) where
+  randomR (Pts a, Pts a')   = runState $ liftA Pts $ state $ randomR (a, a')
+  random                    = runState $ liftA Pts $ state random
+instance Random a ⇒ Random (V2 a) where
+  randomR (V2 x y, V2 x' y') = runState $ liftA2 V2 (state $ randomR (x, x')) (state $ randomR (y, y'))
+  random                     = runState $ liftA2 V2 (state random) (state random)
+instance Random a ⇒ Random (V3 a) where
+  randomR (V3 x y z, V3 x' y' z') = runState $ liftA3 V3 (state $ randomR (x, x')) (state $ randomR (y, y')) (state $ randomR (z, z'))
+  random                          = runState $ liftA3 V3 (state random) (state random) (state random)
+instance Random a ⇒ Random (V4 a) where
+  randomR (V4 x y z w, V4 x' y' z' w') = runState $ V4 <$> (state $ randomR (x, x')) <*> (state $ randomR (y, y')) <*> (state $ randomR (z, z')) <*> (state $ randomR (w, w'))
+  random                               = runState $ V4 <$> (state random) <*> (state random) <*> (state random) <*> (state random)
 -- </Boilerplate>
 
 -- | Conversion between unit sizes -- See Note [Pango resolution & unit conversion]
@@ -130,15 +161,23 @@ instance Sizely (Size Pt) where
 
 -- * Specialized linear dimension classification:
 
-newtype R   a = R   { fromR   ∷     a } deriving (Eq, Functor, Num)             -- ^ Radius
-newtype Th  a = Th  { fromTh  ∷     a } deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
-newtype He  a = He  { fromHe  ∷     a } deriving (Eq, Functor, Num)             -- ^ Height
-newtype Wi  a = Wi  { fromWi  ∷     a } deriving (Eq, Functor, Num)             -- ^ Width
+newtype R   a = R   { _rV  ∷ a } deriving (Eq, Functor, Num)             -- ^ Radius
+newtype Th  a = Th  { _thV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
+newtype He  a = He  { _heV ∷ a } deriving (Eq, Functor, Num)             -- ^ Height
+newtype Wi  a = Wi  { _wiV ∷ a } deriving (Eq, Functor, Num)             -- ^ Width
+deriving instance GHC.Generic (R a)
 deriving instance Show a ⇒ Show (R  a)
 deriving instance Show a ⇒ Show (Th a)
 deriving instance Show a ⇒ Show (He a)
 deriving instance Show a ⇒ Show (Wi a)
---instance Sizeable R (Size u); instance Sizeable Th (Size u); instance Sizeable He (Size u); instance Sizeable Wi (Size u)
+deriving instance Random a ⇒ Random (R a)
+deriving instance Random a ⇒ Random (Th a)
+deriving instance Random a ⇒ Random (He a)
+deriving instance Random a ⇒ Random (Wi a)
+makeLenses ''R
+makeLenses ''Th
+makeLenses ''He
+makeLenses ''Wi
 
 
 -- * Pairing dimensions:
@@ -157,18 +196,26 @@ v2symm x = V2 x x
 v2negp ∷ (Num a, Ord a) ⇒ V2 a → Bool
 v2negp (V2 d0 d1) = d0 < 0 || d1 < 0
 
-newtype  Di a =  Di { fromDi  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Dimensions
-newtype  Po a =  Po { fromPo  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Coordinates
-newtype SDi a = SDi { fromSDi ∷ V4 a } deriving                        (Eq, Functor) -- ^ Side-wise dimensions: N, E, S, W
-newtype SPo a = SPo { fromSpo ∷ V4 a } deriving                        (Eq, Functor) -- ^ Side-wise positions:  N, E, S, W
+newtype  Di a =  Di { _diV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Dimensions
+newtype  Po a =  Po { _poV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Coordinates
+newtype SDi a = SDi { _sdiV ∷ V4 a } deriving                        (Eq, Functor) -- ^ Side-wise dimensions: N, E, S, W
 -- deriving instance Additive Di
-deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show (SDi a); deriving instance Show a ⇒ Show (SPo a)
---instance           Sizeable Di (Size u); instance           Sizeable Po (Size u); instance          Sizeable SDi (Size u); instance          Sizeable SPo (Size u)
+deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show (SDi a)
 
-newtype An  a = An  { fromAn  ∷ V2 a } deriving (Eq, Functor) -- ^ Unordered pair of angles
-newtype Co  a = Co  { fromCo  ∷ V4 a } deriving (Eq, Functor) -- ^ Color
+newtype An  a = An  { _anV  ∷ V2 a } deriving (Eq, Functor) -- ^ Unordered pair of angles
+newtype Co  a = Co  { _coV  ∷ V4 a } deriving (Eq, Functor) -- ^ Color
 deriving instance Show a ⇒ Show (An a)
 deriving instance Show a ⇒ Show (Co a)
+deriving instance Random a ⇒ Random (Di a)
+deriving instance Random a ⇒ Random (Po a)
+deriving instance Random a ⇒ Random (SDi a)
+deriving instance Random a ⇒ Random (Co a)
+deriving instance Random a ⇒ Random (An a)
+makeLenses ''Di
+makeLenses ''Po
+makeLenses ''SDi
+makeLenses ''An
+makeLenses ''Co
 
 di ∷ Wi a → He a  → Di a
 di  (Wi x) (He y) = Di $ V2 x y
@@ -179,10 +226,15 @@ an x y = An $ V2 x y
 co ∷ a → a → a → a → Co a
 co r g b a = Co $ V4 r g b a
 
-off ∷ Num a ⇒ Po a → V2 a → Po a
-off co = Po ∘ (+ fromPo co)
+poBy ∷ Num a ⇒ Po a → V2 a → Po a
+poBy po = Po ∘ (+ _poV po)
+poByDi ∷ Num a ⇒ Po a → Di a → Po a
+poByDi po = poBy po ∘ _diV
 
--- | Orientation: from north-west, clockwise to west.
+poSub ∷ Num a ⇒ Po a → Po a → Di a
+poSub (Po v) (Po v') = Di $ v ^-^ v'
+
+-- | Orientation: _ north-west, clockwise to west.
 data Orient = ONW | ON | ONE | OE | OSE | OS | OSW | OW
   deriving (Eq, Show)
 
@@ -204,19 +256,16 @@ oriCenterRChordCW o c r
   | OSW ← o = (oy, ox)
   | ONW ← o = (ox, oy)
   where (vx, vy) = vROri r o
-        (ox, oy) = (off c vx, off c vy)
+        (ox, oy) = (poBy c vx, poBy c vy)
 
-di2goldX, di2goldY ∷ Double → Di Double
-di2goldX x = Di $ V2  x               (x / goldenRatio)
-di2goldY y = Di $ V2 (y / goldenRatio) y
+goldXdi ∷ RealFrac a ⇒ Wi a → Di a
+goldXdi (Wi x) = Di $ V2  x               (x / realToFrac goldenRatio)
+goldYdi ∷ RealFrac a ⇒ He a → Di a
+goldYdi (He y) = Di $ V2 (y / realToFrac goldenRatio) y
 
 poRectOppo ∷ Po a → Po a → (Po a, Po a)
 poRectOppo !(Po (V2 c00 c01)) !(Po (V2 c10 c11))
   = (Po (V2 c00 c11), Po (V2 c10 c01))
-
-spoNarrow ∷ Num a ⇒ Th a → SPo a → SPo a
-spoNarrow (Th d) (SPo (V4 n e s w))
-  = SPo $ V4 (n + d) (e - d) (s - d) (w + d)
 
 thLineSet ∷ Th Double → GRCI.Render ()
 thLineSet !(Th th)
@@ -242,6 +291,8 @@ poArc !(Po (V2 x y)) !r !(An (V2 angs ange))
   = GRC.arc x y r angs ange
   where degrees = pi/180
 
+
+-- * Colors
 coOpaq ∷ Num a ⇒ a → a → a → Co a
 coOpaq r g b = Co $ V4 r g b 1
 
@@ -273,94 +324,153 @@ coPatternGradRadial !(Po (V2 xi yi)) !ir !ico !(Po (V2 xo yo)) !or !oco = do
   pure p
 
 
+
+data Kind = Area | Wrap
 -- | A 'Wrap' is a rectangular "donut", wrapping something inside it.
 --   It effectively partitions space into:
 --   - the __/wrap area/__, around the /wrapped area/ -- this is what 'Wrap' corresponds to,
 --   - the __/wrapped area/__, that, which is inside the 'Wrap' itself.
-data Wrap (pinned ∷ Bool) a where
-  Wrap  ∷ Num a ⇒ -- ^ The non-positioned, dimensional-only wrap.
-    { wNWd  ∷ !(Di a) -- ^ The combined offsets from the left and top sides.
-    , wSEd  ∷ !(Di a) -- ^ The combined offsets from the right and bottom sides.
-    } → Wrap False a
-  PWrap ∷ Num a ⇒ -- ^ The /pinned/ variant -- enriched with a position.
-    { pwNWd ∷ !(Di a) -- ^ ..same as above.
-    , pwSEd ∷ !(Di a) -- ^ ..same as above.
-    , pwNWp ∷ !(Po a) -- ^ Coordinates of the top-leftmost pixel of the wrap area.
-    , pwSEp ∷ !(Po a) -- ^ Coordinates of the bottom-rightmost pixel of the wrap area.
-    } → Wrap True a
-deriving instance Show u ⇒ Show (Wrap p u)
+data S (kind ∷ Kind) (pinned ∷ Bool) a where
+  FArea  ∷ Num a ⇒ -- ^ A non-positioned, free area.
+    { _aD    ∷ !(Di a)
+    } → S Area False a
+  PArea  ∷ Num a ⇒ -- ^ A positioned, pinned area.
+    { _paD   ∷ !(Di a)
+    , _paNWp ∷ !(Po a)
+    } → S Area True a
+  FWrap  ∷ Num a ⇒ -- ^ The non-positioned, dimensional-only, free wrap.
+    { _wNWd  ∷ !(Di a) -- ^ The combined offsets _ the left and top sides.
+    , _wSEd  ∷ !(Di a) -- ^ The combined offsets _ the right and bottom sides.
+    } → S Wrap False a
+  PWrap ∷ Num a ⇒ -- ^ The pinned variant -- enriched with a position.
+    { _pwNWd ∷ !(Di a) -- ^ ..same as above.
+    , _pwSEd ∷ !(Di a) -- ^ ..same as above.
+    , _pwNWp ∷ !(Po a) -- ^ Coordinates of the top-leftmost pixel of the wrap area.
+    , _pwSEp ∷ !(Po a) -- ^ Coordinates of the bottom-rightmost pixel of the wrap area.
+    } → S Wrap True a
+deriving instance Show u ⇒ Show (S k p u)
+aD :: Lens' (S Area p a) (Di a)
+aD f FArea{..} = FArea <$> f _aD
+aD f PArea{..} = flip PArea _paNWp <$> f _paD
 
-wL, wR ∷ Wrap p u → Wi u
-wT, wB ∷ Wrap p u → He u
-wL  Wrap{..} = Wi ∘ (view _x) $ fromDi wNWd; wL PWrap{..} = Wi ∘ (view _x) $ fromDi pwNWd
-wT  Wrap{..} = He ∘ (view _y) $ fromDi wNWd; wT PWrap{..} = He ∘ (view _y) $ fromDi pwNWd
-wR  Wrap{..} = Wi ∘ (view _x) $ fromDi wSEd; wR PWrap{..} = Wi ∘ (view _x) $ fromDi pwSEd
-wB  Wrap{..} = He ∘ (view _y) $ fromDi wSEd; wB PWrap{..} = He ∘ (view _y) $ fromDi pwSEd
 
-pwPosition ∷ Wrap True a → SPo a
-pwPosition (PWrap _ _ (Po (V2 nwx nwy)) (Po (V2 sex sey))) =
-  SPo $ V4 nwy sex sey nwx
+
+-- * Constructors
+class Num a ⇒ AspectS a k where aspect ∷ Di a → S k False a
+class Num a ⇒ SymmS   a k where symm   ∷ Th a → S k False a
+class Num a ⇒ GoldXS  a k where goldX  ∷ Wi a → S k False a
+class Num a ⇒ GoldYS  a k where goldY  ∷ He a → S k False a
+instance Num a ⇒      AspectS a Area where aspect =      FArea
+instance Num a ⇒      AspectS a Wrap where aspect = join FWrap
+instance Num a ⇒      SymmS   a Area where symm   =      FArea ∘ Di ∘ join V2 ∘ _thV
+instance Num a ⇒      SymmS   a Wrap where symm   = join FWrap ∘ Di ∘ join V2 ∘ _thV
+instance RealFrac a ⇒ GoldXS  a Area where goldX  =      FArea ∘ goldXdi
+instance RealFrac a ⇒ GoldXS  a Wrap where goldX  = join FWrap ∘ goldXdi
+instance RealFrac a ⇒ GoldYS  a Area where goldY  =      FArea ∘ goldYdi
+instance RealFrac a ⇒ GoldYS  a Wrap where goldY  = join FWrap ∘ goldYdi
 
--- | Narrowing into a positioned 'Wrap'.
-pwNWpi, pwSEpi ∷ Wrap True a → Po a
-pwNWpi (PWrap (Di pwNWd) _ (Po pwNWp) _) = Po $ pwNWp ^+^ pwNWd
-pwSEpi (PWrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd
+-- mkAreaWrapPoDi ∷ Num a ⇒ Po a → Di a → S Wrap True a
+-- mkAreaWrapPoDi ltpo ltdi = PWrap  ltdi         zero ltpo (off ltpo $ _Di ltdi)
+-- mkAreaWrapPoPo ∷ Num a ⇒ Po a → Po a → S Wrap True a
+-- mkAreaWrapPoPo lt   rb   = PWrap (poSub rb lt) zero lt    rb
+-- mkAreaIntersectWrap ∷ Num a ⇒ S Wrap True a → S Wrap True a → S Wrap True a
+-- mkAreaIntersectWrap (PWrap ltd rbd ltp rbp) rb   = PWrap (poSub rb lt) zero lt    rb
 
-pwPosIn        ∷ Wrap True a → (Po a, Po a)
-pwPosIn pw = (pwNWpi pw, pwSEpi pw)
+-- instance Random a ⇒ Random (S Area True a) where
+--   random =
+--     runState $ Spc <$> (mkAreaWrap <$> (state random) <*> (state random)) <*> pure End
+--   randomR (V2 x y, V2 x' y') =
+--     runState $ liftA2 V2 (state $ randomR (x, x')) (state $ randomR (y, y'))
+
+
+-- * Projections
+--
+paSEp ∷ S Area True a → Po a
+paSEp (PArea di po) = poByDi po di
+
+center ∷ Fractional a ⇒ S k True a → Po a
+center (PArea d p)                 = poByDi p (d ^/ 2)
+center (PWrap _ _ (Po nw) (Po se)) = Po $ (se ^+^ nw) ^/ 2
+
+dim ∷ S k p a → Di a
+dim FArea{..} = _aD
+dim PArea{..} = _paD
+dim FWrap{..} = _wNWd ^+^ _wSEd
+dim PWrap{..} = Di ∘ _poV $ _pwSEp ^-^ _pwNWp
+
+-- | Narrowing into a positioned 'S Wrap'.
+stepIntoNW, stepIntoSE ∷ S Wrap True a → Po a
+stepIntoNW (PWrap (Di pwNWd) _ (Po pwNWp) _) = Po $ pwNWp ^+^ pwNWd
+stepIntoSE (PWrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd
+
+stepInto ∷               S Wrap True a → (Po a, Po a)
+stepInto pw = (stepIntoNW pw, stepIntoNW pw)
 
 -- | Narrowing into a positioned 'Wrap', halfway.
-pwNWpi'2, pwSEpi'2 ∷ Fractional a ⇒ Wrap True a → Po a
-pwNWpi'2 (PWrap (Di pwNWd) _ (Po pwNWp) _) = Po $ pwNWp ^+^ pwNWd ⋅ 0.5
-pwSEpi'2 (PWrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd ⋅ 0.5
+stepIntoNW'2, stepIntoSE'2 ∷ Fractional a ⇒ S Wrap True a → Po a
+stepIntoNW'2 (PWrap (Di pwNWd) _ (Po pwNWp) _) = Po $ pwNWp ^+^ pwNWd ⋅ 0.5
+stepIntoSE'2 (PWrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd ⋅ 0.5
 
-pwPosIn'2          ∷ Fractional a ⇒ Wrap True a → (Po a, Po a)
-pwPosIn'2 pw = (pwNWpi'2 pw, pwSEpi'2 pw)
+stepInto'2 ∷                 Fractional a ⇒ S Wrap True a → (Po a, Po a)
+stepInto'2 pw = (stepIntoNW'2 pw, stepIntoSE'2 pw)
 
---   Is there a useful meaning for a monoid?
--- instance (Num a, Monoid (V2 a)) ⇒ Monoid (Wrap a) where
---   mempty = Wrap mempty mempty
---   Wrap l0 l1 `mappend` Wrap r0 r1 = Wrap (mappend l0 r0) (mappend l1 r1)
--- instance forall a.Num a ⇒ Functor (Wrap a) where
---   fmap f Wrap{..} = Wrap (fmap f wLB) (fmap f wRT)
+-- * 'l', 't', 'r', 'b' -- sidewise dimensions.
+--
+l, r ∷ S Wrap p a → Wi a
+t, b ∷ S Wrap p a → He a
+l FWrap{..} = Wi ∘ (view _x) $ _diV _wNWd; l PWrap{..} = Wi ∘ (view _x) $ _diV _pwNWd
+t FWrap{..} = He ∘ (view _y) $ _diV _wNWd; t PWrap{..} = He ∘ (view _y) $ _diV _pwNWd
+r FWrap{..} = Wi ∘ (view _x) $ _diV _wSEd; r PWrap{..} = Wi ∘ (view _x) $ _diV _pwSEd
+b FWrap{..} = He ∘ (view _y) $ _diV _wSEd; b PWrap{..} = He ∘ (view _y) $ _diV _pwSEd
 
---- It's /clearly/ a profunctorial transform, but I don't care yet..
-type instance Element (Wrap p a) = V2 a
-instance MonoFunctor (Wrap p a) where
-  omap f  Wrap{..} =  Wrap (f'di wNWd) (f'di wSEd)
-    where f'di = Di ∘ f ∘ fromDi
-  omap f PWrap{..} = PWrap (f'di pwNWd) (f'di pwSEd) (f'po pwNWp) (f'po pwSEp)
-    where f'di = Di ∘ f ∘ fromDi
-          f'po = Po ∘ f ∘ fromPo
+
+-- * Combinators
+--
+area ∷ S k True a → S Area True a
+area a@PArea{..} = a
+area (PWrap _ _ (Po nw) (Po se)) =
+  PArea (Di $ se ^-^ nw) (Po nw)
 
-wDim ∷ Wrap False a → Di a
-wDim  Wrap{..} = wNWd ^+^ wSEd
-pwDim ∷ Wrap True a → Di a
-pwDim PWrap{..} = Di ∘ fromPo $ pwSEp ^-^ pwNWp
+areaSubtract ∷ S Area p a → S Area p a → S Area p a
+FArea l `areaSubtract` FArea r = FArea $ l ^-^ r
 
+-- newtype ProS p co pr = ProS { _ProS ∷ S Area p pr }
+-- instance Profunctor (ProS p) where
+--   dimap con (cov ∷ ) (ProS x) = ProS $ cov x
+
+-- ..for inspiration:
+-- instance Profunctor (->) where
+--   dimap con cov f = cov ∘ f ∘ con
+--         con     ∷   a    ←   c
+--             cov ∷     b  →     d
+--   dimap con cov ∷ f a b  → f c d
+
+
+-- * General transformations (parametrized combinators)
+--
+narrowByTh ∷ Th a → S Area p a → S Area p a
+narrowByTh (Th d) (FArea (Di a))        = FArea (Di $ a ^-^ (V2 d d) ^* 2)
+narrowByTh (Th d) (PArea (Di a) (Po p)) = PArea (Di $ a ^-^ (V2 d d) ^* 2) (Po $ p ^+^ (V2 d d))
+
+
+-- * Pinning
 -- | Make pwNWp and pwSEp the top-leftmost and bottom-rightmost pixels of the 'Wrap'.
 --   Warning:  no check on whether the coordinates are compatible with the dimensions is performed.
-wPin ∷ Wrap False a → Po a → Po a → Wrap True a
-wPin Wrap{..} pwNWp pwSEp = PWrap{..}
-  where pwNWd = wNWd
-        pwSEd = wSEd
+pinArea ∷ S Area False a → Po a → S Area True a
+pinArea FArea{..} _paNWp = PArea{..}
+  where _paD = _aD
+pinWrap ∷ S Wrap False a → Po a → Po a → S Wrap True a
+pinWrap FWrap{..} _pwNWp _pwSEp = PWrap{..}
+  where _pwNWd = _wNWd
+        _pwSEd = _wSEd
 
--- | Smart constructors for 'Wrap'.
-wArea ∷ Fractional a ⇒ Di a → Wrap False a
-wArea dim = Wrap half half
-  where half = dim ^/ 2.0
-
-wSymm ∷ Num a ⇒ a → Wrap False a
-wSymm d = Wrap (Di $ v2symm d) (Di $ v2symm d)
-
-wGoldSX, wGoldSY ∷ Double → Wrap False Double
-wGoldSX x = Wrap w w where w = di2goldX x
-wGoldSY y = Wrap w w where w = di2goldY y
-
+
+-- * Drawing
 -- | Wrap rendering as a rounded rectangle.
-wrapRoundedRectFeatures ∷ Floating a ⇒ Wrap True a → R a → Th a → [RoundRectFeature a]
+wrapRoundedRectFeatures ∷ Floating a ⇒ S Wrap True a → R a → Th a → [RoundRectFeature a]
 wrapRoundedRectFeatures pw@PWrap{..} rr@(R r) th =
-  let SPo (V4 n e s w) = spoNarrow ((/2) <$> th) $ pwPosition pw
+  let pa@(PArea (Di (V2 wi he)) (Po (V2 w n))) = narrowByTh ((/2) <$> th) $ area pw
+      V2 e s = _poV $ paSEp pa
       !degrees         = pi/180
   in [RRSide ON  (po (w + r)  n)      (po (e - r) n)
      ,RRCorn ONE (po (e - r) (n + r)) (an (-90 ⋅ degrees)   (0 ⋅ degrees)) rr
@@ -384,7 +494,7 @@ executeFeature !cStart !cEnd !(RRCorn o c@(Po (V2 cx cy)) (An (V2 sa ea)) r) = d
   if | cStart ≢ cEnd    → GRC.setSource =<< (GRC.liftIO $ coPatternGradLinear cs (fromJust cStart) ce (fromJust cEnd))
      | Nothing ← cStart → pure ()
      | Just c  ← cStart → coSetSourceColor c
-  GRC.arc cx cy (fromR r) sa ea
+  GRC.arc cx cy (_rV r) sa ea
 
 poNWSERectArcCentersCW ∷ Num a ⇒ Po a → Po a → R a → (Po a, Po a, Po a, Po a)
 poNWSERectArcCentersCW !lt@(Po (V2 ltx lty)) !rb@(Po (V2 rbx rby)) (R r) =
@@ -402,8 +512,8 @@ aRectAnglesNWCW
     ,An $ V2  (90 ⋅ degrees) (180 ⋅ degrees))
   where !degrees = pi/180
 
-aRectAnglesFromMidSWCW ∷ (Fractional a, Floating a) ⇒ (An a, An a, An a, An a, An a, An a)
-aRectAnglesFromMidSWCW
+aRectAngles_MidSWCW ∷ (Fractional a, Floating a) ⇒ (An a, An a, An a, An a, An a, An a)
+aRectAngles_MidSWCW
   = (An $ V2 (135 ⋅ degrees) (180 ⋅ degrees)
     ,An $ V2 (180 ⋅ degrees) (270 ⋅ degrees)
     ,An $ V2 (-90 ⋅ degrees) (-45 ⋅ degrees)
@@ -416,71 +526,97 @@ aRectAnglesFromMidSWCW
 -- | Space partitioning
 
 data Space (pinned ∷ Bool) a (n ∷ Nat) where
-  End ∷ Num a ⇒                 Space p a 0
-  Spc ∷
+  End   ∷ Num a ⇒                Space p a 0
+  SArea ∷ Num a ⇒
+    { sArea  ∷ !(S Area p a) } → Space p a 1
+  Spc   ∷
     (Num a, n ~ (m + 1)) ⇒
-    { sWrap  ∷ !(Wrap p a)
-    , sInner ∷  Space p a m } → Space p a n
+    { sWrap  ∷ !(S Wrap p a)
+    , sInner ∷  Space p a m }  → Space p a n
 
 deriving instance Show a ⇒  Show (Space p a n)
 
 instance Num a ⇒ MeasuredMonoid (Space p a) where
   mmempty    = End
-  mmappend     End         End      = End
-  mmappend     End      t@(Spc _ _) = t
-  mmappend  t@(Spc _ _)    End      = t
-  mmappend tl@(Spc pl nl)  tr       = Spc pl $ mmappend nl tr
+  mmappend     End       End       = End
+  mmappend     End     x@SArea{..} = x
+  mmappend     End     x@Spc{..}   = x
+  mmappend  x@SArea{..}  End       = x
+  mmappend  x@Spc{..}    End       = x
+  mmappend tl@(Spc pl nl) tr       = Spc pl $ mmappend nl tr
 
+type SubArea a = Space True a 2
+
+
+-- * Constructors
+makeArea ∷ Fractional a ⇒ Di a → Space False a 1
+makeArea = SArea ∘ FArea
+
+-- XXX/natnormalise:
+-- Could not deduce: CmpNat d 0 ~ 'GT arising _ a use of ‘Spc’
+--      _ the context: (Num a, d ~ (m + 1), CmpNat m 0 ~ 'GT)
+--        bound by a pattern with constructor:
+--                   Spc :: forall (p :: Bool) a (n :: Nat) (m :: Nat).
+--                          (Num a, n ~ (m + 1), CmpNat m 0 ~ 'GT) =>
+--                          S 'Wrap p a -> Space p a m -> Space p a n,
+--                 in an equation for ‘growSymm’
+--        at /home/desktop/src/mood/.stack-work/intero/intero29544_wH.hs:567:15-21
+--    • In the expression: Spc (symm $ Th δ) sp
+--      In an equation for ‘growSymm’:
+--          growSymm δ sp@(Spc {..}) = Spc (symm $ Th δ) sp
+growSymm ∷ (Num a) ⇒ Th a → Space False a d → Space False a (d + 1)
+growSymm δ sp = Spc (symm $ δ) sp
+growGX ∷ (RealFrac a) ⇒ Wi a → Space False a n → Space False a (n + 1)
+growGX   d sp = Spc (goldX $ d) sp
+growGY ∷ (RealFrac a) ⇒ He a → Space False a n → Space False a (n + 1)
+growGY   d sp = Spc (goldY $ d) sp
+
+
+-- * Transformations
 -- | XXX/Lensify: update the wrap of the innermost space
-sMapInnermostWrap ∷ (Wrap p u → Wrap p u) → Space p u d → Space p u d
-sMapInnermostWrap f s
-  | Spc w End ← s = Spc (f w) End
-  | Spc w is  ← s = Spc w $ sMapInnermostWrap f is
-
+mapSpaceArea ∷ (S Area p u → S Area p u) → Space p u d → Space p u d
+mapSpaceArea f s | End      ← s = End
+                 | SArea sa ← s = SArea (f sa)
+                 | Spc w is ← s = Spc w $ mapSpaceArea f is
 --- XXX: destroys the depth information
 -- sMapInnermost ∷ (Space p d a → Space p e a) → Space p f a → Space p g a
 -- sMapInnermost f s
 --   | Spc w End ← s = f s
 --   | Spc w is  ← s = Spc w $ sMapInnermost f is
 
+
+-- * Projections
 -- | Compute the total allocation for a 'Space'.
 --   Complexity: O(depth) for un-pinned, O(1) for pinned.
-sDim ∷ Space p u d → Di u
-sDim  End                            = zero
-sDim (Spc  w@(Wrap  _ _)     sInner) =  wDim w ^+^ sDim sInner
-sDim (Spc pw@(PWrap _ _ _ _) sInner) = pwDim pw
+spaceDim ∷ Space p u d → Di u
+spaceDim  End                           = zero
+spaceDim (SArea a)                      = dim a
+spaceDim (Spc w@(FWrap  _ _)    sInner) = dim w ^+^ spaceDim sInner
+spaceDim (Spc w@(PWrap _ _ _ _) sInner) = dim w
 
+
+-- * Pinning
 -- | Compute the SE point for an un-pinned 'Space', given its NW point.
 --   Complexity: O(depth).
 sSE  ∷ Space False a d → Po a → Po a
-sSE  s@Spc{..} lt = Po $ fromPo lt ^+^ fromDi (sDim s) --  ^-^ V2 1 1
+sSE  s@Spc{..} lt = Po $ _poV lt ^+^ _diV (spaceDim s) --  ^-^ V2 1 1
 
 -- | Pin space to the @lt
 sPin ∷ Num a ⇒ Po a → Space False a n → Space True a n
 sPin lt space = loop space zero rb
   where rb = sSE space lt
         loop ∷ Space False a n → Po a → Po a → Space True a n
-        loop  End        _       _        = End
-        loop (Spc Wrap{..} swInner) lt rb =
-          Spc (PWrap { pwNWd = wNWd, pwSEd = wSEd, pwNWp = lt, pwSEp = rb })
+        loop  End                     _  _ = End
+        loop (SArea FArea{..})       lt  _ =
+          SArea (PArea { _paD   = _aD,                   _paNWp = lt })
+        loop (Spc FWrap{..} swInner) lt rb =
+          Spc   (PWrap { _pwNWd = _wNWd, _pwSEd = _wSEd, _pwNWp = lt, _pwSEp = rb })
           $   loop swInner
-              (lt ^+^ (Po ∘ fromDi) wNWd)
-              (rb ^-^ (Po ∘ fromDi) wSEd)
+              (lt ^+^ (Po ∘ _diV) _wNWd)
+              (rb ^-^ (Po ∘ _diV) _wSEd)
 
--- This is the significant hack in the model: a contiguous area is represented as
--- a wrap around a zero-sized point amidst the area.
-sArea ∷ Fractional a ⇒ Di a → Space False a 1
-sArea dim = Spc (wArea dim) End
-
-sGrowS ∷ Num a ⇒ a → Space False a d → Space False a (d + 1)
-sGrowS delta sp = Spc (wSymm delta) sp
-
-sGrowGX, sGrowGY ∷ Double → Space False Double n → Space False Double (n + 1)
-sGrowGX d sp = Spc (wGoldSX d) sp
-sGrowGY d sp = Spc (wGoldSY d) sp
-
-sCutOutsideS2 ∷ Di a → Space False a n → Space False a (n + 1)
-sCutOutsideS2 cut s@Spc{..} = Spc (Wrap cut cut)                $ s { sWrap = omap (^-^ fromDi cut) sWrap }
-
-sCutInsideS2  ∷ Fractional a ⇒ Di a → Space False a n → Space False a (n+1)
-sCutInsideS2  cut s@Spc{..} = Spc (omap (^-^ fromDi cut) sWrap) $ s { sWrap = Wrap cut cut }
+-- XXX: not sure if needed
+-- sCutOutsideS2 ∷ Di a → Space False a n → Space False a (n + 1)
+-- sCutOutsideS2 cut s@Spc{..} = Spc (FWrap cut cut)                $ s { sWrap = omap (^-^ _diV cut) sWrap }
+-- sCutInsideS2  ∷ Fractional a ⇒ Di a → Space False a n → Space False a (n+1)
+-- sCutInsideS2  cut s@Spc{..} = Spc (omap (^-^ _diV cut) sWrap) $ s { sWrap = FWrap cut cut }
