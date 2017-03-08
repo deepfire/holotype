@@ -108,18 +108,6 @@ data Drawable where
     , dGLObject     ∷ GL.Object
     } → Drawable
 
--- | A GL 'Frame' to display a Cairo-capable 'Drawable'.
-data Frame where
-  Frame ∷
-    { fDim ∷ Di Int
-    } → Frame
-
--- | Make 'Renderer' produce a new 'Frame' to draw on.
-rendererFinaliseToNewFrame ∷ (MonadIO m) ⇒ Renderer → m Frame
-rendererFinaliseToNewFrame renderer = do
-  liftIO $ rendererFinaliseFrame renderer
-  liftIO $ rendererWaitForVSync renderer
-  Frame <$> (liftIO $ rendererSetupFrame renderer)
 
 grcToGIC ∷ (MonadIO m) ⇒ GRC.Cairo → m GIC.Context
 grcToGIC grc = liftIO $ GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
@@ -133,10 +121,6 @@ makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
   dGRC          ← GRC.create dSurface
   dGIC          ← grcToGIC dGRC
 
-  -- pixels        ← GRCI.imageSurfaceGetData cSurface -- XXX/eff: convert to imageSurfaceGetPixels
-  -- cTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi cStridePixels, h, GL_BGRA, pixels)
-  -- XXX/not initialised: cTexture
-
   let (dx, dy) = (fromIntegral w, fromIntegral $ -h)
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
       position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
@@ -147,6 +131,9 @@ makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
   dGPUMesh      ← GL.uploadMeshToGPU dMesh
   dGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [unameStr osUniform, "viewProj"] dGPUMesh
 
+  -- pixels        ← GRCI.imageSurfaceGetData dSurface -- XXX/eff: convert to imageSurfaceGetPixels
+  -- dTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi dStridePixels, h, GL_BGRA, pixels)
+  -- XXX/not initialised: dTexture
   pure Drawable{..}
 
 drawableContentToGPU ∷ (MonadIO m) ⇒ Drawable → m ()

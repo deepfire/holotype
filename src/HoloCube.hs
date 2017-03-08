@@ -131,6 +131,12 @@ data Renderer where
     , rWindow     ∷ GLFW.Window
     } → Renderer
 
+-- | A GL 'Frame' to display a Cairo-capable 'Drawable'.
+data Frame where
+  Frame ∷
+    { fDim ∷ Di Int
+    } → Frame
+
 -- | Setup a 'Renderer', with streams where 'Canvas' objects have be attached,
 --   to be put on screen.
 --   'ous' is a list of object array/texture uniform name pairs, that have to be
@@ -158,6 +164,11 @@ makeRenderer rWindow ous = liftIO $ do
       Just failure → Left failure
       Nothing      → Right Renderer{..}
 
+shutdownRenderer ∷ (MonadIO m) ⇒ Renderer → m ()
+shutdownRenderer Renderer{..} = liftIO $ do
+  GL.disposeRenderer rGLRenderer
+  GLFW.destroyWindow rWindow
+
 rStream ∷ Renderer → (ObjArrayNameS, UniformNameS) → Maybe ObjectStream
 rStream Renderer{..} = flip Map.lookup rStreams
 
@@ -176,23 +187,19 @@ rendererQueryFrameSize Renderer{..} = liftIO $ do
   (screenW, screenH) ← GLFW.getFramebufferSize rWindow
   pure $ di (Wi screenW) (He screenH)
 
-rendererSetupFrame ∷ (MonadIO m) ⇒ Renderer → m (Di Int)
+rendererSetupFrame ∷ (MonadIO m) ⇒ Renderer → m Frame
 rendererSetupFrame r@Renderer{..} = liftIO $ do
   let slotU           = GL.uniformSetter rGLStorage
       overbrightBits  = 0
   GL.uniformFloat "identityLight" slotU $ 1 / (2 ^ overbrightBits) -- used by lc:mkColor
   d@(Di (V2 screenW screenH)) ← rendererQueryFrameSize r
   GL.setScreenSize rGLStorage (fromIntegral screenW) (fromIntegral screenH)
-  pure d
+  pure $ Frame d
 
-rendererFinaliseFrame ∷ (MonadIO m) ⇒ Renderer → m ()
-rendererFinaliseFrame Renderer{..} = liftIO $ do
+rendererDrawFrame ∷ (MonadIO m) ⇒ Renderer → m ()
+rendererDrawFrame Renderer{..} = liftIO $ do
   GL.renderFrame rGLRenderer
-
-rendererWaitForVSync ∷ (MonadIO m) ⇒ Renderer → m ()
-rendererWaitForVSync Renderer{..} = liftIO $ do
   GLFW.swapBuffers rWindow
-  GLFW.pollEvents
 
 
 -- * Shader attributery
