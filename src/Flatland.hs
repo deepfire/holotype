@@ -557,12 +557,13 @@ data Space (pinned ∷ Bool) a (n ∷ Nat) where
 
 deriving instance Show a ⇒  Show (Space p a n)
 
-instance Num a ⇒ MeasuredMonoid (Space p a) where
+instance (Num a, Show a) ⇒ MeasuredMonoid (Space p a) where
   mmempty    = End
   mmappend     End        End       = End
   mmappend     End      x@Sarea{..} = x
   mmappend     End      x@Spc{..}   = x
   mmappend  x@Sarea{..}   End       = x
+  mmappend  x@Sarea{..}   tail      = error $ printf "Sarea `mmappend` non-End is ⊥: %s to %s" (show x) (show tail)
   mmappend  x@Spc{..}     End       = x
   mmappend tl@(Spc pl nl) tail      = Spc pl $ mmappend nl tail
 
