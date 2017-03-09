@@ -16,13 +16,16 @@ import           Prelude.Unicode
 import           GHC.TypeLits
 
 -- General types
-import qualified GHC.Generics                      as GHC
+import qualified Alib                              as M
+import           GHC.Stack
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH
 import           Control.Monad.Random
 import           Control.Monad.State
 import           Data.Function
+import           Data.Lub
+import           Data.Glb
 import           Data.Map (Map)
 import qualified Data.Map                          as Map
 import           Data.Maybe
@@ -61,6 +64,9 @@ instance Ord a ⇒ HasGlb (V2 a) where glb = liftA2 min
 
 goldenRatio ∷ Double
 goldenRatio = 1.61803398875
+
+(.:) ∷ ∀ a f g b. (b → a) → (f → g → b) → f → g → a
+(.:) = M.o
 
 
 -- * Dimensional density.
@@ -173,7 +179,6 @@ newtype R   a = R   { _rV  ∷ a } deriving (Eq, Functor, Num)             -- ^ 
 newtype Th  a = Th  { _thV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
 newtype He  a = He  { _heV ∷ a } deriving (Eq, Functor, Num)             -- ^ Height
 newtype Wi  a = Wi  { _wiV ∷ a } deriving (Eq, Functor, Num)             -- ^ Width
-deriving instance GHC.Generic (R a)
 deriving instance Show a ⇒ Show (R  a)
 deriving instance Show a ⇒ Show (Th a)
 deriving instance Show a ⇒ Show (He a)
@@ -203,6 +208,10 @@ newtype SDi a = SDi { _sdiV ∷ V4 a } deriving                        (Eq, Func
 
 -------- <boilerplate>
 deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show (SDi a)
+deriving instance (Ord a, HasLub a) ⇒ HasLub (Di a)
+deriving instance (Ord a, HasGlb a) ⇒ HasGlb (Di a)
+deriving instance (Ord a, HasLub a) ⇒ HasLub (Po a)
+deriving instance (Ord a, HasGlb a) ⇒ HasGlb (Po a)
 newtype An  a = An  { _anV  ∷ V2 a } deriving (Eq, Functor) -- ^ Unordered pair of angles
 newtype Co  a = Co  { _coV  ∷ V4 a } deriving (Eq, Functor) -- ^ Color
 deriving instance Show a ⇒ Show (An a)
@@ -377,6 +386,12 @@ instance Applicative (S Area False) where
 instance Applicative (S Area True)  where
   pure x = Parea (pure x) (pure x)
   Parea x x' <*> Parea y y' = Parea (x <*> y) (x' <*> y')
+instance (HasLub a, Ord a) ⇒ HasLub (S Area False a) where lub = Farea .: on lub _aD
+instance (HasGlb a, Ord a) ⇒ HasGlb (S Area False a) where glb = Farea .: on glb _aD
+instance (HasLub a, HasGlb a, Num a, Ord a) ⇒ HasGlb (S Area True a) where
+  Parea d p `glb` Parea d' p' = Parea (poSub lu gl) gl
+    where gl = glb p p'
+          lu = lub p p'
 
 
 -- * Constructors
@@ -393,18 +408,11 @@ instance RealFrac a ⇒ GoldXS  a Wrap where goldX  = join Fwrap ∘ goldXdi
 instance RealFrac a ⇒ GoldYS  a Area where goldY  =      Farea ∘ goldYdi
 instance RealFrac a ⇒ GoldYS  a Wrap where goldY  = join Fwrap ∘ goldYdi
 
--- mkAreaWrapPoDi ∷ Num a ⇒ Po a → Di a → S Wrap True a
--- mkAreaWrapPoDi ltpo ltdi = PWrap  ltdi         zero ltpo (off ltpo $ _Di ltdi)
--- mkAreaWrapPoPo ∷ Num a ⇒ Po a → Po a → S Wrap True a
--- mkAreaWrapPoPo lt   rb   = PWrap (poSub rb lt) zero lt    rb
--- mkAreaIntersectWrap ∷ Num a ⇒ S Wrap True a → S Wrap True a → S Wrap True a
--- mkAreaIntersectWrap (PWrap ltd rbd ltp rbp) rb   = PWrap (poSub rb lt) zero lt    rb
-
--- instance Random a ⇒ Random (S Area True a) where
---   random =
---     runState $ Spc <$> (mkAreaWrap <$> (state random) <*> (state random)) <*> pure End
---   randomR (V2 x y, V2 x' y') =
---     runState $ liftA2 V2 (state $ randomR (x, x')) (state $ randomR (y, y'))
+instance (Num a, Random a) ⇒ Random (S Area True a) where
+  random = runState $ Parea <$> (state random) <*> (state random)
+  randomR (Parea di nw, Parea maxsz _) =
+    let se = poByDi nw $ di ^-^ maxsz
+    in runState $ liftA2 Parea (state $ randomR (zero, maxsz)) (state $ randomR (nw, se))
 
 
 -- * Projections
