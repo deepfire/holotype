@@ -1,8 +1,8 @@
 { mkDerivation, stdenv, src ? ./.
 , aeson, attoparsec, base, base-unicode-symbols, binary, bytestring
 , bytestring-trie, clock, containers, data-binary-ieee754, deepseq, digest
-, directory, elerea, extra, filepath, free, GLFW-b, JuicyPixels
-, microlens-platform, MissingH, MonadRandom, mono-traversable, OpenGLRaw
+, directory, elerea, extra, filepath, free, GLFW-b, JuicyPixels, lub
+, metamorphic, microlens-platform, MissingH, MonadRandom, mono-traversable, OpenGLRaw
 , pretty-show, process, proteaaudio, stm, time, transformers, tuple, vect, vector, zlib
 #, youtrack
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
@@ -23,8 +23,8 @@ mkDerivation {
   doHaddock = false;
   libraryHaskellDepends = [
     aeson attoparsec base base-unicode-symbols binary bytestring bytestring-trie clock containers
-    data-binary-ieee754 deepseq digest directory extra filepath free JuicyPixels
-    microlens-platform MissingH MonadRandom mono-traversable pretty-show process
+    data-binary-ieee754 deepseq digest directory extra filepath free JuicyPixels lub
+    metamorphic microlens-platform MissingH MonadRandom mono-traversable pretty-show process
     stm time transformers tuple vect vector zlib
     # youtrack
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
