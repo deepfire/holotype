@@ -28,7 +28,7 @@ import qualified Data.IORef                        as IO
 import           Reflex
 
 -- Local imports
-import Flatland (Unit(..))
+import Flatland
 import HoloCanvas
 import HoloCube (ObjectStream)
 import HoloFlex
@@ -49,14 +49,16 @@ data Holosome a where
     , holoStyle  ∷ StyleOf (Visual a)
     , holoStream ∷ ObjectStream
     , holoVisual ∷ Visual a
+    -- , holoPosRef ∷ IO.IORef (Po (Size PU))
     } → Holosome a
 
 visual ∷ (ReflexGLFWCtx t m, Holo a) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → Event t a → m (Event t (Holosome a))
 visual stts holoStream holoStyle holoE =
-  performEvent $ (holoE <&> (\holo → liftIO $ do
+  performEvent $ (holoE <&> (\(holo) → liftIO $ do
                                 holoVisual ← visualise stts holoStream holoStyle holo
                                 render holoVisual
-                                holoRef ← IO.newIORef holo
+                                holoRef    ← IO.newIORef holo
+                                -- holoPosRef ← IO.newIORef pos
                                 pure Holosome{..}))
 
 update ∷ (MonadIO m, Holo a) ⇒ Settings PU → Holosome a → (a → a) → m ()
@@ -65,3 +67,14 @@ update stts Holosome{..} f = do
   let new = f old
   liftIO $ IO.writeIORef holoRef new
   updateVisual stts holoStream holoVisual new
+
+
+class HoloLayout a where
+  position ∷ a → Holosome h → Po (Size PU)
+
+
+
+-- data RandomLayout where
+--   RandomLayout ∷
+--     { rlArea ∷ Area (Size PU)
+--     } → RandomLayout
