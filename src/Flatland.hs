@@ -175,10 +175,10 @@ instance Sizely (Size Pt) where
 
 -- * Specialized linear dimension classification:
 
-newtype R   a = R   { _rV  ∷ a } deriving (Eq, Functor, Num)             -- ^ Radius
+newtype R   a = R   { _rV  ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Radius
 newtype Th  a = Th  { _thV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
-newtype He  a = He  { _heV ∷ a } deriving (Eq, Functor, Num)             -- ^ Height
-newtype Wi  a = Wi  { _wiV ∷ a } deriving (Eq, Functor, Num)             -- ^ Width
+newtype He  a = He  { _heV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Height
+newtype Wi  a = Wi  { _wiV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Width
 deriving instance Show a ⇒ Show (R  a)
 deriving instance Show a ⇒ Show (Th a)
 deriving instance Show a ⇒ Show (He a)
@@ -202,9 +202,9 @@ makeLenses ''Wi
 --
 -- In particular, this screams for Linear.Affine
 --
-newtype  Di a =  Di { _diV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Dimensions
-newtype  Po a =  Po { _poV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Coordinates
-newtype SDi a = SDi { _sdiV ∷ V4 a } deriving                        (Eq, Functor) -- ^ Side-wise dimensions: N, E, S, W
+newtype  Di a =  Di { _diV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor, Num, Fractional) -- ^ Dimensions
+newtype  Po a =  Po { _poV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor, Num, Fractional) -- ^ Coordinates
+newtype SDi a = SDi { _sdiV ∷ V4 a } deriving                        (Eq, Functor, Num, Fractional) -- ^ Side-wise dimensions: N, E, S, W
 
 -------- <boilerplate>
 deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show (SDi a)
@@ -238,7 +238,7 @@ co ∷ a → a → a → a → Co a
 co r g b a = Co $ V4 r g b a
 
 poBy ∷ Num a ⇒ Po a → V2 a → Po a
-poBy po = Po ∘ (+ _poV po)
+poBy po = Po ∘ (^+^ _poV po)
 poByDi ∷ Num a ⇒ Po a → Di a → Po a
 poByDi po = poBy po ∘ _diV
 
