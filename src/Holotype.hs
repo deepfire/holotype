@@ -58,6 +58,7 @@ import qualified Data.IORef                        as IO
 
 -- Reflex
 import           Reflex
+import           Reflex.Random
 import qualified Debug.Trace                       as D
 
 -- Window system (..hello WIndowSys..)
@@ -113,28 +114,31 @@ holotype streamV initiallyE frameE inputE settingsV@Settings{..} = do
   -- fpsE             ← (T.pack ∘ show ∘ recip <$>) <$> averageEWE 25 timeDeltaE
   frameTimeE       ← performEvent $ fmap (\_ → liftIO $ Sys.getTime Sys.Monotonic) frameE
 
-  let worldE   = translateEvent <$> inputE
-      spawnE   = ffilter (\case Spawn    → True; _ → False) worldE
-      editE    = ffilter (\case Edit{..} → True; _ → False) worldE
-  holoE            ← performEvent $ spawnE $> (liftIO $ do
-                                                  t ← Sys.getTime Sys.Monotonic
-                                                  pure $ zft $ [T.pack $ printf "Press 'Esc' to quit.\n\n%s" $ show t])
-  holosomE         ← visual settingsV streamV dasStyle holoE
-  holosomD         ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomE
+  let worldE    = translateEvent <$> inputE
+      spawnE    = ffilter (\case Spawn    → True; _ → False) worldE
+      editE     = ffilter (\case Edit{..} → True; _ → False) worldE
+      screenA   = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
+      widgetLim = Parea (di 0.2 0.2) (po 0 0)
+  randomAreaE      ← foldRandomRs 0 (screenA, widgetLim) $ () <$ spawnE
+  holoAreaE        ← performEvent $ randomAreaE <&> (\area → liftIO $ do
+                                                        t ← Sys.getTime Sys.Monotonic
+                                                        pure ∘ (,area)  ∘ zft $ [T.pack $ printf "Press 'Esc' to quit.\n\n%s" $ show area])
+  holosomAreaE     ← visual settingsV streamV dasStyle holoAreaE
+  holosomAreaD     ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomAreaE
 
-  let drawReqE   = attachPromptlyDyn holosomD frameE
+  let drawReqE   = attachPromptlyDyn holosomAreaD frameE
   _                ← performEvent $ drawReqE <&>
                      \((_, cs), f@Frame{..}) →
-                       forM_ cs $ \(n, h@Holosome{..}) → do
-                         placeCanvas holoVisual f ((po (-0.5) (0.5)) ^+^ (po 0.1 (-0.1)) ^* n)
+                       forM_ cs $ \(n, (h@Holosome{..}, a@Parea{..} ∷ S Area True Double)) → do
+                         placeCanvas holoVisual f _paNWp
 
-  let topsomD    = ffor holosomD (\case (_,[]) → Nothing
-                                        (_,(_,h):_) → Just h)
+  let topsomD    = ffor holosomAreaD (\case (_,[]) → Nothing
+                                            (_,(_,h):_) → Just h)
       editReqE   = attachPromptlyDyn topsomD editE
   _                ← performEvent $ editReqE <&>
                      \case
                        (Nothing, _)→ pure ()
-                       (Just h, Edit{..}) →
+                       (Just (h,_), Edit{..}) →
                          update settingsV h weEdit
 
   hold False ((\case Shutdown → True; _ → False)

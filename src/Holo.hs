@@ -21,6 +21,7 @@ import           Prelude.Unicode
 import           Control.Lens
 import           Data.Function
 import           Data.Functor
+import           Text.Printf                              (printf)
 
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import qualified Data.IORef                        as IO
@@ -52,14 +53,19 @@ data Holosome a where
     -- , holoPosRef ∷ IO.IORef (Po (Size PU))
     } → Holosome a
 
-visual ∷ (ReflexGLFWCtx t m, Holo a) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → Event t a → m (Event t (Holosome a))
-visual stts holoStream holoStyle holoE =
-  performEvent $ (holoE <&> (\(holo) → liftIO $ do
-                                holoVisual ← visualise stts holoStream holoStyle holo
-                                render holoVisual
-                                holoRef    ← IO.newIORef holo
-                                -- holoPosRef ← IO.newIORef pos
-                                pure Holosome{..}))
+instance Show a ⇒ Show (Holosome a) where
+  show Holosome{..} = printf "Holo { style = %s }" (show holoStyle)
+
+visual ∷ (ReflexGLFWCtx t m, Holo a) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → Event t (a, S Area True b) → m (Event t (Holosome a, S Area True b))
+visual stts holoStream holoStyle holoAreaE =
+  performEvent $ (holoAreaE
+                  <&> ((\(holo, area) → liftIO $ do
+                           holoVisual ← visualise stts holoStream holoStyle holo
+                           render holoVisual
+                           holoRef    ← IO.newIORef holo
+                           -- holoPosRef ← IO.newIORef pos
+                           pure (Holosome{..}, area))
+                       ))
 
 update ∷ (MonadIO m, Holo a) ⇒ Settings PU → Holosome a → (a → a) → m ()
 update stts Holosome{..} f = do
