@@ -292,7 +292,7 @@ instance Widget Text where
     tTextRef ← liftIO $ IO.newIORef tText
     pure Text{..}
   draw (CW (Canvas (Drawable{..}) _ _ _ _))
-       (Text (SArea area@(PArea di (Po lt@(V2 cvx cvy))))
+       (Text (Sarea area@(Parea di (Po lt@(V2 cvx cvy))))
              TextS{..}
              (FontBinding Font{..} _) lay textRef) = do
     let Po rb@(V2 cvxe cvye) = paSEp area

@@ -55,8 +55,15 @@ import qualified Foreign                           as F
 import qualified System.IO.Unsafe                  as UN
 
 
--- * Dimensional density.
+-- * Elsewhere
+instance Ord a ⇒ HasLub (V2 a) where lub = liftA2 max
+instance Ord a ⇒ HasGlb (V2 a) where glb = liftA2 min
 
+goldenRatio ∷ Double
+goldenRatio = 1.61803398875
+
+
+-- * Dimensional density.
 newtype PΠ = PΠ { pπVal ∷ Double } deriving (Num, Show)
 pπ ∷ PΠ
 pπ = 72
@@ -188,20 +195,14 @@ makeLenses ''Wi
 --      Nevertheless, it is what it is -- because of blissful lack of education.
 --      Typical.
 --
-goldenRatio ∷ Double
-goldenRatio = 1.61803398875
-
-v2symm ∷ a → V2 a
-v2symm x = V2 x x
-
-v2negp ∷ (Num a, Ord a) ⇒ V2 a → Bool
-v2negp (V2 d0 d1) = d0 < 0 || d1 < 0
-
+-- In particular, this screams for Linear.Affine
+--
 newtype  Di a =  Di { _diV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Dimensions
 newtype  Po a =  Po { _poV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Coordinates
 newtype SDi a = SDi { _sdiV ∷ V4 a } deriving                        (Eq, Functor) -- ^ Side-wise dimensions: N, E, S, W
-deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show (SDi a)
 
+-------- <boilerplate>
+deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show (SDi a)
 newtype An  a = An  { _anV  ∷ V2 a } deriving (Eq, Functor) -- ^ Unordered pair of angles
 newtype Co  a = Co  { _coV  ∷ V4 a } deriving (Eq, Functor) -- ^ Color
 deriving instance Show a ⇒ Show (An a)
@@ -216,6 +217,7 @@ makeLenses ''Po
 makeLenses ''SDi
 makeLenses ''An
 makeLenses ''Co
+---------- </boilerplate>
 
 di ∷ Wi a → He a  → Di a
 di  (Wi x) (He y) = Di $ V2 x y
@@ -344,18 +346,18 @@ data Kind = Area | Wrap
 --   - the __/wrap area/__, around the /wrapped area/ -- this is what 'Wrap' corresponds to,
 --   - the __/wrapped area/__, that, which is inside the 'Wrap' itself.
 data S (kind ∷ Kind) (pinned ∷ Bool) a where
-  FArea ∷ -- ^ A non-positioned, free area.
+  Farea ∷ -- ^ A non-positioned, free area.
     { _aD    ∷ !(Di a)
     } → S Area False a
-  PArea ∷ -- ^ A positioned, pinned area.
+  Parea ∷ -- ^ A positioned, pinned area.
     { _paD   ∷ !(Di a)
     , _paNWp ∷ !(Po a)
     } → S Area True a
-  FWrap ∷ -- ^ The non-positioned, dimensional-only, free wrap.
+  Fwrap ∷ -- ^ The non-positioned, dimensional-only, free wrap.
     { _wNWd  ∷ !(Di a) -- ^ The combined offsets _ the left and top sides.
     , _wSEd  ∷ !(Di a) -- ^ The combined offsets _ the right and bottom sides.
     } → S Wrap False a
-  PWrap ∷ -- ^ The pinned variant -- enriched with a position.
+  Pwrap ∷ -- ^ The pinned variant -- enriched with a position.
     { _pwNWd ∷ !(Di a) -- ^ ..same as above.
     , _pwSEd ∷ !(Di a) -- ^ ..same as above.
     , _pwNWp ∷ !(Po a) -- ^ Coordinates of the top-leftmost pixel of the wrap area.
@@ -363,17 +365,18 @@ data S (kind ∷ Kind) (pinned ∷ Bool) a where
     } → S Wrap True a
 deriving instance Show u ⇒ Show (S k p u)
 aD :: Lens' (S Area p a) (Di a)
-aD f FArea{..} = FArea <$> f _aD
-aD f PArea{..} = flip PArea _paNWp <$> f _paD
-instance Functor (S Area False) where fmap f (FArea x)       = FArea (fmap f x)
-instance Functor (S Area True)  where fmap f (PArea x y)     = PArea (fmap f x) (fmap f y)
-instance Functor (S Wrap False) where fmap f (FWrap x y)     = FWrap (fmap f x) (fmap f y)
-instance Functor (S Wrap True)  where fmap f (PWrap x y z w) = PWrap (fmap f x) (fmap f y) (fmap f z) (fmap f w)
-instance Applicative (S Area False) where pure x = FArea $ pure x; FArea x <*> FArea y = FArea $ x <*> y
-instance Additive    (S Area False) where zero   = FArea zero
-instance Applicative (S Area True)  where pure x = PArea (pure x) (pure x); PArea x x' <*> PArea y y' = PArea (x <*> y) (x' <*> y')
-instance Additive    (S Area True)  where zero   = PArea zero zero; -- XXX: the ^+^ instance is botched.
-
+aD f Farea{..} = Farea <$> f _aD
+aD f Parea{..} = flip Parea _paNWp <$> f _paD
+instance Functor (S Area False) where fmap f (Farea x)       = Farea (fmap f x)
+instance Functor (S Area True)  where fmap f (Parea x y)     = Parea (fmap f x) (fmap f y)
+instance Functor (S Wrap False) where fmap f (Fwrap x y)     = Fwrap (fmap f x) (fmap f y)
+instance Functor (S Wrap True)  where fmap f (Pwrap x y z w) = Pwrap (fmap f x) (fmap f y) (fmap f z) (fmap f w)
+instance Applicative (S Area False) where
+  pure x = Farea $ pure x
+  Farea x <*> Farea y = Farea $ x <*> y
+instance Applicative (S Area True)  where
+  pure x = Parea (pure x) (pure x)
+  Parea x x' <*> Parea y y' = Parea (x <*> y) (x' <*> y')
 
 
 -- * Constructors
@@ -381,14 +384,14 @@ class Num a ⇒ AspectS a k where aspect ∷ Di a → S k False a
 class Num a ⇒ SymmS   a k where symm   ∷ Th a → S k False a
 class Num a ⇒ GoldXS  a k where goldX  ∷ Wi a → S k False a
 class Num a ⇒ GoldYS  a k where goldY  ∷ He a → S k False a
-instance Num a ⇒      AspectS a Area where aspect =      FArea
-instance Num a ⇒      AspectS a Wrap where aspect = join FWrap
-instance Num a ⇒      SymmS   a Area where symm   =      FArea ∘ Di ∘ join V2 ∘ _thV
-instance Num a ⇒      SymmS   a Wrap where symm   = join FWrap ∘ Di ∘ join V2 ∘ _thV
-instance RealFrac a ⇒ GoldXS  a Area where goldX  =      FArea ∘ goldXdi
-instance RealFrac a ⇒ GoldXS  a Wrap where goldX  = join FWrap ∘ goldXdi
-instance RealFrac a ⇒ GoldYS  a Area where goldY  =      FArea ∘ goldYdi
-instance RealFrac a ⇒ GoldYS  a Wrap where goldY  = join FWrap ∘ goldYdi
+instance Num a ⇒      AspectS a Area where aspect =      Farea
+instance Num a ⇒      AspectS a Wrap where aspect = join Fwrap
+instance Num a ⇒      SymmS   a Area where symm   =      Farea ∘ Di ∘ join V2 ∘ _thV
+instance Num a ⇒      SymmS   a Wrap where symm   = join Fwrap ∘ Di ∘ join V2 ∘ _thV
+instance RealFrac a ⇒ GoldXS  a Area where goldX  =      Farea ∘ goldXdi
+instance RealFrac a ⇒ GoldXS  a Wrap where goldX  = join Fwrap ∘ goldXdi
+instance RealFrac a ⇒ GoldYS  a Area where goldY  =      Farea ∘ goldYdi
+instance RealFrac a ⇒ GoldYS  a Wrap where goldY  = join Fwrap ∘ goldYdi
 
 -- mkAreaWrapPoDi ∷ Num a ⇒ Po a → Di a → S Wrap True a
 -- mkAreaWrapPoDi ltpo ltdi = PWrap  ltdi         zero ltpo (off ltpo $ _Di ltdi)
@@ -407,30 +410,30 @@ instance RealFrac a ⇒ GoldYS  a Wrap where goldY  = join FWrap ∘ goldYdi
 -- * Projections
 --
 paSEp ∷ Num a ⇒ S Area True a → Po a
-paSEp (PArea di po) = poByDi po di
+paSEp (Parea di po) = poByDi po di
 
 center ∷ Fractional a ⇒ S k True a → Po a
-center (PArea d p)                 = poByDi p (d ^/ 2)
-center (PWrap _ _ (Po nw) (Po se)) = Po $ (se ^+^ nw) ^/ 2
+center (Parea d p)                 = poByDi p (d ^/ 2)
+center (Pwrap _ _ (Po nw) (Po se)) = Po $ (se ^+^ nw) ^/ 2
 
 dim ∷ Num a ⇒ S k p a → Di a
-dim FArea{..} = _aD
-dim PArea{..} = _paD
-dim FWrap{..} = _wNWd ^+^ _wSEd
-dim PWrap{..} = Di ∘ _poV $ _pwSEp ^-^ _pwNWp
+dim Farea{..} = _aD
+dim Parea{..} = _paD
+dim Fwrap{..} = _wNWd ^+^ _wSEd
+dim Pwrap{..} = Di ∘ _poV $ _pwSEp ^-^ _pwNWp
 
 -- | Narrowing into a positioned 'S Wrap'.
 stepIntoNW, stepIntoSE ∷ Num a ⇒ S Wrap True a → Po a
-stepIntoNW (PWrap (Di pwNWd) _ (Po pwNWp) _) = Po $ pwNWp ^+^ pwNWd
-stepIntoSE (PWrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd
+stepIntoNW (Pwrap (Di pwNWd) _ (Po pwNWp) _) = Po $ pwNWp ^+^ pwNWd
+stepIntoSE (Pwrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd
 
 stepInto ∷ Num a ⇒ S Wrap True a → (Po a, Po a)
 stepInto pw = (stepIntoNW pw, stepIntoNW pw)
 
 -- | Narrowing into a positioned 'Wrap', halfway.
 stepIntoNW'2, stepIntoSE'2 ∷ Fractional a ⇒ S Wrap True a → Po a
-stepIntoNW'2 (PWrap (Di pwNWd) _ (Po pwNWp) _) = Po $ pwNWp ^+^ pwNWd ⋅ 0.5
-stepIntoSE'2 (PWrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd ⋅ 0.5
+stepIntoNW'2 (Pwrap (Di pwNWd) _ (Po pwNWp) _) = Po $ pwNWp ^+^ pwNWd ⋅ 0.5
+stepIntoSE'2 (Pwrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd ⋅ 0.5
 
 stepInto'2 ∷                 Fractional a ⇒ S Wrap True a → (Po a, Po a)
 stepInto'2 pw = (stepIntoNW'2 pw, stepIntoSE'2 pw)
@@ -438,47 +441,48 @@ stepInto'2 pw = (stepIntoNW'2 pw, stepIntoSE'2 pw)
 -- | 'l', 't', 'r', 'b' -- sidewise dimensions.
 l, r ∷ S Wrap p a → Wi a
 t, b ∷ S Wrap p a → He a
-l FWrap{..} = Wi ∘ (view _x) $ _diV _wNWd; l PWrap{..} = Wi ∘ (view _x) $ _diV _pwNWd
-t FWrap{..} = He ∘ (view _y) $ _diV _wNWd; t PWrap{..} = He ∘ (view _y) $ _diV _pwNWd
-r FWrap{..} = Wi ∘ (view _x) $ _diV _wSEd; r PWrap{..} = Wi ∘ (view _x) $ _diV _pwSEd
-b FWrap{..} = He ∘ (view _y) $ _diV _wSEd; b PWrap{..} = He ∘ (view _y) $ _diV _pwSEd
+l Fwrap{..} = Wi ∘ (view _x) $ _diV _wNWd; l Pwrap{..} = Wi ∘ (view _x) $ _diV _pwNWd
+t Fwrap{..} = He ∘ (view _y) $ _diV _wNWd; t Pwrap{..} = He ∘ (view _y) $ _diV _pwNWd
+r Fwrap{..} = Wi ∘ (view _x) $ _diV _wSEd; r Pwrap{..} = Wi ∘ (view _x) $ _diV _pwSEd
+b Fwrap{..} = He ∘ (view _y) $ _diV _wSEd; b Pwrap{..} = He ∘ (view _y) $ _diV _pwSEd
 
 
 -- * Combinators
 --
 area ∷ Num a ⇒ S k True a → S Area True a
-area a@PArea{..} = a
-area (PWrap _ _ (Po nw) (Po se)) =
-  PArea (Di $ se ^-^ nw) (Po nw)
+area a@Parea{..} = a
+area (Pwrap _ _ (Po nw) (Po se)) =
+  Parea (Di $ se ^-^ nw) (Po nw)
 
 areaSubtract ∷ Num a ⇒ S Area False a → S Area False a → S Area False a
-FArea l `areaSubtract` FArea r = FArea $ l ^-^ r
+Farea l `areaSubtract` Farea r = Farea $ l ^-^ r
 
 
 -- * General transformations
 --
 narrowByTh ∷ Num a ⇒ Th a → S Area p a → S Area p a
-narrowByTh (Th d) (FArea (Di a))        = FArea (Di $ a ^-^ (V2 d d) ^* 2)
-narrowByTh (Th d) (PArea (Di a) (Po p)) = PArea (Di $ a ^-^ (V2 d d) ^* 2) (Po $ p ^+^ (V2 d d))
+narrowByTh (Th d) (Farea (Di a))        = Farea (Di $ a ^-^ (V2 d d) ^* 2)
+narrowByTh (Th d) (Parea (Di a) (Po p)) = Parea (Di $ a ^-^ (V2 d d) ^* 2) (Po $ p ^+^ (V2 d d))
 
 
 -- * Pinning
 -- | Make pwNWp and pwSEp the top-leftmost and bottom-rightmost pixels of the 'Wrap'.
 --   Warning:  no check on whether the coordinates are compatible with the dimensions is performed.
 pinArea ∷ S Area False a → Po a → S Area True a
-pinArea FArea{..} _paNWp = PArea{..}
+pinArea Farea{..} _paNWp = Parea{..}
   where _paD = _aD
 pinWrap ∷ S Wrap False a → Po a → Po a → S Wrap True a
-pinWrap FWrap{..} _pwNWp _pwSEp = PWrap{..}
+pinWrap Fwrap{..} _pwNWp _pwSEp = Pwrap{..}
   where _pwNWd = _wNWd
         _pwSEd = _wSEd
 
 
 -- * Drawing
 -- | Wrap rendering as a rounded rectangle.
+--   XXX: see if `Linear.V2.perp` can help with that.
 wrapRoundedRectFeatures ∷ Floating a ⇒ S Wrap True a → R a → Th a → [WRoundRectFeature a]
-wrapRoundedRectFeatures pw@PWrap{..} rr@(R r) th =
-  let pa@(PArea (Di (V2 wi he)) (Po (V2 w n))) = narrowByTh ((/2) <$> th) $ area pw
+wrapRoundedRectFeatures pw@Pwrap{..} rr@(R r) th =
+  let pa@(Parea (Di (V2 wi he)) (Po (V2 w n))) = narrowByTh ((/2) <$> th) $ area pw
       V2 e s = _poV $ paSEp pa
       !degrees         = pi/180
   in [WRR $ RRSide ON  (po (w + r)  n)      (po (e - r) n)
@@ -532,11 +536,11 @@ aRectAngles_MidSWCW
   where !degrees = pi/180
 
 
+
 -- | Space partitioning
-
 data Space (pinned ∷ Bool) a (n ∷ Nat) where
   End   ∷ Num a ⇒                Space p a 0
-  SArea ∷ Num a ⇒
+  Sarea ∷ Num a ⇒
     { sArea  ∷ !(S Area p a) } → Space p a 1
   Spc   ∷
     (Num a, n ~ (m + 1)) ⇒
@@ -547,19 +551,19 @@ deriving instance Show a ⇒  Show (Space p a n)
 
 instance Num a ⇒ MeasuredMonoid (Space p a) where
   mmempty    = End
-  mmappend     End       End       = End
-  mmappend     End     x@SArea{..} = x
-  mmappend     End     x@Spc{..}   = x
-  mmappend  x@SArea{..}  End       = x
-  mmappend  x@Spc{..}    End       = x
-  mmappend tl@(Spc pl nl) tr       = Spc pl $ mmappend nl tr
+  mmappend     End        End       = End
+  mmappend     End      x@Sarea{..} = x
+  mmappend     End      x@Spc{..}   = x
+  mmappend  x@Sarea{..}   End       = x
+  mmappend  x@Spc{..}     End       = x
+  mmappend tl@(Spc pl nl) tail      = Spc pl $ mmappend nl tail
 
 type SubArea a = Space True a 2
 
 
 -- * Constructors
 makeArea ∷ Fractional a ⇒ Di a → Space False a 1
-makeArea = SArea ∘ FArea
+makeArea = Sarea ∘ Farea
 
 -- XXX/natnormalise:
 -- Could not deduce: CmpNat d 0 ~ 'GT arising _ a use of ‘Spc’
@@ -585,7 +589,7 @@ growGY   d sp = Spc (goldY $ d) sp
 -- | XXX/Lensify: update the wrap of the innermost space
 mapSpaceArea ∷ (S Area p u → S Area p u) → Space p u d → Space p u d
 mapSpaceArea f s | End      ← s = End
-                 | SArea sa ← s = SArea (f sa)
+                 | Sarea sa ← s = Sarea (f sa)
                  | Spc w is ← s = Spc w $ mapSpaceArea f is
 --- XXX: destroys the depth information
 -- sMapInnermost ∷ (Space p d a → Space p e a) → Space p f a → Space p g a
@@ -599,9 +603,9 @@ mapSpaceArea f s | End      ← s = End
 --   Complexity: O(depth) for un-pinned, O(1) for pinned.
 spaceDim ∷ Space p u d → Di u
 spaceDim  End                           = zero
-spaceDim (SArea a)                      = dim a
-spaceDim (Spc w@(FWrap  _ _)    sInner) = dim w ^+^ spaceDim sInner
-spaceDim (Spc w@(PWrap _ _ _ _) sInner) = dim w
+spaceDim (Sarea a)                      = dim a
+spaceDim (Spc w@(Fwrap  _ _)    sInner) = dim w ^+^ spaceDim sInner
+spaceDim (Spc w@(Pwrap _ _ _ _) sInner) = dim w
 
 
 -- * Pinning
@@ -616,16 +620,16 @@ sPin lt space = loop space zero rb
   where rb = sSE space lt
         loop ∷ Space False a n → Po a → Po a → Space True a n
         loop  End                     _  _ = End
-        loop (SArea FArea{..})       lt  _ =
-          SArea (PArea { _paD   = _aD,                   _paNWp = lt })
-        loop (Spc FWrap{..} swInner) lt rb =
-          Spc   (PWrap { _pwNWd = _wNWd, _pwSEd = _wSEd, _pwNWp = lt, _pwSEp = rb })
+        loop (Sarea Farea{..})       lt  _ =
+          Sarea (Parea { _paD   = _aD,                   _paNWp = lt })
+        loop (Spc Fwrap{..} swInner) lt rb =
+          Spc   (Pwrap { _pwNWd = _wNWd, _pwSEd = _wSEd, _pwNWp = lt, _pwSEp = rb })
           $   loop swInner
               (lt ^+^ (Po ∘ _diV) _wNWd)
               (rb ^-^ (Po ∘ _diV) _wSEd)
 
 -- XXX: not sure if needed
 -- sCutOutsideS2 ∷ Di a → Space False a n → Space False a (n + 1)
--- sCutOutsideS2 cut s@Spc{..} = Spc (FWrap cut cut)                $ s { sWrap = omap (^-^ _diV cut) sWrap }
+-- sCutOutsideS2 cut s@Spc{..} = Spc (Fwrap cut cut)                $ s { sWrap = omap (^-^ _diV cut) sWrap }
 -- sCutInsideS2  ∷ Fractional a ⇒ Di a → Space False a n → Space False a (n+1)
--- sCutInsideS2  cut s@Spc{..} = Spc (omap (^-^ _diV cut) sWrap) $ s { sWrap = FWrap cut cut }
+-- sCutInsideS2  cut s@Spc{..} = Spc (omap (^-^ _diV cut) sWrap) $ s { sWrap = Fwrap cut cut }
