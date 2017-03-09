@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE DataKinds, KindSignatures, TypeApplications, TypeInType #-}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, NoMonomorphismRestriction, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, NoMonomorphismRestriction, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
 {-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies #-}
 {-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, StandaloneDeriving, TypeOperators #-}
 {-# LANGUAGE DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving #-}
@@ -200,7 +200,6 @@ v2negp (V2 d0 d1) = d0 < 0 || d1 < 0
 newtype  Di a =  Di { _diV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Dimensions
 newtype  Po a =  Po { _poV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor) -- ^ Coordinates
 newtype SDi a = SDi { _sdiV ∷ V4 a } deriving                        (Eq, Functor) -- ^ Side-wise dimensions: N, E, S, W
--- deriving instance Additive Di
 deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show (SDi a)
 
 newtype An  a = An  { _anV  ∷ V2 a } deriving (Eq, Functor) -- ^ Unordered pair of angles
@@ -345,18 +344,18 @@ data Kind = Area | Wrap
 --   - the __/wrap area/__, around the /wrapped area/ -- this is what 'Wrap' corresponds to,
 --   - the __/wrapped area/__, that, which is inside the 'Wrap' itself.
 data S (kind ∷ Kind) (pinned ∷ Bool) a where
-  FArea  ∷ Num a ⇒ -- ^ A non-positioned, free area.
+  FArea ∷ -- ^ A non-positioned, free area.
     { _aD    ∷ !(Di a)
     } → S Area False a
-  PArea  ∷ Num a ⇒ -- ^ A positioned, pinned area.
+  PArea ∷ -- ^ A positioned, pinned area.
     { _paD   ∷ !(Di a)
     , _paNWp ∷ !(Po a)
     } → S Area True a
-  FWrap  ∷ Num a ⇒ -- ^ The non-positioned, dimensional-only, free wrap.
+  FWrap ∷ -- ^ The non-positioned, dimensional-only, free wrap.
     { _wNWd  ∷ !(Di a) -- ^ The combined offsets _ the left and top sides.
     , _wSEd  ∷ !(Di a) -- ^ The combined offsets _ the right and bottom sides.
     } → S Wrap False a
-  PWrap ∷ Num a ⇒ -- ^ The pinned variant -- enriched with a position.
+  PWrap ∷ -- ^ The pinned variant -- enriched with a position.
     { _pwNWd ∷ !(Di a) -- ^ ..same as above.
     , _pwSEd ∷ !(Di a) -- ^ ..same as above.
     , _pwNWp ∷ !(Po a) -- ^ Coordinates of the top-leftmost pixel of the wrap area.
@@ -366,6 +365,14 @@ deriving instance Show u ⇒ Show (S k p u)
 aD :: Lens' (S Area p a) (Di a)
 aD f FArea{..} = FArea <$> f _aD
 aD f PArea{..} = flip PArea _paNWp <$> f _paD
+instance Functor (S Area False) where fmap f (FArea x)       = FArea (fmap f x)
+instance Functor (S Area True)  where fmap f (PArea x y)     = PArea (fmap f x) (fmap f y)
+instance Functor (S Wrap False) where fmap f (FWrap x y)     = FWrap (fmap f x) (fmap f y)
+instance Functor (S Wrap True)  where fmap f (PWrap x y z w) = PWrap (fmap f x) (fmap f y) (fmap f z) (fmap f w)
+instance Applicative (S Area False) where pure x = FArea $ pure x; FArea x <*> FArea y = FArea $ x <*> y
+instance Additive    (S Area False) where zero   = FArea zero
+instance Applicative (S Area True)  where pure x = PArea (pure x) (pure x); PArea x x' <*> PArea y y' = PArea (x <*> y) (x' <*> y')
+instance Additive    (S Area True)  where zero   = PArea zero zero; -- XXX: the ^+^ instance is botched.
 
 
 
@@ -399,25 +406,25 @@ instance RealFrac a ⇒ GoldYS  a Wrap where goldY  = join FWrap ∘ goldYdi
 
 -- * Projections
 --
-paSEp ∷ S Area True a → Po a
+paSEp ∷ Num a ⇒ S Area True a → Po a
 paSEp (PArea di po) = poByDi po di
 
 center ∷ Fractional a ⇒ S k True a → Po a
 center (PArea d p)                 = poByDi p (d ^/ 2)
 center (PWrap _ _ (Po nw) (Po se)) = Po $ (se ^+^ nw) ^/ 2
 
-dim ∷ S k p a → Di a
+dim ∷ Num a ⇒ S k p a → Di a
 dim FArea{..} = _aD
 dim PArea{..} = _paD
 dim FWrap{..} = _wNWd ^+^ _wSEd
 dim PWrap{..} = Di ∘ _poV $ _pwSEp ^-^ _pwNWp
 
 -- | Narrowing into a positioned 'S Wrap'.
-stepIntoNW, stepIntoSE ∷ S Wrap True a → Po a
+stepIntoNW, stepIntoSE ∷ Num a ⇒ S Wrap True a → Po a
 stepIntoNW (PWrap (Di pwNWd) _ (Po pwNWp) _) = Po $ pwNWp ^+^ pwNWd
 stepIntoSE (PWrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd
 
-stepInto ∷               S Wrap True a → (Po a, Po a)
+stepInto ∷ Num a ⇒ S Wrap True a → (Po a, Po a)
 stepInto pw = (stepIntoNW pw, stepIntoNW pw)
 
 -- | Narrowing into a positioned 'Wrap', halfway.
@@ -428,8 +435,7 @@ stepIntoSE'2 (PWrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd ⋅ 0.5
 stepInto'2 ∷                 Fractional a ⇒ S Wrap True a → (Po a, Po a)
 stepInto'2 pw = (stepIntoNW'2 pw, stepIntoSE'2 pw)
 
--- * 'l', 't', 'r', 'b' -- sidewise dimensions.
---
+-- | 'l', 't', 'r', 'b' -- sidewise dimensions.
 l, r ∷ S Wrap p a → Wi a
 t, b ∷ S Wrap p a → He a
 l FWrap{..} = Wi ∘ (view _x) $ _diV _wNWd; l PWrap{..} = Wi ∘ (view _x) $ _diV _pwNWd
@@ -440,18 +446,18 @@ b FWrap{..} = He ∘ (view _y) $ _diV _wSEd; b PWrap{..} = He ∘ (view _y) $ _d
 
 -- * Combinators
 --
-area ∷ S k True a → S Area True a
+area ∷ Num a ⇒ S k True a → S Area True a
 area a@PArea{..} = a
 area (PWrap _ _ (Po nw) (Po se)) =
   PArea (Di $ se ^-^ nw) (Po nw)
 
-areaSubtract ∷ S Area False a → S Area False a → S Area False a
+areaSubtract ∷ Num a ⇒ S Area False a → S Area False a → S Area False a
 FArea l `areaSubtract` FArea r = FArea $ l ^-^ r
 
 
 -- * General transformations
 --
-narrowByTh ∷ Th a → S Area p a → S Area p a
+narrowByTh ∷ Num a ⇒ Th a → S Area p a → S Area p a
 narrowByTh (Th d) (FArea (Di a))        = FArea (Di $ a ^-^ (V2 d d) ^* 2)
 narrowByTh (Th d) (PArea (Di a) (Po p)) = PArea (Di $ a ^-^ (V2 d d) ^* 2) (Po $ p ^+^ (V2 d d))
 
