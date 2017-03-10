@@ -207,20 +207,29 @@ data WorldEvent where
   NonEvent ∷ WorldEvent
 
 translateEvent ∷ Input → WorldEvent
-translateEvent (EventChar _ c)                        = Edit $ T.insertChar c
-translateEvent (EventKey  _ GLFW.Key'Enter _ _ _)     = Edit $ T.breakLine
-translateEvent (EventKey  _ GLFW.Key'Backspace _ _ _) = Edit $ T.deletePrevChar
-translateEvent (EventKey  _ GLFW.Key'Delete _ _ _)    = Edit $ T.deleteChar
-translateEvent (EventKey  _ GLFW.Key'Left _ _ _)      = Edit $ T.moveLeft
-translateEvent (EventKey  _ GLFW.Key'Up _ _ _)        = Edit $ T.moveUp
-translateEvent (EventKey  _ GLFW.Key'Right _ _ _)     = Edit $ T.moveRight
-translateEvent (EventKey  _ GLFW.Key'Down _ _ _)      = Edit $ T.moveDown
-translateEvent (EventKey  _ GLFW.Key'Home _ _ _)      = Edit $ T.gotoBOL
-translateEvent (EventKey  _ GLFW.Key'End _ _ _)       = Edit $ T.gotoEOL
+translateEvent (EventChar _ c)                                            = Edit $ T.insertChar c
+translateEvent (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Pressed _) = Edit $ T.breakLine
+translateEvent (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Pressed _) = Edit $ T.deletePrevChar
+translateEvent (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Pressed _) = Edit $ T.deleteChar
+translateEvent (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Pressed _) = Edit $ T.moveLeft
+translateEvent (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Pressed _) = Edit $ T.moveUp
+translateEvent (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Pressed _) = Edit $ T.moveRight
+translateEvent (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Pressed _) = Edit $ T.moveDown
+translateEvent (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Pressed _) = Edit $ T.gotoBOL
+translateEvent (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Pressed _) = Edit $ T.gotoEOL
+translateEvent (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Repeating _) = Edit $ T.breakLine
+translateEvent (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Repeating _) = Edit $ T.deletePrevChar
+translateEvent (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Repeating _) = Edit $ T.deleteChar
+translateEvent (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Repeating _) = Edit $ T.moveLeft
+translateEvent (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Repeating _) = Edit $ T.moveUp
+translateEvent (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _) = Edit $ T.moveRight
+translateEvent (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _) = Edit $ T.moveDown
+translateEvent (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _) = Edit $ T.gotoBOL
+translateEvent (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _) = Edit $ T.gotoEOL
 -- how to process key chords?
-translateEvent (EventKey  _ GLFW.Key'Insert _ _ _) = Spawn
-translateEvent (EventKey  _ GLFW.Key'Escape _ _ _) = Shutdown
-translateEvent _                                   = NonEvent
+translateEvent (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed _) = Spawn
+translateEvent (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed _) = Shutdown
+translateEvent _                                                          = NonEvent
 
 
 data Viewport a where
