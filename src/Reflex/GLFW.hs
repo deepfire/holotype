@@ -1,6 +1,8 @@
 -- Derived from:
 --  1. https://raw.githubusercontent.com/reflex-frp/reflex-platform/develop/examples/host.hs
 --  2. http://hackage.haskell.org/package/GLFW-b-demo-1.0.4/src/src/Main.hs
+--
+-- See the documentation of the ReflexGLFW type for caveats.
 {-# OPTIONS_GHC -Wall -Wno-unused-do-bind -Wno-unused-top-binds #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -37,10 +39,13 @@ import           Reflex.Host.Class                         (newEventWithTriggerR
 --   In this framework, the user will write programs that:
 --   - take:
 --     - the window object
---     - frame update events (XXX: currently at unconstrained rate)
---     - GLFW input events (XXX: currently, a non-configurable subset of them)
+--     - frame update events (XXX#1: currently at unconstrained rate)
+--     - GLFW input events (XXX#2: currently, a non-configurable subset of them)
 --   - and produce an output boolean behavior, that is interpreted
 --     as a request for event loop termination.
+--
+--   XXX#3: currently, input events are injected at rate of one-per-frame.
+--          Not sure how much of a problem this is..
 --
 type ReflexGLFW t m
   = ReflexGLFWCtx t m
