@@ -27,12 +27,12 @@ import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import qualified Data.IORef                        as IO
 
 import           Reflex
+import           Reflex.GLFW
 
 -- Local imports
 import Flatland
 import HoloCanvas
 import HoloCube (ObjectStream)
-import HoloFlex
 import HoloSettings (Settings)
 
 

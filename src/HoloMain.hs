@@ -2,9 +2,9 @@
 
 module Main (main) where
 
-import HoloFlex                (host)
+import Reflex.GLFW             (host, defaultGLWindow)
 import Holotype                (initialiser)
 
 -- | A FRP implementation meets a FRP network.
 main ∷ IO ()
-main = host initialiser
+main = host defaultGLWindow initialiser

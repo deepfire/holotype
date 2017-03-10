@@ -1,12 +1,13 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
-{-# LANGUAGE Arrows #-}
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -50,14 +51,17 @@ import           Text.Printf                              (printf)
 import           Linear
 
 -- System
+import qualified GHC.Stats                         as Sys
 import qualified System.Clock                      as Sys
 import qualified System.IO                         as Sys
+import qualified System.Mem                        as Sys
 
 -- Dirty stuff
 import qualified Data.IORef                        as IO
 
 -- Reflex
 import           Reflex
+import           Reflex.GLFW
 import           Reflex.Random
 import qualified Debug.Trace                       as D
 
@@ -78,10 +82,8 @@ import HoloCanvas hiding (Text)
 import qualified HoloCanvas                        as H
 import HoloCube
 import HoloFont
-import HoloFlex
 import HoloInput
 import HoloSettings
-import WindowSys
 
 dasContent =
   (T.unlines
@@ -98,31 +100,53 @@ dasStyle =
           (TextS @PU "default" 7 $ coGray 1 1)))
 
 
-initialiser ∷ ReflexGLFW t m
-initialiser streamV initiallyE frameE inputE = do
-  stts             ← liftIO $ defaultSettings
-  holotype streamV initiallyE frameE inputE stts
+data SystemStats where
+  SystemStats ∷
+    { statsTimeSecs ∷ Double
+    , statsMem      ∷ Integer
+    } → SystemStats
+deriving instance Show SystemStats
 
-holotype ∷ ReflexGLFWCtx t m
-            ⇒ ObjectStream
-            → Event t ()
-            → Event t Frame
-            → Event t InputEvent
-            → Settings PU
-            → m (Behavior t Bool)
-holotype streamV initiallyE frameE inputE settingsV@Settings{..} = do
-  -- fpsE             ← (T.pack ∘ show ∘ recip <$>) <$> averageEWE 25 timeDeltaE
-  frameTimeE       ← performEvent $ fmap (\_ → liftIO $ Sys.getTime Sys.Monotonic) frameE
+timespecToSecs ∷ Sys.TimeSpec → Double
+timespecToSecs = (/ 1000000000.0) ∘ fromIntegral ∘ Sys.toNanoSecs
 
+systemStats ∷ (MonadIO m) ⇒ m SystemStats
+systemStats = liftIO $ do
+  -- Sys.performGC -- sloow with intero loaded..
+  statsMem      ← (`div` 1024) ∘ fromIntegral ∘ Sys.currentBytesUsed <$> Sys.getGCStats
+  statsTimeSecs ← timespecToSecs <$> Sys.getTime Sys.Monotonic
+  pure SystemStats{..}
+
+newFrame ∷ ReflexGLFWCtx t m ⇒ Event t Renderer → m (Event t Frame)
+newFrame rendererFrameE = performEvent $ rendererFrameE <&>
+  \r@Renderer{..} → do
+    rendererDrawFrame r
+    rendererSetupFrame r
+
+holotype ∷ ReflexGLFW t m
+holotype win windowFrameE inputE = do
+  liftIO $ Sys.hSetBuffering Sys.stdout Sys.NoBuffering
+  (rendererV, streamV)
+                ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
+  rendererDrawFrame rendererV
+  settingsV@Settings{..} ← liftIO $ defaultSettings
+  -- secs = (/ 1000000000) ∘ fromInteger ∘ Sys.toNanoSecs
+  -- getT = liftIO (Sys.getTime Sys.Monotonic)
+  -- fpsE          ← (T.pack ∘ show ∘ recip <$>) <$> averageEWE 25 timeDeltaE
+  frameE           ← newFrame $ rendererV <$ windowFrameE
+  frameTimeE       ← performEvent $ fmap (\_ → liftIO $ timespecToSecs <$> Sys.getTime Sys.Monotonic) frameE
+  frameDeltaD      ← foldDyn (flip (-)) (0 ∷ Double) frameTimeE
   let worldE    = translateEvent <$> inputE
       spawnE    = ffilter (\case Spawn    → True; _ → False) worldE
       editE     = ffilter (\case Edit{..} → True; _ → False) worldE
+
+  let driverE   = frameE
       screenA   = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
       widgetLim = Parea (di 0.2 0.2) (po 0 0)
-  randomAreaE      ← foldRandomRs 0 (screenA, widgetLim) $ () <$ spawnE
+  randomAreaE      ← foldRandomRs 0 (screenA, widgetLim) $ () <$ driverE
   holoAreaE        ← performEvent $ randomAreaE <&> (\area → liftIO $ do
-                                                        t ← Sys.getTime Sys.Monotonic
-                                                        pure ∘ (,area)  ∘ zft $ [T.pack $ printf "Press 'Esc' to quit.\n\n%s" $ show area])
+                                                        s ← systemStats
+                                                        pure ∘ (,area)  ∘ zft $ [T.pack $ printf "Press 'Esc' to quit.\n\n%s" $ show s])
   holosomAreaE     ← visual settingsV streamV dasStyle holoAreaE
   holosomAreaD     ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomAreaE
 
@@ -229,17 +253,7 @@ zft = flip T.textZipper Nothing
 
 
 -- Time & math
---
--- newTickWE ∷ (MonadIO m) ⇒ Wire m a (Event Double)
--- newTickWE = proc _ -> do
---     times ← newEvent -< Just <$> getT
---     withM_ unfoldE getT -< fmap (\t t' → (secs (t - t'), t)) times
-
---     where
---     secs = (/ 1000000000) ∘ fromInteger ∘ Sys.toNanoSecs
---     getT = liftIO (Sys.getTime Sys.Monotonic)
-
--- | Average of the given event's payload over the last given number of
+-- Average of the given event's payload over the last given number of
 -- occurrences.
 -- averageEWE ∷ (Fractional a, Monad m) ⇒ Int → Event t a → m (Event t a)
 -- averageEWE n = lmap (fmap go) (unfoldE Seq.empty)
@@ -250,10 +264,7 @@ zft = flip T.textZipper Nothing
 --             xs)
 
 
--- * Efficient input handling in GLFW
--- setCharCallback :: Window -> Maybe CharCallback -> IO ()
--- setMouseButtonCallback :: Window -> Maybe MouseButtonCallback -> IO ()
--- setScrollCallback :: Window -> Maybe ScrollCallback -> IO ()
--- setDropCallback :: Window -> Maybe DropCallback -> IO ()
+-- GLFW tips & tricks:
+--
 -- getClipboardString :: Window -> IO (Maybe String)
 -- GLFW.windowShouldClose win
