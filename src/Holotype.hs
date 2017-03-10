@@ -139,7 +139,7 @@ holotype win windowFrameE inputE = do
       spawnE    = ffilter (\case Spawn    → True; _ → False) worldE
       editE     = ffilter (\case Edit{..} → True; _ → False) worldE
 
-  let driverE   = frameE
+  let driverE   = spawnE
       screenA   = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
       widgetLim = Parea (di 0.2 0.2) (po 0 0)
   randomAreaE      ← foldRandomRs 0 (screenA, widgetLim) $ () <$ driverE
