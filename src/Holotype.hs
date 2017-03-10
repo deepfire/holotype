@@ -82,7 +82,6 @@ import HoloCanvas hiding (Text)
 import qualified HoloCanvas                        as H
 import HoloCube
 import HoloFont
-import HoloInput
 import HoloSettings
 
 dasContent =
@@ -207,7 +206,7 @@ data WorldEvent where
   Shutdown ∷ WorldEvent
   NonEvent ∷ WorldEvent
 
-translateEvent ∷ InputEvent → WorldEvent
+translateEvent ∷ Input → WorldEvent
 translateEvent (EventChar _ c)                        = Edit $ T.insertChar c
 translateEvent (EventKey  _ GLFW.Key'Enter _ _ _)     = Edit $ T.breakLine
 translateEvent (EventKey  _ GLFW.Key'Backspace _ _ _) = Edit $ T.deletePrevChar
