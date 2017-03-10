@@ -1,11 +1,19 @@
--- Derived from https://raw.githubusercontent.com/reflex-frp/reflex-platform/develop/examples/host.hs
-{-# OPTIONS_GHC -Wall -Wno-unused-do-bind #-}
+-- Derived from:
+--  1. https://raw.githubusercontent.com/reflex-frp/reflex-platform/develop/examples/host.hs
+--  2. http://hackage.haskell.org/package/GLFW-b-demo-1.0.4/src/src/Main.hs
+{-# OPTIONS_GHC -Wall -Wno-unused-do-bind -Wno-unused-top-binds #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UnicodeSyntax #-}
-module Reflex.GLFW where
+module Reflex.GLFW
+  ( ReflexGLFW, ReflexGLFWCtx
+  , host, simpleHost
+  , defaultGLWindow
+  , Input(..)
+  )
+where
 
 import qualified Control.Concurrent.STM             as STM (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue)
 import           Control.Monad                             (unless)
@@ -23,21 +31,26 @@ import           Reflex.Host.Class                         (newEventWithTriggerR
 
 
 -- | Define the type for apps using our host framework.  Programmers
---   will write programs of type @HoloFlex t m@ and use our
+--   will write programs of type @ReflexGLFW t m@ and use our
 --   framework to run them.
 --
---   In this framework, the user will write programs that take an input
---   event representing keystrokes and produce an output behavior representing
---   the current view to be shown.  This is similar to how polling-driven
---   output frameworks such as OpenGL will work.
-type ReflexGLFWCtx t m = (Reflex t, MonadHold t m, MonadFix m, MonadIO m, MonadAdjust t m, PerformEvent t m, MonadIO (Performable m))
+--   In this framework, the user will write programs that:
+--   - take:
+--     - the window object
+--     - frame update events (XXX: currently at unconstrained rate)
+--     - GLFW input events (XXX: currently, a non-configurable subset of them)
+--   - and produce an output boolean behavior, that is interpreted
+--     as a request for event loop termination.
+--
 type ReflexGLFW t m
   = ReflexGLFWCtx t m
   ⇒ GLFW.Window
   → Event t GLFW.Window -- ^ The window to draw on, fired on every frame.
   → Event t Input       -- ^ Fired whenever input happens, which isn't always the case..
   → m (Behavior t Bool)
+type ReflexGLFWCtx t m = (Reflex t, MonadHold t m, MonadFix m, MonadIO m, MonadAdjust t m, PerformEvent t m, MonadIO (Performable m))
 
+-- | A default GLFW window setup function.
 defaultGLWindow ∷ (MonadIO m) ⇒ String → m GLFW.Window
 defaultGLWindow title = liftIO $ do
   let (width, height) = (1024, 768)
@@ -55,6 +68,7 @@ defaultGLWindow title = liftIO $ do
   swapInterval 0
   return win
 
+-- | The type describing deliverable GLFW events.
 data Input =
     EventError           !GLFW.Error !String
   | EventWindowPos       !GLFW.Window !Int !Int
