@@ -11,14 +11,14 @@
 {-# LANGUAGE UnicodeSyntax #-}
 module Reflex.GLFW
   ( ReflexGLFW, ReflexGLFWCtx
+  , withGLWindow, defaultGLWindowSetup
   , host, simpleHost
-  , defaultGLWindow
   , Input(..)
   )
 where
 
 import qualified Control.Concurrent.STM             as STM (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue)
-import           Control.Monad                             (unless)
+import           Control.Monad                             (unless, when)
 import           Control.Monad.Fix                         (MonadFix)
 import           Control.Monad.Identity                    (Identity(..))
 import           Control.Monad.IO.Class                    (MonadIO, liftIO)
@@ -57,22 +57,37 @@ type ReflexGLFW t m
 type ReflexGLFWCtx t m = (Reflex t, MonadHold t m, MonadFix m, MonadIO m, MonadAdjust t m, PerformEvent t m, MonadIO (Performable m))
 
 -- | A default GLFW window setup function.
-defaultGLWindow ∷ (MonadIO m) ⇒ String → m GLFW.Window
-defaultGLWindow title = liftIO $ do
-  let (width, height) = (1024, 768)
-  GLFW.init
-  defaultWindowHints
-  mapM_ windowHint
-    [ WindowHint'ContextVersionMajor 3
-    , WindowHint'ContextVersionMinor 3
-    , WindowHint'OpenGLProfile OpenGLProfile'Core
-    , WindowHint'OpenGLForwardCompat True
-    ]
-  Just win ← createWindow width height title Nothing Nothing
-  makeContextCurrent $ Just win
+defaultGLWindowSetup ∷ (MonadIO m) ⇒ GLFW.Window → m ()
+defaultGLWindowSetup _ = liftIO $ do
   GL.glEnable GL.GL_FRAMEBUFFER_SRGB
   swapInterval 0
-  return win
+
+-- * GLFW-b is made to be very close to the C API, so creating a window is pretty
+--   clunky by Haskell standards.  A higher-level API would have some function
+--   like 'withWindow'.
+withGLWindow ∷ (MonadIO m) ⇒ Int → Int → String → (GLFW.Window → m ()) → m ()
+withGLWindow width height title f = do
+    liftIO $ GLFW.setErrorCallback $ Just simpleErrorCallback
+    r ← liftIO $ GLFW.init
+    when r $ do
+      liftIO $ defaultWindowHints
+      liftIO $ mapM_ windowHint
+        [ WindowHint'ContextVersionMajor 3
+        , WindowHint'ContextVersionMinor 3
+        , WindowHint'OpenGLProfile OpenGLProfile'Core
+        , WindowHint'OpenGLForwardCompat True ]
+      m ← liftIO $ GLFW.createWindow width height title Nothing Nothing
+      case m of
+        Just win → do
+          liftIO $ GLFW.makeContextCurrent m
+          f win
+          liftIO $ GLFW.setErrorCallback $ Just simpleErrorCallback
+          liftIO $ GLFW.destroyWindow win
+        Nothing → pure ()
+      liftIO $ GLFW.terminate
+  where
+    simpleErrorCallback e s =
+        putStrLn $ unwords [show e, show s]
 
 -- | The type describing deliverable GLFW events.
 data Input =
@@ -191,24 +206,25 @@ readInput ∷ (MonadIO m) ⇒ STM.TQueue Input → m (Maybe Input)
 readInput queue = liftIO $ do
   GLFW.pollEvents
   STM.atomically $ STM.tryReadTQueue queue
-  
+
 -- | A host that uses 'defaultGLwindow' and no cleanup.
 simpleHost ∷ (MonadIO io)
            ⇒ String
            → (∀ t m. ReflexGLFW t m)
            → io ()
-simpleHost name = host (defaultGLWindow name) (const $ pure ())
+simpleHost title guest =
+  withGLWindow 1024 768 title $ \win → do
+    defaultGLWindowSetup win
+    host win guest
 
 -- | Run a program written in the framework.  This will do all the necessary
 --   work to integrate the Reflex-based guest program with the outside world
 --   via IO.
 host ∷ (MonadIO io)
-     ⇒ io GLFW.Window
-     → (GLFW.Window → io ())
+     ⇒ GLFW.Window
      → (∀ t m. ReflexGLFW t m)
      → io ()
-host glWindow cleanup myGuest = do
-  win   ← glWindow
+host win myGuest = do
   queue ← makeInputQueue win
 
   -- Use the Spider implementation of Reflex.
@@ -245,5 +261,3 @@ host glWindow cleanup myGuest = do
             loop
     -- Begin our event processing loop.
     loop
-  cleanup win
-  liftIO $ GLFW.destroyWindow win
