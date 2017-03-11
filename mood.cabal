@@ -83,3 +83,5 @@ executable holotype
                      , ghc-typelits-natnormalise
 
                      , mtl
+
+                     , halive
