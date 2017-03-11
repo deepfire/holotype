@@ -21,8 +21,9 @@ module HoloFont
   , fdSetSize
 
   -- * Text
-  , makeTextLayout, laySetWidth, laySetHeight, laySetSize, layGetSize, laySetMaxParaLines, layRunTextForSize
-  , layPrintLimits
+  , makeTextLayout, laySetWidth, laySetHeight, laySetSize, layGetSize, laySetMaxParaLines
+  , layPrintLimits , layRunTextForSize
+  , layDrawText
 
   -- * FontMap
   , FontKey(..), FontAlias(..), FontPreferences(..), FontMap(..)
@@ -336,6 +337,14 @@ layRunTextForSize lay dπ width text = do
   laySetWidth       lay dπ width
   GIP.layoutSetText lay text (-1)
   layGetSize        lay dπ
+
+layDrawText ∷ (MonadIO m) ⇒ GRC.Cairo → GIC.Context → GIP.Layout → Po Double → Co Double → T.Text → m ()
+layDrawText dGRC dGIC lay (Po (V2 cvx cvy)) tColor text = do
+  liftIO $ (`runReaderT` dGRC) $ GRC.runRender $ do
+    GRC.moveTo cvx cvy
+    coSetSourceColor tColor
+    GIP.layoutSetText lay text (-1)
+    GIPC.showLayout dGIC lay
 
 
 -- | Fontmap: give fonts semantic names.

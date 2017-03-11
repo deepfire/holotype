@@ -292,18 +292,14 @@ instance Widget Text where
     tTextRef ← liftIO $ IO.newIORef tText
     pure Text{..}
   draw (CW (Canvas (Drawable{..}) _ _ _ _))
-       (Text (Sarea area@(Parea di (Po lt@(V2 cvx cvy))))
+       (Text (Sarea area@(Parea di ltp@(Po lt)))
              TextS{..}
              (FontBinding Font{..} _) lay textRef) = do
-    let Po rb@(V2 cvxe cvye) = paSEp area
-    laySetSize         lay fDΠ (Di (PUs <$> (rb ^-^ lt)))
+    let Po rb = paSEp area
+        dim   = rb ^-^ lt
+    laySetSize         lay fDΠ $ Di (PUs <$> dim)
     laySetMaxParaLines lay tMaxParaLines
-    liftIO $ (`runReaderT` dGRC) $ GRC.runRender $ do
-      GRC.moveTo cvx cvy
-      coSetSourceColor tColor
-      text ← liftIO $ IO.readIORef textRef
-      GIP.layoutSetText lay text (-1)
-      GIPC.showLayout dGIC lay
+    layDrawText dGRC dGIC lay ltp tColor =<< (liftIO $ IO.readIORef textRef)
 
 
 -- * Rounded rectangle
