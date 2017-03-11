@@ -37,6 +37,7 @@ executable holotype
                      , MissingH
                      , MonadRandom
                      , mono-traversable
+                     , pretty
                      , profunctors
                      , random
                      , semigroupoids >= 5.0.0.3
