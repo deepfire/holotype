@@ -100,6 +100,10 @@ dasStyle =
       (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
                   , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 })
           (TextS @PU "default" 7 $ coGray 1 1)))
+
+-- * Elsewhere
+zipperText ∷ T.TextZipper T.Text → T.Text
+zipperText = T.dropEnd 1 ∘ T.unlines ∘ T.getText
 
 
 data SystemStats where
@@ -209,13 +213,13 @@ holotype win setupE windowFrameE inputE = do
 instance Holo (T.TextZipper T.Text) where
   type Visual (T.TextZipper T.Text) = Canvas (RRect H.Text)
   visualise stts strea sty tzip = do
-    vis ← assemble stts strea sty $ T.unlines $ T.getText tzip
+    vis ← assemble stts strea sty $ zipperText tzip
     render vis
     pure vis
-  updateVisual _ _ canvas tzip = do
-    let H.Text{..} = (innerOf ∘ innerOf) canvas
-    liftIO $ IO.writeIORef tTextRef $ T.unlines $ T.getText tzip
-    render canvas
+  updateVisual _ _ vis tzip = do
+    let H.Text{..} = (innerOf ∘ innerOf) vis
+    liftIO $ IO.writeIORef tTextRef $ zipperText tzip
+    render vis
 
 worldMergeEvent ∷ WorldEvent → World → World
 worldMergeEvent NonEvent = id
