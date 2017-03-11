@@ -123,7 +123,7 @@ newFrame rendererFrameE = performEvent $ rendererFrameE <&>
     rendererSetupFrame r
 
 holotype ∷ ReflexGLFW t m
-holotype win windowFrameE inputE = do
+holotype win setupE windowFrameE inputE = do
   liftIO $ Sys.hSetBuffering Sys.stdout Sys.NoBuffering
   (rendererV, streamV)
                 ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))

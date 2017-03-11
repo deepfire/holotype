@@ -50,6 +50,7 @@ import           Reflex.Host.Class                         (newEventWithTriggerR
 type ReflexGLFW t m
   = ReflexGLFWCtx t m
   ⇒ GLFW.Window
+  → Event t ()          -- ^ The initial "setup" event, that arrives just once, at the very first frame.
   → Event t GLFW.Window -- ^ The window to draw on, fired on every frame.
   → Event t Input       -- ^ Fired whenever input happens, which isn't always the case..
   → m (Behavior t Bool)
@@ -212,10 +213,15 @@ host glWindow cleanup myGuest = do
 
   -- Use the Spider implementation of Reflex.
   liftIO $ runSpiderHost $ do
+    (s, sTriggerRef) ← newEventWithTriggerRef -- Setup
     (f, fTriggerRef) ← newEventWithTriggerRef -- Frames
     (i, iTriggerRef) ← newEventWithTriggerRef -- Input
 
-    (b, FireCommand threadedFire) ← hostPerformEventT $ myGuest win f i
+    (b, FireCommand threadedFire) ← hostPerformEventT $ myGuest win s f i
+    mTrig ← liftIO $ readIORef sTriggerRef
+    case mTrig of
+      Nothing   → pure ()
+      Just trig → (>> pure ()) $ threadedFire [trig :=> Identity ()] $ pure ()
 
     let loop ∷ SpiderHost Global ()
         loop = do
@@ -223,13 +229,13 @@ host glWindow cleanup myGuest = do
 
           (stopRequest, FireCommand _) ← hostPerformEventT $ sample b
 
-          mTrig ← liftIO $ readIORef fTriggerRef
-          case mTrig of
+          mTrig' ← liftIO $ readIORef fTriggerRef
+          case mTrig' of
             Nothing   → pure [()]
             Just trig →
               threadedFire [trig :=> Identity win] $ pure ()
-          mTrig' ← liftIO $ readIORef iTriggerRef
-          case (mTrig', mInput) of
+          mTrig'' ← liftIO $ readIORef iTriggerRef
+          case (mTrig'', mInput) of
             (Nothing, _)   → pure [()]
             (_, Nothing)   → pure [()]
             (Just trig, Just input) →
