@@ -56,16 +56,16 @@ data Holosome a where
 instance Show a ⇒ Show (Holosome a) where
   show Holosome{..} = printf "Holo { style = %s }" (show holoStyle)
 
-visual ∷ (ReflexGLFWCtx t m, Holo a) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → Event t (a, S Area True b) → m (Event t (Holosome a, S Area True b))
-visual stts holoStream holoStyle holoAreaE =
-  performEvent $ (holoAreaE
-                  <&> ((\(holo, area) → liftIO $ do
-                           holoVisual ← visualise stts holoStream holoStyle holo
-                           render holoVisual
-                           holoRef    ← IO.newIORef holo
-                           -- holoPosRef ← IO.newIORef pos
-                           pure (Holosome{..}, area))
-                       ))
+visual ∷ (ReflexGLFWCtx t m, Holo a) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → Event t (a, b) → m (Event t (Holosome a, b))
+visual stts holoStream holoStyle holoE =
+  performEvent (holoE <&> ((\(holo, x) → liftIO $ do
+                               -- XXX/expressivity:  this threading of 'x' is..
+                               holoVisual ← visualise stts holoStream holoStyle holo
+                               render holoVisual
+                               holoRef    ← IO.newIORef holo
+                               -- holoPosRef ← IO.newIORef pos
+                               pure (Holosome{..}, x))
+                          ))
 
 update ∷ (MonadIO m, Holo a) ⇒ Settings PU → Holosome a → (a → a) → m ()
 update stts Holosome{..} f = do
