@@ -38,8 +38,9 @@ import qualified Data.HashMap.Lazy                 as HM
 import qualified Data.HashSet                      as HS
 import           Data.List
 import           Data.Maybe
-import           Data.MeasuredMonoid
+import           Data.MeasuredMonoid               hiding ((<>))
 import           Data.Profunctor
+import           Data.Semigroup
 import           Data.String
 import qualified Data.Sequence                     as Seq
 import qualified Data.Text                         as T
@@ -79,7 +80,7 @@ import           Control.Lens.Text                 as TL
 import qualified Data.Text.Zipper                  as T
 
 -- Local imports
-import Flatland
+import Flatland                                    hiding ((<>))
 import Holo
 import HoloCanvas hiding (Text)
 import qualified HoloCanvas                        as H
@@ -104,6 +105,12 @@ dasStyle =
 -- * Elsewhere
 zipperText ∷ T.TextZipper T.Text → T.Text
 zipperText = T.dropEnd 1 ∘ T.unlines ∘ T.getText
+
+simpler ∷ Reflex t ⇒ Event t a → Event t ()
+simpler = (() <$)
+
+someFire ∷ Reflex t ⇒ Event t a → Event t b → Event t ()
+someFire a b = simpler a <> simpler b
 
 
 data SystemStats where
@@ -147,42 +154,48 @@ holotype win setupE windowFrameE inputE = do
                 ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
   rendererDrawFrame rendererV
   settingsV@Settings{..} ← liftIO $ defaultSettings
-  -- secs = (/ 1000000000) ∘ fromInteger ∘ Sys.toNanoSecs
-  -- getT = liftIO (Sys.getTime Sys.Monotonic)
-  -- fpsE          ← (T.pack ∘ show ∘ recip <$>) <$> averageEWE 25 timeDeltaE
+
+  -- INPUT
+  let worldE    = translateEvent <$> inputE
+      spawnE    = ffilter (\case Spawn    → True; _ → False) worldE
+      togglE    = ffilter (\case Pause    → True; _ → False) worldE
+      editE     = ffilter (\case Edit{..} → True; _ → False) worldE
   frameE           ← newFrame $ rendererV <$ windowFrameE
+
+  -- DATA
+  enabledD         ← toggle True togglE
+  let frameInE  = gate (current $ enabledD) frameE
+      driverE   = simpler frameInE <> simpler spawnE
+      screenA   = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
+      widgetLim = Parea (di 0.2 0.2) (po 0 0)
+      text n    = [ printf "Object #%d:" n
+                  , "  Esc:           quit"
+                  , "  Pause:         toggle per-frame object stream"
+                  , "  Editing keys:  edit"
+                  , ""
+                  , "Yay!"]
+  holosomCountD    ← count driverE
+  randomAreaE      ← foldRandomRs 0 (screenA, widgetLim) $ () <$ driverE
+  holoAreaE        ← performEvent $ attachPromptlyDyn holosomCountD randomAreaE
+                     <&> (\(n, area) → do; pure ∘ (,area) ∘ zft $ T.pack <$> text n)
+  holosomAreaE     ← visual settingsV streamV dasStyle holoAreaE
+  holosomAreaD     ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomAreaE
+
+  -- UI
   frameMomentE     ← performEvent $ fmap (\_ → liftIO $ timespecToSecs <$> Sys.getTime Sys.Monotonic) frameE
-  frameMomentD     ← holdDyn     0 frameMomentE
   frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
   avgFrameΔD       ← average 20 $ updated frameΔD
   let fpsD      = (floor ∘ recip) <$> avgFrameΔD
       fpsArea   = Parea (di 256 256) (po (-1) (1))
-
-  -- UI
-  let holoFPSDataE = attachPromptlyDyn fpsD frameE <&>
-                     \(fps ∷ Int,_) →
-                       zft [T.pack $ printf "%d fps" fps]
+  let holoFPSDataE = attachPromptlyDyn (zipDyn fpsD holosomCountD) frameE <&>
+                     \((fps ∷ Int, objects ∷ Int),_) →
+                       zft [T.pack $ printf "%3d fps, %5d objects" fps objects]
   holosomFPSE      ← visual settingsV streamV dasStyle
-                     (setupE <&> const (zft ["1000 fps"], fpsArea))
+                     (setupE <&> const (zft ["1000 fps, 10000 objects"], fpsArea))
   holosomFPSD      ← foldDyn (const ∘ Just) Nothing holosomFPSE
 
-  let worldE    = translateEvent <$> inputE
-      spawnE    = ffilter (\case Spawn    → True; _ → False) worldE
-      editE     = ffilter (\case Edit{..} → True; _ → False) worldE
-
-  -- DATA
-  let driverE   = frameE
-      screenA   = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
-      widgetLim = Parea (di 0.2 0.2) (po 0 0)
-  randomAreaE      ← foldRandomRs 0 (screenA, widgetLim) $ () <$ driverE
-  holoAreaE        ← performEvent $ randomAreaE <&> (\area → liftIO $ do
-                                                        s ← systemStats
-                                                        pure ∘ (,area) ∘ zft $ [T.pack $ printf "Press 'Esc' to quit.\nYay!\n\n%s" $ show s])
-  holosomAreaE     ← visual settingsV streamV dasStyle holoAreaE
-  holosomAreaD     ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomAreaE
-
-  -- RENDER PHASE
-  let allDrawablesD = zipDynWith (,) holosomFPSD holosomAreaD
+  -- SCENE COMPOSITION
+  let allDrawablesD = zipDyn holosomFPSD holosomAreaD
       drawReqE   = attachPromptlyDyn allDrawablesD frameE
   _                ← performEvent $ drawReqE <&>
                      \((mfps, (_, cs)), f@Frame{..}) → do
@@ -245,9 +258,10 @@ data WorldEvent where
   Edit ∷
     { weEdit ∷ T.TextZipper T.Text → T.TextZipper T.Text
     } → WorldEvent
-  Spawn    ∷ WorldEvent
-  Shutdown ∷ WorldEvent
-  NonEvent ∷ WorldEvent
+  Spawn       ∷ WorldEvent
+  Pause       ∷ WorldEvent
+  Shutdown    ∷ WorldEvent
+  NonEvent    ∷ WorldEvent
 
 translateEvent ∷ Input → WorldEvent
 translateEvent (EventChar _ c)                                            = Edit $ T.insertChar c
@@ -270,6 +284,7 @@ translateEvent (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _) = Ed
 translateEvent (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _) = Edit $ T.gotoBOL
 translateEvent (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _) = Edit $ T.gotoEOL
 -- how to process key chords?
+translateEvent (EventKey  _ GLFW.Key'Pause     _ GLFW.KeyState'Pressed _) = Pause
 translateEvent (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed _) = Spawn
 translateEvent (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed _) = Shutdown
 translateEvent _                                                          = NonEvent
