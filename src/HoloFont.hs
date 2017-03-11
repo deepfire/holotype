@@ -336,7 +336,9 @@ layRunTextForSize ∷ (MonadIO m) ⇒ (Sizely (Size s), Sizely (Size t)) ⇒
 layRunTextForSize lay dπ width text = do
   laySetWidth       lay dπ width
   GIP.layoutSetText lay text (-1)
-  layGetSize        lay dπ
+  sz ← layGetSize        lay dπ
+  -- liftIO $ printf "LRTFS '%s' w=%s → %s\n" text (show $ width^.wiV) (show $ sz^.diV)
+  pure sz
 
 layDrawText ∷ (MonadIO m) ⇒ GRC.Cairo → GIC.Context → GIP.Layout → Po Double → Co Double → T.Text → m ()
 layDrawText dGRC dGIC lay (Po (V2 cvx cvy)) tColor text = do

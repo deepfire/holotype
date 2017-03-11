@@ -300,6 +300,9 @@ instance Widget Text where
     laySetSize         lay fDΠ $ Di (PUs <$> dim)
     laySetMaxParaLines lay tMaxParaLines
     layDrawText dGRC dGIC lay ltp tColor =<< (liftIO $ IO.readIORef textRef)
+    -- let V2 w h = ceiling <$> dim ∷ V2 Int
+    -- layDrawText dGRC dGIC lay (po 0 0) (coOpaq 1 0 0) $
+    --   T.pack $ printf "sz %d %d" w h
 
 
 -- * Rounded rectangle
