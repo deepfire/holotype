@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, NoMonomorphismRestriction, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
 {-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies #-}
 {-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, StandaloneDeriving, TypeOperators #-}
-{-# LANGUAGE DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveFoldable, DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UnicodeSyntax #-}
 module Flatland where
@@ -23,6 +23,7 @@ import           Control.Lens
 import           Control.Lens.TH
 import           Control.Monad.Random
 import           Control.Monad.State
+import           Data.Complex
 import           Data.Function
 import           Data.Lub
 import           Data.Glb
@@ -67,6 +68,10 @@ goldenRatio = 1.61803398875
 
 (.:) ∷ ∀ a f g b. (b → a) → (f → g → b) → f → g → a
 (.:) = M.o
+
+instance Random a ⇒ Random (Complex a) where
+  randomR (r:+i, r':+i') = runState $ liftA2 (:+) (state $ randomR (r,r')) (state $ randomR (i,i'))
+  random                 = runState $ liftA2 (:+) (state $ random)         (state $ random)
 
 
 -- * Dimensional density.
@@ -176,18 +181,42 @@ instance Sizely (Size Pt) where
 -- * Specialized linear dimension classification:
 
 newtype R   a = R   { _rV  ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Radius
+newtype An  a = An  { _anV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Angle
 newtype Th  a = Th  { _thV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
 newtype He  a = He  { _heV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Height
 newtype Wi  a = Wi  { _wiV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Width
+instance Applicative R  where pure = R;  R  f <*> R  x = R  $ f x
+instance Applicative An where pure = An; An f <*> An x = An $ f x
+instance Applicative Th where pure = Th; Th f <*> Th x = Th $ f x
+instance Applicative He where pure = He; He f <*> He x = He $ f x
+instance Applicative Wi where pure = Wi; Wi f <*> Wi x = Wi $ f x
+instance Additive R  where zero = R  0
+instance Additive An where zero = An 0
+instance Additive Th where zero = Th 0
+instance Additive He where zero = He 0
+instance Additive Wi where zero = Wi 0
+deriving instance Foldable R
+deriving instance Foldable An
+deriving instance Foldable Th
+deriving instance Foldable He
+deriving instance Foldable Wi
+-- instance Metric R  where
+-- instance Metric An where
+-- instance Metric Th where
+-- instance Metric He where
+-- instance Metric Wi where
 deriving instance Show a ⇒ Show (R  a)
+deriving instance Show a ⇒ Show (An a)
 deriving instance Show a ⇒ Show (Th a)
 deriving instance Show a ⇒ Show (He a)
 deriving instance Show a ⇒ Show (Wi a)
 deriving instance Random a ⇒ Random (R a)
+deriving instance Random a ⇒ Random (An a)
 deriving instance Random a ⇒ Random (Th a)
 deriving instance Random a ⇒ Random (He a)
 deriving instance Random a ⇒ Random (Wi a)
 makeLenses ''R
+makeLenses ''An
 makeLenses ''Th
 makeLenses ''He
 makeLenses ''Wi
@@ -202,29 +231,38 @@ makeLenses ''Wi
 --
 -- In particular, this screams for Linear.Affine
 --
-newtype  Di a =  Di { _diV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor, Num, Fractional) -- ^ Dimensions
-newtype  Po a =  Po { _poV  ∷ V2 a } deriving (Additive, Applicative, Eq, Functor, Num, Fractional) -- ^ Coordinates
-newtype SDi a = SDi { _sdiV ∷ V4 a } deriving                        (Eq, Functor, Num, Fractional) -- ^ Side-wise dimensions: N, E, S, W
+newtype  Di a =  Di { _diV   ∷ V2 a }      deriving (Additive, Applicative, Eq, Fractional, Functor, Num) -- ^ Dimensions
+newtype  Po a =  Po { _poV   ∷ V2 a }      deriving (Additive, Applicative, Eq, Fractional, Functor, Num) -- ^ Coordinates, Descartes
+newtype RPo a = RPo { _rpoV  ∷ Complex a } deriving (Additive, Applicative, Eq, Fractional, Functor, Num) -- ^ Coordinates, polar
+newtype SDi a = SDi { _sdiV  ∷ V4 a }      deriving                        (Eq, Fractional, Functor, Num) -- ^ Side-wise dimensions: N, E, S, W
 
 -------- <boilerplate>
-deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show (SDi a)
+deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show  (RPo a); deriving instance Show a ⇒ Show (SDi a)
 deriving instance (Ord a, HasLub a) ⇒ HasLub (Di a)
 deriving instance (Ord a, HasGlb a) ⇒ HasGlb (Di a)
 deriving instance (Ord a, HasLub a) ⇒ HasLub (Po a)
 deriving instance (Ord a, HasGlb a) ⇒ HasGlb (Po a)
-newtype An  a = An  { _anV  ∷ V2 a } deriving (Eq, Functor) -- ^ Unordered pair of angles
+newtype An2 a = An2 { _an2V ∷ V2 a } deriving (Eq, Functor) -- ^ Unordered pair of angles
 newtype Co  a = Co  { _coV  ∷ V4 a } deriving (Eq, Functor) -- ^ Color
-deriving instance Show a ⇒ Show (An a)
+deriving instance Show a ⇒ Show (An2 a)
 deriving instance Show a ⇒ Show (Co a)
 deriving instance Random a ⇒ Random (Di a)
 deriving instance Random a ⇒ Random (Po a)
+deriving instance Random a ⇒ Random (RPo a)
 deriving instance Random a ⇒ Random (SDi a)
 deriving instance Random a ⇒ Random (Co a)
-deriving instance Random a ⇒ Random (An a)
+deriving instance Random a ⇒ Random (An2 a)
+
+-- instance Applicative RPo where pure x = RPo (R x, An x); RPo (R fr, An fan) <*> RPo (R r, An an) = RPo (R $ fr r, An $ fan an)
+-- instance Additive    RPo where zero = RPo (zero, zero)
+-- instance Num a ⇒ Num (RPo a) where
+--   (+) = liftA2 (+)
+
 makeLenses ''Di
 makeLenses ''Po
+makeLenses ''RPo
 makeLenses ''SDi
-makeLenses ''An
+makeLenses ''An2
 makeLenses ''Co
 ---------- </boilerplate>
 
@@ -232,10 +270,20 @@ di ∷ Wi a → He a  → Di a
 di  (Wi x) (He y) = Di $ V2 x y
 po ∷ a → a → Po a
 po x y = Po $ V2 x y
-an ∷ a → a → An a
-an x y = An $ V2 x y
+rpo ∷ Floating a ⇒ R a → An a → RPo a
+rpo (R r) (An a) = RPo (mkPolar r a)
+an2 ∷ a → a → An2 a
+an2 x y = An2 $ V2 x y
 co ∷ a → a → a → a → Co a
 co r g b a = Co $ V4 r g b a
+
+po2rpo ∷ Po a → RPo a
+po2rpo (Po (V2 x y))  = RPo $ x :+ y
+rpo2po ∷ RPo a → Po a
+rpo2po (RPo (x :+ y)) = Po $ V2 x y
+
+rotateRPo ∷ RealFloat a ⇒ An a → RPo a → RPo a
+rotateRPo (An a) (RPo c) = RPo $ mkPolar (magnitude c) (phase c + a)
 
 poBy ∷ Num a ⇒ Po a → V2 a → Po a
 poBy po = Po ∘ (^+^ _poV po)
@@ -297,7 +345,7 @@ data RoundRectFeature dk a where
   RRCorn ∷
     { rrcOri ∷ !(Orient Corn)
     , rrcCt ∷ !(Po a)
-    , rrcAn ∷ !(An a)
+    , rrcAn ∷ !(An2 a)
     , rrcR  ∷ !(R a)
     } → RoundRectFeature Corn a
   RRSide ∷
@@ -310,8 +358,8 @@ deriving instance Show a ⇒ Show (RoundRectFeature dk a)
 data WRoundRectFeature a where
   WRR ∷ RoundRectFeature dk a → WRoundRectFeature a
 
-poArc ∷ Po Double → Double → An Double → GRCI.Render ()
-poArc !(Po (V2 x y)) !r !(An (V2 angs ange))
+poArc ∷ Po Double → Double → An2 Double → GRCI.Render ()
+poArc !(Po (V2 x y)) !r !(An2 (V2 angs ange))
   = GRC.arc x y r angs ange
   where degrees = pi/180
 
@@ -493,14 +541,14 @@ wrapRoundedRectFeatures pw@Pwrap{..} rr@(R r) th =
   let pa@(Parea (Di (V2 wi he)) (Po (V2 w n))) = narrowByTh ((/2) <$> th) $ area pw
       V2 e s = _poV $ paSEp pa
       !degrees         = pi/180
-  in [WRR $ RRSide ON  (po (w + r)  n)      (po (e - r) n)
-     ,WRR $ RRCorn ONE (po (e - r) (n + r)) (an (-90 ⋅ degrees)   (0 ⋅ degrees)) rr
-     ,WRR $ RRSide OE  (po  e      (n + r)) (po  e     (s - r))
-     ,WRR $ RRCorn OSE (po (e - r) (s - r)) (an   (0 ⋅ degrees)  (90 ⋅ degrees)) rr
-     ,WRR $ RRSide OS  (po (w + r)  s)      (po (e - r) s)
-     ,WRR $ RRCorn OSW (po (w + r) (s - r)) (an  (90 ⋅ degrees) (180 ⋅ degrees)) rr
-     ,WRR $ RRSide OW  (po  w      (n + r)) (po  w     (s - r))
-     ,WRR $ RRCorn ONW (po (w + r) (n + r)) (an (180 ⋅ degrees) (270 ⋅ degrees)) rr]
+  in [WRR $ RRSide ON  (po (w + r)  n)      (po  (e - r) n)
+     ,WRR $ RRCorn ONE (po (e - r) (n + r)) (an2 (-90 ⋅ degrees)   (0 ⋅ degrees)) rr
+     ,WRR $ RRSide OE  (po  e      (n + r)) (po   e     (s - r))
+     ,WRR $ RRCorn OSE (po (e - r) (s - r)) (an2   (0 ⋅ degrees)  (90 ⋅ degrees)) rr
+     ,WRR $ RRSide OS  (po (w + r)  s)      (po  (e - r) s)
+     ,WRR $ RRCorn OSW (po (w + r) (s - r)) (an2  (90 ⋅ degrees) (180 ⋅ degrees)) rr
+     ,WRR $ RRSide OW  (po  w      (n + r)) (po   w     (s - r))
+     ,WRR $ RRCorn ONW (po (w + r) (n + r)) (an2 (180 ⋅ degrees) (270 ⋅ degrees)) rr]
 
 executeFeature ∷ Maybe (Co Double) → Maybe (Co Double) → WRoundRectFeature Double → GRC.Render ()
 executeFeature !cStart !cEnd !(WRR (RRSide _ (Po (V2 sx sy)) (Po (V2 ex ey)))) = do
@@ -510,7 +558,7 @@ executeFeature !cStart !cEnd !(WRR (RRSide _ (Po (V2 sx sy)) (Po (V2 ex ey)))) =
      | Just c  ← cStart → coSetSourceColor c
   GRC.moveTo sx sy
   GRC.lineTo ex ey
-executeFeature !cStart !cEnd !(WRR (RRCorn o c@(Po (V2 cx cy)) (An (V2 sa ea)) r)) = do
+executeFeature !cStart !cEnd !(WRR (RRCorn o c@(Po (V2 cx cy)) (An2 (V2 sa ea)) r)) = do
   let (cs, ce) = oriCenterRChordCW o c r
   if | cStart ≢ cEnd    → GRC.setSource =<< (GRC.liftIO $ coPatternGradLinear cs (fromJust cStart) ce (fromJust cEnd))
      | Nothing ← cStart → pure ()
@@ -525,22 +573,22 @@ poNWSERectArcCentersCW !lt@(Po (V2 ltx lty)) !rb@(Po (V2 rbx rby)) (R r) =
      ,Po (V2 (rbx - r) (rby - r))
      ,Po (V2 (lbx + r) (lby - r)))
 
-aRectAnglesNWCW ∷ (Fractional a, Floating a) ⇒ (An a, An a, An a, An a)
+aRectAnglesNWCW ∷ (Fractional a, Floating a) ⇒ (An2 a, An2 a, An2 a, An2 a)
 aRectAnglesNWCW
-  = (An $ V2 (180 ⋅ degrees) (270 ⋅ degrees)
-    ,An $ V2 (-90 ⋅ degrees)   (0 ⋅ degrees)
-    ,An $ V2   (0 ⋅ degrees)  (90 ⋅ degrees)
-    ,An $ V2  (90 ⋅ degrees) (180 ⋅ degrees))
+  = (An2 $ V2 (180 ⋅ degrees) (270 ⋅ degrees)
+    ,An2 $ V2 (-90 ⋅ degrees)   (0 ⋅ degrees)
+    ,An2 $ V2   (0 ⋅ degrees)  (90 ⋅ degrees)
+    ,An2 $ V2  (90 ⋅ degrees) (180 ⋅ degrees))
   where !degrees = pi/180
 
-aRectAngles_MidSWCW ∷ (Fractional a, Floating a) ⇒ (An a, An a, An a, An a, An a, An a)
+aRectAngles_MidSWCW ∷ (Fractional a, Floating a) ⇒ (An2 a, An2 a, An2 a, An2 a, An2 a, An2 a)
 aRectAngles_MidSWCW
-  = (An $ V2 (135 ⋅ degrees) (180 ⋅ degrees)
-    ,An $ V2 (180 ⋅ degrees) (270 ⋅ degrees)
-    ,An $ V2 (-90 ⋅ degrees) (-45 ⋅ degrees)
-    ,An $ V2 (-45 ⋅ degrees)   (0 ⋅ degrees)
-    ,An $ V2   (0 ⋅ degrees)  (90 ⋅ degrees)
-    ,An $ V2  (90 ⋅ degrees) (135 ⋅ degrees))
+  = (An2 $ V2 (135 ⋅ degrees) (180 ⋅ degrees)
+    ,An2 $ V2 (180 ⋅ degrees) (270 ⋅ degrees)
+    ,An2 $ V2 (-90 ⋅ degrees) (-45 ⋅ degrees)
+    ,An2 $ V2 (-45 ⋅ degrees)   (0 ⋅ degrees)
+    ,An2 $ V2   (0 ⋅ degrees)  (90 ⋅ degrees)
+    ,An2 $ V2  (90 ⋅ degrees) (135 ⋅ degrees))
   where !degrees = pi/180
 
 
