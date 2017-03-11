@@ -36,9 +36,11 @@ import           Data.Functor
 import           Data.Hashable
 import qualified Data.HashMap.Lazy                 as HM
 import qualified Data.HashSet                      as HS
+import           Data.List
 import           Data.Maybe
 import           Data.MeasuredMonoid
 import           Data.Profunctor
+import           Data.String
 import qualified Data.Sequence                     as Seq
 import qualified Data.Text                         as T
 import           Data.Vect
@@ -46,6 +48,7 @@ import           Control.Monad                            (join, when, unless)
 import           Control.Monad.Fix                        (MonadFix)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import           Text.Printf                              (printf)
+import           Text.Show.Pretty                         (ppShow)
 
 -- Algebra
 import           Linear
@@ -66,7 +69,7 @@ import           Reflex.Random
 import qualified Debug.Trace                       as D
 
 -- Window system (..hello WIndowSys..)
-import "GLFW-b"  Graphics.UI.GLFW                  as GLFW
+import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 -- LambdaCube
 import qualified LambdaCube.GL                     as GL
@@ -122,6 +125,17 @@ newFrame rendererFrameE = performEvent $ rendererFrameE <&>
     rendererDrawFrame r
     rendererSetupFrame r
 
+type Avg a = (Int, Int, [a])
+avgStep ∷ Fractional a ⇒ a → (a, Avg a) → (a, Avg a)
+avgStep x (_, (lim, cur, xs)) =
+  let (ncur, nxs) = if cur < lim
+                    then (cur + 1, x:xs)
+                    else (lim,     x:init xs)
+  in ((sum nxs) / fromIntegral ncur, (lim, ncur, nxs))
+
+average ∷ (Fractional a, ReflexGLFWCtx t m) ⇒ Int → Event t a → m (Dynamic t a)
+average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
+
 holotype ∷ ReflexGLFW t m
 holotype win setupE windowFrameE inputE = do
   liftIO $ Sys.hSetBuffering Sys.stdout Sys.NoBuffering
@@ -133,28 +147,48 @@ holotype win setupE windowFrameE inputE = do
   -- getT = liftIO (Sys.getTime Sys.Monotonic)
   -- fpsE          ← (T.pack ∘ show ∘ recip <$>) <$> averageEWE 25 timeDeltaE
   frameE           ← newFrame $ rendererV <$ windowFrameE
-  frameTimeE       ← performEvent $ fmap (\_ → liftIO $ timespecToSecs <$> Sys.getTime Sys.Monotonic) frameE
-  frameDeltaD      ← foldDyn (flip (-)) (0 ∷ Double) frameTimeE
+  frameMomentE     ← performEvent $ fmap (\_ → liftIO $ timespecToSecs <$> Sys.getTime Sys.Monotonic) frameE
+  frameMomentD     ← holdDyn     0 frameMomentE
+  frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
+  avgFrameΔD       ← average 20 $ updated frameΔD
+  let fpsD      = (floor ∘ recip) <$> avgFrameΔD
+      fpsArea   = Parea (di 256 256) (po (-1) (1))
+
+  -- UI
+  let holoFPSDataE = attachPromptlyDyn fpsD frameE <&>
+                     \(fps ∷ Int,_) →
+                       zft [T.pack $ printf "%d fps" fps]
+  holosomFPSE      ← visual settingsV streamV dasStyle
+                     (setupE <&> const (zft ["1000 fps"], fpsArea))
+  holosomFPSD      ← foldDyn (const ∘ Just) Nothing holosomFPSE
+
   let worldE    = translateEvent <$> inputE
       spawnE    = ffilter (\case Spawn    → True; _ → False) worldE
       editE     = ffilter (\case Edit{..} → True; _ → False) worldE
 
-  let driverE   = spawnE
+  -- DATA
+  let driverE   = frameE
       screenA   = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
       widgetLim = Parea (di 0.2 0.2) (po 0 0)
   randomAreaE      ← foldRandomRs 0 (screenA, widgetLim) $ () <$ driverE
   holoAreaE        ← performEvent $ randomAreaE <&> (\area → liftIO $ do
                                                         s ← systemStats
-                                                        pure ∘ (,area)  ∘ zft $ [T.pack $ printf "Press 'Esc' to quit.\n\n%s" $ show s])
+                                                        pure ∘ (,area) ∘ zft $ [T.pack $ printf "Press 'Esc' to quit.\nYay!\n\n%s" $ show s])
   holosomAreaE     ← visual settingsV streamV dasStyle holoAreaE
   holosomAreaD     ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomAreaE
 
-  let drawReqE   = attachPromptlyDyn holosomAreaD frameE
+  -- RENDER PHASE
+  let allDrawablesD = zipDynWith (,) holosomFPSD holosomAreaD
+      drawReqE   = attachPromptlyDyn allDrawablesD frameE
   _                ← performEvent $ drawReqE <&>
-                     \((_, cs), f@Frame{..}) →
+                     \((mfps, (_, cs)), f@Frame{..}) → do
+                       case mfps of
+                         Nothing  → pure ()
+                         Just (Holosome{..}, Parea{..}) → placeCanvas holoVisual f _paNWp
                        forM_ cs $ \(n, (h@Holosome{..}, a@Parea{..} ∷ S Area True Double)) → do
                          placeCanvas holoVisual f _paNWp
 
+  -- UI & DATA MUTATION
   let topsomD    = ffor holosomAreaD (\case (_,[]) → Nothing
                                             (_,(_,h):_) → Just h)
       editReqE   = attachPromptlyDyn topsomD editE
@@ -163,6 +197,11 @@ holotype win setupE windowFrameE inputE = do
                        (Nothing, _)→ pure ()
                        (Just (h,_), Edit{..}) →
                          update settingsV h weEdit
+  let fpsUpdateE = attachPromptlyDyn holosomFPSD holoFPSDataE
+  _                ← performEvent $ fpsUpdateE <&>
+                     \case (Nothing, _)→ pure ()
+                           (Just (h, _), fps)→
+                             update settingsV h (const fps)
 
   hold False ((\case Shutdown → True; _ → False)
               <$> worldE)
