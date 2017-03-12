@@ -6,6 +6,7 @@
 {-# OPTIONS_GHC -Wall -Wno-unused-do-bind -Wno-unused-top-binds #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UnicodeSyntax #-}
@@ -14,8 +15,11 @@ module Reflex.GLFW
   , withGLWindow, defaultGLWindowSetup
   , host, simpleHost
   , Input(..)
+  , keyPress, stateIsPress
   )
 where
+
+import           Prelude.Unicode
 
 import qualified Control.Concurrent.STM             as STM (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue)
 import           Control.Monad                             (unless, when)
@@ -56,6 +60,9 @@ type ReflexGLFW t m
   → m (Behavior t Bool)
 type ReflexGLFWCtx t m = (Reflex t, MonadHold t m, MonadFix m, MonadIO m, MonadAdjust t m, PerformEvent t m, MonadIO (Performable m))
 
+
+-- * Window management
+--
 -- | A default GLFW window setup function.
 defaultGLWindowSetup ∷ (MonadIO m) ⇒ GLFW.Window → m ()
 defaultGLWindowSetup _ = liftIO $ do
@@ -88,6 +95,19 @@ withGLWindow width height title f = do
   where
     simpleErrorCallback e s =
         putStrLn $ unwords [show e, show s]
+
+
+-- * Events
+--
+stateIsPress ∷ GLFW.KeyState → Bool
+stateIsPress GLFW.KeyState'Pressed   = True
+stateIsPress GLFW.KeyState'Repeating = True
+stateIsPress _                       = False
+
+keyPress ∷ Reflex t ⇒ GLFW.Key → Event t Input → Event t Input
+keyPress key inputE = flip ffilter inputE $
+                      \case EventKey _ k _ ks _ → k ≡ key ∧ stateIsPress ks
+                            _                   → False
 
 -- | The type describing deliverable GLFW events.
 data Input =
