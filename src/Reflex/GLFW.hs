@@ -102,12 +102,12 @@ withGLWindow width height title f = do
     liftIO $ GL.setErrorCallback $ Just simpleErrorCallback
     r ← liftIO $ GL.init
     when r $ do
-      liftIO $ defaultWindowHints
-      liftIO $ mapM_ windowHint
-        [ WindowHint'ContextVersionMajor 3
-        , WindowHint'ContextVersionMinor 3
-        , WindowHint'OpenGLProfile OpenGLProfile'Core
-        , WindowHint'OpenGLForwardCompat True ]
+      -- liftIO $ GL.defaultWindowHints
+      -- liftIO $ mapM_ GL.windowHint
+      --   [ GL.WindowHint'ContextVersionMajor 3
+      --   , GL.WindowHint'ContextVersionMinor 3
+      --   , GL.WindowHint'OpenGLProfile GL.OpenGLProfile'Core
+      --   , GL.WindowHint'OpenGLForwardCompat True ]
       m ← liftIO $ GL.createWindow width height title Nothing Nothing
       case m of
         Just win → do
