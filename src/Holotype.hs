@@ -175,11 +175,12 @@ holotype win setupE windowFrameE inputE = do
                   , ""
                   , "Yay!"]
   holosomCountD    ← count driverE
-  randomAreaE      ← foldRandomRs 0 (screenA, widgetLim) $ () <$ driverE
-  holoAreaE        ← performEvent $ attachPromptlyDyn holosomCountD randomAreaE
-                     <&> (\(n, area) → do; pure ∘ (,area) ∘ zft $ T.pack <$> text n)
-  holosomAreaE     ← visual settingsV streamV dasStyle holoAreaE
-  holosomAreaD     ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomAreaE
+  randomPreHoloE   ← foldRandomRs 0 ((screenA,   An 0.005)
+                                    ,(widgetLim, An 0.01)) $ () <$ driverE
+  preHoloE         ← performEvent $ attachPromptlyDyn holosomCountD randomPreHoloE
+                     <&> (\(n, pre) → do; pure ∘ (,pre) ∘ zft $ T.pack <$> text n)
+  holosomE         ← visual settingsV streamV dasStyle preHoloE
+  holosomD         ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomE
 
   -- UI
   frameMomentE     ← performEvent $ fmap (\_ → liftIO $ timespecToSecs <$> Sys.getTime Sys.Monotonic) frameE
@@ -195,19 +196,21 @@ holotype win setupE windowFrameE inputE = do
   holosomFPSD      ← foldDyn (const ∘ Just) Nothing holosomFPSE
 
   -- SCENE COMPOSITION
-  let allDrawablesD = zipDyn holosomFPSD holosomAreaD
+  let allDrawablesD = zipDyn holosomFPSD holosomD
       drawReqE   = attachPromptlyDyn allDrawablesD frameE
   _                ← performEvent $ drawReqE <&>
                      \((mfps, (_, cs)), f@Frame{..}) → do
                        case mfps of
                          Nothing  → pure ()
                          Just (Holosome{..}, Parea{..}) → placeCanvas holoVisual f _paNWp
-                       forM_ cs $ \(n, (h@Holosome{..}, a@Parea{..} ∷ S Area True Double)) → do
+                       forM_ cs $ \(n, (h@Holosome{..}
+                                       ,(Parea{..} ∷ S Area True Double
+                                        ,angVel    ∷ An Double))) → do
                          placeCanvas holoVisual f _paNWp
 
   -- UI & DATA MUTATION
-  let topsomD    = ffor holosomAreaD (\case (_,[]) → Nothing
-                                            (_,(_,h):_) → Just h)
+  let topsomD    = ffor holosomD (\case (_,[]) → Nothing
+                                        (_,(_,h):_) → Just h)
       editReqE   = attachPromptlyDyn topsomD editE
   _                ← performEvent $ editReqE <&>
                      \case
@@ -263,31 +266,31 @@ data WorldEvent where
   Shutdown    ∷ WorldEvent
   NonEvent    ∷ WorldEvent
 
-translateEvent ∷ Input → WorldEvent
-translateEvent (EventChar _ c)                                            = Edit $ T.insertChar c
-translateEvent (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Pressed _) = Edit $ T.breakLine
-translateEvent (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Pressed _) = Edit $ T.deletePrevChar
-translateEvent (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Pressed _) = Edit $ T.deleteChar
-translateEvent (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Pressed _) = Edit $ T.moveLeft
-translateEvent (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Pressed _) = Edit $ T.moveUp
-translateEvent (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Pressed _) = Edit $ T.moveRight
-translateEvent (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Pressed _) = Edit $ T.moveDown
-translateEvent (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Pressed _) = Edit $ T.gotoBOL
-translateEvent (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Pressed _) = Edit $ T.gotoEOL
-translateEvent (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Repeating _) = Edit $ T.breakLine
-translateEvent (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Repeating _) = Edit $ T.deletePrevChar
-translateEvent (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Repeating _) = Edit $ T.deleteChar
-translateEvent (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Repeating _) = Edit $ T.moveLeft
-translateEvent (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Repeating _) = Edit $ T.moveUp
-translateEvent (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _) = Edit $ T.moveRight
-translateEvent (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _) = Edit $ T.moveDown
-translateEvent (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _) = Edit $ T.gotoBOL
-translateEvent (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _) = Edit $ T.gotoEOL
--- how to process key chords?
-translateEvent (EventKey  _ GLFW.Key'Pause     _ GLFW.KeyState'Pressed _) = Pause
-translateEvent (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed _) = Spawn
-translateEvent (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed _) = Shutdown
-translateEvent _                                                          = NonEvent
+translateEvent ∷ InputU → WorldEvent
+translateEvent (U (EventChar _ c))                                              = Edit $ T.insertChar c
+translateEvent (U (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Pressed   _)) = Edit $ T.breakLine
+translateEvent (U (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Pressed   _)) = Edit $ T.deletePrevChar
+translateEvent (U (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Pressed   _)) = Edit $ T.deleteChar
+translateEvent (U (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Pressed   _)) = Edit $ T.moveLeft
+translateEvent (U (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Pressed   _)) = Edit $ T.moveUp
+translateEvent (U (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Pressed   _)) = Edit $ T.moveRight
+translateEvent (U (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Pressed   _)) = Edit $ T.moveDown
+translateEvent (U (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Pressed   _)) = Edit $ T.gotoBOL
+translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Pressed   _)) = Edit $ T.gotoEOL
+translateEvent (U (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Repeating _)) = Edit $ T.breakLine
+translateEvent (U (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Repeating _)) = Edit $ T.deletePrevChar
+translateEvent (U (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Repeating _)) = Edit $ T.deleteChar
+translateEvent (U (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Repeating _)) = Edit $ T.moveLeft
+translateEvent (U (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Repeating _)) = Edit $ T.moveUp
+translateEvent (U (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _)) = Edit $ T.moveRight
+translateEvent (U (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _)) = Edit $ T.moveDown
+translateEvent (U (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _)) = Edit $ T.gotoBOL
+translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _)) = Edit $ T.gotoEOL
+-- how to proce(U ss key chords?
+translateEvent (U (EventKey  _ GLFW.Key'Pause     _ GLFW.KeyState'Pressed   _)) = Pause
+translateEvent (U (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = Spawn
+translateEvent (U (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = Shutdown
+translateEvent _                                                                = NonEvent
 
 
 data Viewport a where
