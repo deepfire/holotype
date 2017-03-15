@@ -157,20 +157,19 @@ holotype win _evCtl setupE windowFrameE inputE = do
 
   -- INPUT
   let worldE        = translateEvent <$> inputE
-      spawnE        = ffilter (\case Spawn    → True; _ → False) worldE
+      spawnReqE     = ffilter (\case Spawn    → True; _ → False) worldE
       togglE        = ffilter (\case Pause    → True; _ → False) worldE
       editE         = ffilter (\case Edit{..} → True; _ → False) worldE
   frameE           ← newFrame $ rendererV <$ windowFrameE
 
   -- DATA
-  enabledD         ← toggle True togglE
-  let frameInE      = gate (current $ enabledD) frameE
-      driverE       = simpler spawnE <> simpler frameInE
+  frameGateD       ← toggle False togglE
+  let driverE       = simpler spawnReqE <> simpler (gate (current $ frameGateD) frameE)
       screenA       = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
       widgetLim     = Parea (di 0.2 0.2) (po 0 0)
       text n        = [ printf "Object #%d:" n
                       , "  Esc:           quit"
-                      , "  Pause:         toggle per-frame object stream"
+                      , "  F1:            toggle per-frame object stream"
                       , "  Editing keys:  edit"
                       , ""
                       , "Yay!"]
@@ -291,7 +290,7 @@ translateEvent (U (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _)) 
 translateEvent (U (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _)) = Edit $ T.gotoBOL
 translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _)) = Edit $ T.gotoEOL
 -- how to process key chords?
-translateEvent (U (EventKey  _ GLFW.Key'Pause     _ GLFW.KeyState'Pressed   _)) = Pause
+translateEvent (U (EventKey  _ GLFW.Key'F1        _ GLFW.KeyState'Pressed   _)) = Pause
 translateEvent (U (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = Spawn
 translateEvent (U (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = Shutdown
 translateEvent _                                                                = NonEvent
