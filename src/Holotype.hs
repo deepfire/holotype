@@ -151,29 +151,29 @@ holotype ∷ ReflexGLFW t m
 holotype win _evCtl setupE windowFrameE inputE = do
   liftIO $ Sys.hSetBuffering Sys.stdout Sys.NoBuffering
   (rendererV, streamV)
-                ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
+                   ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
   rendererDrawFrame rendererV
   settingsV@Settings{..} ← liftIO $ defaultSettings
 
   -- INPUT
-  let worldE    = translateEvent <$> inputE
-      spawnE    = ffilter (\case Spawn    → True; _ → False) worldE
-      togglE    = ffilter (\case Pause    → True; _ → False) worldE
-      editE     = ffilter (\case Edit{..} → True; _ → False) worldE
+  let worldE        = translateEvent <$> inputE
+      spawnE        = ffilter (\case Spawn    → True; _ → False) worldE
+      togglE        = ffilter (\case Pause    → True; _ → False) worldE
+      editE         = ffilter (\case Edit{..} → True; _ → False) worldE
   frameE           ← newFrame $ rendererV <$ windowFrameE
 
   -- DATA
   enabledD         ← toggle True togglE
-  let frameInE  = gate (current $ enabledD) frameE
-      driverE   = simpler frameInE <> simpler spawnE
-      screenA   = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
-      widgetLim = Parea (di 0.2 0.2) (po 0 0)
-      text n    = [ printf "Object #%d:" n
-                  , "  Esc:           quit"
-                  , "  Pause:         toggle per-frame object stream"
-                  , "  Editing keys:  edit"
-                  , ""
-                  , "Yay!"]
+  let frameInE      = gate (current $ enabledD) frameE
+      driverE       = simpler frameInE <> simpler spawnE
+      screenA       = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
+      widgetLim     = Parea (di 0.2 0.2) (po 0 0)
+      text n        = [ printf "Object #%d:" n
+                      , "  Esc:           quit"
+                      , "  Pause:         toggle per-frame object stream"
+                      , "  Editing keys:  edit"
+                      , ""
+                      , "Yay!"]
   holosomCountD    ← count driverE
   randomPreHoloE   ← foldRandomRs 0 ((screenA,   An 0.005)
                                     ,(widgetLim, An 0.01)) $ () <$ driverE
@@ -186,18 +186,18 @@ holotype win _evCtl setupE windowFrameE inputE = do
   frameMomentE     ← performEvent $ fmap (\_ → liftIO $ timespecToSecs <$> Sys.getTime Sys.Monotonic) frameE
   frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
   avgFrameΔD       ← average 20 $ updated frameΔD
-  let fpsD      = (floor ∘ recip) <$> avgFrameΔD
-      fpsArea   = Parea (di 256 256) (po (-1) (1))
-  let holoFPSDataE = attachPromptlyDyn (zipDyn fpsD holosomCountD) frameE <&>
-                     \((fps ∷ Int, objects ∷ Int),_) →
-                       zft [T.pack $ printf "%3d fps, %5d objects" fps objects]
+  let fpsD          = (floor ∘ recip) <$> avgFrameΔD
+      fpsArea       = Parea (di 256 256) (po (-1) (1))
+  let holoFPSDataE  = attachPromptlyDyn (zipDyn fpsD holosomCountD) frameE <&>
+                      \((fps ∷ Int, objects ∷ Int),_) →
+                        zft [T.pack $ printf "%3d fps, %5d objects" fps objects]
   holosomFPSE      ← visual settingsV streamV dasStyle
                      (setupE <&> const (zft ["1000 fps, 10000 objects"], fpsArea))
   holosomFPSD      ← foldDyn (const ∘ Just) Nothing holosomFPSE
 
   -- SCENE COMPOSITION
   let allDrawablesD = zipDyn holosomFPSD holosomD
-      drawReqE   = attachPromptlyDyn allDrawablesD frameE
+      drawReqE      = attachPromptlyDyn allDrawablesD frameE
   _                ← performEvent $ drawReqE <&>
                      \((mfps, (_, cs)), f@Frame{..}) → do
                        case mfps of
@@ -209,15 +209,15 @@ holotype win _evCtl setupE windowFrameE inputE = do
                          placeCanvas holoVisual f _paNWp
 
   -- UI & DATA MUTATION
-  let topsomD    = ffor holosomD (\case (_,[]) → Nothing
-                                        (_,(_,h):_) → Just h)
-      editReqE   = attachPromptlyDyn topsomD editE
+  let topsomD       = ffor holosomD (\case (_,[]) → Nothing
+                                           (_,(_,h):_) → Just h)
+      editReqE      = attachPromptlyDyn topsomD editE
   _                ← performEvent $ editReqE <&>
                      \case
                        (Nothing, _)→ pure ()
                        (Just (h,_), Edit{..}) →
                          update settingsV h weEdit
-  let fpsUpdateE = attachPromptlyDyn holosomFPSD holoFPSDataE
+  let fpsUpdateE    = attachPromptlyDyn holosomFPSD holoFPSDataE
   _                ← performEvent $ fpsUpdateE <&>
                      \case (Nothing, _)→ pure ()
                            (Just (h, _), fps)→
