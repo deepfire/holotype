@@ -126,7 +126,7 @@ timespecToSecs = (/ 1000000000.0) ∘ fromIntegral ∘ Sys.toNanoSecs
 systemStats ∷ (MonadIO m) ⇒ m SystemStats
 systemStats = liftIO $ do
   -- Sys.performGC -- sloow with intero loaded..
-  statsMem      ← (`div` 1024) ∘ fromIntegral ∘ Sys.currentBytesUsed <$> Sys.getGCStats
+  statsMem      ← (`div` 1048576) ∘ fromIntegral ∘ Sys.currentBytesUsed <$> Sys.getGCStats
   statsTimeSecs ← timespecToSecs <$> Sys.getTime Sys.Monotonic
   pure SystemStats{..}
 
@@ -165,7 +165,7 @@ holotype win _evCtl setupE windowFrameE inputE = do
   -- DATA
   enabledD         ← toggle True togglE
   let frameInE      = gate (current $ enabledD) frameE
-      driverE       = simpler frameInE <> simpler spawnE
+      driverE       = simpler spawnE <> simpler frameInE
       screenA       = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
       widgetLim     = Parea (di 0.2 0.2) (po 0 0)
       text n        = [ printf "Object #%d:" n
@@ -183,16 +183,20 @@ holotype win _evCtl setupE windowFrameE inputE = do
   holosomD         ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomE
 
   -- UI
+  kilobytesE       ← performEvent $ frameE <&>
+                      (const $ liftIO ((`div` 1024) ∘ fromIntegral ∘ Sys.currentBytesUsed <$> Sys.getGCStats))
+  kilobytesD       ← holdDyn 0 kilobytesE
+
   frameMomentE     ← performEvent $ fmap (\_ → liftIO $ timespecToSecs <$> Sys.getTime Sys.Monotonic) frameE
   frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
   avgFrameΔD       ← average 20 $ updated frameΔD
   let fpsD          = (floor ∘ recip) <$> avgFrameΔD
       fpsArea       = Parea (di 256 256) (po (-1) (1))
-  let holoFPSDataE  = attachPromptlyDyn (zipDyn fpsD holosomCountD) frameE <&>
-                      \((fps ∷ Int, objects ∷ Int),_) →
-                        zft [T.pack $ printf "%3d fps, %5d objects" fps objects]
+  let holoFPSDataE  = attachPromptlyDyn (zipDyn (zipDyn fpsD holosomCountD) kilobytesD) frameE <&>
+                      \(((fps ∷ Int, objects ∷ Int), kilobytes ∷ Int),_) →
+                        zft [T.pack $ printf "%3d fps, %5d objects, %8d KB used" fps objects kilobytes]
   holosomFPSE      ← visual settingsV streamV dasStyle
-                     (setupE <&> const (zft ["1000 fps, 10000 objects"], fpsArea))
+                     (setupE <&> const (zft ["1000 fps, 10000 objects, 10000000 KB used"], fpsArea))
   holosomFPSD      ← foldDyn (const ∘ Just) Nothing holosomFPSE
 
   -- SCENE COMPOSITION
