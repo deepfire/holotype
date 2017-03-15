@@ -141,14 +141,14 @@ avgStep ∷ Fractional a ⇒ a → (a, Avg a) → (a, Avg a)
 avgStep x (_, (lim, cur, xs)) =
   let (ncur, nxs) = if cur < lim
                     then (cur + 1, x:xs)
-                    else (lim,     x:init xs)
+                    else (lim,     x:Data.List.init xs)
   in ((sum nxs) / fromIntegral ncur, (lim, ncur, nxs))
 
 average ∷ (Fractional a, ReflexGLFWCtx t m) ⇒ Int → Event t a → m (Dynamic t a)
 average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 holotype ∷ ReflexGLFW t m
-holotype win setupE windowFrameE inputE = do
+holotype win _evCtl setupE windowFrameE inputE = do
   liftIO $ Sys.hSetBuffering Sys.stdout Sys.NoBuffering
   (rendererV, streamV)
                 ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
@@ -286,7 +286,7 @@ translateEvent (U (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _)) 
 translateEvent (U (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _)) = Edit $ T.moveDown
 translateEvent (U (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _)) = Edit $ T.gotoBOL
 translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _)) = Edit $ T.gotoEOL
--- how to proce(U ss key chords?
+-- how to process key chords?
 translateEvent (U (EventKey  _ GLFW.Key'Pause     _ GLFW.KeyState'Pressed   _)) = Pause
 translateEvent (U (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = Spawn
 translateEvent (U (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = Shutdown
