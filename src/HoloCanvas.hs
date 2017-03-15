@@ -97,12 +97,9 @@ data Drawable where
   Drawable ∷
     { dObjectStream ∷ ObjectStream
     , dDi           ∷ Di Int
-    , dSurface      ∷ GRC.Surface
-    , dStrideBytes  ∷ Wi Int
-    , dStridePixels ∷ Wi Int
+    , dSurfaceData  ∷ (F.Ptr F.CUChar, (Int, Int))
     , dGRC          ∷ GRC.Cairo
     , dGIC          ∷ GIC.Context
-    , dTexture      ∷ GL.TextureData
     --
     , dMesh         ∷ LC.Mesh
     , dGPUMesh      ∷ GL.GPUMesh
@@ -116,8 +113,6 @@ makeDrawable ∷ (MonadIO m) ⇒ ObjectStream → Di Double → m Drawable
 makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
-  dStrideBytes  ← Wi <$> GRC.imageSurfaceGetStride dSurface
-  let dStridePixels = (`div` 4) <$> dStrideBytes
   dGRC          ← GRC.create dSurface
   dGIC          ← grcToGIC dGRC
 
@@ -131,10 +126,18 @@ makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
   dGPUMesh      ← GL.uploadMeshToGPU dMesh
   dGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [unameStr osUniform, "viewProj"] dGPUMesh
 
-  -- pixels        ← GRCI.imageSurfaceGetData dSurface -- XXX/eff: convert to imageSurfaceGetPixels
+  dSurfaceData  ← imageSurfaceGetPixels' dSurface
   -- dTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi dStridePixels, h, GL_BGRA, pixels)
-  -- XXX/not initialised: dTexture
   pure Drawable{..}
+
+imageSurfaceGetPixels' :: GRC.Surface → IO (F.Ptr F.CUChar, (Int, Int))
+imageSurfaceGetPixels' pb = do
+  pixPtr ← GRCI.imageSurfaceGetData pb
+  when (pixPtr ≡ F.nullPtr) $ do
+    fail "imageSurfaceGetPixels: image surface not available"
+  h ← GRC.imageSurfaceGetHeight pb
+  r ← GRC.imageSurfaceGetStride pb
+  return (pixPtr, (r, h))
 
 drawableContentToGPU ∷ (MonadIO m) ⇒ Drawable → m ()
 drawableContentToGPU Drawable{..} = liftIO $ do
@@ -142,8 +145,8 @@ drawableContentToGPU Drawable{..} = liftIO $ do
 
   -- XXX/temp hack:
   let h = dDi ^. diV ∘ _y
-  pixels   ← GRCI.imageSurfaceGetData dSurface -- XXX/eff: convert to imageSurfaceGetPixels
-  cTexture ← uploadTexture2DToGPU'''' False False False False $ (dStridePixels ^. wiV, h, GL_BGRA, pixels)
+      (pixels, (strideBytes, pixelrows)) = dSurfaceData
+  cTexture ← uploadTexture2DToGPU'''' False False False False $ (strideBytes `div` 4, pixelrows, GL_BGRA, pixels)
 
   GL.updateObjectUniforms dGLObject $ do
     fromUNS osUniform GL.@= return cTexture
@@ -332,7 +335,7 @@ instance Widget a ⇒ Widget (RRect a) where
   make st@Settings{..} drawable rrStyle rrContent rrPSpace = do
     let w = RRect{..} where rrInner = (⊥)    -- resolve circularity due to *ToInner..
     make st drawable (styleToInner w rrStyle) rrContent (spaceToInner w rrPSpace) <&> (\x→ w { rrInner = x }) -- XXX/lens
-  draw canvas@(CW (Canvas (Drawable _ _ _ _ _ cGRC cGIC _ _ _ _) _ _ _ _))
+  draw canvas@(CW (Canvas (Drawable _ _ _ cGRC cGIC _ _ _) _ _ _ _))
        (RRect (Spc obez (Spc bord (Spc ibez (Spc pad _))))
               (In RRectS{..} _) inner) = do
     liftIO $ (`runReaderT` cGRC) $ GRC.runRender $ do

@@ -108,7 +108,7 @@ compilePipeline jsonOutput = liftIO $ Q3.printTimeDiff "-- compiling graphics pi
 
 bindPipeline ∷ (MonadIO m) ⇒ GL.GLStorage → String → m (Maybe GL.GLRenderer)
 bindPipeline storage pipelineJSON = liftIO $ do
-    printf $ "-- reading GPU pipeline from " ++ pipelineJSON
+    putStrLn $ "-- reading GPU pipeline from " ++ pipelineJSON
     let paths = [pipelineJSON]
     validPaths ← filterM FS.doesFileExist paths
     when (Prelude.null validPaths) $
