@@ -183,7 +183,9 @@ holotype win _evCtl setupE windowFrameE inputE = do
 
   -- UI
   kilobytesE       ← performEvent $ frameE <&>
-                      (const $ liftIO ((`div` 1024) ∘ fromIntegral ∘ Sys.currentBytesUsed <$> Sys.getGCStats))
+                      (const $ liftIO ((`div` 1024) ∘ fromIntegral ∘ Sys.currentBytesUsed <$> do
+                                          Sys.performGC
+                                          Sys.getGCStats))
   kilobytesD       ← holdDyn 0 kilobytesE
 
   frameMomentE     ← performEvent $ fmap (\_ → liftIO $ timespecToSecs <$> Sys.getTime Sys.Monotonic) frameE
@@ -192,7 +194,7 @@ holotype win _evCtl setupE windowFrameE inputE = do
   let fpsD          = (floor ∘ recip) <$> avgFrameΔD
       fpsArea       = Parea (di 256 256) (po (-1) (1))
   let holoFPSDataE  = attachPromptlyDyn (zipDyn (zipDyn fpsD holosomCountD) kilobytesD) frameE <&>
-                      \(((fps ∷ Int, objects ∷ Int), kilobytes ∷ Int),_) →
+                      \(((fps ∷ Int, objects ∷ Int), kilobytes ∷ Integer),_) →
                         zft [T.pack $ printf "%3d fps, %5d objects, %8d KB used" fps objects kilobytes]
   holosomFPSE      ← visual settingsV streamV dasStyle
                      (setupE <&> const (zft ["1000 fps, 10000 objects, 10000000 KB used"], fpsArea))
