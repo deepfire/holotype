@@ -110,3 +110,32 @@ executable LCstress
                      , lambdacube-gl
                      , lambdacube-ir
                      , lambdacube-quake3
+
+executable Holostress
+  hs-source-dirs:      . src
+  main-is:             Holostress.hs
+  default-language:    Haskell2010
+
+  build-depends:       aeson
+                     , base >=4.8
+                     , base-unicode-symbols
+                     , bytestring
+                     , containers >=0.5
+                     , directory
+                     , lens >= 4.13.2
+                     , pretty-show
+                     , transformers
+                     , vector
+
+                     , cairo
+                     , gi-cairo
+                     , gi-pango
+                     , gi-pangocairo
+                     , haskell-gi-base
+
+                     , GLFW-b
+                     , OpenGLRaw
+                     , lambdacube-compiler
+                     , lambdacube-gl
+                     , lambdacube-ir
+                     , lambdacube-quake3
