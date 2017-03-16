@@ -55,13 +55,11 @@ import           Text.Show.Pretty                         (ppShow)
 
 import qualified Data.IORef                        as IO
 import qualified System.Directory                  as FS
-import qualified System.IO                         as Sys
-import qualified System.Mem                        as Sys
-import qualified GHC.Stats                         as Sys
 
+import Holo
 import HoloCairo
 import HoloCanvas
-import Holo
+import qualified HoloSys                           as HS
 
 
 newtype UniformNameS  = UniformNameS  { fromUNS  ∷ SB.ByteString } deriving (Eq, IsString, Ord, Show)
@@ -89,7 +87,7 @@ pipelineSchema schemaPairs =
 
 main ∷ IO ()
 main = do
-  Sys.hSetBuffering Sys.stdout Sys.NoBuffering
+  HS.unbufferStdout
   _ ← GLFW.init
   GLFW.defaultWindowHints
   mapM_ GLFW.windowHint
@@ -124,7 +122,6 @@ main = do
   _ ← GL.setStorage renderer storage <&>
     fromMaybe (error $ printf "setStorage failed")
 
-  let memoryUsage = Sys.currentBytesUsed <$> Sys.getGCStats
   let (w, h) = (1, 1)
       loop old = do
         dSurface       ← GRC.createImageSurface GRC.FormatARGB32 w h
@@ -148,9 +145,9 @@ main = do
         holoRef    ← IO.newIORef holo
 
         --- do stats
-        Sys.performGC
-        new ← memoryUsage
+        HS.gc
+        new ← HS.gcBytesUsed
         when (old /= new) $
           printf "memory usage: %d\n" new
         loop new
-  loop =<< memoryUsage
+  loop =<< HS.gcBytesUsed

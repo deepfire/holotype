@@ -54,12 +54,6 @@ import           Text.Show.Pretty                         (ppShow)
 -- Algebra
 import           Linear
 
--- System
-import qualified GHC.Stats                         as Sys
-import qualified System.Clock                      as Sys
-import qualified System.IO                         as Sys
-import qualified System.Mem                        as Sys
-
 -- Dirty stuff
 import qualified Data.IORef                        as IO
 
@@ -133,7 +127,7 @@ average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 holotype ∷ ReflexGLFW t m
 holotype win _evCtl setupE windowFrameE inputE = do
-  liftIO $ Sys.hSetBuffering Sys.stdout Sys.NoBuffering
+  HS.unbufferStdout
   (rendererV, streamV)
                    ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
   rendererDrawFrame rendererV
@@ -167,7 +161,7 @@ holotype win _evCtl setupE windowFrameE inputE = do
 
   -- UI
   kilobytesE       ← performEvent $ frameE <&>
-                       (const $ liftIO (Sys.performGC >> HS.gcBytesUsed))
+                       (const $ HS.gc >> HS.gcBytesUsed)
   kilobytesD       ← holdDyn 0 kilobytesE
 
   frameMomentE     ← performEvent $ fmap (\_ → HS.getTime) frameE
