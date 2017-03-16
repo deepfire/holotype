@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
 {-# LANGUAGE LambdaCase, MultiWayIf, OverloadedStrings, RecordWildCards, ScopedTypeVariables, TupleSections #-}
 {-# LANGUAGE UnicodeSyntax #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
 
 module HoloFont
   ( Font(..), FKind(..)
@@ -32,17 +33,15 @@ module HoloFont
 where
 
 -- Basis
+import           Prelude                           hiding (fail)
 import           Prelude.Unicode
-import           Control.Arrow
+import           Control.Arrow                            ((***))
 import           Control.Lens
 import           GHC.Stack
 
 -- Types
-import           Control.Monad                            (unless, when, forM_, foldM, filterM)
+import           Control.Monad                            (foldM)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
-import           Control.Monad.Trans.Reader               (ReaderT(..))
-import qualified Data.ByteString.Char8             as SB
-import qualified Data.ByteString.Lazy              as LB
 import           Data.Either
 import           Data.Either.Extra
 import           Data.List
@@ -50,21 +49,13 @@ import           Data.Map                                 (Map)
 import           Data.Ord
 import qualified Data.Map                          as Map
 import           Data.Maybe                               (fromMaybe)
-import           Data.MonoTraversable
 import           Data.String                              (IsString)
-import           Data.Text                         as T   (Text, pack, unpack)
-import qualified Data.Vector                       as V
-import qualified Data.Vect                         as Vc
-import           Data.Vect                                (Mat4(..), Vec3(..), Vec4(..))
-import           Numeric.Extra                            (floatToDouble, doubleToFloat)
+import           Data.Text                         as T   (Text, unpack)
 
 -- Algebra
 import           Linear
 
 -- Misc
-import           System.FilePath                          ((</>))
-import qualified System.Directory                  as FS
-import           Text.Show.Pretty                         (ppShow)
 import           Text.Printf                              (printf)
 
 -- Manually-bound Cairo
@@ -73,15 +64,11 @@ import qualified Graphics.Rendering.Cairo          as GRC (moveTo)
 -- glib-introspection -based Cairo and Pango
 import qualified Data.GI.Base                      as GI
 import qualified GI.Cairo                          as GIC
-import qualified GI.Cairo.Structs.Context          as GIC
 import qualified GI.Pango                          as GIP
 import qualified GI.PangoCairo.Interfaces.FontMap  as GIPC
 import qualified GI.PangoCairo.Functions           as GIPC
 
 -- Dirty stuff
-import qualified Foreign                           as F
-import qualified Foreign.C.Types                   as F
-import qualified Foreign.Ptr                       as F
 import qualified System.IO.Unsafe                  as UN
 
 -- Local imports
@@ -240,8 +227,8 @@ validateFont fFontMap (FontSpec
       fPI   = fromSz fDΠ $ fsValue fSizeRequest
   in case (fams, faces) of
     ([],_)           → pure ∘ Left $ printf "Missing font family '%s'." ffamname
-    (ffam:_,[])      → pure ∘ Left $ printf "No face '%s' in family '%s'." ffacename ffamname
-    (ffam:_,(fFace ∷ GIP.FontFace):_) → do
+    (_:_,[])      → pure ∘ Left $ printf "No face '%s' in family '%s'." ffacename ffamname
+    (_:_,(fFace ∷ GIP.FontFace):_) → do
       fDesc  ← GIP.fontFaceDescribe fFace
       let mayfPISizes = ffacPISizes fFace
           eifSizeFail = case (fSizeRequest, mayfPISizes) of
@@ -249,7 +236,7 @@ validateFont fFontMap (FontSpec
             (FSROutline fs, Just fPISizes) →
               if | fPI ∈ fPISizes → Right $ fs
                  | otherwise      → Left  $ printf "Bitmap font family '%s' does not provide for size %s." ffamname (show fs)
-            (FSRBitmap  fs      _, Nothing) → Left $ printf "Outline font family '%s' does not provide for bitmaps." ffamname
+            (FSRBitmap   _      _, Nothing) → Left $ printf "Outline font family '%s' does not provide for bitmaps." ffamname
             (FSRBitmap  fs policy, Just fPISizes) →
               case (policy, fPI ∈ fPISizes) of
                 (_,  True)  → Right fs
