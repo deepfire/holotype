@@ -45,6 +45,8 @@
   12. reify *query results* as *projection* called *stage*, that is out of sync by definition
   13. use cases:
       - program type structure choice explanation
+  14. be very clear about running external processes: can be very frustrating to
+      not know what happens
 
 * Inspiration
 
