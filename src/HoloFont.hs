@@ -68,10 +68,7 @@ import           Text.Show.Pretty                         (ppShow)
 import           Text.Printf                              (printf)
 
 -- Manually-bound Cairo
-import qualified Graphics.Rendering.Cairo          as GRC
-import qualified Graphics.Rendering.Cairo.Internal as GRC (Render(..), create, imageSurfaceCreate)
-import qualified Graphics.Rendering.Cairo.Types    as GRC
-import qualified Graphics.Rendering.Cairo.Internal as GRCI
+import qualified Graphics.Rendering.Cairo          as GRC (moveTo)
 
 -- glib-introspection -based Cairo and Pango
 import qualified Data.GI.Base                      as GI
@@ -82,13 +79,14 @@ import qualified GI.PangoCairo.Interfaces.FontMap  as GIPC
 import qualified GI.PangoCairo.Functions           as GIPC
 
 -- Dirty stuff
-import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
+import qualified Foreign.C.Types                   as F
 import qualified Foreign.Ptr                       as F
 import qualified System.IO.Unsafe                  as UN
 
 -- Local imports
 import Flatland
+import HoloCairo
 
 
 -- $Font choice strategy.
@@ -329,7 +327,7 @@ layPrintLimits ∷ (MonadIO m) ⇒ String → GIP.Layout → m ()
 layPrintLimits key lay = do
   w ← GIP.layoutGetWidth  lay
   h ← GIP.layoutGetHeight lay
-  GRC.liftIO $ printf "-- %s  limw: %s, limh: %s\n" key (show w) (show h)
+  liftIO $ printf "-- %s  limw: %s, limh: %s\n" key (show w) (show h)
 
 layRunTextForSize ∷ (MonadIO m) ⇒ (Sizely (Size s), Sizely (Size t)) ⇒
                     GIP.Layout → DΠ → Wi (Size s) → Text → m (Di (Size t))
@@ -340,9 +338,9 @@ layRunTextForSize lay dπ width text = do
   -- liftIO $ printf "LRTFS '%s' w=%s → %s\n" text (show $ width^.wiV) (show $ sz^.diV)
   pure sz
 
-layDrawText ∷ (MonadIO m) ⇒ GRC.Cairo → GIC.Context → GIP.Layout → Po Double → Co Double → T.Text → m ()
-layDrawText dGRC dGIC lay (Po (V2 cvx cvy)) tColor text = do
-  liftIO $ (`runReaderT` dGRC) $ GRC.runRender $ do
+layDrawText ∷ (MonadIO m) ⇒ Cairo → GIC.Context → GIP.Layout → Po Double → Co Double → T.Text → m ()
+layDrawText cairo dGIC lay (Po (V2 cvx cvy)) tColor text =
+  runCairo cairo $ do
     GRC.moveTo cvx cvy
     coSetSourceColor tColor
     GIP.layoutSetText lay text (-1)

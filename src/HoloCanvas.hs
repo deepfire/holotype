@@ -69,6 +69,7 @@ import qualified Data.IORef                        as IO
 import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
 import qualified Foreign.Ptr                       as F
+import qualified Foreign.ForeignPtr.Unsafe         as F
 import qualified System.IO.Unsafe                  as UN
 
 -- …
@@ -88,6 +89,7 @@ import           GameEngine.Utils                  as Q3
 -- Local imports
 import Flatland
 import HoloFont
+import HoloCairo
 import HoloCube
 import HoloSettings
 
@@ -98,7 +100,7 @@ data Drawable where
     { dObjectStream ∷ ObjectStream
     , dDi           ∷ Di Int
     , dSurfaceData  ∷ (F.Ptr F.CUChar, (Int, Int))
-    , dGRC          ∷ GRC.Cairo
+    , dCairo        ∷ Cairo
     , dGIC          ∷ GIC.Context
     --
     , dMesh         ∷ LC.Mesh
@@ -106,15 +108,12 @@ data Drawable where
     , dGLObject     ∷ GL.Object
     } → Drawable
 
-grcToGIC ∷ (MonadIO m) ⇒ GRC.Cairo → m GIC.Context
-grcToGIC grc = liftIO $ GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grc) (return ())
-
 makeDrawable ∷ (MonadIO m) ⇒ ObjectStream → Di Double → m Drawable
 makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
-  dGRC          ← GRC.create dSurface
-  dGIC          ← grcToGIC dGRC
+  dCairo        ← cairoCreate  dSurface
+  dGIC          ← cairoGICairo dCairo
 
   let (dx, dy) = (fromIntegral w, fromIntegral $ -h)
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
@@ -302,7 +301,7 @@ instance Widget Text where
         dim   = rb ^-^ lt
     laySetSize         lay fDΠ $ Di (PUs <$> dim)
     laySetMaxParaLines lay tMaxParaLines
-    layDrawText dGRC dGIC lay ltp tColor =<< (liftIO $ IO.readIORef textRef)
+    layDrawText dCairo dGIC lay ltp tColor =<< (liftIO $ IO.readIORef textRef)
     -- let V2 w h = ceiling <$> dim ∷ V2 Int
     -- layDrawText dGRC dGIC lay (po 0 0) (coOpaq 1 0 0) $
     --   T.pack $ printf "sz %d %d" w h
@@ -335,10 +334,10 @@ instance Widget a ⇒ Widget (RRect a) where
   make st@Settings{..} drawable rrStyle rrContent rrPSpace = do
     let w = RRect{..} where rrInner = (⊥)    -- resolve circularity due to *ToInner..
     make st drawable (styleToInner w rrStyle) rrContent (spaceToInner w rrPSpace) <&> (\x→ w { rrInner = x }) -- XXX/lens
-  draw canvas@(CW (Canvas (Drawable _ _ _ cGRC cGIC _ _ _) _ _ _ _))
+  draw canvas@(CW (Canvas (Drawable _ _ _ dCairo cGIC _ _ _) _ _ _ _))
        (RRect (Spc obez (Spc bord (Spc ibez (Spc pad _))))
               (In RRectS{..} _) inner) = do
-    liftIO $ (`runReaderT` cGRC) $ GRC.runRender $ do
+    runCairo dCairo $ do
       let -- dCorn (RRCorn _ pos _ _) col = d pos col
           ths@[oth, bth, ith, pth]
                         = fmap (Th ∘ _wiV ∘ l) [obez, bord, ibez, pad]
