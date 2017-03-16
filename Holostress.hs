@@ -31,13 +31,14 @@ import           Data.String
 import qualified Data.Vector                       as V
 
 import qualified Foreign.Ptr                       as F
+import qualified Foreign.ForeignPtr                as F
 
 import qualified Data.GI.Base                      as GI
 import qualified GI.Cairo                          as GIC
 import qualified GI.PangoCairo.Functions           as GIPC
 import qualified Graphics.Rendering.Cairo          as GRC
 import qualified Graphics.Rendering.Cairo.Types    as GRC
-import qualified Graphics.Rendering.Cairo.Internal as GRC (create)
+import qualified Graphics.Rendering.Cairo.Internal as GRCI (create) --,destroy, imageSurfaceCreate, unCairo
 
 import qualified Graphics.GL.Core33                as GL
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
@@ -55,8 +56,13 @@ import           Text.Show.Pretty                         (ppShow)
 
 import qualified System.Directory                  as FS
 import qualified System.IO                         as Sys
+import qualified System.Mem                        as Sys
+import qualified GHC.Stats                         as Sys
 
 
+foreign import ccall "&cairo_destroy"
+  cairo_destroy ∷ F.FinalizerPtr GRC.Cairo
+
 main ∷ IO ()
 main = do
   Sys.hSetBuffering Sys.stdout Sys.NoBuffering
@@ -93,29 +99,32 @@ main = do
 
   _ ← GL.setStorage renderer storage <&>
     fromMaybe (error $ printf "setStorage failed")
-
+  let memoryUsage = Sys.currentBytesUsed <$> Sys.getGCStats
   let (w, h) = (1, 1)
-      loop = do
-        putStr "0"
-        dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
-        putStr "1"
-        dGRC          ← GRC.create dSurface
-        putStr "2"
-        dGIC          ← GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo dGRC) (return ())
-        let (dx, dy) = (fromIntegral w, fromIntegral $ -h)
-            position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
-            texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
-            dMesh    = LC.Mesh { mPrimitive  = P_Triangles
-                               , mAttributes = Map.fromList [ ("position",  A_V2F position)
-                                                            , ("uv",        A_V2F texcoord) ] }
-        putStr "3"
+      loop old = do
+        Sys.performGC
+        new ← memoryUsage
+        when (old /= new) $
+          printf "memory usage: %d\n" new
+
+        dSurface       ← GRC.createImageSurface GRC.FormatARGB32 w h
+        dGRC'          ← GRCI.create dSurface
+        _              ← F.newForeignPtr cairo_destroy (GRC.unCairo dGRC')
+
+        dGIC           ← GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo dGRC') (return ())
+        let (_dx, _dy)  = (fromIntegral w, fromIntegral $ -h)
+            _position   = V.fromList [ LCLin.V2  0 _dy,   LCLin.V2  0  0,   LCLin.V2 _dx  0,   LCLin.V2  0 _dy,   LCLin.V2 _dx  0,   LCLin.V2 _dx _dy ]
+            _texcoord   = V.fromList [ LCLin.V2  0   1,   LCLin.V2  0  0,   LCLin.V2   1  0,   LCLin.V2  0   1,   LCLin.V2   1  0,   LCLin.V2   1   1 ]
+            _dMesh      = LC.Mesh { mPrimitive  = P_Triangles
+                                  , mAttributes = Map.fromList [ ("position",  A_V2F _position)
+                                                               , ("uv",        A_V2F _texcoord) ] }
+        -- putStr "pre-GL.uploadMeshToGPU"
         -- 450123450123450123450123450123450123450123  <-- the trace always ends on a '3'
-        _ ← GL.uploadMeshToGPU dMesh
-        putStr "4"
+        -- _ ← GL.uploadMeshToGPU dMesh
+        -- putStr "post-GL.uploadMeshToGPU"
         _ ← GIPC.createContext dGIC
-        putStr "5"
-        loop
-  loop
+        loop new
+  loop =<< memoryUsage
 
 newtype UniformNameS  = UniformNameS  { fromUNS  ∷ SB.ByteString } deriving (Eq, IsString, Ord, Show)
 newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (Eq, IsString, Ord, Show)
