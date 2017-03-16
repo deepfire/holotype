@@ -113,7 +113,7 @@ makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
   dCairo        ← cairoCreate  dSurface
-  dGIC          ← cairoGICairo dCairo
+  dGIC          ← cairoToGICairo dCairo
 
   let (dx, dy) = (fromIntegral w, fromIntegral $ -h)
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]

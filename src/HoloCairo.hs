@@ -9,7 +9,7 @@ module HoloCairo
   (
     Cairo, cairoCreate
   , runCairo
-  , cairoGICairo
+  , cairoToGICairo
   )
 where
 
@@ -41,6 +41,6 @@ runCairo (Cairo fpGRC) body =
     (`runReaderT` (GRC.Cairo grc)) $ GRC.runRender
       body
 
-cairoGICairo ∷ (MonadIO m) ⇒ Cairo → m GIC.Context
-cairoGICairo (Cairo cairoFptr) =
+cairoToGICairo ∷ (MonadIO m) ⇒ Cairo → m GIC.Context
+cairoToGICairo (Cairo cairoFptr) =
   liftIO $ GIC.Context <$> GI.newManagedPtr (F.castPtr $ F.unsafeForeignPtrToPtr cairoFptr) (F.touchForeignPtr cairoFptr)
