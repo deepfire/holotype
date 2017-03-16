@@ -69,15 +69,12 @@ executable holotype
                      , lambdacube-gl
                      , lambdacube-quake3
                      , OpenGL, OpenGLRaw
-                     , pretty-show
                      , proteaaudio
 
                      , cairo
-                     , gi-gtk
                      , gi-cairo
                      , gi-pango
                      , gi-pangocairo
-                     , gi-gdk
                      , haskell-gi-base
 
                      , ghc-typelits-extra
@@ -86,3 +83,30 @@ executable holotype
                      , mtl
 
                      , halive
+
+executable LCstress
+  hs-source-dirs:      . src
+  main-is:             LCstress.hs
+  default-language:    Haskell2010
+
+  build-depends:       aeson
+                     , base >=4.8
+                     , base-unicode-symbols
+                     , bytestring
+                     , containers >=0.5
+                     , directory
+                     , lens >= 4.13.2
+                     , pretty-show
+                     , vector
+
+                     , cairo
+                     , gi-cairo
+                     , gi-pangocairo
+                     , haskell-gi-base
+
+                     , GLFW-b
+                     , OpenGLRaw
+                     , lambdacube-compiler
+                     , lambdacube-gl
+                     , lambdacube-ir
+                     , lambdacube-quake3

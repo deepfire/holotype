@@ -6,7 +6,7 @@
 , pretty-show, process, proteaaudio, stm, time, transformers, tuple, vect, vector, zlib
 #, youtrack
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
-, lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo, gi-gtk, gi-gdk
+, lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo
 , reflex
 , rapid
 , ghc-typelits-extra, ghc-typelits-natnormalise
@@ -28,7 +28,7 @@ mkDerivation {
     stm time transformers tuple vect vector zlib
     # youtrack
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
-    lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo gi-gtk gi-gdk
+    lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo
     reflex dependent-sum
     rapid
     ghc-typelits-extra ghc-typelits-natnormalise

@@ -102,11 +102,6 @@ main = do
   let memoryUsage = Sys.currentBytesUsed <$> Sys.getGCStats
   let (w, h) = (1, 1)
       loop old = do
-        Sys.performGC
-        new ← memoryUsage
-        when (old /= new) $
-          printf "memory usage: %d\n" new
-
         dSurface       ← GRC.createImageSurface GRC.FormatARGB32 w h
         dGRC'          ← GRCI.create dSurface
         _              ← F.newForeignPtr cairo_destroy (GRC.unCairo dGRC')
@@ -123,6 +118,12 @@ main = do
         _ ← GL.uploadMeshToGPU _dMesh
         putStr "post-GL.uploadMeshToGPU "
         _ ← GIPC.createContext dGIC
+
+        Sys.performGC
+        new ← memoryUsage
+        when (old /= new) $
+          printf "memory usage: %d\n" new
+
         loop new
   loop =<< memoryUsage
 
