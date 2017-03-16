@@ -87,6 +87,7 @@ import qualified HoloCanvas                        as H
 import HoloCube
 import HoloFont
 import HoloSettings
+import qualified HoloSys                           as HS
 
 dasContent =
   (T.unlines
@@ -113,9 +114,6 @@ someFire ∷ Reflex t ⇒ Event t a → Event t b → Event t ()
 someFire a b = simpler a <> simpler b
 
 
-timespecToSecs ∷ Sys.TimeSpec → Double
-timespecToSecs = (/ 1000000000.0) ∘ fromIntegral ∘ Sys.toNanoSecs
-
 newFrame ∷ ReflexGLFWCtx t m ⇒ Event t Renderer → m (Event t Frame)
 newFrame rendererFrameE = performEvent $ rendererFrameE <&>
   \r@Renderer{..} → do
@@ -169,12 +167,10 @@ holotype win _evCtl setupE windowFrameE inputE = do
 
   -- UI
   kilobytesE       ← performEvent $ frameE <&>
-                      (const $ liftIO ((`div` 1024) ∘ fromIntegral ∘ Sys.currentBytesUsed <$> do
-                                          Sys.performGC
-                                          Sys.getGCStats))
+                       (const $ liftIO (Sys.performGC >> HS.gcBytesUsed))
   kilobytesD       ← holdDyn 0 kilobytesE
 
-  frameMomentE     ← performEvent $ fmap (\_ → liftIO $ timespecToSecs <$> Sys.getTime Sys.Monotonic) frameE
+  frameMomentE     ← performEvent $ fmap (\_ → HS.getTime) frameE
   frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
   avgFrameΔD       ← average 20 $ updated frameΔD
   let fpsD          = (floor ∘ recip) <$> avgFrameΔD
