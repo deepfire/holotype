@@ -60,6 +60,8 @@ import qualified System.Mem                        as Sys
 import qualified GHC.Stats                         as Sys
 
 import HoloCairo
+import HoloCanvas
+import Holo
 
 
 newtype UniformNameS  = UniformNameS  { fromUNS  ∷ SB.ByteString } deriving (Eq, IsString, Ord, Show)
@@ -140,6 +142,11 @@ main = do
         -- owned ← IO.readIORef ownedR
         _ ← GIPC.createContext dGIC
 
+        -- Holo.visual
+        holoVisual ← visualise stts holoStream holoStyle holo
+        render holoVisual
+        holoRef    ← IO.newIORef holo
+
         --- do stats
         Sys.performGC
         new ← memoryUsage
@@ -147,6 +154,3 @@ main = do
           printf "memory usage: %d\n" new
         loop new
   loop =<< memoryUsage
-
-foreign import ccall "&cairo_destroy"
-  cairo_destroy ∷ F.FinalizerPtr GRC.Cairo

@@ -7,6 +7,7 @@
 {-# LANGUAGE DeriveFoldable, DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UnicodeSyntax #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
 module Flatland where
 
 -- Basis
@@ -17,24 +18,17 @@ import           GHC.TypeLits
 
 -- General types
 import qualified Alib                              as M
-import           GHC.Stack
 import           Control.Applicative
 import           Control.Lens
-import           Control.Lens.TH
 import           Control.Monad.Random
 import           Control.Monad.State
 import           Data.Complex
 import           Data.Function
 import           Data.Lub
 import           Data.Glb
-import           Data.Map (Map)
-import qualified Data.Map                          as Map
 import           Data.Maybe
-import           Data.Profunctor
-import           Data.Semigroup
 import           Data.MeasuredMonoid
 import           Data.MonoTraversable
-import           Data.String                              (IsString)
 
 -- Algebra
 import           Linear
@@ -48,11 +42,6 @@ import qualified GI.Pango                          as GIP (unitsToDouble, unitsF
 
 -- Misc
 import           Text.Printf                              (printf)
-import           Text.Show.Pretty                         (ppShow)
-
--- System
-import           System.Random
-import           Reflex.Random
 
 -- Dirty stuff
 import qualified Foreign                           as F
@@ -160,16 +149,16 @@ class Sizely a where
 
 instance Sizely (Size PU) where
   fromSz _       x@(PUs _)    = x
-  fromSz _       x@(PUIs pis) = PUs $ UN.unsafePerformIO ∘ GIP.unitsToDouble   $ pis -- fromIntegral pis / fromIntegral GIP.SCALE
-  fromSz (DΠ dπ) x@(Pts pts)  = PUs $ (fromIntegral pts) ⋅ dπ / pπVal pπ
+  fromSz _         (PUIs pis) = PUs $ UN.unsafePerformIO ∘ GIP.unitsToDouble   $ pis -- fromIntegral pis / fromIntegral GIP.SCALE
+  fromSz (DΠ dπ)   (Pts pts)  = PUs $ (fromIntegral pts) ⋅ dπ / pπVal pπ
 instance Sizely (Size PUI) where
   fromSz _       x@(PUIs _)   = x
-  fromSz _       x@(PUs pus)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ pus -- floor $ pus ⋅ fromIntegral GIP.SCALE
-  fromSz (DΠ dπ) x@(Pts pts)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ fromIntegral pts ⋅ dπ / pπVal pπ
+  fromSz _         (PUs pus)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ pus -- floor $ pus ⋅ fromIntegral GIP.SCALE
+  fromSz (DΠ dπ)   (Pts pts)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ fromIntegral pts ⋅ dπ / pπVal pπ
 instance Sizely (Size Pt) where
   fromSz _       x@(Pts _)    = x
-  fromSz (DΠ dπ) x@(PUs pus)  = Pts $ floor $                                                                 pus ⋅ pπVal pπ / dπ
-  fromSz (DΠ dπ) x@(PUIs pis) = Pts $ floor $ UN.unsafePerformIO ∘ GIP.unitsToDouble ∘ floor $ (fromIntegral pis) ⋅ pπVal pπ / dπ
+  fromSz (DΠ dπ)   (PUs pus)  = Pts $ floor $                                                                 pus ⋅ pπVal pπ / dπ
+  fromSz (DΠ dπ)   (PUIs pis) = Pts $ floor $ UN.unsafePerformIO ∘ GIP.unitsToDouble ∘ floor $ (fromIntegral pis) ⋅ pπVal pπ / dπ
 -- instance Sizely (Size u) where
 --   fromSz dπ x = fromSz dπ x
 -- not sure if this even has any added value..
@@ -238,10 +227,10 @@ newtype SDi a = SDi { _sdiV  ∷ V4 a }      deriving                        (Eq
 
 -------- <boilerplate>
 deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show  (RPo a); deriving instance Show a ⇒ Show (SDi a)
-deriving instance (Ord a, HasLub a) ⇒ HasLub (Di a)
-deriving instance (Ord a, HasGlb a) ⇒ HasGlb (Di a)
-deriving instance (Ord a, HasLub a) ⇒ HasLub (Po a)
-deriving instance (Ord a, HasGlb a) ⇒ HasGlb (Po a)
+deriving instance (Ord a) ⇒ HasLub (Di a)
+deriving instance (Ord a) ⇒ HasGlb (Di a)
+deriving instance (Ord a) ⇒ HasLub (Po a)
+deriving instance (Ord a) ⇒ HasGlb (Po a)
 newtype An2 a = An2 { _an2V ∷ V2 a } deriving (Eq, Functor) -- ^ Unordered pair of angles
 newtype Co  a = Co  { _coV  ∷ V4 a } deriving (Eq, Functor) -- ^ Color
 deriving instance Show a ⇒ Show (An2 a)
@@ -286,9 +275,9 @@ rotateRPo ∷ RealFloat a ⇒ An a → RPo a → RPo a
 rotateRPo (An a) (RPo c) = RPo $ mkPolar (magnitude c) (phase c + a)
 
 poBy ∷ Num a ⇒ Po a → V2 a → Po a
-poBy po = Po ∘ (^+^ _poV po)
+poBy _po = Po ∘ (^+^ _poV _po)
 poByDi ∷ Num a ⇒ Po a → Di a → Po a
-poByDi po = poBy po ∘ _diV
+poByDi _po = poBy _po ∘ _diV
 
 poSub ∷ Num a ⇒ Po a → Po a → Di a
 poSub (Po v) (Po v') = Di $ v ^-^ v'
@@ -361,7 +350,6 @@ data WRoundRectFeature a where
 poArc ∷ Po Double → Double → An2 Double → GRCI.Render ()
 poArc !(Po (V2 x y)) !r !(An2 (V2 angs ange))
   = GRC.arc x y r angs ange
-  where degrees = pi/180
 
 
 -- * Colors
@@ -379,9 +367,9 @@ coSetSourceColor !(Co (V4 r g b a))
   = GRC.setSourceRGBA r g b a
 
 coGradientSet ∷ Co Double → Co Double → GRC.Pattern → IO ()
-coGradientSet !(Co (V4 rs gs bs as)) !(Co (V4 re ge be ae)) pat = do
+coGradientSet !(Co (V4 rs gs bs as)) !(Co (V4 re' ge be ae)) pat = do
   GRCI.patternAddColorStopRGBA pat 0 rs gs bs as
-  GRCI.patternAddColorStopRGBA pat 1 re ge be ae
+  GRCI.patternAddColorStopRGBA pat 1 re' ge be ae
 
 coPatternGradLinear ∷ Po Double → Co Double → Po Double → Co Double → IO GRC.Pattern
 coPatternGradLinear !(Po (V2 xs ys)) !sco !(Po (V2 xe ye)) !eco = do
@@ -390,8 +378,8 @@ coPatternGradLinear !(Po (V2 xs ys)) !sco !(Po (V2 xe ye)) !eco = do
   pure p
 
 coPatternGradRadial ∷ Po Double → Double → Co Double → Po Double → Double → Co Double → IO GRC.Pattern
-coPatternGradRadial !(Po (V2 xi yi)) !ir !ico !(Po (V2 xo yo)) !or !oco = do
-  p ← GRCI.patternCreateRadial xi yi ir xo yo or
+coPatternGradRadial !(Po (V2 xi yi)) !ir !ico !(Po (V2 xo yo)) !origin !oco = do
+  p ← GRCI.patternCreateRadial xi yi ir xo yo origin
   coGradientSet ico oco p
   pure p
 
@@ -434,10 +422,10 @@ instance Applicative (S Area False) where
 instance Applicative (S Area True)  where
   pure x = Parea (pure x) (pure x)
   Parea x x' <*> Parea y y' = Parea (x <*> y) (x' <*> y')
-instance (HasLub a, Ord a) ⇒ HasLub (S Area False a) where lub = Farea .: on lub _aD
-instance (HasGlb a, Ord a) ⇒ HasGlb (S Area False a) where glb = Farea .: on glb _aD
-instance (HasLub a, HasGlb a, Num a, Ord a) ⇒ HasGlb (S Area True a) where
-  Parea d p `glb` Parea d' p' = Parea (poSub lu gl) gl
+instance (Ord a) ⇒ HasLub (S Area False a) where lub = Farea .: on lub _aD
+instance (Ord a) ⇒ HasGlb (S Area False a) where glb = Farea .: on glb _aD
+instance (Num a, Ord a) ⇒ HasGlb (S Area True a) where
+  Parea _ p `glb` Parea _ p' = Parea (poSub lu gl) gl
     where gl = glb p p'
           lu = lub p p'
 
@@ -458,15 +446,15 @@ instance RealFrac a ⇒ GoldYS  a Wrap where goldY  = join Fwrap ∘ goldYdi
 
 instance (Num a, Random a) ⇒ Random (S Area True a) where
   random = runState $ Parea <$> (state random) <*> (state random)
-  randomR (Parea di nw, Parea maxsz _) =
-    let se = poByDi nw $ di ^-^ maxsz
+  randomR (Parea di' nw, Parea maxsz _) =
+    let se = poByDi nw $ di' ^-^ maxsz
     in runState $ liftA2 Parea (state $ randomR (zero, maxsz)) (state $ randomR (nw, se))
 
 
 -- * Projections
 --
 paSEp ∷ Num a ⇒ S Area True a → Po a
-paSEp (Parea di po) = poByDi po di
+paSEp (Parea di' po') = poByDi po' di'
 
 center ∷ Fractional a ⇒ S k True a → Po a
 center (Parea d p)                 = poByDi p (d ^/ 2)
@@ -494,13 +482,13 @@ stepIntoSE'2 (Pwrap _ (Di pwSEd) _ (Po pwSEp)) = Po $ pwSEp ^-^ pwSEd ⋅ 0.5
 stepInto'2 ∷                 Fractional a ⇒ S Wrap True a → (Po a, Po a)
 stepInto'2 pw = (stepIntoNW'2 pw, stepIntoSE'2 pw)
 
--- | 'l', 't', 'r', 'b' -- sidewise dimensions.
-l, r ∷ S Wrap p a → Wi a
-t, b ∷ S Wrap p a → He a
-l Fwrap{..} = Wi ∘ (view _x) $ _diV _wNWd; l Pwrap{..} = Wi ∘ (view _x) $ _diV _pwNWd
-t Fwrap{..} = He ∘ (view _y) $ _diV _wNWd; t Pwrap{..} = He ∘ (view _y) $ _diV _pwNWd
-r Fwrap{..} = Wi ∘ (view _x) $ _diV _wSEd; r Pwrap{..} = Wi ∘ (view _x) $ _diV _pwSEd
-b Fwrap{..} = He ∘ (view _y) $ _diV _wSEd; b Pwrap{..} = He ∘ (view _y) $ _diV _pwSEd
+-- | 'wL', 'wT', 'wR', 'wB' -- sidewise dimensions.
+wL, wR ∷ S Wrap p a → Wi a
+wT, wB ∷ S Wrap p a → He a
+wL Fwrap{..} = Wi ∘ (view _x) $ _diV _wNWd; wL Pwrap{..} = Wi ∘ (view _x) $ _diV _pwNWd
+wT Fwrap{..} = He ∘ (view _y) $ _diV _wNWd; wT Pwrap{..} = He ∘ (view _y) $ _diV _pwNWd
+wR Fwrap{..} = Wi ∘ (view _x) $ _diV _wSEd; wR Pwrap{..} = Wi ∘ (view _x) $ _diV _pwSEd
+wB Fwrap{..} = He ∘ (view _y) $ _diV _wSEd; wB Pwrap{..} = He ∘ (view _y) $ _diV _pwSEd
 
 
 -- * Combinators
@@ -538,7 +526,7 @@ pinWrap Fwrap{..} _pwNWp _pwSEp = Pwrap{..}
 --   XXX: see if `Linear.V2.perp` can help with that.
 wrapRoundedRectFeatures ∷ Floating a ⇒ S Wrap True a → R a → Th a → [WRoundRectFeature a]
 wrapRoundedRectFeatures pw@Pwrap{..} rr@(R r) th =
-  let pa@(Parea (Di (V2 wi he)) (Po (V2 w n))) = narrowByTh ((/2) <$> th) $ area pw
+  let pa@(Parea (Di _) (Po (V2 w n))) = narrowByTh ((/2) <$> th) $ area pw
       V2 e s = _poV $ paSEp pa
       !degrees         = pi/180
   in [WRR $ RRSide ON  (po (w + r)  n)      (po  (e - r) n)
@@ -551,18 +539,18 @@ wrapRoundedRectFeatures pw@Pwrap{..} rr@(R r) th =
      ,WRR $ RRCorn ONW (po (w + r) (n + r)) (an2 (180 ⋅ degrees) (270 ⋅ degrees)) rr]
 
 executeFeature ∷ Maybe (Co Double) → Maybe (Co Double) → WRoundRectFeature Double → GRC.Render ()
-executeFeature !cStart !cEnd !(WRR (RRSide _ (Po (V2 sx sy)) (Po (V2 ex ey)))) = do
+executeFeature !cStart !cEnd !(WRR (RRSide _ (Po (V2 sx sy)) (Po (V2 ex' ey')))) = do
   -- pat ← UN.unsafeInterleaveIO $ coPatternGradLinear rrsFr cStart rrsTo cEnd
   if | cStart ≢ cEnd    → error "Not implemented: sidewise gradients."
      | Nothing ← cStart → pure ()
      | Just c  ← cStart → coSetSourceColor c
   GRC.moveTo sx sy
-  GRC.lineTo ex ey
+  GRC.lineTo ex' ey'
 executeFeature !cStart !cEnd !(WRR (RRCorn o c@(Po (V2 cx cy)) (An2 (V2 sa ea)) r)) = do
   let (cs, ce) = oriCenterRChordCW o c r
   if | cStart ≢ cEnd    → GRC.setSource =<< (GRC.liftIO $ coPatternGradLinear cs (fromJust cStart) ce (fromJust cEnd))
      | Nothing ← cStart → pure ()
-     | Just c  ← cStart → coSetSourceColor c
+     | Just c' ← cStart → coSetSourceColor c'
   GRC.arc cx cy (_rV r) sa ea
 
 poNWSERectArcCentersCW ∷ Num a ⇒ Po a → Po a → R a → (Po a, Po a, Po a, Po a)
@@ -606,14 +594,14 @@ data Space (pinned ∷ Bool) a (n ∷ Nat) where
 deriving instance Show a ⇒  Show (Space p a n)
 
 instance (Num a, Show a) ⇒ MeasuredMonoid (Space p a) where
-  mmempty    = End
-  mmappend     End        End       = End
-  mmappend     End      x@Sarea{..} = x
-  mmappend     End      x@Spc{..}   = x
+  mmempty   = End
+  mmappend    End         End       = End
+  mmappend    End       x@Sarea{..} = x
+  mmappend    End       x@Spc{..}   = x
   mmappend  x@Sarea{..}   End       = x
-  mmappend  x@Sarea{..}   tail      = error $ printf "Sarea `mmappend` non-End is ⊥: %s to %s" (show x) (show tail)
+  mmappend  x@Sarea{..}   tail'     = error $ printf "Sarea `mmappend` non-End is ⊥: %s to %s" (show x) (show tail')
   mmappend  x@Spc{..}     End       = x
-  mmappend tl@(Spc pl nl) tail      = Spc pl $ mmappend nl tail
+  mmappend   (Spc pl nl) tail'     = Spc pl $ mmappend nl tail'
 
 type SubArea a = Space True a 2
 
@@ -662,7 +650,7 @@ spaceDim ∷ Space p u d → Di u
 spaceDim  End                           = zero
 spaceDim (Sarea a)                      = dim a
 spaceDim (Spc w@(Fwrap  _ _)    sInner) = dim w ^+^ spaceDim sInner
-spaceDim (Spc w@(Pwrap _ _ _ _) sInner) = dim w
+spaceDim (Spc w@(Pwrap _ _ _ _) _)      = dim w
 
 
 -- * Pinning
@@ -677,13 +665,13 @@ sPin lt space = loop space zero rb
   where rb = sSE space lt
         loop ∷ Space False a n → Po a → Po a → Space True a n
         loop  End                     _  _ = End
-        loop (Sarea Farea{..})       lt  _ =
-          Sarea (Parea { _paD   = _aD,                   _paNWp = lt })
-        loop (Spc Fwrap{..} swInner) lt rb =
-          Spc   (Pwrap { _pwNWd = _wNWd, _pwSEd = _wSEd, _pwNWp = lt, _pwSEp = rb })
+        loop (Sarea Farea{..})       lt' _ =
+          Sarea (Parea { _paD   = _aD,                   _paNWp = lt' })
+        loop (Spc Fwrap{..} swInner) lt' rb' =
+          Spc   (Pwrap { _pwNWd = _wNWd, _pwSEd = _wSEd, _pwNWp = lt', _pwSEp = rb' })
           $   loop swInner
-              (lt ^+^ (Po ∘ _diV) _wNWd)
-              (rb ^-^ (Po ∘ _diV) _wSEd)
+              (lt' ^+^ (Po ∘ _diV) _wNWd)
+              (rb' ^-^ (Po ∘ _diV) _wSEd)
 
 -- XXX: not sure if needed
 -- sCutOutsideS2 ∷ Di a → Space False a n → Space False a (n + 1)

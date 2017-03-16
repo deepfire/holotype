@@ -113,22 +113,8 @@ someFire ∷ Reflex t ⇒ Event t a → Event t b → Event t ()
 someFire a b = simpler a <> simpler b
 
 
-data SystemStats where
-  SystemStats ∷
-    { statsTimeSecs ∷ Double
-    , statsMem      ∷ Integer
-    } → SystemStats
-deriving instance Show SystemStats
-
 timespecToSecs ∷ Sys.TimeSpec → Double
 timespecToSecs = (/ 1000000000.0) ∘ fromIntegral ∘ Sys.toNanoSecs
-
-systemStats ∷ (MonadIO m) ⇒ m SystemStats
-systemStats = liftIO $ do
-  -- Sys.performGC -- sloow with intero loaded..
-  statsMem      ← (`div` 1048576) ∘ fromIntegral ∘ Sys.currentBytesUsed <$> Sys.getGCStats
-  statsTimeSecs ← timespecToSecs <$> Sys.getTime Sys.Monotonic
-  pure SystemStats{..}
 
 newFrame ∷ ReflexGLFWCtx t m ⇒ Event t Renderer → m (Event t Frame)
 newFrame rendererFrameE = performEvent $ rendererFrameE <&>
@@ -176,8 +162,8 @@ holotype win _evCtl setupE windowFrameE inputE = do
   holosomCountD    ← count driverE
   randomPreHoloE   ← foldRandomRs 0 ((screenA,   An 0.005)
                                     ,(widgetLim, An 0.01)) $ () <$ driverE
-  preHoloE         ← performEvent $ attachPromptlyDyn holosomCountD randomPreHoloE
-                     <&> (\(n, pre) → do; pure ∘ (,pre) ∘ zft $ T.pack <$> text n)
+  preHoloE         ← performEvent $ attachPromptlyDyn holosomCountD randomPreHoloE <&>
+                       (\(n, pre) → do; pure ∘ (,pre) ∘ zft $ T.pack <$> text n)
   holosomE         ← visual settingsV streamV dasStyle preHoloE
   holosomD         ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomE
 
@@ -249,11 +235,6 @@ worldMergeEvent Move{..} =
   \case
     w@Singleton{..}→ w { posn = posn ^+^ weΔ }
     _→Void
--- worldMergeEvent (Spawn c) =
---   const $ Singleton (po (-0.25) (-0.2)) $ zft
---   [ "press 'q' to quit"
---   , ""
---   , "this is our world now.. haha.."]
 worldMergeEvent Edit{..} =
   \case
     w@Singleton{..}→ w { tz = weEdit tz }

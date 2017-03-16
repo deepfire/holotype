@@ -2,8 +2,18 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase, OverloadedStrings, PackageImports, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators #-}
 {-# LANGUAGE UnicodeSyntax #-}
+{-# OPTIONS_GHC -Wall #-}
 
 module HoloCube
+  ( ObjectStream(..), Renderer(..)
+  , makeSimpleRenderedStream              -- used by HoloType
+  , ObjArrayNameS(..)
+  , UniformNameS(..), unameStr            -- used by HoloCanvas
+  , Frame(..)
+  , rendererSetupFrame, rendererDrawFrame -- used by HoloType
+  --
+  , uploadTexture2DToGPU''''              -- used by HoloCanvas
+  )
 where
 
 -- Basis
@@ -12,18 +22,14 @@ import           Prelude.Unicode
 import           Control.Lens
 
 -- Generic
-import           Control.Monad                            (join, unless, when, forM_, filterM)
+import           Control.Monad                            (unless, when, filterM)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
-import           Data.Function                     hiding (id)
 import           Data.Map                                 (Map)
 import qualified Data.Map                          as Map
 import           Data.Maybe
 import           Data.String
-import           Data.Vect                                (Vec4(..), Mat4(..))
-import qualified Data.Vect                         as Vc
-import           Control.Monad                            (when, unless)
 import           Text.Printf                              (printf)
 
 -- Algebra
@@ -36,14 +42,11 @@ import qualified Data.Aeson                        as AE
 import qualified System.Directory                  as FS
 
 -- Misc
-import           Text.Printf                              (printf)
 import           Text.Show.Pretty                         (ppShow)
 
 -- Dirty stuff
 import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
-import qualified Foreign.Ptr                       as F
-import qualified System.IO.Unsafe                  as UN
 
 -- Window system (..hello WIndowSys..)
 import "GLFW-b"  Graphics.UI.GLFW                  as GLFW
@@ -117,7 +120,7 @@ bindPipeline storage pipelineJSON = liftIO $ do
       AE.eitherDecode <$> LB.readFile (Prelude.head validPaths) >>= \case
         Left err  → fail err
         Right ppl → GL.allocRenderer ppl
-    Q3.printTimeDiff "-- binding GPU pipeline to GL storage (GL.setStorage)... " $ GL.setStorage renderer storage
+    _ ← Q3.printTimeDiff "-- binding GPU pipeline to GL storage (GL.setStorage)... " $ GL.setStorage renderer storage
     return $ Just renderer
 
 
@@ -147,8 +150,8 @@ makeRenderer rWindow ous = liftIO $ do
     let schema = pipelineSchema ous
 
     rGLStorage ← GL.allocStorage schema
-    let rStreams = Map.fromList [ (k, ObjectStream rGLStorage oa un)
-                                | k@(oa, un) ← ous ]
+    let rStreams = Map.fromList [ (k, ObjectStream rGLStorage oa un')
+                                | k@(oa, un') ← ous ]
 
     let pipelineJSON = "Holotype.json"
     success ← compilePipeline pipelineJSON
@@ -191,7 +194,7 @@ rendererSetupFrame ∷ (MonadIO m) ⇒ Renderer → m Frame
 rendererSetupFrame r@Renderer{..} = liftIO $ do
   let slotU           = GL.uniformSetter rGLStorage
       overbrightBits  = 0
-  GL.uniformFloat "identityLight" slotU $ 1 / (2 ^ overbrightBits) -- used by lc:mkColor
+  GL.uniformFloat "identityLight" slotU $ 1 / (2 ^ (overbrightBits ∷ Int)) -- used by lc:mkColor
   d@(Di (V2 screenW screenH)) ← rendererQueryFrameSize r
   GL.setScreenSize rGLStorage (fromIntegral screenW) (fromIntegral screenH)
   pure $ Frame d
@@ -222,15 +225,15 @@ canvasCommonAttrs uname =
 uploadTexture2DToGPU'''' ∷ (MonadIO m) ⇒ Bool → Bool → Bool → Bool → (Int, Int, GL.GLenum, F.Ptr F.CUChar) → m GL.TextureData
 uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) = liftIO $ do
     glPixelStorei GL_UNPACK_ALIGNMENT 1
-    to ← F.alloca $! \pto → glGenTextures 1 pto >> F.peek pto
-    glBindTexture GL_TEXTURE_2D to
+    to' ← F.alloca $! \pto → glGenTextures 1 pto >> F.peek pto
+    glBindTexture GL_TEXTURE_2D to'
     let texFilter = if isFiltered then GL_LINEAR else GL_NEAREST
         wrapMode = case isClamped of
             True    → GL_CLAMP_TO_EDGE
             False   → GL_REPEAT
         (minFilter,maxLevel) = case isFiltered && isMip of
             False   → (texFilter,0)
-            True    → (GL_LINEAR_MIPMAP_LINEAR, floor $ log (fromIntegral $ max w h) / log 2)
+            True    → (GL_LINEAR_MIPMAP_LINEAR, (floor $ (log (fromIntegral $ max w h) ∷ Float) / log 2) ∷ Int)
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_S $ fromIntegral wrapMode
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_T $ fromIntegral wrapMode
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER $ fromIntegral minFilter
@@ -240,4 +243,4 @@ uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) =
     let internalFormat  = fromIntegral $ if isSRGB then GL_SRGB8_ALPHA8 else GL_RGBA8
     glTexImage2D GL_TEXTURE_2D 0 internalFormat (fromIntegral w) (fromIntegral h) 0 format GL_UNSIGNED_BYTE $ F.castPtr ptr
     when isMip $ glGenerateMipmap GL_TEXTURE_2D
-    return $ GL.TextureData to
+    return $ GL.TextureData to'

@@ -6,71 +6,47 @@
 {-# LANGUAGE ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
 {-# LANGUAGE LambdaCase, OverloadedStrings, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators #-}
 {-# LANGUAGE UnicodeSyntax #-}
--- {-# OPTIONS_GHC -ddump-deriv #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module HoloCanvas where
 
 -- Basis
 import           Prelude                           hiding ((.))
 import           Prelude.Unicode
-import           Control.Applicative
 import           Control.Applicative.Free
-import           Control.Category
 import           Control.Lens
-import           Control.Monad.Identity
-import           Data.Functor.Apply
 
 -- Type-level
 import           GHC.Types
 import           GHC.TypeLits                      hiding (Text)
-import           GHC.TypeLits.Extra
 
 -- Types
-import           Control.Arrow                            ((***))
-import           Control.Monad                            (join, unless, when, forM_)
+import           Control.Monad                            (when, forM_)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
-import           Control.Monad.Trans.Reader               (ReaderT(..))
-import qualified Data.ByteString.Char8             as SB
-import           Data.Map                                 (Map)
+import           Data.MeasuredMonoid                      ((<>))
 import qualified Data.Map                          as Map
-import           Data.Maybe                               (fromMaybe)
-import           Data.MeasuredMonoid
-import           Data.String                              (IsString)
 import qualified Data.Text                         as T
 import qualified Data.Vector                       as V
 import qualified Data.Vect                         as Vc
-import           Data.Vect                                (Mat4(..), Vec3(..), Vec4(..))
-import           Numeric.Extra                            (floatToDouble, doubleToFloat)
+import           Data.Vect                                (Mat4(..), Vec3(..))
+import           Numeric.Extra                            (doubleToFloat)
 
 -- Algebra
 import           Linear
 
--- Misc
-import           System.FilePath                          ((</>))
-import           Text.Show.Pretty                         (ppShow)
-import           Text.Printf                              (printf)
-
 -- Manually-bound Cairo
 import qualified Graphics.Rendering.Cairo          as GRC
-import qualified Graphics.Rendering.Cairo.Internal as GRC (Render(..), create, imageSurfaceCreate)
-import qualified Graphics.Rendering.Cairo.Types    as GRC
 import qualified Graphics.Rendering.Cairo.Internal as GRCI
 
 -- glib-introspection -based Cairo and Pango
-import qualified Data.GI.Base                      as GI
 import qualified GI.Cairo                          as GIC
-import qualified GI.Cairo.Structs.Context          as GIC
 import qualified GI.Pango                          as GIP
-import qualified GI.PangoCairo.Interfaces.FontMap  as GIPC
-import qualified GI.PangoCairo.Functions           as GIPC
 
 -- Dirty stuff
 import qualified Data.IORef                        as IO
 import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
-import qualified Foreign.Ptr                       as F
-import qualified Foreign.ForeignPtr.Unsafe         as F
-import qualified System.IO.Unsafe                  as UN
 
 -- …
 import           Graphics.GL.Core33                as GL
@@ -78,26 +54,24 @@ import           Graphics.GL.Core33                as GL
 -- LambdaCube
 import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Mesh                as GL
-import qualified LambdaCube.GL.Type                as GL
 import qualified LambdaCube.Linear                 as LCLin
 import           LambdaCube.Mesh                   as LC
 
 -- LambdaCube Quake III
-import           GameEngine.Data.Material          as Q3
 import           GameEngine.Utils                  as Q3
 
 -- Local imports
 import Flatland
 import HoloFont
 import HoloCairo
-import HoloCube
+import qualified HoloCube                          as HC
 import HoloSettings
 
 
 -- | A Cairo-capable 'Drawable' to display on a GL 'Frame'.
 data Drawable where
   Drawable ∷
-    { dObjectStream ∷ ObjectStream
+    { dObjectStream ∷ HC.ObjectStream
     , dDi           ∷ Di Int
     , dSurfaceData  ∷ (F.Ptr F.CUChar, (Int, Int))
     , dCairo        ∷ Cairo
@@ -108,8 +82,8 @@ data Drawable where
     , dGLObject     ∷ GL.Object
     } → Drawable
 
-makeDrawable ∷ (MonadIO m) ⇒ ObjectStream → Di Double → m Drawable
-makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
+makeDrawable ∷ (MonadIO m) ⇒ HC.ObjectStream → Di Double → m Drawable
+makeDrawable dObjectStream@HC.ObjectStream{..} dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
   dCairo        ← cairoCreate  dSurface
@@ -123,7 +97,7 @@ makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                       , ("uv",        A_V2F texcoord) ] }
   dGPUMesh      ← GL.uploadMeshToGPU dMesh
-  dGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [unameStr osUniform, "viewProj"] dGPUMesh
+  dGLObject     ← GL.addMeshToObjectArray osStorage (HC.fromOANS osObjArray) [HC.unameStr osUniform, "viewProj"] dGPUMesh
 
   dSurfaceData  ← imageSurfaceGetPixels' dSurface
   -- dTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi dStridePixels, h, GL_BGRA, pixels)
@@ -140,15 +114,13 @@ imageSurfaceGetPixels' pb = do
 
 drawableContentToGPU ∷ (MonadIO m) ⇒ Drawable → m ()
 drawableContentToGPU Drawable{..} = liftIO $ do
-  let ObjectStream{..} = dObjectStream
+  let HC.ObjectStream{..} = dObjectStream
 
-  -- XXX/temp hack:
-  let h = dDi ^. diV ∘ _y
-      (pixels, (strideBytes, pixelrows)) = dSurfaceData
-  cTexture ← uploadTexture2DToGPU'''' False False False False $ (strideBytes `div` 4, pixelrows, GL_BGRA, pixels)
+  let (pixels, (strideBytes, pixelrows)) = dSurfaceData
+  cTexture ← HC.uploadTexture2DToGPU'''' False False False False $ (strideBytes `div` 4, pixelrows, GL_BGRA, pixels)
 
   GL.updateObjectUniforms dGLObject $ do
-    fromUNS osUniform GL.@= return cTexture
+    HC.fromUNS osUniform GL.@= return cTexture
 
 -- | To screen space conversion matrix.
 screenM :: Int → Int → Mat4
@@ -159,8 +131,8 @@ screenM w h =
           (Vc.Vec4  0      0     0 0.5) -- where does that 0.5 factor COMEFROM?
   where (fw, fh) = (fromIntegral w, fromIntegral h)
 
-framePutDrawable ∷ (MonadIO m) ⇒ Frame → Drawable → Po Float → m ()
-framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = do
+framePutDrawable ∷ (MonadIO m) ⇒ HC.Frame → Drawable → Po Float → m ()
+framePutDrawable (HC.Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = do
   let cvpos    = Vec3 x y 0
       toScreen = screenM screenW screenH
   liftIO $ GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
@@ -207,7 +179,7 @@ class Element w ⇒ Widget w where
   draw           ∷ (MonadIO m) ⇒ CanvasW → w → m ()
 
 class Container d ⇒ WDrawable d where
-  assemble       ∷ (MonadIO m) ⇒ Settings PU → ObjectStream → StyleOf d → Content d → m d
+  assemble       ∷ (MonadIO m) ⇒ Settings PU → HC.ObjectStream → StyleOf d → Content d → m d
   drawableOf     ∷ d → Drawable
   render         ∷ (MonadIO m) ⇒ d → m ()
 
@@ -251,9 +223,10 @@ instance Widget () where
   make  _settings CW{..} _style _content        End = pure ()
   draw            CW{..}                             _widget = pure ()
 
-d (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >>
-                                    -- GRC.rectangle (x) (y) 1 1 >> GRC.fill
-                                    GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
+dpx ∷ Po Double → Co Double → GRCI.Render ()
+dpx (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >>
+                                      -- GRC.rectangle (x) (y) 1 1 >> GRC.fill
+                                      GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
 
 
 -- * Text
@@ -286,15 +259,15 @@ instance Widget Text where
   query Settings{..} TextS{..} initialText = do
     let Font{..} = lookupFont' fontmap tFontKey
     laySetMaxParaLines fDetachedLayout tMaxParaLines
-    di ∷ Di (Size PU) ← layRunTextForSize fDetachedLayout fDΠ defaultWidth initialText -- XXX/GHC/inference: weak
-    pure $ makeArea $ fromPU ∘ fromSz fDΠ <$> di
+    d ∷ Di (Size PU) ← layRunTextForSize fDetachedLayout fDΠ defaultWidth initialText -- XXX/GHC/inference: weak
+    pure $ makeArea $ fromPU ∘ fromSz fDΠ <$> d
   make Settings{..} (CW (Canvas Drawable{..} _ _ tFont@FontBinding{..} _))
-       tStyle@(TextS fKey _ _) tText tPSpace = do
+       tStyle@(TextS _ _ _) tText tPSpace = do
     tLayout  ← makeTextLayout fbContext
     tTextRef ← liftIO $ IO.newIORef tText
     pure Text{..}
   draw (CW (Canvas (Drawable{..}) _ _ _ _))
-       (Text (Sarea area@(Parea di ltp@(Po lt)))
+       (Text (Sarea area@(Parea _ ltp@(Po lt)))
              TextS{..}
              (FontBinding Font{..} _) lay textRef) = do
     let Po rb = paSEp area
@@ -323,7 +296,7 @@ instance Element a ⇒ Element (RRect a) where
 instance Widget a ⇒ Container (RRect a) where
   type Inner (RRect a) = a
   innerOf                 = rrInner
-  styleToInner w (In _ s) = s
+  styleToInner _ (In _ s) = s
   spaceToInner _ (Spc _ (Spc _ (Spc _ (Spc _ s)))) = s
 
 instance Widget a ⇒ Widget (RRect a) where
@@ -334,20 +307,20 @@ instance Widget a ⇒ Widget (RRect a) where
   make st@Settings{..} drawable rrStyle rrContent rrPSpace = do
     let w = RRect{..} where rrInner = (⊥)    -- resolve circularity due to *ToInner..
     make st drawable (styleToInner w rrStyle) rrContent (spaceToInner w rrPSpace) <&> (\x→ w { rrInner = x }) -- XXX/lens
-  draw canvas@(CW (Canvas (Drawable _ _ _ dCairo cGIC _ _ _) _ _ _ _))
+  draw canvas@(CW (Canvas (Drawable _ _ _ dCairo _ _ _ _) _ _ _ _))
        (RRect (Spc obez (Spc bord (Spc ibez (Spc pad _))))
               (In RRectS{..} _) inner) = do
     runCairo dCairo $ do
       let -- dCorn (RRCorn _ pos _ _) col = d pos col
-          ths@[oth, bth, ith, pth]
-                        = fmap (Th ∘ _wiV ∘ l) [obez, bord, ibez, pad]
+          ths@[oth, bth, ith, _]
+                        = fmap (Th ∘ _wiV ∘ wL) [obez, bord, ibez, pad]
           totpadx       = sum ths
           or            =       R ∘ _thV $ (totpadx - oth/2)
           br            = or - (R ∘ _thV $ (oth+bth)*0.6)
           ir            = br - (R ∘ _thV $ (bth+ith)/2)
       -- coSetSourceColor (co 0 1 0 1) >> GRC.paint
       -- background & border arcs
-      let bfeats@[n, ne, _, se, _, sw, _, nw] = wrapRoundedRectFeatures bord br bth
+      let [n, ne, _, se, _, sw, _, nw] = wrapRoundedRectFeatures bord br bth
       GRC.newPath >> thLineSet bth
       forM_ [n, ne, se, sw, nw] $ executeFeature Nothing Nothing
       coSetSourceColor rrCBG >>
@@ -356,7 +329,7 @@ instance Widget a ⇒ Widget (RRect a) where
         GRC.stroke
 
       thLineSet oth -- border bezels: light outer TL, dark outer SE
-      let ofeats@[n, ne, e, se, s, sw, w, nw] = wrapRoundedRectFeatures obez or oth
+      let [n, ne, e, se, s, sw, w, nw] = wrapRoundedRectFeatures obez or oth
       GRC.newPath
       (coSetSourceColor $ rrCLBezel) >>
         (forM_ [w, nw, n] $ executeFeature Nothing Nothing) >> GRC.stroke
@@ -424,5 +397,5 @@ instance Widget a ⇒ WDrawable (Canvas a) where
     draw (CW self) cInner
     drawableContentToGPU cDrawable
 
-placeCanvas ∷ (MonadIO m, Widget a) ⇒ Canvas a → Frame → Po Double → m ()
+placeCanvas ∷ (MonadIO m, Widget a) ⇒ Canvas a → HC.Frame → Po Double → m ()
 placeCanvas c f = framePutDrawable f (drawableOf c) ∘ (doubleToFloat <$>)
