@@ -1,11 +1,11 @@
 {-# LANGUAGE DataKinds, GADTs #-}
 {-# LANGUAGE OverloadedStrings, RecordWildCards, StandaloneDeriving #-}
 {-# LANGUAGE UnicodeSyntax #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors #-}
 module HoloSettings
 where
 
-import           Control.Monad.IO.Class                   (MonadIO, liftIO)
-import qualified System.IO.Unsafe as UN
+import           Control.Monad.IO.Class                   (MonadIO)
 
 import Flatland
 import HoloFont
@@ -22,13 +22,12 @@ data Settings u where
   Settings ∷
     { dπ      ∷ DΠ
     , fontmap ∷ FontMap u
-    -- ⋅ hardcode ⋅
+    -- ⋅ XXX/hardcode ⋅
     , defaultWidth ∷ Wi (Size PU)
     } → Settings u
 deriving instance Show (Settings u)
 
--- defaultSettings ∷ (MonadIO m) ⇒ m (Settings PU)
-defaultSettings ∷ IO (Settings PU)
+defaultSettings ∷ (MonadIO m) ⇒ m (Settings PU)
 defaultSettings = do
   let dπ           = 96
       defaultWidth = 256

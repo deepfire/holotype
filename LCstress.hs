@@ -2,7 +2,6 @@
 -- Usage:
 --   ghc --make Holostress.hs && ./Holostress
 --
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -19,6 +18,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
+{-# OPTIONS_GHC -Wall #-}
 
 import           Control.Lens
 import           Control.Monad                            (filterM, when)

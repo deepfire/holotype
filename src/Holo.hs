@@ -2,7 +2,7 @@
 {-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
 {-# LANGUAGE LambdaCase, OverloadedStrings, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TupleSections, TypeOperators #-}
 {-# LANGUAGE UnicodeSyntax #-}
-
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors #-}
 module Holo
   (
   -- * Define this:
@@ -17,10 +17,7 @@ where
 
 import           GHC.Types
 import           Prelude                           hiding ((.), id)
-import           Prelude.Unicode
 import           Control.Lens
-import           Data.Function
-import           Data.Functor
 import           Text.Printf                              (printf)
 
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
@@ -53,7 +50,7 @@ data Holosome a where
     -- , holoPosRef ∷ IO.IORef (Po (Size PU))
     } → Holosome a
 
-instance Show a ⇒ Show (Holosome a) where
+instance Show (Holosome a) where
   show Holosome{..} = printf "Holo { style = %s }" (show holoStyle)
 
 visual ∷ (ReflexGLFWCtx t m, Holo a) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → Event t (a, b) → m (Event t (Holosome a, b))
@@ -61,7 +58,6 @@ visual stts holoStream holoStyle holoE =
   performEvent (holoE <&> ((\(holo, x) → liftIO $ do
                                -- XXX/expressivity:  this threading of 'x' is..
                                holoVisual ← visualise stts holoStream holoStyle holo
-                               render holoVisual
                                holoRef    ← IO.newIORef holo
                                -- holoPosRef ← IO.newIORef pos
                                pure (Holosome{..}, x))

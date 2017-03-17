@@ -1,24 +1,23 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
 {-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE UnicodeSyntax #-}
-
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
-
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnicodeSyntax #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors #-}
 module Holotype where
 
 -- Basis
@@ -28,28 +27,11 @@ import           Control.Category
 import           Control.Lens
 
 -- Generic
-import qualified Control.Concurrent.Chan           as CH
-import qualified Control.Concurrent.STM            as STM (TQueue, atomically, newTQueueIO, readTQueue, writeTQueue)
 import           Data.Foldable
-import           Data.Function                     hiding ((.), id)
-import           Data.Functor
-import           Data.Hashable
-import qualified Data.HashMap.Lazy                 as HM
-import qualified Data.HashSet                      as HS
 import           Data.List
-import           Data.Maybe
-import           Data.MeasuredMonoid               hiding ((<>))
-import           Data.Profunctor
 import           Data.Semigroup
-import           Data.String
-import qualified Data.Sequence                     as Seq
-import qualified Data.Text                         as T
-import           Data.Vect
-import           Control.Monad                            (join, when, unless)
-import           Control.Monad.Fix                        (MonadFix)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import           Text.Printf                              (printf)
-import           Text.Show.Pretty                         (ppShow)
 
 -- Algebra
 import           Linear
@@ -61,36 +43,26 @@ import qualified Data.IORef                        as IO
 import           Reflex
 import           Reflex.GLFW
 import           Reflex.Random
-import qualified Debug.Trace                       as D
 
 -- Window system (..hello WIndowSys..)
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 -- LambdaCube
-import qualified LambdaCube.GL                     as GL
 
 -- Text editing
-import           Control.Lens.Text                 as TL
+import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
 
 -- Local imports
-import Flatland                                    hiding ((<>))
+import Flatland
 import Holo
 import HoloCanvas hiding (Text)
 import qualified HoloCanvas                        as H
 import HoloCube
-import HoloFont
 import HoloSettings
 import qualified HoloSys                           as HS
 
-dasContent =
-  (T.unlines
-    [ "Press 'q' to quit.\n\n"
-    , "Process intero killed"
-    , "Starting:"
-    , "stack ghci --with-ghc intero '--docker-run-args=--interactive=true --tty=false' --no-build --no-load --ghci-options -odir=/home/deepfire/src/mood/.stack-work/intero/intero17462TiM --ghci-options -hidir=/home/deepfire/src/mood/.stack-work/intero/intero17462TiM mood"
-    , "Intero 0.1.20 (GHC 8.0.1)"
-    , "Type :intro and press enter for an introduction of the standard commands." ])
+dasStyle ∷ In (CanvasS PU) (In RRectS (TextS PU))
 dasStyle =
   (In (CanvasS @PU "default")
       (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
@@ -98,6 +70,9 @@ dasStyle =
           (TextS @PU "default" 7 $ coGray 1 1)))
 
 -- * Elsewhere
+textZipper ∷ [T.Text] → T.TextZipper T.Text
+textZipper = flip T.textZipper Nothing
+
 zipperText ∷ T.TextZipper T.Text → T.Text
 zipperText = T.dropEnd 1 ∘ T.unlines ∘ T.getText
 
@@ -131,7 +106,7 @@ holotype win _evCtl setupE windowFrameE inputE = do
   (rendererV, streamV)
                    ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
   rendererDrawFrame rendererV
-  settingsV@Settings{..} ← liftIO $ defaultSettings
+  settingsV@Settings{..} ← defaultSettings
 
   -- INPUT
   let worldE        = translateEvent <$> inputE
@@ -155,7 +130,7 @@ holotype win _evCtl setupE windowFrameE inputE = do
   randomPreHoloE   ← foldRandomRs 0 ((screenA,   An 0.005)
                                     ,(widgetLim, An 0.01)) $ () <$ driverE
   preHoloE         ← performEvent $ attachPromptlyDyn holosomCountD randomPreHoloE <&>
-                       (\(n, pre) → do; pure ∘ (,pre) ∘ zft $ T.pack <$> text n)
+                       (\(n, pre') → do; pure ∘ (,pre') ∘ textZipper $ T.pack <$> text n)
   holosomE         ← visual settingsV streamV dasStyle preHoloE
   holosomD         ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomE
 
@@ -171,9 +146,9 @@ holotype win _evCtl setupE windowFrameE inputE = do
       fpsArea       = Parea (di 256 256) (po (-1) (1))
   let holoFPSDataE  = attachPromptlyDyn (zipDyn (zipDyn fpsD holosomCountD) kilobytesD) frameE <&>
                       \(((fps ∷ Int, objects ∷ Int), kilobytes ∷ Integer),_) →
-                        zft [T.pack $ printf "%3d fps, %5d objects, %8d KB used" fps objects kilobytes]
+                        textZipper [T.pack $ printf "%3d fps, %5d objects, %8d KB used" fps objects kilobytes]
   holosomFPSE      ← visual settingsV streamV dasStyle
-                     (setupE <&> const (zft ["1000 fps, 10000 objects, 10000000 KB used"], fpsArea))
+                     (setupE <&> const (textZipper ["1000 fps, 10000 objects, 10000000 KB used"], fpsArea))
   holosomFPSD      ← foldDyn (const ∘ Just) Nothing holosomFPSE
 
   -- SCENE COMPOSITION
@@ -184,9 +159,9 @@ holotype win _evCtl setupE windowFrameE inputE = do
                        case mfps of
                          Nothing  → pure ()
                          Just (Holosome{..}, Parea{..}) → placeCanvas holoVisual f _paNWp
-                       forM_ cs $ \(n, (h@Holosome{..}
+                       forM_ cs $ \(n, (Holosome{..}
                                        ,(Parea{..} ∷ S Area True Double
-                                        ,angVel    ∷ An Double))) → do
+                                        ,_angVel    ∷ An Double))) → do
                          placeCanvas holoVisual f _paNWp
 
   -- UI & DATA MUTATION
@@ -215,7 +190,7 @@ instance Holo (T.TextZipper T.Text) where
     pure vis
   updateVisual _ _ vis tzip = do
     let H.Text{..} = (innerOf ∘ innerOf) vis
-    liftIO $ IO.writeIORef tTextRef $ zipperText tzip
+    liftIO $ IO.writeIORef tTextRef $ zipperText tzip -- this will go away
     render vis
 
 worldMergeEvent ∷ WorldEvent → World → World
@@ -277,8 +252,8 @@ data Viewport a where
 updateViewport ∷ (MonadIO m) ⇒ World → Viewport (Canvas (RRect H.Text)) → m ()
 updateViewport Void = const $ pure ()
 updateViewport Singleton{..} =
-  \v@Viewport{..}→ wtextSetText (innerOf $ innerOf $ cInner vpCanvas)
-                   (T.unlines $T.getText tz)
+  \Viewport{..}→ wtextSetText (innerOf $ innerOf $ cInner vpCanvas)
+                 (T.unlines $T.getText tz)
 
 
 data World where
@@ -292,9 +267,6 @@ instance Monoid World where
   mappend Void x = x
   mappend x Void = x
   mappend x _    = x -- XXX: a violation, indeed
-
-zft ∷ [T.Text] → T.TextZipper T.Text
-zft = flip T.textZipper Nothing
 
 
 -- Time & math

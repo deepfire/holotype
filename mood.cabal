@@ -11,10 +11,27 @@ build-type:          Simple
 extra-source-files:  README.org
 cabal-version:       >=1.10
 
-executable holotype
+library
   hs-source-dirs:      src
-  main-is:             HoloMain.hs
   default-language:    Haskell2010
+
+  exposed-modules:
+
+                  Data.MeasuredMonoid
+
+                  Flatland
+
+                  Holo
+                  HoloCairo
+                  HoloCanvas
+                  HoloCube
+                  HoloFont
+                  HoloSettings
+                  HoloSys
+                  Holotype
+
+                  Reflex.GLFW
+                  Reflex.Random
 
   build-depends:       aeson
                      , base >=4.8
@@ -38,6 +55,7 @@ executable holotype
                      , MonadRandom
                      , mono-traversable
                      , pretty
+                     , pretty-show
                      , profunctors
                      , random
                      , semigroupoids >= 5.0.0.3
@@ -84,26 +102,35 @@ executable holotype
 
                      , halive
 
-executable LCstress
-  hs-source-dirs:      . src
+executable holotype
+  hs-source-dirs:      .
+  main-is:             Main.hs
+  default-language:    Haskell2010
+
+  build-depends:       mood
+                     , base
+
+executable lcstress
+  hs-source-dirs:      .
   main-is:             LCstress.hs
   default-language:    Haskell2010
 
-  build-depends:       aeson
-                     , base >=4.8
-                     , base-unicode-symbols
+  build-depends:       mood
+                     -- generic
+                     , aeson
+                     , base
                      , bytestring
                      , containers >=0.5
                      , directory
                      , lens >= 4.13.2
                      , pretty-show
                      , vector
-
+                     -- pixel crafting
                      , cairo
                      , gi-cairo
                      , gi-pangocairo
                      , haskell-gi-base
-
+                     -- GL
                      , GLFW-b
                      , OpenGLRaw
                      , lambdacube-compiler
@@ -111,31 +138,24 @@ executable LCstress
                      , lambdacube-ir
                      , lambdacube-quake3
 
-executable Holostress
-  hs-source-dirs:      . src
+executable holostress
+  hs-source-dirs:      .
   main-is:             Holostress.hs
   default-language:    Haskell2010
 
-  build-depends:       aeson
+  build-depends:       mood
+                     -- generic
                      , base >=4.8
                      , base-unicode-symbols
-                     , bytestring
                      , containers >=0.5
-                     , directory
-                     , lens >= 4.13.2
-                     , pretty-show
-                     , transformers
+                     , text
+                     , text-zipper
                      , vector
-
+                     -- pixel crafting
                      , cairo
-                     , gi-cairo
-                     , gi-pango
                      , gi-pangocairo
-                     , haskell-gi-base
-
+                     -- GL
                      , GLFW-b
                      , OpenGLRaw
-                     , lambdacube-compiler
                      , lambdacube-gl
                      , lambdacube-ir
-                     , lambdacube-quake3

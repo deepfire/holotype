@@ -1,8 +1,6 @@
--- Repro for https://github.com/lambdacube3d/lambdacube-gl/issues/9
 -- Usage:
---   ghc --make Holostress.hs && ./Holostress
+--   cabal build Holostress && ./dist/build/Holostress/Holostress
 --
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -19,72 +17,41 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors #-}
 
-import           Control.Lens
-import           Control.Monad                            (filterM, when)
-import qualified Data.Aeson                        as AE
-import qualified Data.ByteString.Char8             as SB
-import qualified Data.ByteString.Lazy              as LB
+import           Prelude.Unicode
+
+import           Control.Monad                            (when)
 import qualified Data.Map                          as Map
-import           Data.Maybe
-import           Data.String
 import qualified Data.Vector                       as V
 
-import qualified Foreign.ForeignPtr                as F
 
-import qualified Data.GI.Base                      as GI
-import qualified GI.Pango                          as GIP
 import qualified GI.PangoCairo.Functions           as GIPC
 import qualified Graphics.Rendering.Cairo          as GRC
-import qualified Graphics.Rendering.Cairo.Types    as GRC
 
 import qualified Graphics.GL.Core33                as GL
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
-import qualified LambdaCube.Compiler               as LCC
-import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Mesh                as GL
 import qualified LambdaCube.Linear                 as LCLin
 import           LambdaCube.Mesh                   as LC
 
-import qualified GameEngine.Utils                  as Q3
 
 import           Text.Printf                              (printf)
-import           Text.Show.Pretty                         (ppShow)
 
-import qualified Data.IORef                        as IO
-import qualified System.Directory                  as FS
+import qualified Data.Text                         as T
+import qualified Data.Text.Zipper                  as T
 
-import Holo
+
+import Flatland
+
+import HoloCube
 import HoloCairo
 import HoloCanvas
+import HoloSettings
 import qualified HoloSys                           as HS
 
 
-newtype UniformNameS  = UniformNameS  { fromUNS  ∷ SB.ByteString } deriving (Eq, IsString, Ord, Show)
-newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (Eq, IsString, Ord, Show)
-pipelineSchema ∷ [(ObjArrayNameS, UniformNameS)] → GL.PipelineSchema
-pipelineSchema schemaPairs =
-  let arrays   = fromOANS . view _1            <$> schemaPairs
-      textures = SB.unpack . fromUNS . view _2 <$> schemaPairs
-      simplePosUVSchema =
-        GL.ObjectArraySchema GL.Triangles $ Map.fromList
-        [ ("position",       GL.Attribute_V2F)
-        , ("uv",             GL.Attribute_V2F) ]
-  in GL.PipelineSchema
-  { objectArrays = Map.fromList $ zip arrays $ repeat simplePosUVSchema
-  , uniforms =
-      Map.fromList $
-      [ ("viewProj",         GL.M44F)
-      , ("worldMat",         GL.M44F)
-      , ("entityRGB",        GL.V3F)
-      , ("entityAlpha",      GL.Float)
-      , ("identityLight",    GL.Float)
-      , ("time",             GL.Float) ]
-      ++ zip textures (repeat GL.FTexture2D)
-  }
-
 main ∷ IO ()
 main = do
   HS.unbufferStdout
@@ -101,28 +68,30 @@ main = do
   GL.glEnable GL.GL_FRAMEBUFFER_SRGB
   GLFW.swapInterval 0
 
-  storage ← GL.allocStorage $ pipelineSchema [("canvasStream", "canvasMtl")]
+  (_renderer, stream)   ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
+  -- renderer ← Q3.printTimeDiff "-- allocating GPU pipeline (GL.allocRenderer)... " $ do
+  --   AE.eitherDecode <$> LB.readFile (Prelude.head validPaths) >>= \case
+  --     Left err  → fail err
+  --     Right ppl → GL.allocRenderer ppl
 
-  let pipelineJSON = "Holotype.json"
-      pipelineSrc  = "Holotype.lc"
+  -- _ ← GL.setStorage renderer storage <&>
+  --   fromMaybe (error $ printf "setStorage failed")
 
-  _ ← LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc >>= \case
-    Left  err → fail "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err) >> return False
-    Right ppl → LB.writeFile pipelineJSON (AE.encode ppl)                    >> return True
-  let paths = [pipelineJSON]
-  validPaths ← filterM FS.doesFileExist paths
-  when (Prelude.null validPaths) $
-    fail $ "GPU pipeline " ++ pipelineJSON ++ " couldn't be found in " ++ show paths
+  -- * Holo
+  stts@Settings{..}    ← defaultSettings
 
-  renderer ← Q3.printTimeDiff "-- allocating GPU pipeline (GL.allocRenderer)... " $ do
-    AE.eitherDecode <$> LB.readFile (Prelude.head validPaths) >>= \case
-      Left err  → fail err
-      Right ppl → GL.allocRenderer ppl
-
-  _ ← GL.setStorage renderer storage <&>
-    fromMaybe (error $ printf "setStorage failed")
-
-  let (w, h) = (1, 1)
+  let style  = (In (CanvasS @PU "default")
+                 (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
+                             , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 })
+                   (TextS @PU "default" 7 $ coGray 1 1)))
+      text n        = [ T.pack $ printf "Object #%d:" n
+                      , "  Esc:           quit"
+                      , "  F1:            toggle per-frame object stream"
+                      , "  Editing keys:  edit"
+                      , ""
+                      , "Yay!"] ∷ [T.Text]
+      zipper = textZipper $ text (42 ∷ Int)
+      (w, h) = (1, 1)
       loop old = do
         dSurface       ← GRC.createImageSurface GRC.FormatARGB32 w h
         cairo          ← cairoCreate dSurface
@@ -139,10 +108,9 @@ main = do
         -- owned ← IO.readIORef ownedR
         _ ← GIPC.createContext dGIC
 
-        -- Holo.visual
-        holoVisual ← visualise stts holoStream holoStyle holo
-        render holoVisual
-        holoRef    ← IO.newIORef holo
+        -- HoloCanvas.Text
+        vis ← assemble stts stream style $ zipperText zipper
+        render vis
 
         --- do stats
         HS.gc
@@ -151,3 +119,9 @@ main = do
           printf "memory usage: %d\n" new
         loop new
   loop =<< HS.gcBytesUsed
+
+textZipper ∷ [T.Text] → T.TextZipper T.Text
+textZipper = flip T.textZipper Nothing
+
+zipperText ∷ T.TextZipper T.Text → T.Text
+zipperText = T.dropEnd 1 ∘ T.unlines ∘ T.getText
