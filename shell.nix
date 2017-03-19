@@ -1,6 +1,6 @@
 { nixpkgs     ? import <nixpkgs> {}
 , pkgs        ? nixpkgs.pkgs, haskell ? pkgs.haskell
-, compiler    ? "ghc801"
+, compiler    ? "ghc802"
 , ghcOrig     ? pkgs.haskell.packages."${compiler}"
 }:
 let
@@ -14,32 +14,40 @@ let
     overrides = with haskell.lib; new: old:
     let parent = (oldArgs.overrides or (_: _: {})) new old;
     in with new; parent // {
+      elerea         = overhage old.elerea                                                    "2.8.0" "1sc71775f787dh70ay9fm6x6npsn81yci9yr984ai87ddz023sab" {};
       halive         = overhub  old.halive "lukexi/halive" "2f1c4c4b00a2a046a2df21432456d7dd9c87ea7f" "0if5pdvkkxcyl2ybnvsmavg453l8c7is72lyy0i6c7d3hh3rcgnb" { doCheck = false; };
       # manifolds          = overhage old.manifolds          "0.4.1.0" "1vmgcv0yy72a29w15sg0z3z885vjhfpapgabilqbvh7dpxfv43x1" {
       #   doCheck = false; libraryHaskellDepends = old.manifolds.libraryHaskellDepends ++ [new.number-show];
       # };
       # manifolds-core     = overhage old.manifolds-core     "0.4.1.0" "041b4mjrl800vlyg1ibfmmyp87ad2mak6171s2mlc4mwsi4xrl4g" { doCheck = false; };
       # libearmap-category = overhage old.libearmap-category "0.3.2.0" "011b4mjrl800vlyg1ibfmmyp87ad2mak6171s2mlc4mwsi4xrl4g" { doCheck = false; };
-      haskell-gi = old.haskell-gi_0_20;
-      haskell-gi-base = old.haskell-gi-base_0_20;
-      gi-atk = old.gi-atk_2_0_11;
-      gi-gobject = old.gi-gobject_2_0_11;
-      gi-cairo = old.gi-cairo_1_0_11;
-      gi-gdk = old.gi-gdk_3_0_11;
-      gi-gio = old.gi-gio_2_0_11;
-      gi-gdkpixbuf = old.gi-gdkpixbuf_2_0_11;
-      gi-glib = old.gi-glib_2_0_11;
-      gi-gtk = old.gi-gtk_3_0_11;
-      gi-pango = old.gi-pango_1_0_11;
-      gi-pangocairo = overrideCabal (old.gi-pangocairo.overrideScope (self: super: {
-      })) (old: with pkgs; {
-        libraryPkgconfigDepends = [ pango.dev cairo gobjectIntrospection ];
-        preConfigure = ''export HASKELL_GI_GIR_SEARCH_PATH=${pango.dev}/share/gir-1.0'';
-        preCompileBuildDriver = ''
-          PKG_CONFIG_PATH+=":${pango.dev}/lib/pkgconfig:${cairo}/lib/pkgconfig"
-          setupCompileFlags+=" $(pkg-config --libs pangocairo cairo-gobject)"
-        '';
-      });
+      # haskell-gi = old.haskell-gi_0_20;
+      # haskell-gi-base = old.haskell-gi-base_0_20;
+      # gi-atk = old.gi-atk_2_0_11;
+      # gi-gobject = old.gi-gobject_2_0_11;
+      # gi-cairo = old.gi-cairo_1_0_11;
+      # gi-gdk = old.gi-gdk_3_0_11;
+      # gi-gio = old.gi-gio_2_0_11;
+      # gi-gdkpixbuf = old.gi-gdkpixbuf_2_0_11;
+      # gi-glib = old.gi-glib_2_0_11;
+      # gi-gtk = old.gi-gtk_3_0_11;
+      # gi-pango = old.gi-pango_1_0_11;
+      # gi-pangocairo = overrideCabal (old.gi-pangocairo.overrideScope (self: super: {
+      # })) (old: with pkgs; {
+      #   libraryPkgconfigDepends = [ pango.dev cairo gobjectIntrospection ];
+      #   preConfigure = ''export HASKELL_GI_GIR_SEARCH_PATH=${pango.dev}/share/gir-1.0'';
+      #   preCompileBuildDriver = ''
+      #     PKG_CONFIG_PATH+=":${pango.dev}/lib/pkgconfig:${cairo}/lib/pkgconfig"
+      #     setupCompileFlags+=" $(pkg-config --libs pangocairo cairo-gobject)"
+      #   '';
+      # });
+      # lambdacube-compiler = doJailbreak old.lambdacube-compiler;
+      lambdacube-compiler = overhub (doJailbreak old.lambdacube-compiler)
+                            "deepfire/lambdacube-compiler" "b3642f2d41b57d24b485216487d3c9578c52bce5" "1s4jr81p5n3arzjgwgxdmr5006s1dcba3xj46nwnn8yzq8s7iwnh" {};
+      lambdacube-ir       = doJailbreak old.lambdacube-ir;
+      text-lens           = doJailbreak old.text-lens;
+      # reflex              = overhub old.reflex
+      #              	    "deepfire/reflex"              "ca928573e6d1a17fe02de2d89d410db8f24d34e8" "1lmgfiz76cv5bh8ri9v7k2djzjd9rmm8lhgw8kd9x7hh9331f15a" {};
       lambdacube-quake3 =
       new.mkDerivation {
         pname = "lambdacube-quake3";
@@ -48,6 +56,7 @@ let
         isExecutable = true;
         doHaddock = false;
         doCheck = false;
+	jailbreak = true;
         src = pkgs.fetchgit {
           url    = https://github.com/lambdacube3d/lambdacube-quake3;
           rev    = "79f8ff3dcb38c75c6e51e3994a317c77e9559255";
@@ -90,10 +99,10 @@ let
            pname = "reflex";
            version = "0.5.0";
            src = pkgs.fetchFromGitHub {
-             owner = "reflex-frp";
+             owner = "deepfire";
              repo = "reflex";
-             rev = "d78ba4318c425ca9b942dc387d7c5c7ab2d2e095";
-             sha256 = "10sryvwdf88ajkp35yma8llkb38cp63vjr5mq2hba4s2d8yg649q";
+             rev = "ca928573e6d1a17fe02de2d89d410db8f24d34e8";
+             sha256 = "1lmgfiz76cv5bh8ri9v7k2djzjd9rmm8lhgw8kd9x7hh9331f15a";
            };
            libraryHaskellDepends = [
              base containers data-default dependent-map dependent-sum exception-transformers
