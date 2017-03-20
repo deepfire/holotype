@@ -8,7 +8,7 @@
 module HoloSys
   (
     Sec(..), getTime
-  , gc, gcBytesUsed
+  , gc, gcKBytesUsed
   , unbufferStdout
   )
 where
@@ -35,8 +35,8 @@ getTime = liftIO $ Sec ∘ timespecToSecs <$> Sys.getTime Sys.Monotonic
 gc ∷ (MonadIO m) ⇒ m ()
 gc = liftIO $ Sys.performGC
 
-gcBytesUsed ∷ (MonadIO m) ⇒ m Integer
-gcBytesUsed = liftIO $ (`div` 1024) ∘ fromIntegral ∘ Sys.currentBytesUsed <$> Sys.getGCStats
+gcKBytesUsed ∷ (MonadIO m) ⇒ m Integer
+gcKBytesUsed = liftIO $ (`div` 1024) ∘ fromIntegral ∘ Sys.currentBytesUsed <$> Sys.getGCStats
 
 
 unbufferStdout ∷ (MonadIO m) ⇒ m ()

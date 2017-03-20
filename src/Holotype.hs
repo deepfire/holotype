@@ -136,7 +136,7 @@ holotype win _evCtl setupE windowFrameE inputE = do
 
   -- UI
   kilobytesE       ← performEvent $ frameE <&>
-                       (const $ HS.gc >> HS.gcBytesUsed)
+                       (const $ HS.gc >> HS.gcKBytesUsed)
   kilobytesD       ← holdDyn 0 kilobytesE
 
   frameMomentE     ← performEvent $ fmap (\_ → HS.getTime) frameE

@@ -115,7 +115,7 @@ main = do
                                                                , ("uv",        A_V2F _texcoord) ] }
         putStr "pre-GL.uploadMeshToGPU "
         -- 450123450123450123450123450123450123450123  <-- the trace always ends on a '3'
-        _ ← GL.uploadMeshToGPU _dMesh
+        _ ← GL.uploadMeshToGPU _dMesh              --  <-- this is the leaker, which is normal and expected
         putStr "post-GL.uploadMeshToGPU "
         _ ← GIPC.createContext dGIC
 

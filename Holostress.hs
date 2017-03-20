@@ -69,13 +69,6 @@ main = do
   GLFW.swapInterval 0
 
   (_renderer, stream)   ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
-  -- renderer ← Q3.printTimeDiff "-- allocating GPU pipeline (GL.allocRenderer)... " $ do
-  --   AE.eitherDecode <$> LB.readFile (Prelude.head validPaths) >>= \case
-  --     Left err  → fail err
-  --     Right ppl → GL.allocRenderer ppl
-
-  -- _ ← GL.setStorage renderer storage <&>
-  --   fromMaybe (error $ printf "setStorage failed")
 
   -- * Holo
   stts@Settings{..}    ← defaultSettings
@@ -92,7 +85,7 @@ main = do
                       , "Yay!"] ∷ [T.Text]
       zipper = textZipper $ text (42 ∷ Int)
       (w, h) = (1, 1)
-      loop old = do
+      loop iterN old = do
         dSurface       ← GRC.createImageSurface GRC.FormatARGB32 w h
         cairo          ← cairoCreate dSurface
         dGIC           ← cairoToGICairo cairo
@@ -114,11 +107,11 @@ main = do
 
         --- do stats
         HS.gc
-        new ← HS.gcBytesUsed
+        new ← HS.gcKBytesUsed
         when (old /= new) $
           printf "memory usage: %d\n" new
-        loop new
-  loop =<< HS.gcBytesUsed
+        loop (iterN + 1) new
+  loop (0 ∷ Integer) =<< HS.gcKBytesUsed
 
 textZipper ∷ [T.Text] → T.TextZipper T.Text
 textZipper = flip T.textZipper Nothing
