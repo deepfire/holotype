@@ -120,6 +120,7 @@ executable lcstress
                      , aeson
                      , base
                      , bytestring
+                     , clock
                      , containers >=0.5
                      , directory
                      , lens >= 4.13.2

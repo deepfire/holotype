@@ -24,9 +24,11 @@
 import           Control.Concurrent                       (threadDelay)
 import           Control.Lens
 import           Control.Monad                            (filterM, when)
+import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import qualified Data.Aeson                        as AE
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
+import           Data.List
 import qualified Data.Map                          as Map
 import           Data.Maybe
 import           Data.String
@@ -56,6 +58,7 @@ import qualified GameEngine.Utils                  as Q3
 import           Text.Printf                              (printf)
 import           Text.Show.Pretty                         (ppShow)
 
+import qualified System.Clock                      as Sys
 import qualified System.Directory                  as FS
 import qualified System.IO                         as Sys
 import qualified System.Mem                        as Sys
@@ -103,9 +106,11 @@ main = do
 
   _ ← GL.setStorage renderer osStorage <&>
     fromMaybe (error $ printf "setStorage failed")
+  timeStart           ← getTime
   let memoryUsage = Sys.currentBytesUsed <$> Sys.getGCStats
   let (w, h) = (1, 1)
-      loop old = do
+      navg = 10
+      loop (iterN, timePre) avgPre preKB = do
         let (dx, dy)  = (fromIntegral w, fromIntegral $ -h)
             position   = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
             texcoord   = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
@@ -120,13 +125,19 @@ main = do
         SMem.addFinalizer dGLObject $
           GL.removeObject osStorage dGLObject
 
-        Sys.performGC
-        new ← memoryUsage
-        when (old /= new) $
-          printf "memory usage: %d\n" new
-
-        loop new
-  loop =<< memoryUsage
+        timePreGC ← getTime
+        gc
+        new       ← gcKBytesUsed
+        timePost  ← getTime
+        let dt     = timePost  - timePre
+            nonGCt = timePreGC - timePre
+            avgPost@(avgVal, _) = avgStep dt avgPre
+        when (preKB /= new) $
+          printf "%5dn %dk %4ddK %5dK/f  %4.2fms, %4.2fms nonGC\n"
+                 iterN new (new - preKB) (ceiling $ (fromIntegral new / fromIntegral iterN) ∷ Int)
+                 (avgVal * 1000) (nonGCt * 1000)
+        loop (iterN + 1, timePost) avgPost new
+  loop (0 ∷ Integer, timeStart) (0.0, (navg, 0, [])) =<< gcKBytesUsed
 
 newtype UniformNameS  = UniformNameS  { fromUNS  ∷ SB.ByteString } deriving (Eq, IsString, Ord, Show)
 newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (Eq, IsString, Ord, Show)
@@ -150,3 +161,23 @@ pipelineSchema schemaPairs =
       , ("time",             GL.Float) ]
       ++ zip textures (repeat GL.FTexture2D)
   }
+
+timespecToSecs ∷ Sys.TimeSpec → Double
+timespecToSecs = (/ 1000000000.0) . fromIntegral . Sys.toNanoSecs
+
+getTime ∷ IO Double
+getTime = timespecToSecs <$> Sys.getTime Sys.Monotonic
+
+gc ∷ IO ()
+gc = liftIO $ Sys.performGC
+
+gcKBytesUsed ∷ (MonadIO m) ⇒ m Integer
+gcKBytesUsed = liftIO $ (`div` 1024) . fromIntegral . Sys.currentBytesUsed <$> Sys.getGCStats
+
+type Avg a = (Int, Int, [a])
+avgStep ∷ Fractional a ⇒ a → (a, Avg a) → (a, Avg a)
+avgStep x (_, (lim, cur, xs)) =
+  let (ncur, nxs) = if cur < lim
+                    then (cur + 1, x:xs)
+                    else (lim,     x:Data.List.init xs)
+  in ((sum nxs) / fromIntegral ncur, (lim, ncur, nxs))
