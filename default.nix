@@ -4,7 +4,6 @@
 , directory, elerea, extra, filepath, free, GLFW-b, JuicyPixels, lub
 , metamorphic, microlens-platform, MissingH, MonadRandom, mono-traversable, OpenGLRaw
 , pretty-show, process, proteaaudio, stm, time, transformers, tuple, vect, vector, zlib
-#, youtrack
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
 , lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo
 , reflex
@@ -26,7 +25,6 @@ mkDerivation {
     data-binary-ieee754 deepseq digest directory extra filepath free JuicyPixels lub
     metamorphic microlens-platform MissingH MonadRandom mono-traversable pretty-show process
     stm time transformers tuple vect vector zlib
-    # youtrack
     lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
     lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo
     reflex dependent-sum
