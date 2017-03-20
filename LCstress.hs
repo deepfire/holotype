@@ -21,6 +21,7 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wall #-}
 
+import           Control.Concurrent                       (threadDelay)
 import           Control.Lens
 import           Control.Monad                            (filterM, when)
 import qualified Data.Aeson                        as AE
@@ -113,7 +114,8 @@ main = do
                                                                , ("uv",        A_V2F _texcoord) ] }
 
         mesh ← GL.uploadMeshToGPU _dMesh
-        SMem.addFinalizer mesh $
+        SMem.addFinalizer mesh $ do
+          threadDelay 1000000
           GL.disposeMesh mesh
 
         Sys.performGC
