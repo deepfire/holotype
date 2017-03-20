@@ -11,7 +11,8 @@ module HoloFont
   , FamilyName, FaceName
 
   -- * Query
-  , fmDefault, fmFamilies, fmResolution
+  , fmDefault
+  , fmFamilies, fmResolution
   , ffamName, ffamFaces
   , ffacName, ffacPISizes
 
@@ -62,7 +63,6 @@ import           Text.Printf                              (printf)
 import qualified Graphics.Rendering.Cairo          as GRC (moveTo)
 
 -- glib-introspection -based Cairo and Pango
-import qualified Data.GI.Base                      as GI
 import qualified GI.Cairo                          as GIC
 import qualified GI.Pango                          as GIP
 import qualified GI.PangoCairo.Interfaces.FontMap  as GIPC
@@ -114,12 +114,8 @@ instance Show GIP.FontFamily where
 instance Show GIP.FontFace where
   show = printf "FontFace { name = '%s' }" ∘ ffacName
 
-class PangoFontMap a where
-  fmDefault ∷ a
-instance PangoFontMap GIP.FontMap where
-  fmDefault = GIPC.fontMapGetDefault & UN.unsafePerformIO
-instance PangoFontMap GIPC.FontMap where
-  fmDefault = (GI.unsafeCastTo GIPC.FontMap =<< GIPC.fontMapGetDefault) & UN.unsafePerformIO
+fmDefault ∷ GIPC.FontMap
+fmDefault = GIPC.fontMapGetDefault & UN.unsafePerformIO
 
 fmFamilies ∷ GIP.IsFontMap a ⇒ a → [GIP.FontFamily]
 fmFamilies = UN.unsafePerformIO ∘ GIP.fontMapListFamilies
