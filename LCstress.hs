@@ -1,6 +1,7 @@
--- Repro for https://github.com/lambdacube3d/lambdacube-gl/issues/9
+-- Repro for https://github.com/lambdacube3d/lambdacube-gl/issues/10
 -- Usage:
---   ghc --make Holostress.hs && ./Holostress
+--   ghc -threaded -eventlog -rtsopts -isrc --make LCstress.hs
+--   ./LCstress +RTS -T -ls -N2
 --
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -59,6 +60,8 @@ import qualified System.IO                         as Sys
 import qualified System.Mem                        as Sys
 import qualified GHC.Stats                         as Sys
 
+import qualified System.Mem.Weak                   as SMem
+
 
 foreign import ccall "&cairo_destroy"
   cairo_destroy ∷ F.FinalizerPtr GRC.Cairo
@@ -102,22 +105,16 @@ main = do
   let memoryUsage = Sys.currentBytesUsed <$> Sys.getGCStats
   let (w, h) = (1, 1)
       loop old = do
-        dSurface       ← GRC.createImageSurface GRC.FormatARGB32 w h
-        dGRC'          ← GRCI.create dSurface
-        _              ← F.newForeignPtr cairo_destroy (GRC.unCairo dGRC')
-
-        dGIC           ← GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo dGRC') (return ())
         let (_dx, _dy)  = (fromIntegral w, fromIntegral $ -h)
             _position   = V.fromList [ LCLin.V2  0 _dy,   LCLin.V2  0  0,   LCLin.V2 _dx  0,   LCLin.V2  0 _dy,   LCLin.V2 _dx  0,   LCLin.V2 _dx _dy ]
             _texcoord   = V.fromList [ LCLin.V2  0   1,   LCLin.V2  0  0,   LCLin.V2   1  0,   LCLin.V2  0   1,   LCLin.V2   1  0,   LCLin.V2   1   1 ]
             _dMesh      = LC.Mesh { mPrimitive  = P_Triangles
                                   , mAttributes = Map.fromList [ ("position",  A_V2F _position)
                                                                , ("uv",        A_V2F _texcoord) ] }
-        putStr "pre-GL.uploadMeshToGPU "
-        -- 450123450123450123450123450123450123450123  <-- the trace always ends on a '3'
-        _ ← GL.uploadMeshToGPU _dMesh              --  <-- this is the leaker, which is normal and expected
-        putStr "post-GL.uploadMeshToGPU "
-        _ ← GIPC.createContext dGIC
+
+        mesh ← GL.uploadMeshToGPU _dMesh
+        SMem.addFinalizer mesh $
+          GL.disposeMesh mesh
 
         Sys.performGC
         new ← memoryUsage
