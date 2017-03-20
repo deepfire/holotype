@@ -356,8 +356,8 @@ deriving instance Show (FontMap u)
 
 makeFontMap ∷ (MonadIO m) ⇒ Sizely (Size u) ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → m (FontMap u)
 makeFontMap dπ gipcFM (FontPreferences prefsAndAliases) =
-                         foldM resolvePrefs Map.empty ((id *** fromRight) <$> prefs)
-  <&> FontMap dπ ∘ flip (foldl resolveAlias)          ((id *** fromLeft)  <$> aliases)
+                         foldM resolvePrefs Map.empty ((id *** fromRight (⊥)) <$> prefs)
+  <&> FontMap dπ ∘ flip (foldl resolveAlias)          ((id *** fromLeft  (⊥)) <$> aliases)
   where resolvePrefs acc (fkey, freqs) = do
           (mFont, errs) ← chooseFont gipcFM freqs
           let font = mFont &
