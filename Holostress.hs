@@ -17,7 +17,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-type-defaults #-}
 
 import           Prelude.Unicode
 
@@ -42,6 +42,8 @@ import           Text.Printf                              (printf)
 
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
+
+import qualified System.Mem.Weak                   as SMem
 
 
 import Flatland
@@ -105,7 +107,21 @@ main = do
         -- owned ← IO.readIORef ownedR
         _ ← GIPC.createContext dGIC
 
-        cDrawable ← makeDrawable stream $ fromIntegral <$> dim
+        -- cDrawable ← makeDrawable stream $ fromIntegral <$> dim
+        do
+          dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
+          dCairo        ← cairoCreate  dSurface
+          dGIC          ← cairoToGICairo dCairo
+          let (dx, dy) = (fromIntegral w, fromIntegral $ -h)
+              position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
+              texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
+              dMesh    = LC.Mesh { mPrimitive  = P_Triangles
+                                 , mAttributes = Map.fromList [ ("position",  A_V2F position)
+                                                              , ("uv",        A_V2F texcoord) ] }
+          dGPUMesh      ← GL.uploadMeshToGPU dMesh
+          SMem.addFinalizer dGPUMesh $
+            GL.disposeMesh dGPUMesh
+          pure ()
         -- Canvas (RRect T.Text)
         -- let cStyle@(In (CanvasS cFontKey) innerStyle) = style
         --     innerContent = zipperText zipper
