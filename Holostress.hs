@@ -23,8 +23,10 @@ import           Prelude.Unicode
 
 import           Control.Monad                            (when)
 import qualified Data.Map                          as Map
+import           Data.List
 import qualified Data.Vector                       as V
 
+import           Linear
 
 import qualified GI.PangoCairo.Functions           as GIPC
 import qualified Graphics.Rendering.Cairo          as GRC
@@ -35,7 +37,6 @@ import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 import qualified LambdaCube.GL.Mesh                as GL
 import qualified LambdaCube.Linear                 as LCLin
 import           LambdaCube.Mesh                   as LC
-
 
 import           Text.Printf                              (printf)
 
@@ -48,6 +49,7 @@ import Flatland
 import HoloCube
 import HoloCairo
 import HoloCanvas
+import HoloFont
 import HoloSettings
 import qualified HoloSys                           as HS
 
@@ -68,11 +70,12 @@ main = do
   GL.glEnable GL.GL_FRAMEBUFFER_SRGB
   GLFW.swapInterval 0
 
-  (_renderer, stream)   ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
+  (_renderer, stream) ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
 
   -- * Holo
-  stts@Settings{..}    ← defaultSettings
+  stts@Settings{..}   ← defaultSettings
 
+  timeStart           ← HS.fromSec <$> HS.getTime
   let style  = (In (CanvasS @PU "default")
                  (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
                              , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 })
@@ -84,8 +87,9 @@ main = do
                       , ""
                       , "Yay!"] ∷ [T.Text]
       zipper = textZipper $ text (42 ∷ Int)
-      (w, h) = (1, 1)
-      loop iterN old = do
+      dim@(Di (V2 w h)) = di 256 256
+      navg = 10
+      loop (iterN, timePre) avgPre preKB = do
         dSurface       ← GRC.createImageSurface GRC.FormatARGB32 w h
         cairo          ← cairoCreate dSurface
         dGIC           ← cairoToGICairo cairo
@@ -101,20 +105,44 @@ main = do
         -- owned ← IO.readIORef ownedR
         _ ← GIPC.createContext dGIC
 
-        -- HoloCanvas.Text
-        vis ← assemble stts stream style $ zipperText zipper
-        render vis
+        cDrawable ← makeDrawable stream $ fromIntegral <$> dim
+        -- Canvas (RRect T.Text)
+        -- let cStyle@(In (CanvasS cFontKey) innerStyle) = style
+        --     innerContent = zipperText zipper
+        -- vis ← do
+        --   cPSpace   ← sPin (po 0 0) <$> query stts innerStyle innerContent
+        --   cDrawable ← makeDrawable stream $ spaceDim cPSpace
+        --   cFont     ← bindFont (lookupFont' fontmap cFontKey) dGIC
+        --   let w = Canvas{..} where cInner = (⊥)                -- resolve circularity due to *ToInner..
+        --   cInner ← make stts (CW w) innerStyle innerContent cPSpace
+        --   pure w { cInner = cInner }
+        -- render vis
 
         --- do stats
+        timePreGC ← HS.fromSec <$> HS.getTime
         HS.gc
-        new ← HS.gcKBytesUsed
-        when (old /= new) $
-          printf "memory usage: %d\n" new
-        loop (iterN + 1) new
-  loop (0 ∷ Integer) =<< HS.gcKBytesUsed
+        new       ← HS.gcKBytesUsed
+        timePost  ← HS.fromSec <$> HS.getTime
+        let dt     = timePost  - timePre
+            nonGCt = timePreGC - timePre
+            avgPost@(avgVal, _) = avgStep dt avgPre
+        when (preKB /= new) $
+          printf "%5dn %dk %4dd %5dK  %4.2fms, %4.2fms nonGC\n"
+                 iterN new (new - preKB) (ceiling $ (fromIntegral new / fromIntegral iterN) ∷ Int)
+                 (avgVal ⋅ 1000) (nonGCt ⋅ 1000)
+        loop (iterN + 1, timePost) avgPost new
+  loop (0 ∷ Integer, timeStart) (0.0, (navg, 0, [])) =<< HS.gcKBytesUsed
 
 textZipper ∷ [T.Text] → T.TextZipper T.Text
 textZipper = flip T.textZipper Nothing
 
 zipperText ∷ T.TextZipper T.Text → T.Text
 zipperText = T.dropEnd 1 ∘ T.unlines ∘ T.getText
+
+type Avg a = (Int, Int, [a])
+avgStep ∷ Fractional a ⇒ a → (a, Avg a) → (a, Avg a)
+avgStep x (_, (lim, cur, xs)) =
+  let (ncur, nxs) = if cur < lim
+                    then (cur + 1, x:xs)
+                    else (lim,     x:Data.List.init xs)
+  in ((sum nxs) / fromIntegral ncur, (lim, ncur, nxs))

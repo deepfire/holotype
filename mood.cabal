@@ -148,6 +148,7 @@ executable holostress
                      , base >=4.8
                      , base-unicode-symbols
                      , containers >=0.5
+                     , linear
                      , text
                      , text-zipper
                      , vector
