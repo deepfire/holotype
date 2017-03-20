@@ -14,8 +14,9 @@
 *.wav
 *.pdf
 *.shc
-*.graphml
 *.json
+*.graphml
+*.eventlog
 
 /dist/
 /cabal-dev/
@@ -24,4 +25,6 @@
 .stack-work/
 nohup.out
 
-Holostress
+/Holotype
+/Holostress
+/LCstress
