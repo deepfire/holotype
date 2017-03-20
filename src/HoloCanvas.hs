@@ -47,6 +47,7 @@ import qualified GI.Pango                          as GIP
 import qualified Data.IORef                        as IO
 import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
+import qualified System.Mem.Weak                   as SMem
 
 -- …
 import           Graphics.GL.Core33                as GL
@@ -97,6 +98,8 @@ makeDrawable dObjectStream@HC.ObjectStream{..} dDi' = liftIO $ do
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                       , ("uv",        A_V2F texcoord) ] }
   dGPUMesh      ← GL.uploadMeshToGPU dMesh
+  SMem.addFinalizer dGPUMesh $
+    GL.disposeMesh dGPUMesh
   dGLObject     ← GL.addMeshToObjectArray osStorage (HC.fromOANS osObjArray) [HC.unameStr osUniform, "viewProj"] dGPUMesh
 
   dSurfaceData  ← imageSurfaceGetPixels' dSurface
