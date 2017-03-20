@@ -1,5 +1,5 @@
 -- Usage:
---   cabal build Holostress && ./dist/build/Holostress/Holostress
+--   cabal build Holostress && ./dist/build/Holostress/Holostress +RTS -T -RTS
 --
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -17,7 +17,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-type-defaults #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-type-defaults -Wno-unused #-}
 
 import           Prelude.Unicode
 
@@ -35,6 +35,7 @@ import qualified Graphics.GL.Core33                as GL
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 import qualified LambdaCube.GL.Mesh                as GL
+import qualified LambdaCube.GL.Input               as GL
 import qualified LambdaCube.Linear                 as LCLin
 import           LambdaCube.Mesh                   as LC
 
@@ -53,6 +54,7 @@ import HoloCairo
 import HoloCanvas
 import HoloFont
 import HoloSettings
+import qualified HoloCube                          as HC
 import qualified HoloSys                           as HS
 
 
@@ -72,7 +74,7 @@ main = do
   GL.glEnable GL.GL_FRAMEBUFFER_SRGB
   GLFW.swapInterval 0
 
-  (_renderer, stream) ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
+  (_renderer, stream@ObjectStream{..}) ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
 
   -- * Holo
   stts@Settings{..}   ← defaultSettings
@@ -121,6 +123,9 @@ main = do
           dGPUMesh      ← GL.uploadMeshToGPU dMesh
           SMem.addFinalizer dGPUMesh $
             GL.disposeMesh dGPUMesh
+          dGLObject     ← GL.addMeshToObjectArray osStorage (HC.fromOANS osObjArray) [HC.unameStr osUniform, "viewProj"] dGPUMesh
+          SMem.addFinalizer dGLObject $
+            GL.removeObject osStorage dGLObject
           pure ()
         -- Canvas (RRect T.Text)
         -- let cStyle@(In (CanvasS cFontKey) innerStyle) = style

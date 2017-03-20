@@ -83,7 +83,7 @@ main = do
   GL.glEnable GL.GL_FRAMEBUFFER_SRGB
   GLFW.swapInterval 0
 
-  storage ← GL.allocStorage $ pipelineSchema [("canvasStream", "canvasMtl")]
+  osStorage ← GL.allocStorage $ pipelineSchema [("canvasStream", "canvasMtl")]
 
   let pipelineJSON = "Holotype.json"
       pipelineSrc  = "Holotype.lc"
@@ -101,22 +101,24 @@ main = do
       Left err  → fail err
       Right ppl → GL.allocRenderer ppl
 
-  _ ← GL.setStorage renderer storage <&>
+  _ ← GL.setStorage renderer osStorage <&>
     fromMaybe (error $ printf "setStorage failed")
   let memoryUsage = Sys.currentBytesUsed <$> Sys.getGCStats
   let (w, h) = (1, 1)
       loop old = do
-        let (_dx, _dy)  = (fromIntegral w, fromIntegral $ -h)
-            _position   = V.fromList [ LCLin.V2  0 _dy,   LCLin.V2  0  0,   LCLin.V2 _dx  0,   LCLin.V2  0 _dy,   LCLin.V2 _dx  0,   LCLin.V2 _dx _dy ]
-            _texcoord   = V.fromList [ LCLin.V2  0   1,   LCLin.V2  0  0,   LCLin.V2   1  0,   LCLin.V2  0   1,   LCLin.V2   1  0,   LCLin.V2   1   1 ]
-            _dMesh      = LC.Mesh { mPrimitive  = P_Triangles
-                                  , mAttributes = Map.fromList [ ("position",  A_V2F _position)
-                                                               , ("uv",        A_V2F _texcoord) ] }
+        let (dx, dy)  = (fromIntegral w, fromIntegral $ -h)
+            position   = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
+            texcoord   = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
+            dMesh      = LC.Mesh { mPrimitive  = P_Triangles
+                                  , mAttributes = Map.fromList [ ("position",  A_V2F position)
+                                                               , ("uv",        A_V2F texcoord) ] }
 
-        mesh ← GL.uploadMeshToGPU _dMesh
-        SMem.addFinalizer mesh $ do
-          threadDelay 1000000
-          GL.disposeMesh mesh
+        dGPUMesh      ← GL.uploadMeshToGPU dMesh
+        SMem.addFinalizer dGPUMesh $
+          GL.disposeMesh dGPUMesh
+        dGLObject     ← GL.addMeshToObjectArray osStorage "canvasStream" ["canvasMtl"] dGPUMesh
+        SMem.addFinalizer dGLObject $
+          GL.removeObject osStorage dGLObject
 
         Sys.performGC
         new ← memoryUsage
