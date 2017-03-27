@@ -14,7 +14,7 @@
 , hspec, OpenGL
 }:
 mkDerivation {
-  pname = "mood";
+  pname = "holotype";
   version = "0.0.1";
   src = src;
   isLibrary = true;
@@ -35,7 +35,7 @@ mkDerivation {
     hspec OpenGL
   ];
   executableHaskellDepends = [
-    base bytestring containers directory elerea filepath GLFW-b
+    base bytestring containers directory filepath GLFW-b
     lambdacube-gl OpenGLRaw proteaaudio vect vector
   ];
   description  = "Visual mind assistant";

@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-|
 
-  Module      : Database.Mood.Types
-  Description : Type backbone of the Mood data modeling system.
+  Module      : Database.Holotype.Types
+  Description : Type backbone of the Holotype data modeling system.
   Copyright   : (c) Kosyrev Serge, 2015
 
   License     : AGPL-3
@@ -10,7 +10,7 @@
   Stability   : experimental
   Portability : POSIX
 
-  This is the type-level backbone of the Mood data modeling system.
+  This is the type-level backbone of the Holotype data modeling system.
 -}
 
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -78,15 +78,15 @@ module Types
 
 = What
 
-  /Mood/ is a textual/visual substrate for data manipulation.
+  /Holotype/ is a textual/visual substrate for data manipulation.
 
 = Where
 
-  <https://github.com/deepfire/mood>
+  <https://github.com/deepfire/holotype>
 
 = Screenshot
 
-  <<https://github.com/deepfire/mood pic or didn't happen>>
+  <<https://github.com/deepfire/holotype pic or didn't happen>>
 
 = Vocabulary
 
@@ -103,7 +103,7 @@ module Types
 
   Comes as twin forms:
       [@Generic query@]
-      A common query language that /Mood/ presents to the user.
+      A common query language that /Holotype/ presents to the user.
 
       [@Source-specific query@]
       A necessary adaptation of the generic query to a specific source.
@@ -125,7 +125,7 @@ module Types
 
 = Visualisation pipeline
 
-  Mood contains a model of data visualisation -- a pipeline:
+  Holotype contains a model of data visualisation -- a pipeline:
 
     - data /source/ -- /a __temporary__ crude abstraction/ (via 'Source')
     - selection (via 'Selector', 'Selection')

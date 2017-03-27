@@ -1,4 +1,4 @@
-name:                mood
+name:                holotype
 version:             0.0.1
 synopsis:            Graph-backed visual mind assistant.
 license:             AGPL-3
@@ -107,7 +107,7 @@ executable holotype
   main-is:             Main.hs
   default-language:    Haskell2010
 
-  build-depends:       mood
+  build-depends:       holotype
                      , base
 
 executable lcstress
@@ -115,7 +115,7 @@ executable lcstress
   main-is:             LCstress.hs
   default-language:    Haskell2010
 
-  build-depends:       mood
+  build-depends:       holotype
                      -- generic
                      , aeson
                      , base
@@ -144,7 +144,7 @@ executable holostress
   main-is:             Holostress.hs
   default-language:    Haskell2010
 
-  build-depends:       mood
+  build-depends:       holotype
                      -- generic
                      , base >=4.8
                      , base-unicode-symbols

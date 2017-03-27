@@ -13,14 +13,21 @@
 
   Because data entry, interning and recovery is harder than it could be.
 
-  <Name> is a general-purpose mind assistant, that is an attempt to change that.
+  /Holotype/ is a general-purpose mind assistant, that is an attempt to change that.
 
   A balanced, varied approach to resolve the conflict between extreme ease of use
   and completeness of data being captured.
 
   It also is supposed to try to be beautiful to the eye.
 
-  This is a design document, accompanied with some code to support it.
+  This is a design-ish document in disarray (everything in random order),
+  accompanied with some code to support it.
+
+* State
+
+  Nothing to speak of, yet -- mostly just ideas, with some technological
+  groundwork done, like FRP & visualisation: [[https://github.com/deepfire/reflex-glfw][reflex-glfw]], and a very basic
+  [[http://www.lambdacube3d.com/][LambdaCube3d]] setup for a 2.5D UI.
 
 * UI tropes, random ideas
 
