@@ -16,12 +16,11 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:
-    Data.TypeMap
-    Data.TypeMap.Internal
+    Data.TypeMap.Dynamic
+    Data.TypeMap.Internal.Dynamic
   if impl(ghc >= 8.0.1)
     exposed-modules:
-      Data.TypeMap.TypeApplications
-      Data.TypeMap.TypeApplications.Internal
+      Data.TypeMap.Dynamic.Alt
       Data.TypeMap.List
       Data.TypeMap.Map
       Data.TypeMap.Vector
@@ -29,6 +28,7 @@ library
       Data.TypeMap.Internal.Map
       Data.TypeMap.Internal.Vector
       Data.TypeMap.Internal.Unsafe
+      Data.TypeMap.Internal.Dynamic.Alt
     build-depends:
       vector
   other-modules:

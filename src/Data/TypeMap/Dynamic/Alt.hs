@@ -1,6 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 
-module Data.TypeMap.TypeApplications
+module Data.TypeMap.Dynamic.Alt
   ( TypeMap()
   , Item
   , null
@@ -11,7 +11,7 @@ module Data.TypeMap.TypeApplications
   , OfType
   ) where
 
-import Data.TypeMap.Internal
+import Data.TypeMap.Internal.Dynamic
   ( TypeMap
   , Item
   , null
@@ -20,4 +20,4 @@ import Data.TypeMap.Internal
   , OfType
   )
 
-import Data.TypeMap.TypeApplications.Internal
+import Data.TypeMap.Internal.Dynamic.Alt

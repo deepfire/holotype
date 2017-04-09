@@ -6,14 +6,14 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Data.TypeMap.TypeApplications.Internal where
+module Data.TypeMap.Internal.Dynamic.Alt where
 
 import Data.Typeable
 import GHC.Prim (Proxy#)
 import Unsafe.Coerce
 import qualified Data.Map as Map
 
-import Data.TypeMap.Internal
+import Data.TypeMap.Internal.Dynamic
   (TypeMap(..), Item, Typed, UnTyped, ItemFun, ItemKleisli)
 
 map

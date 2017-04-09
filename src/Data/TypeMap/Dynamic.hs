@@ -1,6 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 
-module Data.TypeMap
+module Data.TypeMap.Dynamic
   ( TypeMap()
   , Item
   , null
@@ -11,4 +11,4 @@ module Data.TypeMap
   , OfType
   ) where
 
-import Data.TypeMap.Internal
+import Data.TypeMap.Internal.Dynamic

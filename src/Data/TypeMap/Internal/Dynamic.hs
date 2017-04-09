@@ -6,7 +6,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Data.TypeMap.Internal where
+module Data.TypeMap.Internal.Dynamic where
 
 import Data.Map (Map)
 import Data.Proxy (Proxy(..))
