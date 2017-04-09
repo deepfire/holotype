@@ -9,8 +9,8 @@ import Data.Proxy
 import Data.Typeable
 import Unsafe.Coerce
 
-import qualified Data.TypeMap.Internal as TM
-import qualified Data.TypeMap.TypeApplications.Internal as TMA
+import qualified Data.TypeMap.Internal.Dynamic as TM
+import qualified Data.TypeMap.Internal.Dynamic.Alt as TMA
 
 idTypeRepTM :: TypeRep -> TypeRep
 idTypeRepTM = TM.withTypeRep typeRep (Proxy @(TM.OfType TypeRep))
