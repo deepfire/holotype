@@ -23,6 +23,7 @@ library
       Data.TypeMap.Dynamic.Alt
       Data.TypeMap.List
       Data.TypeMap.Map
+      Data.TypeMap.Static
       Data.TypeMap.Vector
       Data.TypeMap.Internal.List
       Data.TypeMap.Internal.Map
