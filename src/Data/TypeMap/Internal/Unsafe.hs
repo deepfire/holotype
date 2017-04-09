@@ -47,9 +47,9 @@ unsafeIndex
   .  (KnownNat (Index a d), Coercible (f Any) (m d))
   => (forall c. f c -> Int -> c)
   -> m d -> Lookup a d
-unsafeIndex index m = unsafeCoerce (flip index na)
+unsafeIndex index = unsafeCoerce (flip index na)
   where
-    na = fromInteger (natVal (Proxy @(Index a d)))
+    na = fromInteger (natVal (Proxy @(Index a d))) :: Int
 
 unsafeCons
   :: forall a d b f m
