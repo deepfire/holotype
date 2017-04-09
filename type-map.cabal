@@ -22,6 +22,15 @@ library
     exposed-modules:
       Data.TypeMap.TypeApplications
       Data.TypeMap.TypeApplications.Internal
+      Data.TypeMap.List
+      Data.TypeMap.Map
+      Data.TypeMap.Vector
+      Data.TypeMap.Internal.List
+      Data.TypeMap.Internal.Map
+      Data.TypeMap.Internal.Vector
+      Data.TypeMap.Internal.Unsafe
+    build-depends:
+      vector
   other-modules:
     Data.TypeMap.Check
   build-depends:
