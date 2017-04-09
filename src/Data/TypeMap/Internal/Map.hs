@@ -19,6 +19,9 @@ data TypeMap d = TypeMap !Int !(TypeMap' d) !Int
 
 newtype TypeMap' d = TypeMap' (IntMap Any)
 
+empty :: TypeMap '[]
+empty = TypeMap 0 (TypeMap' IntMap.empty) 0
+
 index
   :: forall a d
   .  KnownNat (Index a d)

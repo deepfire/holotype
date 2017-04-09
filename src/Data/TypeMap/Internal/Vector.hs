@@ -17,6 +17,9 @@ import Data.TypeMap.Internal.Unsafe
 -- | Vector-backed type-map.
 newtype TypeVector d = TypeVector (Vector Any)
 
+empty :: TypeVector '[]
+empty = TypeVector Vector.empty
+
 index
   :: forall a d
   .  KnownNat (Index a d)

@@ -14,6 +14,9 @@ import Data.TypeMap.Internal.Unsafe
 -- | List-backed type-map.
 newtype TypeList d = TypeList [Any]
 
+empty :: TypeList '[]
+empty = TypeList []
+
 index
   :: forall a d
   .  KnownNat (Index a d)
