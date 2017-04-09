@@ -52,6 +52,21 @@ test-suite type-map-test
   else
     buildable: False
 
+test-suite type-map-static-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             static.hs
+  default-language:    Haskell2010
+  if impl(ghc >= 8.0.1)
+    build-depends:
+      base >= 4.9,
+      HUnit,
+      test-framework,
+      test-framework-hunit,
+      type-map
+  else
+    buildable: False
+
 source-repository head
   type:     git
   location: https://github.com/Lysxia/type-map
