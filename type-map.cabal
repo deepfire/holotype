@@ -1,8 +1,22 @@
 name:                type-map
 version:             0.1.0.0
 synopsis:            Type-indexed maps
--- description:
-homepage:            https://github.com/Lysxia/type-map#readme
+description:
+  Maps where keys are types and values can have types depending on their keys.
+  .
+  * "Data.TypeMap.Dynamic": Simple maps using the 'Typeable' mechanism,
+    tracking keys at run time.
+    "Data.TypeMap.Dynamic.Alt" is an alternative API based on type applications
+    rather than passing proxies, available from GHC 8.0.1.
+  .
+  * "Data.TypeMap.Vector": Only available from GHC 8.0.1. Maps whose domains
+    are given in their types for compile-time verification and fast indexing.
+    Two more variants with the same API: "Data.TypeMap.List" uses lists and
+    "Data.TypeMap.Map" uses maps (from 'containers'), trading indexing speed
+    for for more efficient creation and modification. "Data.TypeMap.Static"
+    exports some operations on type lists.
+
+homepage:            https://github.com/Lysxia/type-map
 license:             MIT
 license-file:        LICENSE
 author:              Li-yao Xia

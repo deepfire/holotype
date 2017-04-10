@@ -9,12 +9,30 @@
 module Data.TypeMap.Internal.Dynamic.Alt where
 
 import Data.Typeable
-import GHC.Prim (Proxy#)
+import GHC.Prim (Any, Proxy#)
 import Unsafe.Coerce
 import qualified Data.Map as Map
 
 import Data.TypeMap.Internal.Dynamic
   (TypeMap(..), Item, Typed, UnTyped, ItemFun, ItemKleisli)
+
+-- | Insert an element indexed by type @t@.
+insert
+  :: forall t x proxy
+  .  Typeable t => Item x t -> TypeMap x -> TypeMap x
+insert v (TypeMap m) = TypeMap (Map.insert (typeRep (Proxy @t)) (coerce v) m)
+  where
+    coerce :: Item x t -> Any
+    coerce = unsafeCoerce
+
+-- | Lookup an element indexed by type @t@.
+lookup
+  :: forall t x proxy
+  .  Typeable t => TypeMap x -> Maybe (Item x t)
+lookup (TypeMap m) = coerce (Map.lookup (typeRep (Proxy @t)) m)
+  where
+    coerce :: Maybe Any -> Maybe (Item x t)
+    coerce = unsafeCoerce
 
 map
   :: forall x y. (forall t. Typeable t => Item x t -> Item y t)
