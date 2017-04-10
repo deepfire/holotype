@@ -21,14 +21,24 @@ import qualified Data.Map as Map
 -- | Map from types @t@ of kind @*@ to values of type @Item x t@.
 newtype TypeMap x = TypeMap (Map TypeRep Any)
 
+-- | An extensible type family mapping types (as keys) to types of values,
+-- parameterized by types @x@.
 type family Item x t
 
+-- | A constant mapping to type @a@. @'TypeMap' ('OfType' a)@ is the type of
+-- maps from types to values of type @a@.
 data OfType a
 type instance Item (OfType a) t = a
 
+-- | Whether the map is empty.
 null :: TypeMap x -> Bool
 null (TypeMap m) = Map.null m
 
+-- | Empty type map.
+empty :: TypeMap x
+empty = TypeMap Map.empty
+
+-- | Insert an element indexed by type @t@.
 insert
   :: forall t x proxy
   .  Typeable t => proxy t -> Item x t -> TypeMap x -> TypeMap x
@@ -37,6 +47,7 @@ insert t v (TypeMap m) = TypeMap (Map.insert (typeRep t) (coerce v) m)
     coerce :: Item x t -> Any
     coerce = unsafeCoerce
 
+-- | Lookup an element indexed by type @t@.
 lookup
   :: forall t x proxy
   .  Typeable t => proxy t -> TypeMap x -> Maybe (Item x t)
@@ -45,6 +56,7 @@ lookup t (TypeMap m) = coerce (Map.lookup (typeRep t) m)
     coerce :: Maybe Any -> Maybe (Item x t)
     coerce = unsafeCoerce
 
+-- | Map a function on all elements.
 map
   :: forall x y
   .  (forall t. Typeable t => Proxy t -> Item x t -> Item y t)
@@ -52,6 +64,7 @@ map
 map f (TypeMap m) = TypeMap (Map.mapWithKey f' m)
   where f' = withTypeRep f (Proxy :: Proxy (ItemFun x y))
 
+-- | Traverse the map.
 traverse
   :: forall f x y
   .  Applicative f

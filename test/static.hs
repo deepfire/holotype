@@ -5,16 +5,18 @@ import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.HUnit
 
+import Data.TypeMap.List (TypeList, (<|))
+import Data.TypeMap.Vector (TypeVector)
 import qualified Data.TypeMap.List as TL
 import qualified Data.TypeMap.Vector as TV
 
 type D = '[ '("a", Int), '("b", Bool), '("c", String)]
 
-v :: TV.TypeVector D
+v :: TypeVector D
 v = TL.toVector l
 
-l :: TL.TypeList D
-l = (TL.cons 0 (TL.cons True (TL.cons "" TL.empty)))
+l :: TypeList D
+l = 0 <| True <| "" <| TL.empty
 
 main = defaultMain
   [ testCase "List" $ do

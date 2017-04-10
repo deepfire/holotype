@@ -3,7 +3,9 @@ module Data.TypeMap.Map
   , empty
   , index
   , cons
+  , (<|)
   , snoc
+  , (|>)
   ) where
 
 import Data.TypeMap.Internal.Map
