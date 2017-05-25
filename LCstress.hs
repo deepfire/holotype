@@ -1,7 +1,6 @@
 -- Repro for https://github.com/lambdacube3d/lambdacube-gl/issues/10
 -- Usage:
---   ghc -threaded -eventlog -rtsopts -isrc --make LCstress.hs
---   ./LCstress +RTS -T -ls -N2
+--   ghc -threaded -eventlog -rtsopts -isrc --make LCstress.hs && ./LCstress +RTS -T -ls -N2
 --
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -19,7 +18,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wall -Wno-unused-imports -Wno-type-defaults #-}
 
 import           Control.Concurrent                       (threadDelay)
 import           Control.Lens
@@ -60,6 +59,7 @@ import           Text.Show.Pretty                         (ppShow)
 
 import qualified System.Clock                      as Sys
 import qualified System.Directory                  as FS
+import qualified System.Environment                as Sys
 import qualified System.IO                         as Sys
 import qualified System.Mem                        as Sys
 import qualified GHC.Stats                         as Sys
@@ -70,75 +70,39 @@ import qualified System.Mem.Weak                   as SMem
 foreign import ccall "&cairo_destroy"
   cairo_destroy ∷ F.FinalizerPtr GRC.Cairo
 
-main ∷ IO ()
-main = do
-  Sys.hSetBuffering Sys.stdout Sys.NoBuffering
-  _ ← GLFW.init
-  GLFW.defaultWindowHints
-  mapM_ GLFW.windowHint
-    [ GLFW.WindowHint'ContextVersionMajor 3
-    , GLFW.WindowHint'ContextVersionMinor 3
-    , GLFW.WindowHint'OpenGLProfile GLFW.OpenGLProfile'Core
-    , GLFW.WindowHint'OpenGLForwardCompat True
-    ]
-  Just win ← GLFW.createWindow 1024 768 "repro" Nothing Nothing
-  GLFW.makeContextCurrent $ Just win
-  GL.glEnable GL.GL_FRAMEBUFFER_SRGB
-  GLFW.swapInterval 0
+data Scenario
+  = ManMesh
+  | ManMeshObj
+  | AutoMeshObj
+  deriving (Eq, Read, Show)
 
-  osStorage ← GL.allocStorage $ pipelineSchema [("canvasStream", "canvasMtl")]
+experiment ∷ Scenario → GL.GLStorage → GL.Mesh → IO ()
+experiment scen glstorage dMesh = do
+  let scs ∷ [Scenario] → IO () → IO ()
+      scs xs act = when (elem scen xs) act
 
-  let pipelineJSON = "Holotype.json"
-      pipelineSrc  = "Holotype.lc"
+  mesh ← GL.uploadMeshToGPU dMesh
 
-  _ ← LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc >>= \case
-    Left  err → fail "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err) >> return False
-    Right ppl → LB.writeFile pipelineJSON (AE.encode ppl)                    >> return True
-  let paths = [pipelineJSON]
-  validPaths ← filterM FS.doesFileExist paths
-  when (Prelude.null validPaths) $
-    fail $ "GPU pipeline " ++ pipelineJSON ++ " couldn't be found in " ++ show paths
+  scs [ManMesh]                             $ do
+    GL.disposeMesh     mesh
+  scs                         [AutoMeshObj] $ do
+    SMem.addFinalizer  mesh                 $ do
+      GL.disposeMesh   mesh
 
-  renderer ← Q3.printTimeDiff "-- allocating GPU pipeline (GL.allocRenderer)... " $ do
-    AE.eitherDecode <$> LB.readFile (Prelude.head validPaths) >>= \case
-      Left err  → fail err
-      Right ppl → GL.allocRenderer ppl
+  scs             [ManMeshObj, AutoMeshObj] $ do
+    object  ← GL.addMeshToObjectArray glstorage "canvasStream" ["canvasMtl"] mesh
 
-  _ ← GL.setStorage renderer osStorage <&>
-    fromMaybe (error $ printf "setStorage failed")
-  timeStart           ← getTime
-  let memoryUsage = Sys.currentBytesUsed <$> Sys.getGCStats
-  let (w, h) = (1, 1)
-      navg = 10
-      loop (iterN, timePre) avgPre preKB = do
-        let (dx, dy)  = (fromIntegral w, fromIntegral $ -h)
-            position   = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
-            texcoord   = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
-            dMesh      = LC.Mesh { mPrimitive  = P_Triangles
-                                  , mAttributes = Map.fromList [ ("position",  A_V2F position)
-                                                               , ("uv",        A_V2F texcoord) ] }
+    scs           [ManMeshObj]              $ do
+      GL.removeObject glstorage   object
+      GL.disposeMesh   mesh
 
-        dGPUMesh      ← GL.uploadMeshToGPU dMesh
-        SMem.addFinalizer dGPUMesh $
-          GL.disposeMesh dGPUMesh
-        dGLObject     ← GL.addMeshToObjectArray osStorage "canvasStream" ["canvasMtl"] dGPUMesh
-        SMem.addFinalizer dGLObject $
-          GL.removeObject osStorage dGLObject
+    scs                       [AutoMeshObj] $ do
+      SMem.addFinalizer object              $ do
+        GL.removeObject glstorage object
+        GL.disposeMesh mesh
 
-        timePreGC ← getTime
-        gc
-        new       ← gcKBytesUsed
-        timePost  ← getTime
-        let dt     = timePost  - timePre
-            nonGCt = timePreGC - timePre
-            avgPost@(avgVal, _) = avgStep dt avgPre
-        when (preKB /= new) $
-          printf "%5dn %dk %4ddK %5dK/f  %4.2fms, %4.2fms nonGC\n"
-                 iterN new (new - preKB) (ceiling $ (fromIntegral new / fromIntegral iterN) ∷ Int)
-                 (avgVal * 1000) (nonGCt * 1000)
-        loop (iterN + 1, timePost) avgPost new
-  loop (0 ∷ Integer, timeStart) (0.0, (navg, 0, [])) =<< gcKBytesUsed
-
+--- Mostly boring parts below
+---
 newtype UniformNameS  = UniformNameS  { fromUNS  ∷ SB.ByteString } deriving (Eq, IsString, Ord, Show)
 newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (Eq, IsString, Ord, Show)
 pipelineSchema ∷ [(ObjArrayNameS, UniformNameS)] → GL.PipelineSchema
@@ -161,6 +125,75 @@ pipelineSchema schemaPairs =
       , ("time",             GL.Float) ]
       ++ zip textures (repeat GL.FTexture2D)
   }
+
+main ∷ IO ()
+main = do
+  args ← Sys.getArgs
+  let scen = case args of
+        []  → ManMesh
+        x:_ → read x
+  Sys.hSetBuffering Sys.stdout Sys.NoBuffering
+  _ ← GLFW.init
+  GLFW.defaultWindowHints
+  mapM_ GLFW.windowHint
+    [ GLFW.WindowHint'ContextVersionMajor 3
+    , GLFW.WindowHint'ContextVersionMinor 3
+    , GLFW.WindowHint'OpenGLProfile GLFW.OpenGLProfile'Core
+    , GLFW.WindowHint'OpenGLForwardCompat True
+    ]
+  Just win ← GLFW.createWindow 1024 768 "repro" Nothing Nothing
+  GLFW.makeContextCurrent $ Just win
+  GL.glEnable GL.GL_FRAMEBUFFER_SRGB
+  GLFW.swapInterval 0
+
+  glstorage ← GL.allocStorage $ pipelineSchema [("canvasStream", "canvasMtl")]
+
+  let pipelineJSON = "Holotype.json"
+      pipelineSrc  = "Holotype.lc"
+
+  _ ← LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc >>= \case
+    Left  err → fail "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err) >> return False
+    Right ppl → LB.writeFile pipelineJSON (AE.encode ppl)                    >> return True
+  let paths = [pipelineJSON]
+  validPaths ← filterM FS.doesFileExist paths
+  when (Prelude.null validPaths) $
+    fail $ "GPU pipeline " ++ pipelineJSON ++ " couldn't be found in " ++ show paths
+
+  renderer ← Q3.printTimeDiff "-- allocating GPU pipeline (GL.allocRenderer)... " $ do
+    AE.eitherDecode <$> LB.readFile (Prelude.head validPaths) >>= \case
+      Left err  → fail err
+      Right ppl → GL.allocRenderer ppl
+
+  _ ← GL.setStorage renderer glstorage <&>
+    fromMaybe (error $ printf "setStorage failed")
+  timeStart           ← getTime
+  let (w, h) = (1, 1)
+      navg = 10
+      loop (iterN, timePre) avgPre preKB = do
+        let (dx, dy)   = (fromIntegral w, fromIntegral $ -h)
+            position   = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
+            texcoord   = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
+            mesh       = LC.Mesh { mPrimitive  = P_Triangles
+                                 , mAttributes = Map.fromList [ ("position",  A_V2F position)
+                                                              , ("uv",        A_V2F texcoord) ] }
+
+        experiment scen glstorage mesh
+
+        timePreGC ← getTime
+        gc
+        new       ← gcKBytesUsed
+        timePost  ← getTime
+        let dt     = timePost  - timePre
+            nonGCt = timePreGC - timePre
+            avgPost@(avgVal, _) = avgStep dt avgPre
+        when (0 == mod iterN 40) $
+          printf " frame  used dFrMem avgFrMem avgFrTime frTimeNonGC\n"
+        when (preKB /= new) $
+          printf "%5dn %dk %4ddK %5dK/f    %4.2fms      %4.2fms\n"
+                 iterN new (new - preKB) (ceiling $ (fromIntegral new / fromIntegral iterN) ∷ Int)
+                 (avgVal * 1000) (nonGCt * 1000)
+        loop (iterN + 1, timePost) avgPost new
+  loop (0 ∷ Integer, timeStart) (0.0, (navg, 0, [])) =<< gcKBytesUsed
 
 timespecToSecs ∷ Sys.TimeSpec → Double
 timespecToSecs = (/ 1000000000.0) . fromIntegral . Sys.toNanoSecs

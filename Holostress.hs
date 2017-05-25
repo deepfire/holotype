@@ -121,8 +121,8 @@ main = do
                                  , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                               , ("uv",        A_V2F texcoord) ] }
           dGPUMesh      ← GL.uploadMeshToGPU dMesh
-          SMem.addFinalizer dGPUMesh $
-            GL.disposeMesh dGPUMesh
+          -- SMem.addFinalizer dGPUMesh $
+          --   GL.disposeMesh dGPUMesh         -- SEGV
           dGLObject     ← GL.addMeshToObjectArray osStorage (HC.fromOANS osObjArray) [HC.unameStr osUniform, "viewProj"] dGPUMesh
           SMem.addFinalizer dGLObject $
             GL.removeObject osStorage dGLObject
@@ -147,8 +147,10 @@ main = do
         let dt     = timePost  - timePre
             nonGCt = timePreGC - timePre
             avgPost@(avgVal, _) = avgStep dt avgPre
+        when (0 == mod iterN 40) $
+          printf " frame  used dFrMem avgFrMem avgFrTime frTimeNonGC\n"
         when (preKB /= new) $
-          printf "%5dn %dk %4dd %5dK  %4.2fms, %4.2fms nonGC\n"
+          printf "%5dn %dk %4ddK %5dK/f    %4.2fms      %4.2fms\n"
                  iterN new (new - preKB) (ceiling $ (fromIntegral new / fromIntegral iterN) ∷ Int)
                  (avgVal ⋅ 1000) (nonGCt ⋅ 1000)
         loop (iterN + 1, timePost) avgPost new
