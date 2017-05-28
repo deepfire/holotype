@@ -21,6 +21,8 @@ let
       # lambdacube-compiler = doJailbreak old.lambdacube-compiler;
       lambdacube-compiler = overhub (doJailbreak old.lambdacube-compiler)
                             "deepfire/lambdacube-compiler" "b3642f2d41b57d24b485216487d3c9578c52bce5" "1s4jr81p5n3arzjgwgxdmr5006s1dcba3xj46nwnn8yzq8s7iwnh" {};
+      lambdacube-gl       = overhub (doJailbreak old.lambdacube-gl)
+                            "deepfire/lambdacube-gl" "ed6e584702e431a13a7f572e2598403081772a75" "0x7fj1yxdc6wx9z2s5vrj4axfai4wq0rjm2s632cacm2z290m2ha" {};
       lambdacube-ir       = doJailbreak old.lambdacube-ir;
       lambdacube-quake3 =
       new.mkDerivation {

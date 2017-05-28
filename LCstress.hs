@@ -2,6 +2,7 @@
 -- Usage:
 --   ghc -threaded -eventlog -rtsopts -isrc --make LCstress.hs && ./LCstress +RTS -T -ls -N2
 --
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -20,9 +21,8 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wall -Wno-unused-imports -Wno-type-defaults #-}
 
-import           Control.Concurrent                       (threadDelay)
 import           Control.Lens
-import           Control.Monad                            (filterM, when)
+import           Control.Monad                            (filterM, when, forM_)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import qualified Data.Aeson                        as AE
 import qualified Data.ByteString.Char8             as SB
@@ -67,39 +67,130 @@ import qualified GHC.Stats                         as Sys
 import qualified System.Mem.Weak                   as SMem
 
 
+import LambdaCube.GL.Type as T
+import LambdaCube.GL.Util
+import Data.Map (Map)
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IM
+import LambdaCube.PipelineSchema
+import Data.IORef
+import Data.Vector (Vector,(//),(!))
+import LambdaCube.GL.Input (createObjectCommands, mkUniform)
+import LambdaCube.GL.Mesh (GPUMesh(..), GPUData(..))
+
+
 foreign import ccall "&cairo_destroy"
   cairo_destroy ∷ F.FinalizerPtr GRC.Cairo
 
 data Scenario
-  = ManMesh
-  | ManMeshObj
-  | AutoMeshObj
+  = ManMesh          -- memory reclaimed OK
+  | ManMeshObj       -- memory reclaimed OK
+  | ManMeshObjOrig   -- memory usage climbs, ~2.5k/frame
+  | AutoMesh         -- SIGSEGV on nVidia drivers
+  | AutoMeshObj      -- memory usage climbs, ~3k/frame
   deriving (Eq, Read, Show)
 
-experiment ∷ Scenario → GL.GLStorage → GL.Mesh → IO ()
-experiment scen glstorage dMesh = do
-  let scs ∷ [Scenario] → IO () → IO ()
-      scs xs act = when (elem scen xs) act
+experiment ∷ Scenario → Integer → GL.GLStorage → GL.Mesh → IO ()
+experiment scen n store dMesh = do
+  !mesh@(GPUMesh _ (GPUData prim streams indices _)) ← GL.uploadMeshToGPU dMesh
 
-  mesh ← GL.uploadMeshToGPU dMesh
+  case scen of
+    ManMesh → do
+      GL.disposeMesh     mesh
+    ManMeshObj → do
+      object ← addMeshToObjectArray' store "canvasStream" ["canvasMtl"] mesh
+      removeObject'            store  object
+      GL.disposeMesh     mesh
+    ManMeshObjOrig → do
+      object ← GL.addMeshToObjectArray store "canvasStream" ["canvasMtl"] mesh
+      GL.removeObject          store  object
+      GL.disposeMesh     mesh
+    AutoMesh → do
+      SMem.addFinalizer  mesh $ do
+        GL.disposeMesh   mesh
+    AutoMeshObj → do
+      object ← addMeshToObjectArray' store "canvasStream" ["canvasMtl"] mesh
+      SMem.addFinalizer               object $ do
+        printf "running finalizer, n=%d\n" n
+        removeObject'          store  object
+        GL.disposeMesh   mesh
 
-  scs [ManMesh]                             $ do
-    GL.disposeMesh     mesh
-  scs                         [AutoMeshObj] $ do
-    SMem.addFinalizer  mesh                 $ do
-      GL.disposeMesh   mesh
+addMeshToObjectArray' :: GLStorage -> String -> [String] -> GPUMesh -> IO Object
+addMeshToObjectArray' input slotName objUniNames (GPUMesh _ (GPUData prim streams indices _)) = do
+    let (ObjectArraySchema slotPrim slotStreams) = fromMaybe (error $ "addMeshToObjectArray - missing object array: " ++ slotName) $ Map.lookup slotName $! objectArrays $! schema input
+        filterStream n _ = Map.member n slotStreams
+    addObject' input slotName prim indices (Map.filterWithKey filterStream streams) objUniNames
 
-  scs             [ManMeshObj, AutoMeshObj] $ do
-    object  ← GL.addMeshToObjectArray glstorage "canvasStream" ["canvasMtl"] mesh
+removeObject' :: GLStorage -> Object -> IO ()
+removeObject' p obj = modifyIORef (slotVector p ! objSlot obj) $ \(GLSlot !objs _ _) -> GLSlot (IM.delete (objId obj) objs) V.empty Generate
 
-    scs           [ManMeshObj]              $ do
-      GL.removeObject glstorage   object
-      GL.disposeMesh   mesh
+addObject' :: GLStorage -> String -> Primitive -> Maybe (IndexStream Buffer) -> Map String (Stream Buffer) -> [String] -> IO Object
+addObject' input slotName prim indices attribs uniformNames = do
+    let sch = schema input
+    forM_ uniformNames $ \n -> case Map.lookup n (uniforms sch) of
+        Nothing -> fail $ "Unknown uniform: " ++ show n
+        _ -> return ()
+    case Map.lookup slotName (objectArrays sch) of
+        Nothing -> fail $ "Unknown slot: " ++ show slotName
+        Just (ObjectArraySchema sPrim sAttrs) -> do
+            when (sPrim /= (primitiveToFetchPrimitive prim)) $ fail $
+                "Primitive mismatch for slot (" ++ show slotName ++ ") expected " ++ show sPrim  ++ " but got " ++ show prim
+            let sType = fmap streamToStreamType attribs
+            when (sType /= sAttrs) $ fail $ unlines $
+                [ "Attribute stream mismatch for slot (" ++ show slotName ++ ") expected "
+                , show sAttrs
+                , " but got "
+                , show sType
+                ]
 
-    scs                       [AutoMeshObj] $ do
-      SMem.addFinalizer object              $ do
-        GL.removeObject glstorage object
-        GL.disposeMesh mesh
+    let slotIdx = case slotName `Map.lookup` slotMap input of
+            Nothing -> error $ "internal error (slot index): " ++ show slotName
+            Just i  -> i
+        seed = objSeed input
+    order <- newIORef 0
+    enabled <- newIORef True
+    index <- readIORef seed
+    modifyIORef seed (1+)
+    (setters,unis) <- mkUniform [(n,t) | n <- uniformNames, let t = fromMaybe (error $ "missing uniform: " ++ n) $ Map.lookup n (uniforms sch)]
+    cmdsRef <- newIORef (V.singleton V.empty)
+    let obj = Object
+            { objSlot       = slotIdx
+            , objPrimitive  = prim
+            , objIndices    = indices
+            , objAttributes = attribs
+            , objUniSetter  = setters
+            , objUniSetup   = unis
+            , objOrder      = order
+            , objEnabled    = enabled
+            , objId         = index
+            , objCommands   = cmdsRef
+            }
+
+    modifyIORef' (slotVector input ! slotIdx) $ \(GLSlot objs _ _) -> GLSlot (IM.insert index obj objs) V.empty Generate
+
+    -- generate GLObjectCommands for the new object
+    {-
+        foreach pipeline:
+            foreach realted program:
+                generate commands
+    -}
+    ppls <- readIORef $ pipelines input
+    let topUnis = uniformSetup input
+    cmds <- V.forM ppls $ \mp -> case mp of
+        Nothing -> return V.empty
+        Just p  -> do
+            Just ic <- readIORef $ glInput p
+            case icSlotMapInputToPipeline ic ! slotIdx of
+                Nothing         -> do
+                    --putStrLn $ " ** slot is not used!"
+                    return V.empty   -- this slot is not used in that pipeline
+                Just pSlotIdx   -> do
+                    --putStrLn "slot is used!"
+                    --where
+                    let emptyV = V.replicate (V.length $ glPrograms p) []
+                    return $ emptyV // [(prgIdx,createObjectCommands (glTexUnitMapping p) topUnis obj (glPrograms p ! prgIdx))| prgIdx <- glSlotPrograms p ! pSlotIdx]
+    writeIORef cmdsRef cmds
+    return obj
 
 --- Mostly boring parts below
 ---
@@ -130,7 +221,7 @@ main ∷ IO ()
 main = do
   args ← Sys.getArgs
   let scen = case args of
-        []  → ManMesh
+        []  → ManMeshObj
         x:_ → read x
   Sys.hSetBuffering Sys.stdout Sys.NoBuffering
   _ ← GLFW.init
@@ -177,7 +268,7 @@ main = do
                                  , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                               , ("uv",        A_V2F texcoord) ] }
 
-        experiment scen glstorage mesh
+        experiment scen iterN glstorage mesh
 
         timePreGC ← getTime
         gc
@@ -187,7 +278,7 @@ main = do
             nonGCt = timePreGC - timePre
             avgPost@(avgVal, _) = avgStep dt avgPre
         when (0 == mod iterN 40) $
-          printf " frame  used dFrMem avgFrMem avgFrTime frTimeNonGC\n"
+          printf " frame  used dFrMem avgFrMem avgFrTime frTimeNonGC   scenario: %s\n" (show scen)
         when (preKB /= new) $
           printf "%5dn %dk %4ddK %5dK/f    %4.2fms      %4.2fms\n"
                  iterN new (new - preKB) (ceiling $ (fromIntegral new / fromIntegral iterN) ∷ Int)
