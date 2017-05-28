@@ -6,15 +6,16 @@
 let
   overcabal = pkgs.haskell.lib.overrideCabal;
   hubsrc    =      repo: rev: sha256:       pkgs.fetchgit { url = "https://github.com/" + repo; rev = rev; sha256 = sha256; };
+  locsrc    =      repo: rev: sha256:       pkgs.fetchgit { url = "file:///home/deepfire/src/" + repo; rev = rev; sha256 = sha256; };
   overc     = old:                    args: overcabal old (oldAttrs: (oldAttrs // args));
   overhub   = old: repo: rev: sha256: args: overc old ({ src = hubsrc repo rev sha256; }       // args);
   overhage  = old: version:   sha256: args: overc old ({ version = version; sha256 = sha256; } // args);
+  overloc   = old: repo: rev: sha256: args: overc old ({ src = locsrc repo rev sha256; }       // args);
 
   ghc       = ghcOrig.override (oldArgs: {
     overrides = with haskell.lib; new: old:
     let parent = (oldArgs.overrides or (_: _: {})) new old;
     in with new; parent // {
-      elerea         = overhage old.elerea                                                    "2.8.0" "1sc71775f787dh70ay9fm6x6npsn81yci9yr984ai87ddz023sab" {};
       halive         = overhub  old.halive "lukexi/halive" "2f1c4c4b00a2a046a2df21432456d7dd9c87ea7f" "0if5pdvkkxcyl2ybnvsmavg453l8c7is72lyy0i6c7d3hh3rcgnb" { doCheck = false; };
       # libearmap-category = overhage old.libearmap-category "0.3.2.0" "011b4mjrl800vlyg1ibfmmyp87ad2mak6171s2mlc4mwsi4xrl4g" { doCheck = false; };
       # lambdacube-compiler = doJailbreak old.lambdacube-compiler;
@@ -43,19 +44,13 @@ let
           time vect vector zlib
         ];
         executableHaskellDepends = [
-          base bytestring containers directory elerea filepath GLFW-b
+          base bytestring containers directory filepath GLFW-b
           lambdacube-gl OpenGLRaw proteaaudio vect vector
         ];
         homepage = "lambdacube3d.com";
         description = "first person shooter game engine";
         license = "BSD";
       };
-      # manifolds          = overhage old.manifolds          "0.4.1.0" "1vmgcv0yy72a29w15sg0z3z885vjhfpapgabilqbvh7dpxfv43x1" {
-      #   doCheck = false; libraryHaskellDepends = old.manifolds.libraryHaskellDepends ++ [new.number-show];
-      # };
-      # manifolds-core     = overhage old.manifolds-core     "0.4.1.0" "041b4mjrl800vlyg1ibfmmyp87ad2mak6171s2mlc4mwsi4xrl4g" { doCheck = false; };
-      # megaparsec          = overhub (dontCheck old.megaparsec)
-      #                       "mrkkrp/megaparsec" "97257f3c7f906ce1d43cbe752704f707e8173830" "0sfbm8zhl3zsrzwmnngjspd409xbpdfdidss9v2piqlbknsmbyz1" {};
       number-show = callPackage
       ({ mkDerivation, base, microlens, microlens-th }:
        mkDerivation {
