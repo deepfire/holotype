@@ -85,23 +85,18 @@ foreign import ccall "&cairo_destroy"
 data Scenario
   = ManMesh          -- memory reclaimed OK
   | ManMeshObj       -- memory reclaimed OK
-  | ManMeshObjOrig   -- memory usage climbs, ~2.5k/frame
   | AutoMesh         -- SIGSEGV on nVidia drivers
   | AutoMeshObj      -- memory usage climbs, ~3k/frame
   deriving (Eq, Read, Show)
 
 experiment ∷ Scenario → Integer → GL.GLStorage → GL.Mesh → IO ()
 experiment scen n store dMesh = do
-  !mesh@(GPUMesh _ (GPUData prim streams indices _)) ← GL.uploadMeshToGPU dMesh
+  mesh ← GL.uploadMeshToGPU dMesh
 
   case scen of
     ManMesh → do
       GL.disposeMesh     mesh
     ManMeshObj → do
-      object ← addMeshToObjectArray' store "canvasStream" ["canvasMtl"] mesh
-      removeObject'            store  object
-      GL.disposeMesh     mesh
-    ManMeshObjOrig → do
       object ← GL.addMeshToObjectArray store "canvasStream" ["canvasMtl"] mesh
       GL.removeObject          store  object
       GL.disposeMesh     mesh
@@ -109,88 +104,11 @@ experiment scen n store dMesh = do
       SMem.addFinalizer  mesh $ do
         GL.disposeMesh   mesh
     AutoMeshObj → do
-      object ← addMeshToObjectArray' store "canvasStream" ["canvasMtl"] mesh
+      object ← GL.addMeshToObjectArray store "canvasStream" ["canvasMtl"] mesh
       SMem.addFinalizer               object $ do
         printf "running finalizer, n=%d\n" n
-        removeObject'          store  object
+        GL.removeObject        store  object
         GL.disposeMesh   mesh
-
-addMeshToObjectArray' :: GLStorage -> String -> [String] -> GPUMesh -> IO Object
-addMeshToObjectArray' input slotName objUniNames (GPUMesh _ (GPUData prim streams indices _)) = do
-    let (ObjectArraySchema slotPrim slotStreams) = fromMaybe (error $ "addMeshToObjectArray - missing object array: " ++ slotName) $ Map.lookup slotName $! objectArrays $! schema input
-        filterStream n _ = Map.member n slotStreams
-    addObject' input slotName prim indices (Map.filterWithKey filterStream streams) objUniNames
-
-removeObject' :: GLStorage -> Object -> IO ()
-removeObject' p obj = modifyIORef (slotVector p ! objSlot obj) $ \(GLSlot !objs _ _) -> GLSlot (IM.delete (objId obj) objs) V.empty Generate
-
-addObject' :: GLStorage -> String -> Primitive -> Maybe (IndexStream Buffer) -> Map String (Stream Buffer) -> [String] -> IO Object
-addObject' input slotName prim indices attribs uniformNames = do
-    let sch = schema input
-    forM_ uniformNames $ \n -> case Map.lookup n (uniforms sch) of
-        Nothing -> fail $ "Unknown uniform: " ++ show n
-        _ -> return ()
-    case Map.lookup slotName (objectArrays sch) of
-        Nothing -> fail $ "Unknown slot: " ++ show slotName
-        Just (ObjectArraySchema sPrim sAttrs) -> do
-            when (sPrim /= (primitiveToFetchPrimitive prim)) $ fail $
-                "Primitive mismatch for slot (" ++ show slotName ++ ") expected " ++ show sPrim  ++ " but got " ++ show prim
-            let sType = fmap streamToStreamType attribs
-            when (sType /= sAttrs) $ fail $ unlines $
-                [ "Attribute stream mismatch for slot (" ++ show slotName ++ ") expected "
-                , show sAttrs
-                , " but got "
-                , show sType
-                ]
-
-    let slotIdx = case slotName `Map.lookup` slotMap input of
-            Nothing -> error $ "internal error (slot index): " ++ show slotName
-            Just i  -> i
-        seed = objSeed input
-    order <- newIORef 0
-    enabled <- newIORef True
-    index <- readIORef seed
-    modifyIORef seed (1+)
-    (setters,unis) <- mkUniform [(n,t) | n <- uniformNames, let t = fromMaybe (error $ "missing uniform: " ++ n) $ Map.lookup n (uniforms sch)]
-    cmdsRef <- newIORef (V.singleton V.empty)
-    let obj = Object
-            { objSlot       = slotIdx
-            , objPrimitive  = prim
-            , objIndices    = indices
-            , objAttributes = attribs
-            , objUniSetter  = setters
-            , objUniSetup   = unis
-            , objOrder      = order
-            , objEnabled    = enabled
-            , objId         = index
-            , objCommands   = cmdsRef
-            }
-
-    modifyIORef' (slotVector input ! slotIdx) $ \(GLSlot objs _ _) -> GLSlot (IM.insert index obj objs) V.empty Generate
-
-    -- generate GLObjectCommands for the new object
-    {-
-        foreach pipeline:
-            foreach realted program:
-                generate commands
-    -}
-    ppls <- readIORef $ pipelines input
-    let topUnis = uniformSetup input
-    cmds <- V.forM ppls $ \mp -> case mp of
-        Nothing -> return V.empty
-        Just p  -> do
-            Just ic <- readIORef $ glInput p
-            case icSlotMapInputToPipeline ic ! slotIdx of
-                Nothing         -> do
-                    --putStrLn $ " ** slot is not used!"
-                    return V.empty   -- this slot is not used in that pipeline
-                Just pSlotIdx   -> do
-                    --putStrLn "slot is used!"
-                    --where
-                    let emptyV = V.replicate (V.length $ glPrograms p) []
-                    return $ emptyV // [(prgIdx,createObjectCommands (glTexUnitMapping p) topUnis obj (glPrograms p ! prgIdx))| prgIdx <- glSlotPrograms p ! pSlotIdx]
-    writeIORef cmdsRef cmds
-    return obj
 
 --- Mostly boring parts below
 ---

@@ -121,12 +121,9 @@ main = do
                                  , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                               , ("uv",        A_V2F texcoord) ] }
           dGPUMesh      ← GL.uploadMeshToGPU dMesh
-          -- SMem.addFinalizer dGPUMesh $
-          --   GL.disposeMesh dGPUMesh         -- SEGV
           dGLObject     ← GL.addMeshToObjectArray osStorage (HC.fromOANS osObjArray) [HC.unameStr osUniform, "viewProj"] dGPUMesh
-          SMem.addFinalizer dGLObject $
-            GL.removeObject osStorage dGLObject
-          pure ()
+          GL.removeObject osStorage dGLObject
+          GL.disposeMesh dGPUMesh
         -- Canvas (RRect T.Text)
         -- let cStyle@(In (CanvasS cFontKey) innerStyle) = style
         --     innerContent = zipperText zipper
