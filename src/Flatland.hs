@@ -371,11 +371,19 @@ coGradientSet !(Co (V4 rs gs bs as)) !(Co (V4 re' ge be ae)) pat = do
   GRCI.patternAddColorStopRGBA pat 0 rs gs bs as
   GRCI.patternAddColorStopRGBA pat 1 re' ge be ae
 
+-- TODO:  figure out if we can get away with pattern singletons
 coPatternGradLinear ∷ Po Double → Co Double → Po Double → Co Double → IO GRC.Pattern
 coPatternGradLinear !(Po (V2 xs ys)) !sco !(Po (V2 xe ye)) !eco = do
   p ← GRCI.patternCreateLinear xs ys xe ye
   coGradientSet sco eco p
   pure p
+
+coWithMaybePatternGradLinear ∷ Po Double → Co Double → Po Double → Co Double → Either (GRCI.Render ()) (GRC.Pattern → GRCI.Render ()) → GRCI.Render ()
+coWithMaybePatternGradLinear _ _ _ _ (Left f) = f
+coWithMaybePatternGradLinear !(Po (V2 xs ys)) !sco !(Po (V2 xe ye)) !eco (Right f) =
+  GRC.withLinearPattern xs ys xe ye $ \pat → do
+    liftIO $ coGradientSet sco eco pat
+    f pat
 
 coPatternGradRadial ∷ Po Double → Double → Co Double → Po Double → Double → Co Double → IO GRC.Pattern
 coPatternGradRadial !(Po (V2 xi yi)) !ir !ico !(Po (V2 xo yo)) !origin !oco = do
@@ -548,10 +556,16 @@ executeFeature !cStart !cEnd !(WRR (RRSide _ (Po (V2 sx sy)) (Po (V2 ex' ey'))))
   GRC.lineTo ex' ey'
 executeFeature !cStart !cEnd !(WRR (RRCorn o c@(Po (V2 cx cy)) (An2 (V2 sa ea)) r)) = do
   let (cs, ce) = oriCenterRChordCW o c r
-  if | cStart ≢ cEnd    → GRC.setSource =<< (GRC.liftIO $ coPatternGradLinear cs (fromJust cStart) ce (fromJust cEnd))
-     | Nothing ← cStart → pure ()
-     | Just c' ← cStart → coSetSourceColor c'
-  GRC.arc cx cy (_rV r) sa ea
+  coWithMaybePatternGradLinear cs (fromJust cStart) ce (fromJust cEnd) $
+    if cStart ≢ cEnd
+    then Right $ \grad → do
+      GRC.setSource grad
+      GRC.arc cx cy (_rV r) sa ea
+    else Left $ do
+      case cStart of
+        Nothing → pure ()
+        Just c' → coSetSourceColor c'
+      GRC.arc cx cy (_rV r) sa ea
 
 poNWSERectArcCentersCW ∷ Num a ⇒ Po a → Po a → R a → (Po a, Po a, Po a, Po a)
 poNWSERectArcCentersCW !lt@(Po (V2 ltx lty)) !rb@(Po (V2 rbx rby)) (R r) =
