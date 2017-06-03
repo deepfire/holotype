@@ -222,10 +222,9 @@ canvasCommonAttrs uname =
 
 
 -- * GL Toolkit
-uploadTexture2DToGPU'''' ∷ (MonadIO m) ⇒ Bool → Bool → Bool → Bool → (Int, Int, GL.GLenum, F.Ptr F.CUChar) → m GL.TextureData
-uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) = liftIO $ do
+uploadTexture2DToGPU'''' ∷ (MonadIO m) ⇒ Bool → Bool → Bool → Bool → (Int, Int, GL.GLenum, F.Ptr F.CUChar) → GLuint → m GL.TextureData
+uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) to' = liftIO $ do
     glPixelStorei GL_UNPACK_ALIGNMENT 1
-    to' ← F.alloca $! \pto → glGenTextures 1 pto >> F.peek pto
     glBindTexture GL_TEXTURE_2D to'
     let texFilter = if isFiltered then GL_LINEAR else GL_NEAREST
         wrapMode = case isClamped of

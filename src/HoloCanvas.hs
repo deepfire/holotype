@@ -81,6 +81,7 @@ data Drawable where
     , dMesh         ∷ LC.Mesh
     , dGPUMesh      ∷ GL.GPUMesh
     , dGLObject     ∷ GL.Object
+    , dTexId        ∷ GLuint
     } → Drawable
 
 makeDrawable ∷ (MonadIO m) ⇒ HC.ObjectStream → Di Double → m Drawable
@@ -103,6 +104,8 @@ makeDrawable dObjectStream@HC.ObjectStream{..} dDi' = liftIO $ do
   dGLObject     ← GL.addMeshToObjectArray osStorage (HC.fromOANS osObjArray) [HC.unameStr osUniform, "viewProj"] dGPUMesh
 
   dSurfaceData  ← imageSurfaceGetPixels' dSurface
+  dTexId        ← F.alloca $! \pto → glGenTextures 1 pto >> F.peek pto
+
   -- dTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi dStridePixels, h, GL_BGRA, pixels)
   pure Drawable{..}
 
@@ -120,7 +123,7 @@ drawableContentToGPU Drawable{..} = liftIO $ do
   let HC.ObjectStream{..} = dObjectStream
 
   let (pixels, (strideBytes, pixelrows)) = dSurfaceData
-  cTexture ← HC.uploadTexture2DToGPU'''' False False False False $ (strideBytes `div` 4, pixelrows, GL_BGRA, pixels)
+  cTexture ← HC.uploadTexture2DToGPU'''' False False False False (strideBytes `div` 4, pixelrows, GL_BGRA, pixels) dTexId
 
   GL.updateObjectUniforms dGLObject $ do
     HC.fromUNS osUniform GL.@= return cTexture
@@ -310,7 +313,7 @@ instance Widget a ⇒ Widget (RRect a) where
   make st@Settings{..} drawable rrStyle rrContent rrPSpace = do
     let w = RRect{..} where rrInner = (⊥)    -- resolve circularity due to *ToInner..
     make st drawable (styleToInner w rrStyle) rrContent (spaceToInner w rrPSpace) <&> (\x→ w { rrInner = x }) -- XXX/lens
-  draw canvas@(CW (Canvas (Drawable _ _ _ dCairo _ _ _ _) _ _ _ _))
+  draw canvas@(CW (Canvas (Drawable _ _ _ dCairo _ _ _ _ _) _ _ _ _))
        (RRect (Spc obez (Spc bord (Spc ibez (Spc pad _))))
               (In RRectS{..} _) inner) = do
     runCairo dCairo $ do
