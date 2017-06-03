@@ -1,6 +1,9 @@
 { nixpkgs     ? import <nixpkgs> {}
 , pkgs        ? nixpkgs.pkgs, haskell ? pkgs.haskell
 , compiler    ? "ghc802"
+, tools       ? true
+, halive      ? tools
+, intero      ? tools
 , ghcOrig     ? pkgs.haskell.packages."${compiler}"
 }:
 let
@@ -102,8 +105,8 @@ in
 
 (haskell.lib.addBuildTools
   (ghc.callPackage (import ./.) { })
-  [ pkgs.cabal-install
-    pkgs.stack
-    ghc.halive
-    ghc.intero
-  ]).env
+  ([ pkgs.cabal-install
+     pkgs.stack ]
+   ++ (if intero then [ ghc.intero ] else [])
+   ++ (if halive then [ ghc.halive ] else [])
+   )).env
