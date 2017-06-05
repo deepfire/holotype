@@ -110,19 +110,22 @@ holotype win _evCtl setupE windowFrameE inputE = do
 
   -- INPUT
   let worldE        = translateEvent <$> inputE
-      spawnReqE     = ffilter (\case Spawn    → True; _ → False) worldE
-      togglE        = ffilter (\case Pause    → True; _ → False) worldE
-      editE         = ffilter (\case Edit{..} → True; _ → False) worldE
+      gcTogE        = ffilter (\case GCing     → True; _ → False) worldE
+      objsTogE      = ffilter (\case ObjStream → True; _ → False) worldE
+      spawnReqE     = ffilter (\case Spawn     → True; _ → False) worldE
+      editE         = ffilter (\case Edit{..}  → True; _ → False) worldE
   frameE           ← newFrame $ rendererV <$ windowFrameE
 
-  -- DATA
-  frameGateD       ← toggle False togglE
+  -- Data ∷ Dynamic t (Integer, [(Integer, (Holosome (T.TextZipper T.Text), (S 'Area 'True Double, An Double)))])
+  frameGateD       ← toggle False objsTogE
+  gcingD           ← toggle False gcTogE
   let driverE       = simpler spawnReqE <> simpler (gate (current $ frameGateD) frameE)
       screenA       = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
       widgetLim     = Parea (di 0.2 0.2) (po 0 0)
       text n        = [ printf "Object #%d:" n
                       , "  Esc:           quit"
                       , "  F1:            toggle per-frame object stream"
+                      , "  F2:            toggle per-frame GC"
                       , "  Editing keys:  edit"
                       , ""
                       , "Yay!"]
@@ -134,9 +137,11 @@ holotype win _evCtl setupE windowFrameE inputE = do
   holosomE         ← visual settingsV streamV dasStyle preHoloE
   holosomD         ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomE
 
-  -- UI
+  -- UI ∷ IO FPS → Dynamic t (Maybe (Holosome (T.TextZipper T.Text), S 'Area 'True Double))
   kilobytesE       ← performEvent $ frameE <&>
-                       (const $ HS.gc >> HS.gcKBytesUsed)
+                       (const $ do
+                           -- when (sample gcingD) $ HS.gc
+                           HS.gcKBytesUsed)
   kilobytesD       ← holdDyn 0 kilobytesE
 
   frameMomentE     ← performEvent $ fmap (\_ → HS.getTime) frameE
@@ -212,8 +217,9 @@ data WorldEvent where
   Edit ∷
     { weEdit ∷ T.TextZipper T.Text → T.TextZipper T.Text
     } → WorldEvent
+  ObjStream   ∷ WorldEvent
+  GCing       ∷ WorldEvent
   Spawn       ∷ WorldEvent
-  Pause       ∷ WorldEvent
   Shutdown    ∷ WorldEvent
   NonEvent    ∷ WorldEvent
 
@@ -238,7 +244,8 @@ translateEvent (U (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _)) 
 translateEvent (U (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _)) = Edit $ T.gotoBOL
 translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _)) = Edit $ T.gotoEOL
 -- how to process key chords?
-translateEvent (U (EventKey  _ GLFW.Key'F1        _ GLFW.KeyState'Pressed   _)) = Pause
+translateEvent (U (EventKey  _ GLFW.Key'F1        _ GLFW.KeyState'Pressed   _)) = ObjStream
+translateEvent (U (EventKey  _ GLFW.Key'F2        _ GLFW.KeyState'Pressed   _)) = GCing
 translateEvent (U (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = Spawn
 translateEvent (U (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = Shutdown
 translateEvent _                                                                = NonEvent
