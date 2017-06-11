@@ -73,6 +73,7 @@ import qualified System.IO.Unsafe                  as UN
 
 -- Local imports
 import Flatland
+import FlatDraw
 import HoloCairo
 
 

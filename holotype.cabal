@@ -19,7 +19,10 @@ library
 
                   Data.MeasuredMonoid
 
+                  Elsewhere
+
                   Flatland
+                  FlatDraw
 
                   Holo
                   HoloCairo

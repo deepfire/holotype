@@ -55,6 +55,7 @@ import qualified Data.Text.Zipper                  as T
 
 -- Local imports
 import Flatland
+import FlatDraw
 import Holo
 import HoloCanvas hiding (Text)
 import qualified HoloCanvas                        as H

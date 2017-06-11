@@ -63,6 +63,7 @@ import           GameEngine.Utils                  as Q3
 
 -- Local imports
 import Flatland
+import FlatDraw
 import HoloFont
 import HoloCairo
 import qualified HoloCube                          as HC
@@ -266,7 +267,7 @@ instance Widget Text where
     let Font{..} = lookupFont' fontmap tFontKey
     laySetMaxParaLines fDetachedLayout tMaxParaLines
     d ∷ Di (Size PU) ← layRunTextForSize fDetachedLayout fDΠ defaultWidth initialText -- XXX/GHC/inference: weak
-    pure $ makeArea $ fromPU ∘ fromSz fDΠ <$> d
+    pure $ mkSpace $ fromPU ∘ fromSz fDΠ <$> d
   make Settings{..} (CW (Canvas Drawable{..} _ _ tFont@FontBinding{..} _))
        tStyle@(TextS _ _ _) tText tPSpace = do
     tLayout  ← makeTextLayout fbContext
@@ -276,7 +277,7 @@ instance Widget Text where
        (Text (Sarea area@(Parea _ ltp@(Po lt)))
              TextS{..}
              (FontBinding Font{..} _) lay textRef) = do
-    let Po rb = paSEp area
+    let Po rb = pareaSE area
         dim   = rb ^-^ lt
     laySetSize         lay fDΠ $ Di (PUs <$> dim)
     laySetMaxParaLines lay tMaxParaLines
@@ -308,7 +309,7 @@ instance Widget a ⇒ Container (RRect a) where
 instance Widget a ⇒ Widget (RRect a) where
   query st@Settings{..} (In RRectS{..} inner) internals = do
     innerSpace ← query st inner internals
-    pure $ (growSymm rrThBezel $ growSymm rrThBorder $ growSymm rrThBezel $ growSymm rrThPadding End)
+    pure $ (spaceGrow rrThBezel $ spaceGrow rrThBorder $ spaceGrow rrThBezel $ spaceGrow rrThPadding End)
            <> innerSpace
   make st@Settings{..} drawable rrStyle rrContent rrPSpace = do
     let w = RRect{..} where rrInner = (⊥)    -- resolve circularity due to *ToInner..
@@ -319,7 +320,7 @@ instance Widget a ⇒ Widget (RRect a) where
     runCairo dCairo $ do
       let -- dCorn (RRCorn _ pos _ _) col = d pos col
           ths@[oth, bth, ith, _]
-                        = fmap (Th ∘ _wiV ∘ wL) [obez, bord, ibez, pad]
+                        = fmap (Th ∘ _wiV ∘ wThL) [obez, bord, ibez, pad]
           totpadx       = sum ths
           or            =       R ∘ _thV $ (totpadx - oth/2)
           br            = or - (R ∘ _thV $ (oth+bth)*0.6)
