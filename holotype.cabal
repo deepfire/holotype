@@ -4,7 +4,7 @@ synopsis:            Graph-backed visual mind assistant.
 license:             AGPL-3
 license-file:        LICENSE
 author:              Kosyrev Serge
-maintainer:          _deepfire@feelingofgreen.ru
+maintainer:          kosyrev.serge@protonmail.com
 category:            Database
 build-type:          Simple
 
