@@ -21,6 +21,7 @@
 /dist/
 /cabal-dev/
 /.cabal-sandbox/
+/experiments/dist/
 
 .stack-work/
 nohup.out

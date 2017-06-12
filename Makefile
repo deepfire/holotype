@@ -3,6 +3,8 @@ all: holotype
 doc:
 	cabal haddock --hyperlink-source --hoogle --executables --hscolour=dist/doc/html/holotype/holotype/src/hscolour.css
 
+#
+#
 hss hsstress:
 	ghc -threaded -eventlog -rtsopts -isrc --make HSstress.hs && $(GDB) ./HSstress $(SCENARIO) +RTS -T $(RTS)
 
@@ -20,6 +22,44 @@ dist/build/holotype/holotype: $(SRCS)
 #
 clean:
 	cabal clean
+
+#
+#
+n          ?= new
+exnm       := $(n)
+exdir       = ./experiments/$(exnm)
+exdepsbase := base, base-unicode-symbols
+deps       ?=
+exdeps     := $(exdepsbase)$(if $(deps), $(deps))
+experiments := $(shell find experiments -maxdepth 1 -mindepth 1 -type d | grep -vw dist | cut -d/ -f2)
+define defexperiment =
+dist/build/$1/$1: ./experiments/$1/Main.hs
+	@cabal -v0 build $1
+.PHONY: $1
+$1: dist/build/$1/$1
+	@dist/build/$1/$1
+endef
+$(foreach x,$(experiments),$(eval $(call defexperiment,$(x))))
+ls:
+	@echo "experiments:"
+	@echo
+	@for x in $(experiments); do echo "  $${x}"; done
+new new-experiment:
+	@test -d $(exdir) && { echo "ERROR: experiment '$(exnm)' already present in '$(exdir)'"; exit 1; } || true
+	mkdir -p $(exdir)
+	cp experiments/skeleton.hs $(exdir)/Main.hs
+	@echo ""                                           >> holotype.cabal
+	@echo "executable $(exnm)"                         >> holotype.cabal
+	@echo "  hs-source-dirs:      experiments/$(exnm)" >> holotype.cabal
+	@echo "  main-is:             Main.hs"             >> holotype.cabal
+	@echo "  default-language:    Haskell2010"         >> holotype.cabal
+	@echo "  build-depends:       $(exdeps)"           >> holotype.cabal
+
+	@echo "Prepared new experiment '$(exnm)' in '$(exdir)':"
+	@echo
+	@echo "  running 'make $(exnm)':"
+	@echo
+	@make --no-print-directory $(exnm)
 
 #
 #
