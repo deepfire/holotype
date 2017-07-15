@@ -1,43 +1,40 @@
-{ mkDerivation, stdenv, src ? ./.
-, aeson, attoparsec, base, base-unicode-symbols, binary, bytestring
-, bytestring-trie, clock, containers, data-binary-ieee754, deepseq, digest
-, directory, elerea, extra, filepath, free, GLFW-b, JuicyPixels, lub
-, metamorphic, microlens-platform, MissingH, MonadRandom, mono-traversable, OpenGLRaw
-, pretty-show, process, proteaaudio, stm, time, transformers, tuple, vect, vector, zlib
-, lambdacube-compiler, lambdacube-gl, lambdacube-ir, mersenne-random-pure64
-, lambdacube-quake3, force-layout, hxt, cairo, gi-cairo, gi-pango, gi-pangocairo
-, reflex
-, rapid
-, ghc-typelits-extra, ghc-typelits-natnormalise
-, dlist, dependent-sum, these
-, text-lens, text-zipper
-, hspec, OpenGL
+{ mkDerivation, aeson, base, base-unicode-symbols, binary
+, bytestring, cairo, clock, containers, dependent-sum, directory
+, dlist, exceptions, extra, filepath, free, ghc-prim
+, ghc-typelits-extra, ghc-typelits-natnormalise, gi-cairo, gi-pango
+, gi-pangocairo, GLFW-b, halive, hashable, haskell-gi-base, hspec
+, hxt, JuicyPixels, lambdacube-compiler, lambdacube-gl
+, lambdacube-ir, lambdacube-quake3, lens, linear, lub, metamorphic
+, MissingH, MonadRandom, mono-traversable, mtl, OpenGL, OpenGLRaw
+, pretty, pretty-show, profunctors, proteaaudio, QuickCheck, random
+, rapid, reflex, semigroupoids, semigroups, stdenv, stm, text
+, text-lens, text-zipper, these, transformers, tuple
+, unordered-containers, vect, vector
 }:
 mkDerivation {
   pname = "holotype";
   version = "0.0.1";
-  src = src;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
-  doHaddock = false;
   libraryHaskellDepends = [
-    aeson attoparsec base base-unicode-symbols binary bytestring bytestring-trie clock containers
-    data-binary-ieee754 deepseq digest directory extra filepath free JuicyPixels lub
-    metamorphic microlens-platform MissingH MonadRandom mono-traversable pretty-show process
-    stm time transformers tuple vect vector zlib
-    lambdacube-compiler lambdacube-gl lambdacube-ir mersenne-random-pure64
-    lambdacube-quake3 force-layout hxt cairo gi-cairo gi-pango gi-pangocairo
-    reflex dependent-sum
-    rapid
-    ghc-typelits-extra ghc-typelits-natnormalise
-    dlist these
-    text-lens text-zipper
-    hspec OpenGL
+    aeson base base-unicode-symbols binary bytestring cairo clock
+    containers dependent-sum directory dlist exceptions extra filepath
+    free ghc-prim ghc-typelits-extra ghc-typelits-natnormalise gi-cairo
+    gi-pango gi-pangocairo GLFW-b halive hashable haskell-gi-base hspec
+    hxt JuicyPixels lambdacube-compiler lambdacube-gl lambdacube-ir
+    lambdacube-quake3 lens linear lub metamorphic MissingH MonadRandom
+    mono-traversable mtl OpenGL OpenGLRaw pretty pretty-show
+    profunctors proteaaudio QuickCheck random rapid reflex
+    semigroupoids semigroups stm text text-lens text-zipper these
+    transformers tuple unordered-containers vect vector
   ];
   executableHaskellDepends = [
-    base bytestring containers directory filepath GLFW-b
-    lambdacube-gl OpenGLRaw proteaaudio vect vector
+    aeson base base-unicode-symbols bytestring cairo clock containers
+    directory free gi-cairo gi-pangocairo GLFW-b haskell-gi-base
+    lambdacube-compiler lambdacube-gl lambdacube-ir lambdacube-quake3
+    lens linear OpenGLRaw pretty-show text text-zipper vector
   ];
-  description  = "Visual mind assistant";
-  license      = stdenv.lib.licenses.agpl3;
+  description = "Graph-backed visual mind assistant";
+  license = stdenv.lib.licenses.agpl3;
 }
