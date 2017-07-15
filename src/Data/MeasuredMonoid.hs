@@ -6,7 +6,6 @@
 
 module Data.MeasuredMonoid
   ( MeasuredMonoid(..)
-  , (<>)
   )
 where
 
@@ -16,6 +15,3 @@ import           GHC.TypeLits
 class MeasuredMonoid a where
   mmempty  ∷ a 0
   mmappend ∷ a n → a m → a (n + m)
-
-(<>) ∷ MeasuredMonoid a ⇒ a n → a m → a (n + m)
-(<>) = mmappend
