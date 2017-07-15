@@ -164,3 +164,21 @@ executable holostress
                      , OpenGLRaw
                      , lambdacube-gl
                      , lambdacube-ir
+
+executable app
+  hs-source-dirs:      experiments/app
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base, base-unicode-symbols, free
+
+executable apex
+  hs-source-dirs:      experiments/apex
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base, base-unicode-symbols
+
+executable gadt
+  hs-source-dirs:      experiments/gadt
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base, base-unicode-symbols
