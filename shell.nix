@@ -102,12 +102,14 @@ let
        }) {};
     };
   });
+  default = import ./.;
 in
-
-(haskell.lib.addBuildTools
-  (ghc.callPackage (import ./.) { })
-  ([ pkgs.cabal-install
-     pkgs.stack ]
-   ++ (if intero then [ ghc.intero ] else [])
-   ++ (if halive then [ ghc.halive ] else [])
-   )).env
+  (haskell.lib.overrideCabal
+    (ghc.callPackage default {})
+    (old: {
+      libraryHaskellDepends =
+        old.libraryHaskellDepends
+        ++ [ pkgs.cabal-install pkgs.stack ]
+        ++ (if intero then [ ghc.intero ] else [])
+        ++ (if halive then [ ghc.halive ] else []);
+  })).env
