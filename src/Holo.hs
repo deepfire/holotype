@@ -71,9 +71,14 @@ update stts Holosome{..} f = do
   updateVisual stts holoStream holoVisual new
 
 
-class HoloLayout a where
-  position ∷ a → Holosome h → Po (Size PU)
+-- class HoloSpace a where
+--   position ∷ a → Holosome h → Po (Size PU)
 
+
+-- class HoloSpace a ⇒ HoloPlace a where
+--   renderer ∷ Renderer
+--   streamO  ∷ ObjectStream
+--   settings ∷ ReflexGLFWCtx t m ⇒ a → m (Dynamic t (Settings PU))
 
 
 -- data RandomLayout where

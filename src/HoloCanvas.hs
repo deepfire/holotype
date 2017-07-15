@@ -163,19 +163,13 @@ runStyle s = runIdentity $ runAp (return ∘ fromFAE) s
 
 
 -- * Very early generic widget code.
-type DrawableSpace p d = Space p Double d
-type WidgetSpace   d = DrawableSpace False d
+type DrawableSpace p d = Space             p Double d
+type WidgetSpace     d = DrawableSpace False        d
 
 class Show (StyleOf a) ⇒ Element a where
-  type   StyleOf a = (r ∷ Type) | r → a
-  type   Content a ∷ Type
-  type   Depth a ∷ Nat
-
-class   Element w ⇒ Container w where
-  type   Inner w ∷ Type
-  innerOf        ∷ w → Inner w
-  spaceToInner   ∷ w → DrawableSpace p (Depth w) → DrawableSpace p (Depth (Inner w))
-  styleToInner   ∷ w → StyleOf w → StyleOf (Inner w)
+  type StyleOf a = (r ∷ Type) | r → a
+  type Content a ∷ Type
+  type Depth   a ∷ Nat
 
 class Element w ⇒ Widget w where
   -- | Query size: style meets content → compute spatial parameters.
@@ -184,6 +178,12 @@ class Element w ⇒ Widget w where
   make           ∷ (MonadIO m) ⇒ Settings PU → CanvasW → StyleOf w → Content w →    DrawableSpace True  (Depth w) → m w
   -- | Per-content-change: mutate pixels of the bound drawable.
   draw           ∷ (MonadIO m) ⇒ CanvasW → w → m ()
+
+class   Element w ⇒ Container w where
+  type   Inner w ∷ Type
+  innerOf        ∷ w → Inner w
+  spaceToInner   ∷ w → DrawableSpace p (Depth w) → DrawableSpace p (Depth (Inner w))
+  styleToInner   ∷ w → StyleOf w → StyleOf (Inner w)
 
 class Container d ⇒ WDrawable d where
   assemble       ∷ (MonadIO m) ⇒ Settings PU → HC.ObjectStream → StyleOf d → Content d → m d
@@ -364,6 +364,8 @@ instance Widget a ⇒ Widget (RRect a) where
 
 
 -- * Canvas
+--
+-- Canvas is associated with a physical drawable surface.
 data CanvasS (u ∷ Unit) where
   CanvasS ∷
     { cFontKey      ∷ FontKey
@@ -393,7 +395,7 @@ instance Widget a ⇒ Container (Canvas a) where
 
 instance Widget a ⇒ WDrawable (Canvas a) where
   assemble settings@Settings{..} stream cStyle@(In (CanvasS cFontKey) innerStyle) innerContent = do
-    cPSpace   ← sPin (po 0 0) <$> query settings innerStyle innerContent
+    cPSpace   ← spacePin (po 0 0) <$> query settings innerStyle innerContent
     cDrawable ← makeDrawable stream $ spaceDim cPSpace
     cFont     ← bindFont (lookupFont' fontmap cFontKey) $ dGIC cDrawable
     let w = Canvas{..} where cInner = (⊥)                -- resolve circularity due to *ToInner..
@@ -403,6 +405,13 @@ instance Widget a ⇒ WDrawable (Canvas a) where
   render self@Canvas{..} = do
     draw (CW self) cInner
     drawableContentToGPU cDrawable
+
+
+-- * Distributor
+--
+-- Distributor provides distribution (placement).
+class Distributor a where
+
 
 placeCanvas ∷ (MonadIO m, Widget a) ⇒ Canvas a → HC.Frame → Po Double → m ()
 placeCanvas c f = framePutDrawable f (drawableOf c) ∘ (doubleToFloat <$>)

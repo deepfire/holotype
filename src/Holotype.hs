@@ -121,8 +121,6 @@ holotype win _evCtl setupE windowFrameE inputE = do
   frameGateD       ← toggle False objsTogE
   gcingD           ← toggle False gcTogE
   let driverE       = simpler spawnReqE <> simpler (gate (current $ frameGateD) frameE)
-      screenA       = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
-      widgetLim     = Parea (di 0.2 0.2) (po 0 0)
       text n        = [ printf "Object #%d:" n
                       , "  Esc:           quit"
                       , "  F1:            toggle per-frame object stream"
@@ -131,10 +129,8 @@ holotype win _evCtl setupE windowFrameE inputE = do
                       , ""
                       , "Yay!"]
   holosomCountD    ← count driverE
-  randomPreHoloE   ← foldRandomRs 0 ((screenA,   An 0.005)
-                                    ,(widgetLim, An 0.01)) $ () <$ driverE
-  preHoloE         ← performEvent $ attachPromptlyDyn holosomCountD randomPreHoloE <&>
-                       (\(n, pre') → do; pure ∘ (,pre') ∘ textZipper $ T.pack <$> text n)
+  let preHoloE      = attachPromptlyDyn holosomCountD driverE <&>
+                       (\(n, pre') → (,pre') ∘ textZipper $ T.pack <$> text n)
   holosomE         ← visual settingsV streamV dasStyle preHoloE
   holosomD         ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomE
 
@@ -160,13 +156,17 @@ holotype win _evCtl setupE windowFrameE inputE = do
   -- SCENE COMPOSITION
   let allDrawablesD = zipDyn holosomFPSD holosomD
       drawReqE      = attachPromptlyDyn allDrawablesD frameE
+  let screenArea    = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
+      widgetLim     = Parea (di 0.2 0.2) (po 0 0)
+  randomPreHoloE   ← foldRandomRs 0 ((screenArea, An 0.005)
+                                    ,(widgetLim,  An 0.01)) $ () <$ driverE
   _                ← performEvent $ drawReqE <&>
                      \((mfps, (_, cs)), f@Frame{..}) → do
                        case mfps of
                          Nothing  → pure ()
                          Just (Holosome{..}, Parea{..}) → placeCanvas holoVisual f _paNWp
                        forM_ cs $ \(n, (Holosome{..}
-                                       ,(Parea{..} ∷ S Area True Double
+                                       ,(Parea{..}  ∷ S Area True Double
                                         ,_angVel    ∷ An Double))) → do
                          placeCanvas holoVisual f _paNWp
 
