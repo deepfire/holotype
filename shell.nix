@@ -7,24 +7,25 @@
 , ghcOrig     ? pkgs.haskell.packages."${compiler}"
 }:
 let
-  overcabal = pkgs.haskell.lib.overrideCabal;
-  hubsrc    =      repo: rev: sha256:       pkgs.fetchgit { url = "https://github.com/" + repo; rev = rev; sha256 = sha256; };
-  locsrc    =      repo: rev: sha256:       pkgs.fetchgit { url = "file:///home/deepfire/src/" + repo; rev = rev; sha256 = sha256; };
-  overc     = old:                    args: overcabal old (oldAttrs: (oldAttrs // args));
-  overhub   = old: repo: rev: sha256: args: overc old ({ src = hubsrc repo rev sha256; }       // args);
-  overhage  = old: version:   sha256: args: overc old ({ version = version; sha256 = sha256; } // args);
-  overloc   = old: repo: rev: sha256: args: overc old ({ src = locsrc repo rev sha256; }       // args);
+  localSrc      =      repo: rev: sha256:       pkgs.fetchgit { url = "file:///home/deepfire/src/" + repo; rev = rev; sha256 = sha256; };
+  githubSrc     =      repo: rev: sha256:       pkgs.fetchgit { url = "https://github.com/"        + repo; rev = rev; sha256 = sha256; };
+  overC         =                               pkgs.haskell.lib.overrideCabal;
+  overCabal     = old:                    args: overC old (oldAttrs: (oldAttrs // args));
+  overGithub    = old: repo: rev: sha256: args: overC old ({ src = githubSrc repo rev sha256; }    // args);
+  overHackage   = old: version:   sha256: args: overC old ({ version = version; sha256 = sha256; } // args);
+  overLocal     = old: repo: rev: sha256: args: overC old ({ src = localSrc repo rev sha256; }     // args);
 
   ghc       = ghcOrig.override (oldArgs: {
     overrides = with haskell.lib; new: old:
     let parent = (oldArgs.overrides or (_: _: {})) new old;
     in with new; parent // {
-      halive         = overhub  old.halive "lukexi/halive" "2f1c4c4b00a2a046a2df21432456d7dd9c87ea7f" "0if5pdvkkxcyl2ybnvsmavg453l8c7is72lyy0i6c7d3hh3rcgnb" { doCheck = false; };
-      # libearmap-category = overhage old.libearmap-category "0.3.2.0" "011b4mjrl800vlyg1ibfmmyp87ad2mak6171s2mlc4mwsi4xrl4g" { doCheck = false; };
+      halive              = overGithub old.halive
+                            "lukexi/halive" "2f1c4c4b00a2a046a2df21432456d7dd9c87ea7f" "0if5pdvkkxcyl2ybnvsmavg453l8c7is72lyy0i6c7d3hh3rcgnb" { doCheck = false; };
+      # libearmap-category = overHackage old.libearmap-category "0.3.2.0" "011b4mjrl800vlyg1ibfmmyp87ad2mak6171s2mlc4mwsi4xrl4g" { doCheck = false; };
       # lambdacube-compiler = doJailbreak old.lambdacube-compiler;
-      lambdacube-compiler = overhub (doJailbreak old.lambdacube-compiler)
+      lambdacube-compiler = overGithub (doJailbreak old.lambdacube-compiler)
                             "deepfire/lambdacube-compiler" "b3642f2d41b57d24b485216487d3c9578c52bce5" "1s4jr81p5n3arzjgwgxdmr5006s1dcba3xj46nwnn8yzq8s7iwnh" {};
-      lambdacube-gl       = overhub (doJailbreak old.lambdacube-gl)
+      lambdacube-gl       = overGithub (doJailbreak old.lambdacube-gl)
                             "lambdacube3d/lambdacube-gl"   "51d36d68d94e3d5053dcda2ee072fe11893b727d" "1l0i5nmqf6ypv3pkvky70yw3hkwm24m97bbr0aapzdldqjqc6f56" {};
       lambdacube-ir       = doJailbreak old.lambdacube-ir;
       lambdacube-quake3 =
