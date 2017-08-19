@@ -2,7 +2,7 @@
 , bytestring, cairo, clock, containers, dependent-sum, directory
 , dlist, exceptions, extra, filepath, free, ghc-prim
 , ghc-typelits-extra, ghc-typelits-natnormalise, gi-cairo, gi-pango
-, gi-pangocairo, GLFW-b, halive, hashable, haskell-gi-base, hspec
+, gi-pangocairo, GLFW-b, hashable, haskell-gi-base, hspec
 , hxt, JuicyPixels, lambdacube-compiler, lambdacube-gl
 , lambdacube-ir, lambdacube-quake3, lens, linear, lub, metamorphic
 , MissingH, MonadRandom, mono-traversable, mtl, OpenGL, OpenGLRaw
@@ -21,7 +21,7 @@ mkDerivation {
     aeson base base-unicode-symbols binary bytestring cairo clock
     containers dependent-sum directory dlist exceptions extra filepath
     free ghc-prim ghc-typelits-extra ghc-typelits-natnormalise gi-cairo
-    gi-pango gi-pangocairo GLFW-b halive hashable haskell-gi-base hspec
+    gi-pango gi-pangocairo GLFW-b hashable haskell-gi-base hspec
     hxt JuicyPixels lambdacube-compiler lambdacube-gl lambdacube-ir
     lambdacube-quake3 lens linear lub metamorphic MissingH MonadRandom
     mono-traversable mtl OpenGL OpenGLRaw pretty pretty-show

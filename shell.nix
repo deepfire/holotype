@@ -2,7 +2,6 @@
 , pkgs        ? nixpkgs.pkgs, haskell ? pkgs.haskell
 , compiler    ? "ghc802"
 , tools       ? true
-, halive      ? tools
 , intero      ? tools
 , ghcOrig     ? pkgs.haskell.packages."${compiler}"
 }:
@@ -19,8 +18,6 @@ let
     overrides = with haskell.lib; new: old:
     let parent = (oldArgs.overrides or (_: _: {})) new old;
     in with new; parent // {
-      halive              = overGithub old.halive
-                            "lukexi/halive" "2f1c4c4b00a2a046a2df21432456d7dd9c87ea7f" "0if5pdvkkxcyl2ybnvsmavg453l8c7is72lyy0i6c7d3hh3rcgnb" { doCheck = false; };
       # libearmap-category = overHackage old.libearmap-category "0.3.2.0" "011b4mjrl800vlyg1ibfmmyp87ad2mak6171s2mlc4mwsi4xrl4g" { doCheck = false; };
       lambdacube-compiler = overGithub (doJailbreak old.lambdacube-compiler)
                             "lambdacube3d/lambdacube-compiler" "132ccb3423c8c181bed8dc2219ad42091f485213" "16zhlbizvxxydb3wl829vqh4506lmxn2x0vvkq3sxj9k2c16gh5m" {};
@@ -111,8 +108,7 @@ let
               libraryHaskellDepends =
                 old.libraryHaskellDepends
                 ++ [ pkgs.cabal-install pkgs.stack ]
-                ++ (if intero then [ ghc.intero ] else [])
-                ++ (if halive then [ ghc.halive ] else []);
+                ++ (if intero then [ ghc.intero ] else []);
              });
 in
   drv'.env

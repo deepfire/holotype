@@ -103,8 +103,6 @@ library
 
                      , mtl
 
-                     , halive
-
 executable holotype
   hs-source-dirs:      .
   main-is:             Main.hs
