@@ -55,24 +55,24 @@ let
         description = "first person shooter game engine";
         license = "BSD";
       };
-      bindings-GLFW       = doJailbreak old.bindings-GLFW;
-      gi-pango            = doJailbreak old.gi-pango;
-      gi-pangocairo       = doJailbreak (overGithub old.gi-pango
-                            "gtk2hs/gtk2hs"                  "843d83548bd076975f1869e6768768b5ed24b268" "06hf9grra47z43zd6mp3q46rmqjl3n2i8w2g72j7x4frblww426m" {});
-      gtk2hs-buildtools   = doJailbreak old.gtk2hs-buildtools;
-      signal              = doJailbreak old.signal;
-      singletons          = doJailbreak (overGithub old.singletons
-                            "goldfirere/singletons"          "d0fdb2cf02f29d6d076354696aaceb57f2715c85" "106iw4dsrgk6zsf49kbsiy3dg5q193bxihh3azxgf8gy48ymagck" {});
+      # bindings-GLFW       = doJailbreak old.bindings-GLFW;
+      # gi-pango            = doJailbreak old.gi-pango;
+      # gi-pangocairo       = doJailbreak (overGithub old.gi-pango
+      #                       "gtk2hs/gtk2hs"                  "843d83548bd076975f1869e6768768b5ed24b268" "06hf9grra47z43zd6mp3q46rmqjl3n2i8w2g72j7x4frblww426m" {});
+      # gtk2hs-buildtools   = doJailbreak old.gtk2hs-buildtools;
+      # signal              = doJailbreak old.signal;
+      # singletons          = doJailbreak (overGithub old.singletons
+      #                       "goldfirere/singletons"          "d0fdb2cf02f29d6d076354696aaceb57f2715c85" "106iw4dsrgk6zsf49kbsiy3dg5q193bxihh3azxgf8gy48ymagck" {});
       text-lens           = doJailbreak old.text-lens;
-      these               = doJailbreak old.these;
-      th-desugar          = doJailbreak (overGithub old.th-desugar
-                            "goldfirere/th-desugar"          "7649ccb1509da95f2086b5048bc17bda55473b49" "1062qq85cdf9vb35fls7w55lvwdjqdjanj1ha24z75j3ifa69d0r" {});
-      wavefront           = doJailbreak old.wavefront;
+      # these               = doJailbreak old.these;
+      # th-desugar          = doJailbreak (overGithub old.th-desugar
+      #                       "goldfirere/th-desugar"          "7649ccb1509da95f2086b5048bc17bda55473b49" "1062qq85cdf9vb35fls7w55lvwdjqdjanj1ha24z75j3ifa69d0r" {});
+      # wavefront           = doJailbreak old.wavefront;
       # reflex              = doJailbreak (overGithub old.reflex
       #              	    "reflex-frp/reflex"              "72165498522201b4d339da7678922ef324fd28c6" "1zan8l2kczd4mnd1sd7sr1vjbyqrz9gm7bsy7jibjf8qb5asbgyp" {});
       reflex = doJailbreak (new.callPackage
       ({ stdenv, mkDerivation, base, containers, data-default, dependent-map, dependent-sum
-       , exception-transformers, haskell-src-exts, haskell-src-meta, hlint
+       , exception-transformers, filemanip, haskell-src-exts, haskell-src-meta, hlint
        , MemoTrie, lens, monad-control, mtl, primitive, prim-uniq, ref-tf, reflection, semigroups, semigroupoids, split, syb
        , template-haskell, these, transformers, transformers-compat
        }:
@@ -86,7 +86,7 @@ let
              sha256 = "1zan8l2kczd4mnd1sd7sr1vjbyqrz9gm7bsy7jibjf8qb5asbgyp";
            };
            libraryHaskellDepends = [
-             base containers data-default dependent-map dependent-sum exception-transformers
+             base containers data-default dependent-map dependent-sum exception-transformers filemanip
              haskell-src-exts haskell-src-meta hlint lens MemoTrie monad-control mtl primitive prim-uniq ref-tf reflection
              semigroups semigroupoids split syb template-haskell these transformers transformers-compat
            ];
