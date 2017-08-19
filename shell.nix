@@ -55,25 +55,25 @@ let
         description = "first person shooter game engine";
         license = "BSD";
       };
-      number-show = callPackage
-      ({ mkDerivation, base, microlens, microlens-th }:
-       mkDerivation {
-         pname = "number-show";
-         version = "0.1.0.0";
-         sha256 = "3e4ba74494fce27278ae6c07773d75be901be09c51028f47cbdc9087d9e29e06";
-         revision = "1";
-         editedCabalFile = "8c75cd93ac276a74f86693467c56de7ecb7c04f9d93d26c369199d7a7baaf173";
-         libraryHaskellDepends = [ base microlens microlens-th ];
-         description = "Flexible and accurate (for a given precision) numerical->string conversion";
-         license = stdenv.lib.licenses.gpl3;
-       }) {};
+      bindings-GLFW       = doJailbreak old.bindings-GLFW;
+      gi-pango            = doJailbreak old.gi-pango;
+      gi-pangocairo       = doJailbreak (overGithub old.gi-pango
+                            "gtk2hs/gtk2hs"                  "843d83548bd076975f1869e6768768b5ed24b268" "06hf9grra47z43zd6mp3q46rmqjl3n2i8w2g72j7x4frblww426m" {});
+      gtk2hs-buildtools   = doJailbreak old.gtk2hs-buildtools;
+      signal              = doJailbreak old.signal;
+      singletons          = doJailbreak (overGithub old.singletons
+                            "goldfirere/singletons"          "d0fdb2cf02f29d6d076354696aaceb57f2715c85" "106iw4dsrgk6zsf49kbsiy3dg5q193bxihh3azxgf8gy48ymagck" {});
       text-lens           = doJailbreak old.text-lens;
-      # reflex              = overGithub old.reflex
-      #              	    "reflex-frp/reflex"              "e39bd393aec22b0ca28372040b68ef9d7c736826" "1l636aix0zbhnhzfqrq27vwiad70shjwk0vgkkczd76kka86ca16" {};
+      these               = doJailbreak old.these;
+      th-desugar          = doJailbreak (overGithub old.th-desugar
+                            "goldfirere/th-desugar"          "7649ccb1509da95f2086b5048bc17bda55473b49" "1062qq85cdf9vb35fls7w55lvwdjqdjanj1ha24z75j3ifa69d0r" {});
+      wavefront           = doJailbreak old.wavefront;
+      # reflex              = doJailbreak (overGithub old.reflex
+      #              	    "reflex-frp/reflex"              "72165498522201b4d339da7678922ef324fd28c6" "1zan8l2kczd4mnd1sd7sr1vjbyqrz9gm7bsy7jibjf8qb5asbgyp" {});
       reflex = doJailbreak (new.callPackage
       ({ stdenv, mkDerivation, base, containers, data-default, dependent-map, dependent-sum
        , exception-transformers, haskell-src-exts, haskell-src-meta, hlint
-       , MemoTrie, lens, monad-control, mtl, primitive, prim-uniq, ref-tf, reflection, semigroups, split, syb
+       , MemoTrie, lens, monad-control, mtl, primitive, prim-uniq, ref-tf, reflection, semigroups, semigroupoids, split, syb
        , template-haskell, these, transformers, transformers-compat
        }:
        mkDerivation {
@@ -82,13 +82,13 @@ let
            src = pkgs.fetchFromGitHub {
              owner = "deepfire";
              repo = "reflex";
-             rev = "e39bd393aec22b0ca28372040b68ef9d7c736826";
-             sha256 = "1l636aix0zbhnhzfqrq27vwiad70shjwk0vgkkczd76kka86ca16";
+             rev = "72165498522201b4d339da7678922ef324fd28c6";
+             sha256 = "1zan8l2kczd4mnd1sd7sr1vjbyqrz9gm7bsy7jibjf8qb5asbgyp";
            };
            libraryHaskellDepends = [
              base containers data-default dependent-map dependent-sum exception-transformers
              haskell-src-exts haskell-src-meta hlint lens MemoTrie monad-control mtl primitive prim-uniq ref-tf reflection
-             semigroups split syb template-haskell these transformers transformers-compat
+             semigroups semigroupoids split syb template-haskell these transformers transformers-compat
            ];
            testHaskellDepends = [
              base containers dependent-map MemoTrie mtl ref-tf
