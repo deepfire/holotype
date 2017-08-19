@@ -182,3 +182,15 @@ executable gadt
   main-is:             Main.hs
   default-language:    Haskell2010
   build-depends:       base, base-unicode-symbols
+
+executable validation
+  hs-source-dirs:      experiments/validation
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base, base-unicode-symbols, free, mtl
+
+executable hconfig
+  hs-source-dirs:      experiments/hconfig
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base, base-unicode-symbols
