@@ -22,11 +22,12 @@ let
       halive              = overGithub old.halive
                             "lukexi/halive" "2f1c4c4b00a2a046a2df21432456d7dd9c87ea7f" "0if5pdvkkxcyl2ybnvsmavg453l8c7is72lyy0i6c7d3hh3rcgnb" { doCheck = false; };
       # libearmap-category = overHackage old.libearmap-category "0.3.2.0" "011b4mjrl800vlyg1ibfmmyp87ad2mak6171s2mlc4mwsi4xrl4g" { doCheck = false; };
-      # lambdacube-compiler = doJailbreak old.lambdacube-compiler;
       lambdacube-compiler = overGithub (doJailbreak old.lambdacube-compiler)
-                            "deepfire/lambdacube-compiler" "b3642f2d41b57d24b485216487d3c9578c52bce5" "1s4jr81p5n3arzjgwgxdmr5006s1dcba3xj46nwnn8yzq8s7iwnh" {};
+                            "lambdacube3d/lambdacube-compiler" "132ccb3423c8c181bed8dc2219ad42091f485213" "16zhlbizvxxydb3wl829vqh4506lmxn2x0vvkq3sxj9k2c16gh5m" {};
       lambdacube-gl       = overGithub (doJailbreak old.lambdacube-gl)
-                            "lambdacube3d/lambdacube-gl"   "51d36d68d94e3d5053dcda2ee072fe11893b727d" "1l0i5nmqf6ypv3pkvky70yw3hkwm24m97bbr0aapzdldqjqc6f56" {};
+                            "lambdacube3d/lambdacube-gl"       "297dfbf6f633a1269640b92ebc55b05ca58c102f" "13hd8cn3dpqz5mxrvf8a5rqq200icfq5lim73nzhzp8wqw6gw30h" {};
+      # lambdacube-quake3   = overGithub (doJailbreak old.lambdacube-quake3)
+      #                       "lambdacube3d/lambdacube-quake3"   "4ad4ed97c3596b411567da88653dcdd5ae0d7154" "1wy0b0cx37xn8f979rr3rcbh482xk8jh557npjh3nykpaa9687i6" {};
       lambdacube-ir       = doJailbreak old.lambdacube-ir;
       lambdacube-quake3 =
       new.mkDerivation {
@@ -36,11 +37,11 @@ let
         isExecutable = true;
         doHaddock = false;
         doCheck = false;
-	jailbreak = true;
+        jailbreak = true;
         src = pkgs.fetchgit {
           url    = https://github.com/lambdacube3d/lambdacube-quake3;
-          rev    = "79f8ff3dcb38c75c6e51e3994a317c77e9559255";
-          sha256 = "0wsmrfzz8gm42sjrsxkl87kfg2z7acjxar79wn32z6lwz54z1nax";
+          rev    = "4ad4ed97c3596b411567da88653dcdd5ae0d7154";
+          sha256 = "1wy0b0cx37xn8f979rr3rcbh482xk8jh557npjh3nykpaa9687i6";
         };
         libraryHaskellDepends = [
           aeson attoparsec base binary bytestring bytestring-trie containers
@@ -70,9 +71,9 @@ let
          license = stdenv.lib.licenses.gpl3;
        }) {};
       text-lens           = doJailbreak old.text-lens;
-      # reflex              = overhub old.reflex
-      #              	    "deepfire/reflex"              "ca928573e6d1a17fe02de2d89d410db8f24d34e8" "1lmgfiz76cv5bh8ri9v7k2djzjd9rmm8lhgw8kd9x7hh9331f15a" {};
-      reflex = new.callPackage
+      # reflex              = overGithub old.reflex
+      #              	    "reflex-frp/reflex"              "e39bd393aec22b0ca28372040b68ef9d7c736826" "1l636aix0zbhnhzfqrq27vwiad70shjwk0vgkkczd76kka86ca16" {};
+      reflex = doJailbreak (new.callPackage
       ({ stdenv, mkDerivation, base, containers, data-default, dependent-map, dependent-sum
        , exception-transformers, haskell-src-exts, haskell-src-meta, hlint
        , MemoTrie, lens, monad-control, mtl, primitive, prim-uniq, ref-tf, reflection, semigroups, split, syb
@@ -84,8 +85,8 @@ let
            src = pkgs.fetchFromGitHub {
              owner = "deepfire";
              repo = "reflex";
-             rev = "ca928573e6d1a17fe02de2d89d410db8f24d34e8";
-             sha256 = "1lmgfiz76cv5bh8ri9v7k2djzjd9rmm8lhgw8kd9x7hh9331f15a";
+             rev = "e39bd393aec22b0ca28372040b68ef9d7c736826";
+             sha256 = "1l636aix0zbhnhzfqrq27vwiad70shjwk0vgkkczd76kka86ca16";
            };
            libraryHaskellDepends = [
              base containers data-default dependent-map dependent-sum exception-transformers
@@ -99,7 +100,7 @@ let
            description = "Higher-order Functional Reactive Programming";
            license = stdenv.lib.licenses.bsd3;
            hydraPlatforms = stdenv.lib.platforms.none;
-       }) {};
+       }) {});
     };
   });
   default = import ./.;
