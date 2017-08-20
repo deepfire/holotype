@@ -8,7 +8,7 @@
 , MissingH, MonadRandom, mono-traversable, mtl, OpenGL, OpenGLRaw
 , pretty, pretty-show, profunctors, proteaaudio, QuickCheck, random
 , rapid, reflex, semigroupoids, semigroups, stdenv, stm, text
-, text-lens, text-zipper, these, transformers, tuple
+, text-format, text-lens, text-zipper, these, transformers, tuple
 , unordered-containers, vect, vector
 }:
 mkDerivation {
@@ -26,7 +26,7 @@ mkDerivation {
     lambdacube-quake3 lens linear lub metamorphic MissingH MonadRandom
     mono-traversable mtl OpenGL OpenGLRaw pretty pretty-show
     profunctors proteaaudio QuickCheck random rapid reflex
-    semigroupoids semigroups stm text text-lens text-zipper these
+    semigroupoids semigroups stm text text-format text-lens text-zipper these
     transformers tuple unordered-containers vect vector
   ];
   executableHaskellDepends = [
