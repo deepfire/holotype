@@ -41,28 +41,12 @@ data CF a where
 type CA a = Ap CF a
 
 data W a where
-  CHBox ∷
-    { subs   ∷ [a]
-    } → W a
-  CVBox ∷
-    { subs   ∷ [a]
-    } → W a
-  CFBox ∷
-    { subs   ∷ [a]
-    } → W a
-  CReq ∷
-    { canGrow  ∷ Bool
-    , dim      ∷ Dim
-    , obj      ∷ a
-    } → W a
-  CConstr ∷
-    { dim      ∷ Dim
-    , obj      ∷ a
-    } → W a
-  CPos ∷
-    { posOf    ∷ Pos
-    , obj      ∷ a
-    } → W a
+  CHBox   ∷ { subs    ∷ [a] }                     → W a
+  CVBox   ∷ { subs    ∷ [a] }                     → W a
+  CFBox   ∷ { subs    ∷ [a] }                     → W a
+  CReq    ∷ { canGrow ∷ Bool, dim ∷ Dim, obj ∷ a} → W a
+  CConstr ∷ { dim     ∷ Dim,  obj ∷ a }           → W a
+  CPos    ∷ { posOf   ∷ Pos,  obj ∷ a }           → W a
   deriving Functor
 
 pass ∷ Ctx → CF a → CF a
@@ -72,9 +56,6 @@ pass c@Ctx{..} (C Nothing w@CReq{..}) =
 pass c@Ctx{..} (C Nothing CFBox{..}) =
   C (Just c)
   $ CFBox { subs = runAp (liftAp ∘ pass c) <$> subs }
-
--- foo ∷ CA a → CA (a, Frame)
--- foo = runAp position
 
 hbox, vbox, fbox ∷ [CA a] → CA a
 constr      ∷  Dim → CA a → CA a
