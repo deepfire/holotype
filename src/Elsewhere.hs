@@ -8,10 +8,13 @@ import           Control.Applicative
 import           Control.Monad.Random
 import           Control.Monad.State
 import           Data.Complex
-import           Data.Glb             (HasGlb(..))
-import           Data.Lub             (HasLub(..))
-import           Data.Monoid                ((<>))
+import           Data.Glb                            (HasGlb(..))
+import           Data.Lub                            (HasLub(..))
+import           Data.Monoid                         ((<>))
+import           Data.Text                           (Text)
 import qualified Data.Text                         as T
+import qualified Data.Text.Lazy                    as TL
+import qualified Data.Text.Format                  as T
 import qualified Data.Text.Zipper                  as T
 import           Linear
 import           Prelude.Unicode
@@ -27,6 +30,8 @@ goldenRatio = 1.61803398875
 (.:) ∷ ∀ a f g b. (b → a) → (f → g → b) → f → g → a
 (.:) = M.o
 
+infixr 9 .:
+
 
 -- * 'lub' + 'linear'
 instance Ord a ⇒ HasLub (V2 a) where lub = liftA2 max
@@ -41,10 +46,10 @@ instance Random a ⇒ Random (Complex a) where
 
 
 -- * 'text-zipper'
-textZipper ∷ [T.Text] → T.TextZipper T.Text
+textZipper ∷ [Text] → T.TextZipper Text
 textZipper = flip T.textZipper Nothing
 
-zipperText ∷ T.TextZipper T.Text → T.Text
+zipperText ∷ T.TextZipper Text → Text
 zipperText = T.dropEnd 1 ∘ T.unlines ∘ T.getText
 
 
@@ -54,3 +59,15 @@ simpler = (() <$)
 
 someFire ∷ Reflex t ⇒ Event t a → Event t b → Event t ()
 someFire a b = simpler a <> simpler b
+
+
+-- * Pretty
+class Show a ⇒ Pretty a where
+  {-# MINIMAL pp | ppL #-}
+  pp  ∷ a → Text
+  ppL ∷ a → TL.Text
+  pp  = TL.toStrict ∘ ppL
+  ppL = TL.fromStrict ∘ pp
+
+showT ∷ Show a ⇒ a → Text
+showT = T.pack ∘ show
