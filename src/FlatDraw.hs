@@ -138,7 +138,7 @@ executeFeature !cStart !cEnd !(WRR (RRSide _ (Po (V2 sx sy)) (Po (V2 ex' ey'))))
   GRC.moveTo sx sy
   GRC.lineTo ex' ey'
 executeFeature !cStart !cEnd !(WRR (RRCorn o c@(Po (V2 cx cy)) (An2 (V2 sa ea)) r)) = do
-  let (cs, ce) = chordCW o c r
+  let (cs, ce) = chord'CW o c r
   coWithMaybePatternGradLinear cs (fromJust cStart) ce (fromJust cEnd) $
     if cStart ≢ cEnd
     then Right $ \grad → do
