@@ -61,6 +61,37 @@ import           Elsewhere
 import           Flatland
 
 
+-- * Narrative
+--
+-- ** R, for design Requirements
+--    1. We want to organize an simplified, constraint-solving workflow -- a 80% solution, indeed.
+--    2. UI scaling is a concern we can't afford to ignore in 2017.
+--    3. We want to encapsulate the solution of UI scaling concern inside the language of Spaces.
+--
+-- ** M, for iMplmenentation requirements
+--    1. A free applicative is desired as the embodiment of ∈ent's visual layout, because:
+--       - it lies in a sweet spot of expressivity, between Functor and Monad:
+--         - entire tree can be analyzed prior to effect execution, unlike with Monad
+--         - said analysis can be performed under multiple interpretations
+--         - it provide a needed expressivitu boost over Functor
+--       - it provides a solid abstraction, isolating layered types from each other
+--    2. A GADT is needed to facilitate type-level propagation of information
+--
+-- ** C, for Immediate conclusions
+--    1. R3 can't be resolved, unless object size requirements are scale/context sensitive.
+--    2, M1 → a Functor instance is mandatory, by definition of free applicative.
+--
+-- ** D, for deductions
+--    1. C1 → context sensitivity requires a function of form (a → Context → Size)
+--    2. Type classes cannot provide D1, because..
+--       - there is no obvious location to provide the constraint for C1,
+--         because C2 requires unrestrained polymorphism on the variable of 'a'.
+--       - skolem, implied by free applicative?  This is admittedly less clear, because of
+--         well, the way we choose to use FA.
+--         - we should elucidate the reasoning here..
+--    3. D2 → the only other option is explicit provision of such a type-dependent method vocabulary
+
+
 -- * Pre-space
 --
 newtype Cstr d = Cstr { fromCstr ∷ Di d } deriving (Eq, Num, Show)
