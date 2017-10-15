@@ -16,6 +16,7 @@ import qualified Data.Text                         as T
 import qualified Data.Text.Lazy                    as TL
 import qualified Data.Text.Format                  as T
 import qualified Data.Text.Zipper                  as T
+import           Data.Void
 import           Linear
 import           Prelude.Unicode
 import           Reflex
@@ -31,6 +32,9 @@ goldenRatio = 1.61803398875
 (.:) = M.o
 
 infixr 9 .:
+
+void ∷ Void
+void = (⊥)
 
 
 -- * 'lub' + 'linear'

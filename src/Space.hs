@@ -23,8 +23,8 @@ import           GHC.Types                         hiding (Constraint)
 import           Control.Applicative
 import           Control.Applicative.Free
 import           Control.Lens                      hiding (children)
-import           Control.Monad.Random              hiding (lift)
-import           Control.Monad.State               hiding (lift)
+import           Control.Monad.Random              hiding (lift, void)
+import           Control.Monad.State               hiding (lift, void)
 import           Data.Complex
 import           Data.Function
 import           Data.List
@@ -40,6 +40,7 @@ import           Data.Text                                (Text)
 import           Data.Text.Lazy                           (toStrict)
 import           Data.Text.IO
 import           Data.Type.Bool
+import           Data.Void                                (Void)
 
 -- Algebra
 import           Linear                            hiding (trace)
@@ -68,7 +69,7 @@ import           Flatland
 --    2. UI scaling is a concern we can't afford to ignore in 2017.
 --    3. We want to encapsulate the solution of UI scaling concern inside the language of Spaces.
 --
--- ** M, for iMplmenentation requirements
+-- ** M, for iMplementation requirements
 --    1. A free applicative is desired as the embodiment of ∈ent's visual layout, because:
 --       - it lies in a sweet spot of expressivity, between Functor and Monad:
 --         - entire tree can be analyzed prior to effect execution, unlike with Monad
