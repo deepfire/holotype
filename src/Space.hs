@@ -3,7 +3,7 @@
 {-# LANGUAGE ConstraintKinds, DataKinds, KindSignatures, TypeApplications, TypeInType #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, NoMonomorphismRestriction, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
 {-# LANGUAGE GADTs, FunctionalDependencies, TypeFamilies, TypeFamilyDependencies #-}
-{-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TypeOperators, UnicodeSyntax, ViewPatterns #-}
+{-# LANGUAGE BangPatterns, LambdaCase, MultiWayIf, OverloadedStrings, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TypeOperators, UnicodeSyntax, ViewPatterns #-}
 {-# LANGUAGE DeriveFoldable, DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
@@ -93,7 +93,17 @@ import           Flatland
 --    3. D2 → the only other option is explicit provision of such a type-dependent method vocabulary
 
 
--- * Pre-space
+-- * TODO
+--
+-- 1. Tracking the dimensionality type across the entire thing is painful --
+--    we might want to try shifting this information into a promoted type.
+--
+--    We'd still need to deal with the kind equality, but there's a hunch that
+--    this might be easier.
+--
+
+
+-- * Cstr, Reqt, Orig: type safety wrappers over Flatland's base types
 --
 newtype Cstr d = Cstr { fromCstr ∷ Di d } deriving (Eq, Num, Show)
 newtype Reqt d = Reqt { fromReqt ∷ Di d } deriving (Eq, Num, Show)
@@ -134,89 +144,109 @@ orig'beside OS o r t = o & orig'v._y %~ ((+)(t^.reqt'v._y))
 orig'beside OW o r t = o & orig'v._x %~ ((-)(r^.reqt'v._x))
 orig'beside OE o r t = o & orig'v._x %~ ((+)(t^.reqt'v._x))
 
-newtype ScreenC d = ScreenC { _scrc'cstr ∷ Cstr d } deriving (Eq, Show)
-makeLenses ''ScreenC
-
-scrc'v ∷ Lens' (ScreenC d) (V2 d)
-scrc'v = scrc'cstr ∘  cstr'v
-scrc'd = scrc'cstr .: cstr'd
+
+-- * Temporary polymorphism reduction
+--
+type FixedUnit = Double
 
 
-type Constraint d = Maybe (Cstr d)
+-- * Requirement description
+--
+type Constraint = Maybe (Cstr FixedUnit)
 
-data Requirement d where
+data Requirement where
   Requirement ∷
-    { _hard ∷ Maybe (Reqt d)
-    , _soft ∷ Maybe (Reqt d)
-    , _eff  ∷ Maybe (Reqt d)
-    } → Requirement d
+    { _hard ∷ Maybe (Reqt FixedUnit) -- ^ Absolutely-dimensioned (screen units)
+    , _soft ∷ Maybe (Reqt FixedUnit) -- ^ Relatively-dimensioned (screen ratio)
+    , _eff  ∷ Maybe (Reqt FixedUnit) -- ^ Absolutely-dimensioned, as it's concrete
+    } → Requirement
     deriving (Show)
 makeLenses ''Requirement
 
-reqm'has'hard, reqm'has'soft, reqm'has'eff ∷ Requirement d → Bool
+reqm'has'hard, reqm'has'soft, reqm'has'eff ∷ Requirement → Bool
 reqm'has'hard = isJust ∘ view hard
 reqm'has'soft = isJust ∘ view soft
 reqm'has'eff  = isJust ∘ view eff
 
-type Origin      d = Maybe (Orig d)
+type Origin = Maybe (Orig FixedUnit)
 
-instance Monoid (Requirement d) where
+instance Monoid Requirement where
   mempty = Requirement Nothing Nothing Nothing
 
-class Requires a d | a → d where
-  hard'requires ∷ ScreenC d → a → Maybe (Reqt d)
-  soft'requires ∷             a → Maybe (Reqt d)
+
+-- * Screen-space dimensions and requirement querying
+--
+newtype ScreenConstr = ScreenConstr { _scrc'cstr ∷ Cstr FixedUnit } deriving (Eq, Show)
+makeLenses ''ScreenConstr
+
+data UnitI
+  = UDouble
+  | UInt
+
+scrc'v ∷ Lens' ScreenConstr (V2 FixedUnit)
+scrc'v = scrc'cstr ∘  cstr'v
+scrc'd = scrc'cstr .: cstr'd
+
+class Requires a where
+  hard'requires ∷ ScreenConstr → a → Maybe (Reqt FixedUnit)
+  soft'requires ∷                a → Maybe (Reqt FixedUnit)
   --
   hard'requires _ _ = Nothing
   soft'requires   _ = Nothing
 
-requires ∷ Requires a d ⇒ ScreenC d → a → Requirement d
+-- requires ∷ Requires a ⇒ ScreenConstr (ReqDimen a) → a → Requirement (ReqDimen a)
+requires ∷ Requires a ⇒ ScreenConstr → a → Requirement
 requires c x = Requirement (hard'requires c x) (soft'requires x) Nothing
 
 
--- * Space
+-- * Space ~ (Constraint * Requirement * Origin)
 --
-data Space (d ∷ Type) where
+data Space' (d ∷ Type) where
   Space ∷
-    { _cstr ∷ Constraint  d
-    , _reqt ∷ Requirement d
-    , _orig ∷ Origin      d
-    } → Space d
+    { _cstr ∷ Constraint
+    , _reqt ∷ Requirement
+    , _orig ∷ Origin
+    } → Space' d
   deriving (Show)
-makeLenses ''Space
+makeLenses ''Space'
 
-instance Monoid (Space d) where
-  mempty = Space Nothing mempty Nothing
+type Space = Space' FixedUnit
 
-instance Show d ⇒ Pretty (Space d) where
+empty'space ∷ Space
+empty'space = Space Nothing mempty Nothing
+
+instance Pretty Space where
   ppL (Space c r o) = format "#<Space {}--{}:{}--{}>"
     ( fromMaybe "*" $ pp ∘ (^.cstr'v) <$> c
     , fromMaybe "*" $ pp ∘ (^.reqt'v) <$> r^.hard
     , fromMaybe "*" $ pp ∘ (^.reqt'v) <$> r^.soft
     , fromMaybe "*" $ pp ∘ (^.orig'v) <$> o)
 
-class IsSpace t d where
-  liftSp ∷ t d → Space d
+class IsSpace t where
+  liftSp ∷ t → Space
 
 
 -- * Space constructors
 
-instance IsSpace Cstr d where liftSp x = mempty & cstr .~ Just x
-instance IsSpace Reqt d where liftSp x = mempty & reqt .~ Requirement (Just x) Nothing Nothing
-instance IsSpace Orig d where liftSp x = mempty & orig .~ Just x
+mk'hardReq ∷ Reqt FixedUnit → Requirement
+mk'hardReq x = Requirement (Just x) Nothing Nothing
 
-s'beside ∷ Lin d ⇒ Space d → Orient Card → Space d → Space d
+instance IsSpace Constraint  where liftSp x = empty'space & cstr .~ x
+instance IsSpace Origin      where liftSp x = empty'space & orig .~ x
+instance IsSpace Requirement where liftSp x = empty'space & reqt .~ x
+
+s'beside ∷ Space → Orient Card → Space → Space
 s'beside (Space _ (Requirement _ _ (Just r)) (Just o)) at what@(Space _ (Requirement _ _ (Just r')) _) =
   what & orig .~ (Just $ orig'beside at o r r')
 
-s'inside ∷ Space d → Orient a → Space d → (Space d, Space d)
+s'inside ∷ Space → Orient a → Space → (Space, Space)
 s'inside = (⊥)
 -- * Questions for type-driven subsetting:
 --     1. orientations we can handle
 --     2. spaces we can handle
 
 
--- * If we ever need a Place, it's here:
+-- * If we'd ever need a Place, it's here:
 --
 data Place d where
   Nowhere ∷ Place d
@@ -256,27 +286,27 @@ data KArity     = One | Many
 data KSize      = SzCons | SzReq | NoSize
 data KPosition  = Abs | Rel | NoPos
 
-dumpC :: (Lin d, Show d) ⇒ Ap (C d) a -> IO a
+dumpC :: Ap C a -> IO a
 dumpC m = runAp dump m
   where
-    dump :: (Lin d, Show d) ⇒ C d a -> IO a
+    dump :: C a -> IO a
     dump  CObj{..} = (putStrLn $ "Obj "  <> pp _space) >> pure _cobj
     dump CHBox{..} = (putStrLn $ "HBox " <> pp _space) >> head <$> mapM (runAp dump) _chs
 
     dump CVBox{..} = (putStrLn $ "VBox " <> pp _space) >> head <$> mapM (runAp dump) _cvs
     dump CWrap{..} = (putStrLn $ "Wrap " <> pp _space) >> runAp dump _cw
 
--- ca'requires ∷ (Lin d, Requires (C d a) d) ⇒ ScreenC d → Ap (C d) a → Requirement d
+-- ca'requires ∷ (Lin d, Requires (C a) d) ⇒ ScreenConstr d → Ap (C d) a → Requirement d
 -- ca'requires scrc x = runAp_ (requires scrc) x
 
-ca'cstr ∷ (Lin d, Monoid (Constraint d))  ⇒ Ap (C d) a → Constraint d
+ca'cstr ∷ Ap C a → Constraint
 ca'cstr = runAp_ (^.space.cstr)
-ca'reqt ∷ (Lin d, Monoid (Requirement d)) ⇒ Ap (C d) a → Requirement d
+ca'reqt ∷ Ap C a → Requirement
 ca'reqt = runAp_ (^.space.reqt)
-ca'orig ∷ (Lin d, Monoid (Origin d))      ⇒ Ap (C d) a → Origin d
+ca'orig ∷ Ap C a → Origin
 ca'orig = runAp_ (^.space.orig)
 
-ca'set'orig ∷ Ord d ⇒ Origin d → Ap (C d) a → Ap (C d) a
+ca'set'orig ∷ Origin → Ap C a → Ap C a
 ca'set'orig v = hoistAp (& space.orig .~ v)
 
 
@@ -288,38 +318,41 @@ ca'set'orig v = hoistAp (& space.orig .~ v)
 --     , cf'obj    ∷ C d k (Ap (C d) a)
 --     } → CF d a
 
-space    ∷ Lens' (C d a) (Space d)
+space    ∷ Lens' (C a) Space
 space    f c               = fmap (\s'  -> c { _space = s' })  (f $ _space c)
 
-children ∷ Lens' (C d a) [Ap (C d) a]
+children ∷ Lens' (C a) [Ap C a]
 children f c@(CHBox _ _) = fmap (\cs' -> c { _chs   = cs' }) (f $ _chs c)
 children f c@(CVBox _ _) = fmap (\cs' -> c { _cvs   = cs' }) (f $ _cvs c)
 children _ _ = error "Misapplication of a 'children' lens to a wrong GADT constructor.  Please convince author to go type-level."
 
-child ∷ Lens' (C d a) (Ap (C d) a)
+child ∷ Lens' (C a) (Ap C a)
 child f c@(CWrap _ _ _ _)  = fmap (\c'  -> c { _cw    = c' })  (f $ _cw c)
 child _ _ = error "Misapplication of a 'children' lens to a wrong GADT constructor.  Please convince author to go type-level."
 
-data    C d a where
-  CObj ∷
-    { _space   ∷ Space d
+data    C' d a where
+  CObj ∷ Requires a ⇒
+    { _space   ∷ Space
     , _cobj    ∷ a
-    } → C d a
-  CHBox ∷
-    { _space   ∷ Space d
-    , _chs     ∷ [Ap (C d) a]
-    } → C d a
-  CVBox ∷
-    { _space   ∷ Space d
-    , _cvs     ∷ [Ap (C d) a]
-    } → C d a
-  CWrap ∷
-    { _space   ∷ Space d
+    } → C' d a
+  CHBox ∷ Requires a ⇒
+    { _space   ∷ Space
+    , _chs     ∷ [Ap (C' d) a]
+    } → C' d a
+  CVBox ∷ Requires a ⇒
+    { _space   ∷ Space
+    , _cvs     ∷ [Ap (C' d) a]
+    } → C' d a
+  CWrap ∷ Requires a ⇒
+    { _space   ∷ Space
     , _cwNW    ∷ !(Di d) -- ^ The combined offsets _ the left and top sides.
     , _cwSE    ∷ !(Di d) -- ^ The combined offsets _ the right and bottom sides.
-    , _cw      ∷ Ap (C d) a
-    } → C d a
-    deriving (Functor, Generic)
+    , _cw      ∷ Ap (C' d) a
+    } → C' d a
+    deriving ()
+
+type C = C' FixedUnit
+
 -- makeLenses ''C
   -- -- CRel ∷
   --   { _cRel    ∷ !(Po d)
@@ -342,27 +375,34 @@ data    C d a where
 --
 -- Note: we're mostly starting un-spaced, where appropriate.
 --
-lift ∷ Ord d ⇒ Reqt d → a → Ap (C d) a
-lift = liftAp .: CObj ∘ liftSp
+lift ∷ (Requires a) ⇒ Reqt FixedUnit → a → Ap C a
+lift = liftAp .: CObj ∘ liftSp ∘ mk'hardReq
 
-hbox, vbox ∷ Ord d ⇒ [Ap (C d) a] → Ap (C d) a
-hbox = liftAp ∘ CHBox mempty
-vbox = liftAp ∘ CVBox mempty
+hbox, vbox ∷ (Requires a) ⇒ [Ap C a] → Ap C a
+hbox = liftAp ∘ CHBox empty'space
+vbox = liftAp ∘ CVBox empty'space
 
 
-hb ∷ Lin a ⇒ Ap (C Double) a
+instance Requires Double where
+
+-- hb ∷ Lin (ReqDimen a) ⇒ Ap (C (ReqDimen a)) a
 hb =
   hbox
   [ lift (Reqt $ di 10 10) 0
   , lift (Reqt $ di 10 10) 1
   ]
 
-demo ∷ Lin a ⇒ Ap (C Double) a
+demo ∷ Ap C Double
 demo =
   vbox
   [ lift (Reqt $ di 10 10) 0
   , hb
   ]
+
+demo' ∷ Ap C Double
+demo' =
+  let f = assign'eff'requires (ScreenConstr ∘ Cstr $ di 10 10)
+  in hoistAp (with'C'Requires f) demo
 
 
 
@@ -385,18 +425,23 @@ demo =
 
 -- * Requirements
 --
-assign'eff'requires ∷ (Lin d, Show d, Requires (C d a) d, Requires a d) ⇒ ScreenC d → C d a → C d a
+assign'eff'requires ∷ Requires a ⇒ ScreenConstr → C a → C a
 
 -- If we already have an effective requirement, there's nothing to do
 assign'eff'requires _ x@(isJust ∘ (^. space.reqt.hard) → True) = x
 
-assign'eff'requires _      (CObj  (Space  Nothing  _                        _) _) = error "Asked to assign requires to an object without constraints."
-assign'eff'requires scrc x@(CObj  (Space (Just _) (Requirement _ _ Nothing) _) o) = x & space.reqt .~ requires scrc o
+assign'eff'requires _      (CObj  (Space  Nothing   _                         _) _) = error "Asked to assign requires to an object without constraints."
+assign'eff'requires _    x@(CObj  (Space (Just _)  (Requirement _ _ (Just _)) _) _) = x -- already has an effective requirement
+assign'eff'requires scrc x@(CObj  (Space (Just _)  (Requirement _ _  Nothing) _) o) = x & space.reqt .~ requires scrc o
 
-assign'eff'requires scrc x@(CHBox (Space (Just this'cstr) _ _) _) =
+assign'eff'requires _    x@(CHBox (Space (Just cst) _                         _) _) = assigh'eff'requires'box x cst X
+assign'eff'requires _    x@(CVBox (Space (Just cst) _                         _) _) = assigh'eff'requires'box x cst Y
+
   let -- Query soft/hard requirements
       reqs             = ca'reqt <$> x^.children
       partition'by'hardness xs acc@(hs, ss)
+assigh'eff'requires'box ∷ C a0 -> Cstr FixedUnit -> Axes -> C a0
+assigh'eff'requires'box x x'cstr axis =
         | []      ← xs = acc
         | (x:xs') ← xs = partition'by'hardness xs'
                          $ case x of
@@ -430,17 +475,17 @@ foldilate f s xs = runState (mapM f' xs) s
           put state''
           pure x'
 
-space'op ∷ Space d → [C d a] → (C d a → State (Space d) (C d a)) → ([C d a], Space d)
+space'op ∷ Space → [C a] → (C a → State Space (C a)) → ([C a], Space)
 space'op spc xs f = runState (mapM f xs) spc
 
-cursor'state'op ∷ Po d → [C d a] → (C d a → State (Po d) (C d a)) → ([C d a], Po d)
+cursor'state'op ∷ Po d → [C a] → (C a → State (Po d) (C a)) → ([C a], Po d)
 cursor'state'op y xs f = runState (mapM f xs) y
 
 
 -- * Origination
 --
 -- NOTE: this is based on Origin = Center
-assign'origins ∷ (Lin d, Show d) ⇒ C d a → C d a
+assign'origins ∷ C a → C a
 -- * REQUIREMENTS
 --
 -- For this code we want something more high-level than banging Di's against Po's.
