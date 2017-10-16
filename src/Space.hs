@@ -353,6 +353,13 @@ data    C' d a where
 
 type C = C' FixedUnit
 
+with'C'Requires ∷ (∀ b. (b ~ a, Requires b) ⇒ C b → c) → C a → c
+with'C'Requires f x = x & case x of
+  CObj      _ _ → f
+  CVBox     _ _ → f
+  CHBox     _ _ → f
+  CWrap _ _ _ _ → f
+
 -- makeLenses ''C
   -- -- CRel ∷
   --   { _cRel    ∷ !(Po d)
@@ -425,6 +432,9 @@ demo' =
 
 -- * Requirements
 --
+-- propagate'hard'soft'requires ∷ Requires a ⇒ ScreenConstr → C a → C a
+-- propagate'hard'soft'requires
+
 assign'eff'requires ∷ Requires a ⇒ ScreenConstr → C a → C a
 
 -- If we already have an effective requirement, there's nothing to do
@@ -437,29 +447,31 @@ assign'eff'requires scrc x@(CObj  (Space (Just _)  (Requirement _ _  Nothing) _)
 assign'eff'requires _    x@(CHBox (Space (Just cst) _                         _) _) = assigh'eff'requires'box x cst X
 assign'eff'requires _    x@(CVBox (Space (Just cst) _                         _) _) = assigh'eff'requires'box x cst Y
 
-  let -- Query soft/hard requirements
-      reqs             = ca'reqt <$> x^.children
-      partition'by'hardness xs acc@(hs, ss)
 assigh'eff'requires'box ∷ C a0 -> Cstr FixedUnit -> Axes -> C a0
 assigh'eff'requires'box x x'cstr axis =
+  let -- Query children's soft/hard requirements
+      chi'allRs           = ca'reqt <$> x^.children
+      partition'by'hardness xs acc@(ds, ss)
         | []      ← xs = acc
         | (x:xs') ← xs = partition'by'hardness xs'
                          $ case x of
-                             Requirement (Just h) _ _ → (h:hs, ss)
-                             Requirement _ (Just s) _ → (hs, s:ss)
-                             _                        → (hs, mempty:ss) -- XXX: interprets no requirement at all as zero requirement
-      (,) hards softs  = partition'by'hardness reqs ([], [])
-      hard'sum         = foldr (reqt'add X) mempty hards                -- XXX: softs are ignored wrt. the secondary axes
-      soft'abs'remains = this'cstr^.cstr'd X - hard'sum^.reqt'd X
-      soft'abs'ratio   = soft'abs'remains / (sum $ (^.reqt'd X) <$> softs)
-      soft'to'abs      = (⋅ soft'abs'ratio)
-      req'cstr (Requirement (Just h) _        _) = Cstr $ Di $ h^.reqt'v
-      req'cstr (Requirement _        (Just s) _) = Cstr $ Di $ s^.reqt'v
-      -- Assign effective requirements
+                             Requirement (Just d) _ _ → (d:ds, ss)                 -- XXX: ignores a soft requirement, when there's a soft one
+                             Requirement _ (Just s) _ → (ds, s:ss)
+                             _                        → (ds, mempty:ss)            -- XXX: interprets no requirement at all as zero requirement
+      (,) chi'hardRs
+          chi'softRs   = partition'by'hardness chi'allRs ([], [])
+      chi'hardR'sum    = foldr (reqt'add axis) mempty chi'hardRs                   -- XXX: softs are ignored wrt. the secondary axes
+      abs'remains      = x'cstr^.cstr'd axis - chi'hardR'sum^.reqt'd axis
+      soft'abs'ratio   = abs'remains / (sum $ (^.reqt'd axis) <$> chi'softRs)
+      -- Compute a child's constraint by promoting its own requirement
+      req'cstr (Requirement (Just hardR) _        _) =  Cstr $ Di $ hardR^.reqt'v
+      req'cstr (Requirement _        (Just softR) _) = (Cstr $ Di $ softR^.reqt'v) & cstr'd axis %~ (* soft'abs'ratio)
+      req'cstr (Requirement _        _            _) = error "req'cstr called on a bad Requirement."
+      -- Assign constraints
       chis             = [ hoistAp (& space.cstr._Just .~ req'cstr req) c
-                         | (req, c) ← zip reqs (x^.children) ]
-  in x & space.reqt.eff._Just.reqt'v .~ this'cstr^.cstr'v
-       & children       .~ chis
+                         | (req, c) ← zip chi'allRs (x^.children) ]
+  in x & space.reqt.eff._Just.reqt'v .~ x'cstr^.cstr'v                             -- SIMPLISTIC?: slap our own constraint as the requirement
+       & children                    .~ chis
 
 -- assign'eff'requires scrc x@CWrap{..} =
 --   let chi       = runAp (liftAp ∘ assign'eff'requires) _cw
