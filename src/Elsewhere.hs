@@ -1,10 +1,12 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
 module Elsewhere where
 
 import qualified Alib                              as M
 import           Control.Applicative
+import           Control.Exception
 import           Control.Monad.Random
 import           Control.Monad.State
 import           Data.Complex
@@ -17,6 +19,7 @@ import qualified Data.Text.Lazy                    as TL
 import qualified Data.Text.Format                  as T
 import qualified Data.Text.Zipper                  as T
 import           Data.Void
+import           GHC.Stack
 import           Linear
 import           Prelude.Unicode
 import           Reflex
@@ -35,6 +38,16 @@ infixr 9 .:
 
 void ∷ Void
 void = (⊥)
+
+
+catchAny ∷ IO a → (SomeException → IO a) → IO a
+catchAny guarded handler = Control.Exception.catch guarded onExc
+  where onExc e | shouldCatch e = handler e
+                | otherwise = throwIO e
+        shouldCatch e
+          | show e ≡ "<<timeout>>" = False
+          | Just (_ ∷ AsyncException) ← fromException e = False
+          | otherwise = True
 
 
 -- * 'lub' + 'linear'
@@ -70,8 +83,13 @@ class Show a ⇒ Pretty a where
   {-# MINIMAL pp | ppL #-}
   pp  ∷ a → Text
   ppL ∷ a → TL.Text
+  ppS ∷ a → String
   pp  = TL.toStrict ∘ ppL
   ppL = TL.fromStrict ∘ pp
+  ppS = T.unpack ∘ pp
 
 showT ∷ Show a ⇒ a → Text
 showT = T.pack ∘ show
+
+errorT ∷ HasCallStack ⇒ Text → a
+errorT = error ∘ T.unpack
