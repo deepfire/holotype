@@ -19,6 +19,8 @@ let
     let parent = (oldArgs.overrides or (_: _: {})) new old;
     in with new; parent // {
       # libearmap-category = overHackage old.libearmap-category "0.3.2.0" "011b4mjrl800vlyg1ibfmmyp87ad2mak6171s2mlc4mwsi4xrl4g" { doCheck = false; };
+      intero              = overGithub (doJailbreak old.intero)
+                            "commercialhaskell/intero"         "5697c86fde2b6131629e8d1c69f9b2363dadc7ae" "1zwvmchk8rymxfciiip78zf69p3f8jpbr7fqqj43cxv0lq9w284s" {};
       lambdacube-compiler = overGithub (doJailbreak old.lambdacube-compiler)
                             "lambdacube3d/lambdacube-compiler" "132ccb3423c8c181bed8dc2219ad42091f485213" "16zhlbizvxxydb3wl829vqh4506lmxn2x0vvkq3sxj9k2c16gh5m" {};
       lambdacube-gl       = overGithub (doJailbreak old.lambdacube-gl)

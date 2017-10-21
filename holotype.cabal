@@ -71,6 +71,8 @@ library
                      , unordered-containers
                      , vect
                      , vector
+                     , wl-pprint-extras
+                     , wl-pprint-text
 
                      , reflex
                      , dependent-sum
