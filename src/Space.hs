@@ -178,10 +178,6 @@ absolute'RProduct scrC r =
 rproduct'δ ∷ Num a ⇒ RProduct' a → Reqmt' a
 rproduct'δ RProduct{..} = Reqmt RAbsolute $ (on (-) _reqt) _rp'opt _rp'min
 
--- XXX: is this jargon really necessary?
-mk'hardReq ∷ RType → Reqt FixedUnit → RProduct
-mk'hardReq ty = join RProduct ∘ Reqmt ty
-
 sum'requirements'axisMajor ∷ Axes → [RProduct] → RProduct
 sum'requirements'axisMajor axis reqs =
   foldl' (\(RProduct lmin lopt) (RProduct rmin ropt) →

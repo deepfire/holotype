@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
@@ -7,6 +8,7 @@ module Elsewhere where
 import qualified Alib                              as M
 import           Control.Applicative
 import           Control.Exception
+import           Control.Lens                      hiding (children)
 import           Control.Monad.Random
 import           Control.Monad.State
 import           Data.Complex
@@ -111,6 +113,9 @@ unreadable ty x = char '#' <> angles (text ty <+> x)
 (<->), (<:>) ∷ Doc → Doc → Doc
 l <-> r = l <> char '-' <> r
 l <:> r = l <> char ':' <> r
+
+ppV2 ∷ Show a ⇒ V2 a → TL.Text
+ppV2 x = (showTL $ x^._x) <> "x" <> (showTL $ x^._y)
 
 class Show a ⇒ PP a where
   {-# MINIMAL pp | ppL #-}

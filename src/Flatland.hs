@@ -181,11 +181,11 @@ infinity = read "Infinity"
 
 type Lin a = (Fractional a, Ord a, Num a)
 
-newtype R   a = R   { _rV  ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Radius
-newtype An  a = An  { _anV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Angle
-newtype Th  a = Th  { _thV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
-newtype He  a = He  { _heV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Height
-newtype Wi  a = Wi  { _wiV ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Width
+newtype R   a = R   { _r'val  ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Radius
+newtype An  a = An  { _an'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Angle
+newtype Th  a = Th  { _th'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
+newtype He  a = He  { _he'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Height
+newtype Wi  a = Wi  { _wi'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Width
 instance Applicative R  where pure = R;  R  f <*> R  x = R  $ f x
 instance Applicative An where pure = An; An f <*> An x = An $ f x
 instance Applicative Th where pure = Th; Th f <*> Th x = Th $ f x
@@ -232,9 +232,9 @@ makeLenses ''Wi
 --
 -- In particular, this screams for Linear.Affine
 --
-newtype  Di a =  Di { _diV   ∷ V2 a }      deriving (Additive, Applicative, Eq, Fractional, Functor, Num) -- ^ Dimensions
-newtype  Po a =  Po { _poV   ∷ V2 a }      deriving (Additive, Applicative, Eq, Fractional, Functor, Num) -- ^ Coordinates, Descartes
-newtype RPo a = RPo { _rpoV  ∷ Complex a } deriving (Additive, Applicative, Eq, Fractional, Functor, Num) -- ^ Coordinates, polar
+newtype  Di a =  Di { _di'v  ∷ V2 a }      deriving (Additive, Applicative, Eq, Fractional, Functor, Num) -- ^ Dimensions
+newtype  Po a =  Po { _po'v  ∷ V2 a }      deriving (Additive, Applicative, Eq, Fractional, Functor, Num) -- ^ Coordinates, Descartes
+newtype RPo a = RPo { _rpo'v ∷ Complex a } deriving (Additive, Applicative, Eq, Fractional, Functor, Num) -- ^ Coordinates, polar
 
 -------- <boilerplate>
 deriving instance Show a ⇒ Show  (Di a); deriving instance Show a ⇒ Show  (Po a); deriving instance Show a ⇒ Show  (RPo a)
@@ -272,7 +272,10 @@ makeLenses ''Po
 makeLenses ''RPo
 makeLenses ''An2
 makeLenses ''Co
+instance Show a ⇒ Pretty (Di a) where pretty = text ∘ ("#<Di " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.di'v)
+instance Show a ⇒ Pretty (Po a) where pretty = text ∘ ("#<Po " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.po'v)
 ---------- </boilerplate>
+
 
 di ∷ Wi a → He a  → Di a
 di  (Wi x) (He y) = Di $ V2 x y
@@ -296,8 +299,8 @@ rpo2po (RPo (x :+ y)) = Po $ V2 x y
 rotateRPo ∷ RealFloat a ⇒ An a → RPo a → RPo a
 rotateRPo (An a) (RPo c) = RPo $ mkPolar (magnitude c) (phase c + a)
 
-poAdd ∷ Num a ⇒ Po a → V2 a → Po a
-poAdd _po = Po ∘ (^+^ _poV _po)
+po'add ∷ Num a ⇒ V2 a → Po a → Po a
+po'add v _po = Po (v ^+^ _po'v _po)
 
 poDelta ∷ Num a ⇒ Po a → Po a → Di a
 poDelta (Po v) (Po v') = Di $ v ^-^ v'
@@ -306,6 +309,13 @@ goldXdi ∷ RealFrac a ⇒ Wi a → Di a
 goldXdi (Wi x) = Di $ V2  x               (x / realToFrac goldenRatio)
 goldYdi ∷ RealFrac a ⇒ He a → Di a
 goldYdi (He y) = Di $ V2 (y / realToFrac goldenRatio) y
+
+di'd   ∷ Axes → Lens' (Di a) a
+di'd   X f (Di (V2 x y)) = Di ∘ (flip V2 y) <$> f x
+di'd   Y f (Di (V2 x y)) = Di ∘ (id   V2 x) <$> f y
+po'd   ∷ Axes → Lens' (Po a) a
+po'd   X f (Po (V2 x y)) = Po ∘ (flip V2 y) <$> f x
+po'd   Y f (Po (V2 x y)) = Po ∘ (id   V2 x) <$> f y
 
 
 -- * Axes
@@ -371,19 +381,21 @@ chord'CW o c r
   | OSW ← o = (oy, ox)
   | ONW ← o = (ox, oy)
   where (vx, vy) = ori'vec'pair r o
-        (ox, oy) = (poAdd c vx, poAdd c vy)
+        (ox, oy) = (po'add vx c, po'add vy c)
 
 
--- * Cstr, Reqt, Orig:
+-- * Cstr, Reqt, Orig, LU:
+-- - constraint
+-- - requirement
+-- - origin, center-based
+-- - left-upper corner
 --
-newtype Cstr d = Cstr { fromCstr ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
-newtype Reqt d = Reqt { fromReqt ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
-newtype Orig d = Orig { fromOrig ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
-
--- TODO:  verify that mempty yields a 0, not a 1
--- instance Num d ⇒ Monoid (Cstr d) where mempty = Cstr $ Di zero
--- instance Num d ⇒ Monoid (Reqt d) where mempty = Reqt $ Di zero
--- instance Num d ⇒ Monoid (Orig d) where mempty = Orig $ Po zero
+newtype Cstr d = Cstr { _cstr'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype Reqt d = Reqt { _reqt'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype Orig d = Orig { _orig'po ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+makeLenses ''Cstr
+makeLenses ''Reqt
+makeLenses ''Orig
 
 cstr'v ∷ Lens' (Cstr a) (V2 a)
 cstr'v f (Cstr (Di v)) = Cstr ∘ Di <$> f v
@@ -402,9 +414,6 @@ orig'd ∷ Axes → Lens' (Orig a) a
 orig'd X f (Orig (Po (V2 x y))) = Orig ∘ Po ∘ (flip V2 y) <$> f x
 orig'd Y f (Orig (Po (V2 x y))) = Orig ∘ Po ∘ (id   V2 x) <$> f y
 
-ppV2 ∷ Show a ⇒ V2 a → TL.Text
-ppV2 x = (showTL $ x^._x) <> "x" <> (showTL $ x^._y)
-
 instance Show a ⇒ Pretty (Cstr a) where pretty = text ∘ ("#<Cstr " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.cstr'v)
 instance Show a ⇒ Pretty (Reqt a) where pretty = text ∘ ("#<Reqt " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.reqt'v)
 instance Show a ⇒ Pretty (Orig a) where pretty = text ∘ ("#<Orig " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.orig'v)
@@ -414,7 +423,7 @@ reqt'add X  (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx
 reqt'add  Y (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx `max` ly) (rx   +   ry)
 
 reqt'axisMajor'add'max ∷ Lin d ⇒ Axes → Reqt d → Reqt d → Reqt d
-reqt'axisMajor'add'max axes = Reqt .: (di'axisMajor'add'max axes `on` fromReqt)
+reqt'axisMajor'add'max axes = Reqt .: (di'axisMajor'add'max axes `on` _reqt'di)
 
 
 -- * TODO:
