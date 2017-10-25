@@ -310,14 +310,17 @@ goldYdi (He y) = Di $ V2 (y / realToFrac goldenRatio) y
 
 -- * Axes
 --
-data Axes = X | Y | XY deriving (Eq, Show)
+data Axes = X | Y deriving (Eq, Show)
+
+other'axis ∷ Axes → Axes
+other'axis X = Y
+other'axis Y = X
 
 -- * Axis-derived operation
 --
 di'axisMajor'add'max ∷ (Num a, Ord a) ⇒ Axes → Di a → Di a → Di a
 di'axisMajor'add'max X  (Di (V2 lx ly)) (Di (V2 rx ry)) = Di $ V2 (lx   +   rx) (ly `max` ry)
 di'axisMajor'add'max Y  (Di (V2 lx ly)) (Di (V2 rx ry)) = Di $ V2 (lx `max` rx) (ly   +   ry)
-di'axisMajor'add'max XY (Di (V2 lx ly)) (Di (V2 rx ry)) = Di $ V2 (lx   +   rx) (ly   +   ry)
 
 
 -- * Orientation: _ north-west, clockwise to west.
