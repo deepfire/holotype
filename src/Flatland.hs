@@ -422,7 +422,7 @@ reqt'axisMajor'add'max axes = Reqt .: (di'axisMajor'add'max axes `on` fromReqt)
 -- - switch to centre-based origin
 --
 orig'beside ∷ Lin d ⇒ Orient Card → Orig d → Reqt d → Reqt d → Orig d
-orig'beside ON o r t = o & orig'v._y %~ ((-)(r^.reqt'v._y))
-orig'beside OS o r t = o & orig'v._y %~ ((+)(t^.reqt'v._y))
-orig'beside OW o r t = o & orig'v._x %~ ((-)(r^.reqt'v._x))
-orig'beside OE o r t = o & orig'v._x %~ ((+)(t^.reqt'v._x))
+orig'beside ON o r _t = o & orig'v._y %~ ((-)(r^.reqt'v._y))
+orig'beside OS o _r t = o & orig'v._y %~ ((+)(t^.reqt'v._y))
+orig'beside OW o r _t = o & orig'v._x %~ ((-)(r^.reqt'v._x))
+orig'beside OE o _r t = o & orig'v._x %~ ((+)(t^.reqt'v._x))

@@ -393,103 +393,155 @@ data S' d a where
 --
 -- Note: we're mostly starting un-spaced, where appropriate.
 --
-lift ∷ (Requires a) ⇒ Reqt FixedUnit → a → Ap C a
-lift = liftAp .: CObj ∘ liftSp ∘ mk'hardReq
 
-hbox, vbox ∷ (Requires a) ⇒ [Ap C a] → Ap C a
-hbox = liftAp ∘ CHBox empty'space
-vbox = liftAp ∘ CVBox empty'space
+lift ∷ (Requires a, Show a) ⇒ a → Ap C a
+lift = liftAp . C empty'space ∘ CObj
 
-
+hbox, vbox ∷ (Requires a, Show a) ⇒ [Ap C a] → Ap C a
+hbox = liftAp ∘ C empty'space ∘ CBox X
+vbox = liftAp ∘ C empty'space ∘ CBox Y
+
 instance Requires Double where
+  -- XXX: stub
+  requires _scrc _d = RProduct (Reqmt RAbsolute $ Reqt $ di 1 1) (Reqmt RAbsolute $ Reqt $ di 2 2)
 
--- hb ∷ Lin (ReqDimen a) ⇒ Ap (C (ReqDimen a)) a
-hb =
-  hbox
-  [ lift (Reqt $ di 10 10) 0
-  , lift (Reqt $ di 10 10) 1
-  ]
-
-demo ∷ Ap C Double
-demo =
-  vbox
-  [ lift (Reqt $ di 10 10) 0
-  , hb
-  ]
-
-demo' ∷ Ap C Double
-demo' =
-  let f = assign'eff'requires (ScreenConstr ∘ Cstr $ di 10 10)
-  in hoistAp (with'C'Requires f) demo
+tree ∷ Ap C Double
+tree =
+  vbox [ lift 0
+       , hbox [ lift 1
+              , lift 2
+              ]
+       , lift 3
+       ]
 
 
 
--- * Analyses for CA
+-- * Requirement & size computation
 --
--- * HBox/VBox requirement model
+--  1. assign'reqires, bottom-up: ask leaves about their requirements, in context of a screen size,
+--     stepwise combining and propagating this composition upward through internal nodes
+--  2. assign'size, top-down: reconcile leaf requirements with screen size constraint
 --
--- reqmt'add  ∷ Lin d ⇒ Axes → Requirement d → Requirement d → Requirement d
--- reqmt'add _   l                       Nothing               = l
--- reqmt'add _   Nothing                r                      = r
--- reqmt'add XY (Just (Di (V2 lx ly))) (Just (Di (V2 rx ry))) = Just ∘ Di $ V2 (lx   +   ly) (rx   +   ry)
--- reqmt'add X  (Just (Di (V2 lx ly))) (Just (Di (V2 rx ry))) = Just ∘ Di $ V2 (lx   +   ly) (rx `max` ry)
--- reqmt'add  Y (Just (Di (V2 lx ly))) (Just (Di (V2 rx ry))) = Just ∘ Di $ V2 (lx `max` ly) (rx   +   ry)
+assign'requires ∷ Requires a ⇒ ScreenCstr → C a → C a
 
--- reqmt'add'xy ∷ Lin d ⇒ Requirement d → Requirement d → Requirement d
--- reqmt'add'xy = reqmt'add XY
+assign'requires _ (sp'requiring ∘ _space → True) =
+  error "Asked to re-assign requirements to an already-requiring node."
+assign'requires scrc c@(C _ (CObj o))     = c & space.require .~ Just (requires scrc o)
+assign'requires scrc c@(C _ (CBox ax cs)) =
+  let chis'    = hoistAp (with'C'dicts $ assign'requires scrc) <$> cs
+      chi'reqs = runAp_  (fromJust ∘ (^. space.require)) <$> chis'
+  in c & children      .~ chis'
+       & space.require .~ Just (sum'requirements'axisMajor ax chi'reqs)
+assign'requires _ _ = error "assign'requires: missing case"
 
--- , ctx'origin  = Just $ (/2) $ fromMaybe zero (origin  l) + fromMaybe zero (origin  r)
+tree'reqd ∷ Ap C Double
+tree'reqd =
+  let cstr  = Cstr $ di 10 10
+      reqd  = hoistAp (with'C'dicts $ assign'requires (ScreenCstr cstr)) tree
+  in reqd
 
-
--- * Requirements
+sp'constraint'changed ∷ Cstr FixedUnit → Space → Bool
+sp'constraint'changed cstr (Space sp'cstr _ _ _) = sp'cstr ≢ Just cstr
+
+assign'size ∷ Requires a ⇒ ScreenCstr → Cstr FixedUnit → C a → C a
+
+-- Propagate downward changes
+assign'size scrC thisC x@(sp'constraint'changed thisC ∘ --trace "space changed"
+                         _space → True) =
+  x & space.constr .~ Just thisC
+    & assign'size scrC thisC
+
+assign'size scrC thisC x@(sp'requiring ∘ _space → False) =
+  x & assign'requires scrC
+    & assign'size     scrC thisC
+
+-- | Given a downward constraint, boxes consider it in two contexts:
+--   - axis-major, for the axis coincident with the box axis
+--   - axis-minor, for the other axis.
 --
--- propagate'hard'soft'requires ∷ Requires a ⇒ ScreenConstr → C a → C a
--- propagate'hard'soft'requires
-
-assign'eff'requires ∷ Requires a ⇒ ScreenConstr → C a → C a
-
--- If we already have an effective requirement, there's nothing to do
-assign'eff'requires _ x@(isJust ∘ (^. space.reqt.hard) → True) = x
-
-assign'eff'requires _      (CObj  (Space  Nothing   _                         _) _) = error "Asked to assign requires to an object without constraints."
-assign'eff'requires _    x@(CObj  (Space (Just _)  (Requirement _ _ (Just _)) _) _) = x -- already has an effective requirement
-assign'eff'requires scrc x@(CObj  (Space (Just _)  (Requirement _ _  Nothing) _) o) = x & space.reqt .~ requires scrc o
-
-assign'eff'requires _    x@(CHBox (Space (Just cst) _                         _) _) = assigh'eff'requires'box x cst X
-assign'eff'requires _    x@(CVBox (Space (Just cst) _                         _) _) = assigh'eff'requires'box x cst Y
-
-assigh'eff'requires'box ∷ C a0 -> Cstr FixedUnit -> Axes -> C a0
-assigh'eff'requires'box x x'cstr axis =
-  let -- Query children's soft/hard requirements
-      chi'allRs           = ca'reqt <$> x^.children
-      partition'by'hardness xs acc@(ds, ss)
-        | []      ← xs = acc
-        | (x:xs') ← xs = partition'by'hardness xs'
-                         $ case x of
-                             Requirement (Just d) _ _ → (d:ds, ss)                 -- XXX: ignores a soft requirement, when there's a soft one
-                             Requirement _ (Just s) _ → (ds, s:ss)
-                             _                        → (ds, mempty:ss)            -- XXX: interprets no requirement at all as zero requirement
-      (,) chi'hardRs
-          chi'softRs   = partition'by'hardness chi'allRs ([], [])
-      chi'hardR'sum    = foldr (reqt'add axis) mempty chi'hardRs                   -- XXX: softs are ignored wrt. the secondary axes
-      abs'remains      = x'cstr^.cstr'd axis - chi'hardR'sum^.reqt'd axis
-      soft'abs'ratio   = abs'remains / (sum $ (^.reqt'd axis) <$> chi'softRs)
-      -- Compute a child's constraint by promoting its own requirement
-      req'cstr (Requirement (Just hardR) _        _) =  Cstr $ Di $ hardR^.reqt'v
-      req'cstr (Requirement _        (Just softR) _) = (Cstr $ Di $ softR^.reqt'v) & cstr'd axis %~ (* soft'abs'ratio)
-      req'cstr (Requirement _        _            _) = error "req'cstr called on a bad Requirement."
+--   Axis-major size allocation happens through redistribution of slack, where
+--   slack is the downward constraint minus the sum of minimum (axis-major)
+--   requirements of children.  Computed slack is then redistributed equally
+--   between children, until saturation and based on their optimal requirements.
+--
+--   Axis-minor allocation is the minimum of the axis-minor limit and the ∈'s
+--   optimum requirement.  The axis-minor limit is a minumum of:
+--   - the downward constraint
+--   - maximum of the minimum and optimum (axis-minor) requirements
+assign'size scrC thisC x@(C (Space _ _ _ _) (CBox axis _)) =
+  let -- Common computations
+      chi'allRs         = absolute'RProduct scrC ∘ fromJust ∘ ca'reqt <$> x^.children
+      minima            = _reqt ∘ _rp'min <$> chi'allRs
+      optima            = _reqt ∘ _rp'opt <$> chi'allRs
+      minor'axis        = other'axis axis
+      -- Process minor axis first:
+      -- 1. find largest (min or max) requirement on the minor axis
+      reqs'axis'max reqs = foldl' (reqt'axisMajor'add'max axis) mempty reqs ^. reqt'd minor'axis
+      minor'maxR        = reqs'axis'max optima `max` reqs'axis'max minima
+      -- 2. constrain that with upstream
+      minor'alloc       = min minor'maxR $ thisC ^. cstr'd minor'axis
+      -- Distribution along the major axis
+      step ∷ (Lin d, d ~ FixedUnit) ⇒ Axes → d → d → [(Reqt d, Reqt d)] → [(Reqt d, Reqt d)] → (d, [(Reqt d, Reqt d)])
+      step _  _          rem' acc []               = (rem', acc)
+      step ax unit'share rem' acc ((now, lack):rs) =
+        let accept  = min unit'share (lack ^. reqt'd ax)
+            sated'r = (now & reqt'd ax %~ (+ accept), lack & reqt'd ax %~ ((-) accept))
+        in step ax unit'share (rem' - accept) (sated'r:acc) rs
+      assign'minor'axis ∷ d ~ FixedUnit ⇒ [(Reqt d, Reqt d)] → [(Reqt d, Reqt d)]
+      assign'minor'axis pairs =
+        [ p & _1 ∘ reqt'd minor'axis .~ min minor'alloc ((sz + δ) ^. reqt'd minor'axis)
+        | p@(sz, δ) ← pairs ]
+      distribute ∷ (Lin d, Pretty d, Show d, d ~ FixedUnit) ⇒
+        Axes → Maybe d → d → [(Reqt d, Reqt d)] → Bool → (d, [(Reqt d, Reqt d)])
+      -- Test for convergence (no space left to distribute or nothing lacks it)
+      distribute _ (Just last'rem) rem'@((\r→r≡0∨r≡last'rem) → True) rpairs' revved =
+        -- every pass of 'step' over 'rpairs' reverses the latter -- keep track of that..
+        (,) rem' (rpairs' & (if revved then reverse else id)
+                          & assign'minor'axis)
+      distribute ax _              rem'                              rpairs' revved =
+        let -- Equal (non-proportional) distribution of remainder among children
+            unit'share              = rem' / fromIntegral (length rpairs')
+            (rem'next, rpairs'next) = step axis unit'share rem' [] rpairs'
+        in distribute ax (Just rem') rem'next rpairs'next (not revved)
+      -- Process major axis
+      lacks             = _reqt ∘ rproduct'δ <$> chi'allRs
+      rpairs            = zip minima lacks
+      total'lacks       = foldl' (reqt'axisMajor'add'max axis) mempty minima
+      remainder         = thisC^.cstr'd axis - (total'lacks^.reqt'd axis)
+      (,)
+       overflow
+       (unused, sizes)  = if remainder >= 0
+                          then (0,           distribute axis Nothing remainder rpairs False)
+                          -- XXX: handle overflow
+                          else (-remainder, (0, zip minima lacks))
       -- Assign constraints
-      chis             = [ hoistAp (& space.cstr._Just .~ req'cstr req) c
-                         | (req, c) ← zip chi'allRs (x^.children) ]
-  in x & space.reqt.eff._Just.reqt'v .~ x'cstr^.cstr'v                             -- SIMPLISTIC?: slap our own constraint as the requirement
-       & children                    .~ chis
+      cstrd'sized'chis  = [ hoistAp (with'C'dicts
+                                     (\o→ o & space.constr .~ Just chi'cstr
+                                            & space.size   .~ Just sz
+                                            & assign'size scrC chi'cstr)) c
+                          | ((sz, _), c) ← zip sizes (x^.children)
+                          , let chi'cstr = Cstr (fromReqt sz) ]
+  in x & space.size .~ (Just $ Reqt $ fromCstr (thisC & cstr'd axis       %~ (flip (-) unused)
+                                                      & cstr'd minor'axis .~ minor'alloc))
+       & children   .~ cstrd'sized'chis
 
--- assign'eff'requires scrc x@CWrap{..} =
---   let chi       = runAp (liftAp ∘ assign'eff'requires) _cw
+-- Parent does all the work for objects.
+assign'size _ _ x@(C (Space _ _ _ _) (CObj _)) = x
+
+-- assign'size scrc x@CWrap{..} =
+--   let chi       = runAp (liftAp ∘ assign'size) _cw
 --       chi_req   = ca'reqt chi
 --       req       = (mk'reqmt _cwNW) `reqmt'add'xy` chi_req `reqmt'add'xy` (mk'reqmt _cwSE)
 --   in x & space.reqt .~ req
 --        & child         .~ chi
+
+assign'size _ _ _ = error "assign'size: unhandled case"
+
+tree'sized ∷ Ap C Double
+tree'sized =
+  let cstr  = Cstr $ di 10 10
+      sized = hoistAp (with'C'dicts $ assign'size (ScreenCstr cstr) cstr) tree'reqd
+  in sized
 
 foldilate ∷ (a → s → (c, s)) → s → [a] → ([c], s)
 foldilate f s xs = runState (mapM f' xs) s
@@ -508,7 +560,7 @@ cursor'state'op y xs f = runState (mapM f xs) y
 -- * Origination
 --
 -- NOTE: this is based on Origin = Center
-assign'origins ∷ C a → C a
+-- assign'origins ∷ C a → C a
 -- * REQUIREMENTS
 --
 -- For this code we want something more high-level than banging Di's against Po's.
@@ -517,9 +569,9 @@ assign'origins ∷ C a → C a
 --    - Orients
 --    - a combination of Di and Po in the combinator
 --
-assign'origins   (_space → (Space _ _ Nothing)) = error "Attempt to assign origins to children of an unoriginated tree."
+-- assign'origins   (_space → (Space _ _ _ Nothing)) = error "Attempt to assign origins to children of an unoriginated tree."
 
-assign'origins x@CObj{..} = x
+-- assign'origins x@CObj{..} = x
   -- x { _space = _space { s'orig = ca'origin _cobj } }
 
 -- assign'origins x@(CHBox s (_chs ∷ [Ap (C d) a])) =
@@ -531,7 +583,7 @@ assign'origins x@CObj{..} = x
 --   in x & children .~ origd
 
 -- assign'origins x@CVBox{..} =
---   let chis      = runAp (liftAp ∘ assign'eff'requires) <$> _cvs
+--   let chis      = runAp (liftAp ∘ assign'size) <$> _cvs
 --       req       =
 --       -- foldl' (reqmt'add Y) (s'reqmt _space) (ca'reqmt <$> chis)
 --   in x { _space = _space { s'reqmt = req }

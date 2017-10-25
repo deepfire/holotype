@@ -24,7 +24,6 @@ import           GHC.TypeLits                      hiding (Text)
 -- Types
 import           Control.Monad                            (when, forM_)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
-import           Data.MeasuredMonoid                      ((<>))
 import qualified Data.Map                          as Map
 import qualified Data.Text                         as T
 import qualified Data.Vector                       as V
@@ -68,6 +67,7 @@ import HoloFont
 import HoloCairo
 import qualified HoloCube                          as HC
 import HoloSettings
+import Space
 
 
 -- | A Cairo-capable 'Drawable' to display on a GL 'Frame'.
