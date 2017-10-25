@@ -172,19 +172,24 @@ type Space = Space' FixedUnit
 empty'space ∷ Space
 empty'space = Space Nothing mempty Nothing
 
-instance Pretty Space where
-  ppL (Space c r o) = format "#<Space {}--{}:{}--{}>"
-    ( fromMaybe "*" $ pp ∘ (^.cstr'v) <$> c
-    , fromMaybe "*" $ pp ∘ (^.reqt'v) <$> r^.hard
-    , fromMaybe "*" $ pp ∘ (^.reqt'v) <$> r^.soft
-    , fromMaybe "*" $ pp ∘ (^.orig'v) <$> o)
-
+prettySpace ∷ Space' d → Doc
+prettySpace (Space c r s o) =
+        prettyMaybe "*" ((text "Cstr" <:>) ∘ text ∘ ppV2  ∘ (^.cstr'v) <$> c)
+    <-> prettyMaybe "*" (prettyR ∘ (^.rp'min) <$> r)
+    <-> prettyMaybe "*" (prettyR ∘ (^.rp'opt) <$> r)
+    <-> prettyMaybe "*" ((text "Size" <:>) ∘ text ∘ ppV2  ∘ (^.reqt'v) <$> s)
+    <-> prettyMaybe "*" ((text "Orig" <:>) ∘ text ∘ ppV2  ∘ (^.orig'v) <$> o)
+    where prettyR (Reqmt ty req) = pretty ty <:> text (ppV2 $ req^.reqt'v)
 class IsSpace t where
   liftSp ∷ t → Space
 
+instance Pretty (Space' d) where
+  pretty = unreadable "Space" ∘ prettySpace
 
 -- * Space constructors
 
+trace'space ∷ Space → Space
+trace'space x = trace (ppCompactS x) x
 mk'hardReq ∷ Reqt FixedUnit → Requirement
 mk'hardReq x = Requirement (Just x) Nothing Nothing
 
@@ -243,15 +248,14 @@ data KArity     = One | Many
 data KSize      = SzCons | SzReq | NoSize
 data KPosition  = Abs | Rel | NoPos
 
-dumpC :: Ap C a -> IO a
-dumpC m = runAp dump m
-  where
-    dump :: C a -> IO a
-    dump  CObj{..} = (putStrLn $ "Obj "  <> pp _space) >> pure _cobj
-    dump CHBox{..} = (putStrLn $ "HBox " <> pp _space) >> head <$> mapM (runAp dump) _chs
+instance Pretty (C' d a) where
+  pretty (C sp CObj{..})  = unreadable "Obj"         $ nest 8 $ prettySpace sp
+  pretty (C sp CBox{..})  = unreadable
+                            (showTL _caxes <> "Box") $ nest 8 $ prettySpace sp <> softline <> (vcat $ pretty <$> _cs)
+  pretty (C sp CWrap{..}) = unreadable "Wrap"        $ nest 8 $ prettySpace sp <> softline <+> pretty _cw
 
-    dump CVBox{..} = (putStrLn $ "VBox " <> pp _space) >> head <$> mapM (runAp dump) _cvs
-    dump CWrap{..} = (putStrLn $ "Wrap " <> pp _space) >> runAp dump _cw
+instance Pretty (Ap (C' d) a) where
+  pretty = runAp_ pretty
 
 -- ca'requires ∷ (Lin d, Requires (C a) d) ⇒ ScreenConstr d → Ap (C d) a → Requirement d
 -- ca'requires scrc x = runAp_ (requires scrc) x
@@ -308,6 +312,10 @@ data    C' d a where
     } → C' d a
     deriving ()
 
+deriving instance (Show a, Show d) ⇒ Show (S' d a)
+deriving instance (Show a, Show d) ⇒ Show (C' d a)
+instance (Show a, Show d) ⇒ Show (Ap (C' d) a) where
+  show = runAp_ $ with'C'dicts show
 type C = C' FixedUnit
 
 with'C'Requires ∷ (∀ b. (b ~ a, Requires b) ⇒ C b → c) → C a → c
