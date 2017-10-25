@@ -26,6 +26,7 @@ import           Control.Lens                      hiding (children)
 import           Control.Monad.Random              hiding (lift, void)
 import           Control.Monad.State               hiding (lift, void)
 import           Data.Complex
+import           Data.Foldable
 import           Data.Function
 import           Data.List
 import           Data.Lub
@@ -37,10 +38,13 @@ import           Data.MonoTraversable
 import           Data.Monoid
 import qualified Data.Text                         as T
 import           Data.Text                                (Text)
+import qualified Data.Text.Lazy                    as TL
 import           Data.Text.Lazy                           (toStrict)
 import           Data.Text.IO
+import qualified Data.Text.Lazy.IO                 as TLIO
 import           Data.Type.Bool
 import           Data.Void                                (Void)
+import           Text.PrettyPrint.Leijen.Text      hiding ((<>), (<$>), space)
 
 -- Algebra
 import           Linear                            hiding (trace)
@@ -107,62 +111,107 @@ import           Flatland
 type FixedUnit = Double
 
 
--- * Requirement description
---
-type Constraint = Maybe (Cstr FixedUnit)
-
-data Requirement where
-  Requirement ∷
-    { _hard ∷ Maybe (Reqt FixedUnit) -- ^ Absolutely-dimensioned (screen units)
-    , _soft ∷ Maybe (Reqt FixedUnit) -- ^ Relatively-dimensioned (screen ratio)
-    , _eff  ∷ Maybe (Reqt FixedUnit) -- ^ Absolutely-dimensioned, as it's concrete
-    } → Requirement
-    deriving (Show)
-makeLenses ''Requirement
-
-reqm'has'hard, reqm'has'soft, reqm'has'eff ∷ Requirement → Bool
-reqm'has'hard = isJust ∘ view hard
-reqm'has'soft = isJust ∘ view soft
-reqm'has'eff  = isJust ∘ view eff
-
-type Origin = Maybe (Orig FixedUnit)
-
-instance Monoid Requirement where
-  mempty = Requirement Nothing Nothing Nothing
-
-
 -- * Screen-space dimensions and requirement querying
 --
-newtype ScreenConstr = ScreenConstr { _scrc'cstr ∷ Cstr FixedUnit } deriving (Eq, Show)
-makeLenses ''ScreenConstr
+type ScreenCstr = ScreenCstr' FixedUnit
+newtype ScreenCstr' a = ScreenCstr { _scrcstr ∷ Cstr a } deriving (Eq, Show)
+makeLenses ''ScreenCstr'
 
 data UnitI
   = UDouble
   | UInt
 
-scrc'v ∷ Lens' ScreenConstr (V2 FixedUnit)
-scrc'v = scrc'cstr ∘  cstr'v
-scrc'd = scrc'cstr .: cstr'd
+
+-- * Requirement
+--
+data RType where
+  RAbsolute  ∷ RType
+  RScreenRel ∷ RType
+  deriving (Eq, Show)
 
-class Requires a where
-  hard'requires ∷ ScreenConstr → a → Maybe (Reqt FixedUnit)
-  soft'requires ∷                a → Maybe (Reqt FixedUnit)
-  --
-  hard'requires _ _ = Nothing
-  soft'requires   _ = Nothing
+instance Pretty RType where
+  pretty RAbsolute  = text "RAbs"
+  pretty RScreenRel = text "RScr"
 
--- requires ∷ Requires a ⇒ ScreenConstr (ReqDimen a) → a → Requirement (ReqDimen a)
-requires ∷ Requires a ⇒ ScreenConstr → a → Requirement
-requires c x = Requirement (hard'requires c x) (soft'requires x) Nothing
+type Reqmt = Reqmt' FixedUnit
+data Reqmt' a where
+  Reqmt ∷
+    { _rtype ∷ RType
+    , _reqt  ∷ Reqt a
+    } → Reqmt' a
+    deriving (Eq, Functor, Show)
+makeLenses ''Reqmt'
+
+instance Show a ⇒ Pretty (Reqmt' a) where
+  pretty (Reqmt ty req) = unreadable (rendCompact $ pretty ty) $ text (ppV2 $ req^.reqt'v)
+
+absolute'reqmt ∷ Num a ⇒ ScreenCstr' a → Reqmt' a → Reqmt' a
+absolute'reqmt (ScreenCstr (Cstr scrC)) reqmt@(Reqmt ty (Reqt req)) =
+  case ty of
+    RAbsolute  → reqmt
+    RScreenRel → Reqmt RAbsolute $ Reqt $ req ⋅ scrC
+
+reqmt'axisMajor'add'max ∷ Lin d ⇒ Axes → Reqmt' d → Reqmt' d → Reqmt' d
+reqmt'axisMajor'add'max axes = Reqmt RAbsolute .: (reqt'axisMajor'add'max axes `on` _reqt)
 
 
--- * Space ~ (Constraint * Requirement * Origin)
+type RProduct = RProduct' FixedUnit
+-- | A sum of minimum and optimum size requirements.
+--
+data RProduct' a where
+  RProduct ∷
+    { _rp'min  ∷ Reqmt' a
+    , _rp'opt  ∷ Reqmt' a
+    } → RProduct' a
+    deriving (Eq, Functor, Show)
+makeLenses ''RProduct'
+
+instance Show a ⇒ Pretty (RProduct' a) where
+  pretty (RProduct min' opt) = unreadable "R" $ pretty min' <+> pretty opt
+
+absolute'RProduct ∷ Num a ⇒ ScreenCstr' a → RProduct' a → RProduct' a
+absolute'RProduct scrC r =
+  RProduct (absolute'reqmt scrC $ r^.rp'min)
+             (absolute'reqmt scrC $ r^.rp'opt)
+
+-- XXX: assumes an absolute product (need to go type-level)
+rproduct'δ ∷ Num a ⇒ RProduct' a → Reqmt' a
+rproduct'δ RProduct{..} = Reqmt RAbsolute $ (on (-) _reqt) _rp'opt _rp'min
+
+-- XXX: is this jargon really necessary?
+mk'hardReq ∷ RType → Reqt FixedUnit → RProduct
+mk'hardReq ty = join RProduct ∘ Reqmt ty
+
+sum'requirements'axisMajor ∷ Axes → [RProduct] → RProduct
+sum'requirements'axisMajor axis reqs =
+  foldl' (\(RProduct lmin lopt) (RProduct rmin ropt) →
+            RProduct (reqmt'axisMajor'add'max axis lmin rmin) (reqmt'axisMajor'add'max axis lopt ropt))
+  mempty reqs
+
+instance Monoid RProduct where
+  mempty = RProduct (Reqmt RAbsolute zero) (Reqmt RAbsolute zero)
+  -- | Beware, this is a severely flawed instance.
+  --   Sadly, we're dependent on it to query the free applicative.
+  l@(RProduct lmin lopt) `mappend` r@(RProduct rmin ropt) =
+    if | ropt^.reqt ≡ zero ∧ rmin^.reqt ≡ zero → RProduct lmin lopt
+       | lopt^.reqt ≡ zero ∧ lmin^.reqt ≡ zero → RProduct rmin ropt
+       | otherwise → errorTL $ "RProduct.⊕ " <> rendCompact (pretty l <+> pretty r)
+
+class Requires a where
+  -- | Given a screen constraint contex, return requirements.  We're deliberately
+  --   not providing the parent constraint, to enable a single sweeping
+  --   requirement computation pass.
+  requires ∷ ScreenCstr → a → RProduct
+
+
+-- * Space ~ (Constraint * RProduct * Origin)
 --
 data Space' (d ∷ Type) where
   Space ∷
-    { _cstr ∷ Constraint
-    , _reqt ∷ Requirement
-    , _orig ∷ Origin
+    { _constr  ∷ Maybe (Cstr FixedUnit)
+    , _require ∷ Maybe RProduct
+    , _size    ∷ Maybe (Reqt FixedUnit)
+    , _origin  ∷ Maybe (Orig FixedUnit)
     } → Space' d
   deriving (Show)
 makeLenses ''Space'
@@ -170,7 +219,7 @@ makeLenses ''Space'
 type Space = Space' FixedUnit
 
 empty'space ∷ Space
-empty'space = Space Nothing mempty Nothing
+empty'space = Space Nothing Nothing Nothing Nothing
 
 prettySpace ∷ Space' d → Doc
 prettySpace (Space c r s o) =
@@ -180,32 +229,32 @@ prettySpace (Space c r s o) =
     <-> prettyMaybe "*" ((text "Size" <:>) ∘ text ∘ ppV2  ∘ (^.reqt'v) <$> s)
     <-> prettyMaybe "*" ((text "Orig" <:>) ∘ text ∘ ppV2  ∘ (^.orig'v) <$> o)
     where prettyR (Reqmt ty req) = pretty ty <:> text (ppV2 $ req^.reqt'v)
-class IsSpace t where
-  liftSp ∷ t → Space
 
 instance Pretty (Space' d) where
   pretty = unreadable "Space" ∘ prettySpace
-
--- * Space constructors
 
 trace'space ∷ Space → Space
-trace'space x = trace (ppCompactS x) x
-mk'hardReq ∷ Reqt FixedUnit → Requirement
-mk'hardReq x = Requirement (Just x) Nothing Nothing
+trace'space x = trace (TL.unpack $ ppCompact x) x
 
-instance IsSpace Constraint  where liftSp x = empty'space & cstr .~ x
-instance IsSpace Origin      where liftSp x = empty'space & orig .~ x
-instance IsSpace Requirement where liftSp x = empty'space & reqt .~ x
+mk'reqSpace ∷ RProduct → Space
+mk'reqSpace x = empty'space & require .~ Just x
 
-s'beside ∷ Space → Orient Card → Space → Space
-s'beside (Space _ (Requirement _ _ (Just r)) (Just o)) at what@(Space _ (Requirement _ _ (Just r')) _) =
-  what & orig .~ (Just $ orig'beside at o r r')
+-- sp'beside ∷ Space → Orient Card → Space → Space
+-- sp'beside (Space _ (RProduct _ _) (Just o)) at what@(Space _ (RProduct _ _ (Just r')) _) =
+--   what & orig .~ (Just $ orig'beside at o r r')
 
-s'inside ∷ Space → Orient a → Space → (Space, Space)
-s'inside = (⊥)
+sp'inside ∷ Space → Orient a → Space → (Space, Space)
+sp'inside = (⊥)
 -- * Questions for type-driven subsetting:
 --     1. orientations we can handle
 --     2. spaces we can handle
+
+sp'constrained, sp'unconstrained, sp'requiring, sp'sized, sp'originated ∷ Space → Bool
+sp'constrained   = (≢ Nothing) ∘ (^.constr)
+sp'unconstrained = (≡ Nothing) ∘ (^.constr)
+sp'requiring     = (≢ Nothing) ∘ (^.require)
+sp'sized         = (≢ Nothing) ∘ (^.size)
+sp'originated    = (≢ Nothing) ∘ (^.origin)
 
 
 -- * If we'd ever need a Place, it's here:
@@ -233,10 +282,6 @@ makeLenses ''Place
 --
 deriving instance Show d ⇒ Show (Place d)
 
--- origin'place ∷ Origin d → Place d
--- origin'place Nothing  = Nowhere
--- origin'place (Just x) = Center x
-
 
 
 -- * CA: free applicative that contextualises child nodes with:
@@ -257,18 +302,17 @@ instance Pretty (C' d a) where
 instance Pretty (Ap (C' d) a) where
   pretty = runAp_ pretty
 
--- ca'requires ∷ (Lin d, Requires (C a) d) ⇒ ScreenConstr d → Ap (C d) a → Requirement d
--- ca'requires scrc x = runAp_ (requires scrc) x
+ca'cstr ∷ Ap C a → Maybe (Cstr FixedUnit)
+ca'cstr = runAp_ (^.space.constr)
+ca'reqt ∷ Ap C a → Maybe RProduct
+ca'reqt = runAp_ (^.space.require)
+ca'size ∷ Ap C a → Maybe (Reqt FixedUnit)
+ca'size = runAp_ (^.space.size)
+ca'orig ∷ Ap C a → Maybe (Orig FixedUnit)
+ca'orig = runAp_ (^.space.origin)
 
-ca'cstr ∷ Ap C a → Constraint
-ca'cstr = runAp_ (^.space.cstr)
-ca'reqt ∷ Ap C a → Requirement
-ca'reqt = runAp_ (^.space.reqt)
-ca'orig ∷ Ap C a → Origin
-ca'orig = runAp_ (^.space.orig)
-
-ca'set'orig ∷ Origin → Ap C a → Ap C a
-ca'set'orig v = hoistAp (& space.orig .~ v)
+ca'set'orig ∷ Orig FixedUnit → Ap C a → Ap C a
+ca'set'orig v = hoistAp (& space.origin .~ Just v)
 
 
 -- * Structure
@@ -280,53 +324,52 @@ ca'set'orig v = hoistAp (& space.orig .~ v)
 --     } → CF d a
 
 space    ∷ Lens' (C a) Space
-space    f c               = fmap (\s'  -> c { _space = s' })  (f $ _space c)
+space    f c               = fmap (\s'  -> c { _space  = s' })  (f $ _space c)
+struct   ∷ Lens' (C a) (S a)
+struct   f c               = fmap (\s'  -> c { _struct = s' })  (f $ _struct c)
 
 children ∷ Lens' (C a) [Ap C a]
-children f c@(CHBox _ _) = fmap (\cs' -> c { _chs   = cs' }) (f $ _chs c)
-children f c@(CVBox _ _) = fmap (\cs' -> c { _cvs   = cs' }) (f $ _cvs c)
+children f c@(C _ s@(CBox _ _))    = fmap (\cs' -> c { _struct = s { _cs    = cs' } }) (f $ _cs s)
 children _ _ = error "Misapplication of a 'children' lens to a wrong GADT constructor.  Please convince author to go type-level."
 
-child ∷ Lens' (C a) (Ap C a)
-child f c@(CWrap _ _ _ _)  = fmap (\c'  -> c { _cw    = c' })  (f $ _cw c)
-child _ _ = error "Misapplication of a 'children' lens to a wrong GADT constructor.  Please convince author to go type-level."
+child    ∷ Lens' (C a) (Ap C a)
+child    f c@(C _ s@(CWrap _ _ _)) = fmap (\c'  -> c { _struct = s { _cw    = c' } })  (f $ _cw s)
+child    _ _ = error "Misapplication of a 'children' lens to a wrong GADT constructor.  Please convince author to go type-level."
 
-data    C' d a where
-  CObj ∷ Requires a ⇒
-    { _space   ∷ Space
-    , _cobj    ∷ a
+
+-- * C & S, functor and structure
+--
+type C = C' FixedUnit
+type S = S' FixedUnit
+
+data C' d a where
+  C ∷ (Requires a, Show a, Show d) ⇒
+    { _space  ∷ Space
+    , _struct ∷ S' d a
     } → C' d a
-  CHBox ∷ Requires a ⇒
-    { _space   ∷ Space
-    , _chs     ∷ [Ap (C' d) a]
-    } → C' d a
-  CVBox ∷ Requires a ⇒
-    { _space   ∷ Space
-    , _cvs     ∷ [Ap (C' d) a]
-    } → C' d a
-  CWrap ∷ Requires a ⇒
-    { _space   ∷ Space
-    , _cwNW    ∷ !(Di d) -- ^ The combined offsets _ the left and top sides.
-    , _cwSE    ∷ !(Di d) -- ^ The combined offsets _ the right and bottom sides.
-    , _cw      ∷ Ap (C' d) a
-    } → C' d a
-    deriving ()
 
 deriving instance (Show a, Show d) ⇒ Show (S' d a)
 deriving instance (Show a, Show d) ⇒ Show (C' d a)
 instance (Show a, Show d) ⇒ Show (Ap (C' d) a) where
   show = runAp_ $ with'C'dicts show
-type C = C' FixedUnit
 
-with'C'Requires ∷ (∀ b. (b ~ a, Requires b) ⇒ C b → c) → C a → c
-with'C'Requires f x = x & case x of
-  CObj      _ _ → f
-  CVBox     _ _ → f
-  CHBox     _ _ → f
-  CWrap _ _ _ _ → f
+with'C'dicts ∷ (∀ b e. (b ~ a, e ~ d, (Requires b, Show b, Show e, Show (Ap (C' e) b))) ⇒ C' e b → c) → C' d a → c
+with'C'dicts f x = x & case x of C _ _ → f
 
--- makeLenses ''C
-  -- -- CRel ∷
+data S' d a where
+  CObj ∷ Requires a ⇒
+    { _cobj    ∷ a
+    } → S' d a
+  CBox ∷ Requires a ⇒
+    { _caxes   ∷ Axes
+    , _cs      ∷ [Ap (C' d) a]
+    } → S' d a
+  CWrap ∷ Requires a ⇒
+    { _cwNW    ∷ !(Di d) -- ^ The combined offsets _ the left and top sides.
+    , _cwSE    ∷ !(Di d) -- ^ The combined offsets _ the right and bottom sides.
+    , _cw      ∷ Ap (C' d) a
+    } → S' d a
+  -- CRel ∷
   --   { _cRel    ∷ !(Po d)
   --   , _crela   ∷ a
   --   } → C d      Pos        One          NoSize      Rel        a
@@ -341,6 +384,9 @@ with'C'Requires f x = x & case x of
   --   { _cvAlloc ∷ ![Th d] -- ^ Relative allocations
   --   , _cvs     ∷ [a]
   --   } → C d      FBox       Many         SzCons      NoPos      a
+  deriving ()
+
+-- makeLenses ''C'
 
 
 -- * Description language
