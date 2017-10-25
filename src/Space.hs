@@ -391,6 +391,9 @@ hbox, vbox ∷ (Requires a, Show a) ⇒ [Ap C a] → Ap C a
 hbox = liftAp ∘ C empty'space ∘ CBox X
 vbox = liftAp ∘ C empty'space ∘ CBox Y
 
+wrap ∷ (Requires a, Show a) ⇒ Di FixedUnit → Ap C a → Ap C a
+wrap bezel = liftAp ∘ C empty'space ∘ CWrap bezel bezel
+
 instance Requires Double where
   -- XXX: stub
   requires _scrc _d = RProduct (Reqmt RAbsolute $ Reqt $ di 1 1) (Reqmt RAbsolute $ Reqt $ di 2 2)
@@ -398,7 +401,8 @@ instance Requires Double where
 tree ∷ Ap C Double
 tree =
   vbox [ lift 0
-       , hbox [ lift 1
+       , wrap (di 1 1) $
+         hbox [ lift 1
               , lift 2
               ]
        , lift 3
@@ -425,6 +429,15 @@ assign'requires scrc c@(C _ (CBox ax χs)) =
        & space.require .~ Just (sum'requirements'axisMajor ax $
                                 fromMaybe (error "CBox: unexpected missing child reqt")
                                 ∘ ca'reqt <$> reqd)
+assign'requires scrc c@(C _ (CWrap nw se χ)) =
+  let reqd     = hoistAp (with'CDicts $ assign'requires scrc) χ
+  in c & child         .~ reqd
+       -- The 'fromJust' below should be safe, because we're doing
+       -- requirement assignment just above.
+       & space.require .~ Just ((fromMaybe (error "CWrap: unexpected missing child reqt")
+                                  $ ca'reqt reqd)
+                                & rp'min ∘ reqt ∘ reqt'di %~ (+ (nw + se))
+                                & rp'opt ∘ reqt ∘ reqt'di %~ (+ (nw + se)))
 assign'requires _ _ = error "assign'requires: missing case"
 
 tree'reqd ∷ Ap C Double
@@ -524,6 +537,16 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _)) =
                                                       & cstr'd minor'axis .~ minor'alloc))
        & children   .~ cstrd'sized'chis
 
+assign'size scrC thisC o@(C (Space _ _ _ _) (CWrap lu rb χ)) =
+  let χC    = thisC & cstr'di %~ (flip (-) (lu + rb))
+      χR    = _reqt $ _rp'opt $ absolute'rproduct scrC $ fromJust $ ca'reqt χ
+      χDi   = liftA2 min (χC ^. cstr'di) (χR ^. reqt'di)
+      sized = hoistAp (with'CDicts (\χ→ χ & space.constr .~ Just (Cstr χDi)
+                                          & space.size   .~ Just (Reqt χDi)
+                                          & assign'size scrC (Cstr χDi)))
+              χ
+  in o & space.size .~ Just (Reqt $ χDi + lu + rb)
+       & child      .~ sized
 
 assign'size _ _ _ = error "assign'size: unhandled case"
 
@@ -585,6 +608,11 @@ assign'origins cursor o@(C (Space _ _ (Just sz) _) (CBox axis chis)) =
       (_, originated'chis) = step cursor [] chis
   in o & space∘origin .~ (Just $ lu'orig sz cursor)
        & children     .~ reverse originated'chis
+
+assign'origins cursor o@(C (Space _ _ (Just sz) _) (CWrap lu rb χ)) =
+  let next'cursor = cursor & lu'po %~ po'add (_di'v lu)
+  in o & space∘origin .~ (Just $ lu'orig sz cursor)
+       & child        .~ hoistAp (with'CDicts $ assign'origins next'cursor) χ
 
 tree'origd ∷ Ap C Double
 tree'origd =
