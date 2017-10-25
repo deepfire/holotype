@@ -110,7 +110,6 @@ import           Flatland
 --
 type FixedUnit = Double
 
-
 -- * Screen-space dimensions and requirement querying
 --
 type ScreenCstr = ScreenCstr' FixedUnit
@@ -142,6 +141,10 @@ data Reqmt' a where
     deriving (Eq, Functor, Show)
 makeLenses ''Reqmt'
 
+instance Num d ⇒ Monoid (Reqmt' d) where
+  -- XXX: WARNING: flawed Monoid instance!
+  mempty = Reqmt RAbsolute mempty
+
 instance Show a ⇒ Pretty (Reqmt' a) where
   pretty (Reqmt ty req) = unreadable (rendCompact $ pretty ty) $ text (ppV2 $ req^.reqt'v)
 
@@ -158,33 +161,18 @@ reqmt'axisMajor'add'max axes = Reqmt RAbsolute .: (reqt'axisMajor'add'max axes `
 type RProduct = RProduct' FixedUnit
 -- | A sum of minimum and optimum size requirements.
 --
-data RProduct' a where
+data RProduct' d where
   RProduct ∷
-    { _rp'min  ∷ Reqmt' a
-    , _rp'opt  ∷ Reqmt' a
-    } → RProduct' a
+    { _rp'min  ∷ Reqmt' d
+    , _rp'opt  ∷ Reqmt' d
+    } → RProduct' d
     deriving (Eq, Functor, Show)
 makeLenses ''RProduct'
 
-instance Show a ⇒ Pretty (RProduct' a) where
+instance Show d ⇒ Pretty (RProduct' d) where
   pretty (RProduct min' opt) = unreadable "R" $ pretty min' <+> pretty opt
 
-absolute'RProduct ∷ Num a ⇒ ScreenCstr' a → RProduct' a → RProduct' a
-absolute'RProduct scrC r =
-  RProduct (absolute'reqmt scrC $ r^.rp'min)
-             (absolute'reqmt scrC $ r^.rp'opt)
-
--- XXX: assumes an absolute product (need to go type-level)
-rproduct'δ ∷ Num a ⇒ RProduct' a → Reqmt' a
-rproduct'δ RProduct{..} = Reqmt RAbsolute $ (on (-) _reqt) _rp'opt _rp'min
-
-sum'requirements'axisMajor ∷ Axes → [RProduct] → RProduct
-sum'requirements'axisMajor axis reqs =
-  foldl' (\(RProduct lmin lopt) (RProduct rmin ropt) →
-            RProduct (reqmt'axisMajor'add'max axis lmin rmin) (reqmt'axisMajor'add'max axis lopt ropt))
-  mempty reqs
-
-instance Monoid RProduct where
+instance (Lin d, Show d) ⇒ Monoid (RProduct' d) where
   mempty = RProduct (Reqmt RAbsolute zero) (Reqmt RAbsolute zero)
   -- | Beware, this is a severely flawed instance.
   --   Sadly, we're dependent on it to query the free applicative.
@@ -192,6 +180,21 @@ instance Monoid RProduct where
     if | ropt^.reqt ≡ zero ∧ rmin^.reqt ≡ zero → RProduct lmin lopt
        | lopt^.reqt ≡ zero ∧ lmin^.reqt ≡ zero → RProduct rmin ropt
        | otherwise → errorTL $ "RProduct.⊕ " <> rendCompact (pretty l <+> pretty r)
+
+absolute'rproduct ∷ Num d ⇒ ScreenCstr' d → RProduct' d → RProduct' d
+absolute'rproduct scrC r =
+  RProduct (absolute'reqmt scrC $ r^.rp'min)
+             (absolute'reqmt scrC $ r^.rp'opt)
+
+-- XXX: assumes an absolute product (need to go type-level)
+rproduct'δ ∷ Num a ⇒ RProduct' a → Reqmt' a
+rproduct'δ RProduct{..} = Reqmt RAbsolute $ (on (-) _reqt) _rp'opt _rp'min
+
+sum'requirements'axisMajor ∷ (Lin d, Show d) ⇒ Axes → [RProduct' d] → RProduct' d
+sum'requirements'axisMajor axis reqs =
+  foldl' (\(RProduct lmin lopt) (RProduct rmin ropt) →
+            RProduct (reqmt'axisMajor'add'max axis lmin rmin) (reqmt'axisMajor'add'max axis lopt ropt))
+  mempty reqs
 
 class Requires a where
   -- | Given a screen constraint contex, return requirements.  We're deliberately
@@ -204,10 +207,10 @@ class Requires a where
 --
 data Space' (d ∷ Type) where
   Space ∷
-    { _constr  ∷ Maybe (Cstr FixedUnit)
-    , _require ∷ Maybe RProduct
-    , _size    ∷ Maybe (Reqt FixedUnit)
-    , _origin  ∷ Maybe (Orig FixedUnit)
+    { _constr  ∷ Maybe (Cstr d)
+    , _require ∷ Maybe (RProduct' d)
+    , _size    ∷ Maybe (Reqt d)
+    , _origin  ∷ Maybe (Orig d)
     } → Space' d
   deriving (Show)
 makeLenses ''Space'
@@ -217,16 +220,17 @@ type Space = Space' FixedUnit
 empty'space ∷ Space
 empty'space = Space Nothing Nothing Nothing Nothing
 
-prettySpace ∷ Space' d → Doc
+prettySpace ∷ (Lin d, Show d) ⇒ Space' d → Doc
 prettySpace (Space c r s o) =
         prettyMaybe "*" ((text "Cstr" <:>) ∘ text ∘ ppV2  ∘ (^.cstr'v) <$> c)
     <-> prettyMaybe "*" (prettyR ∘ (^.rp'min) <$> r)
     <-> prettyMaybe "*" (prettyR ∘ (^.rp'opt) <$> r)
     <-> prettyMaybe "*" ((text "Size" <:>) ∘ text ∘ ppV2  ∘ (^.reqt'v) <$> s)
     <-> prettyMaybe "*" ((text "Orig" <:>) ∘ text ∘ ppV2  ∘ (^.orig'v) <$> o)
+    <-> prettyMaybe "*" ((text "LU"   <:>) ∘ text ∘ ppV2  ∘ (^.lu'v) ∘ (orig'lu (fromMaybe (Reqt $ di (-1) (-1)) s)) <$> o)
     where prettyR (Reqmt ty req) = pretty ty <:> text (ppV2 $ req^.reqt'v)
 
-instance Pretty (Space' d) where
+instance (Lin d, Show d) ⇒ Pretty (Space' d) where
   pretty = unreadable "Space" ∘ prettySpace
 
 trace'space ∷ Space → Space
@@ -289,78 +293,37 @@ data KArity     = One | Many
 data KSize      = SzCons | SzReq | NoSize
 data KPosition  = Abs | Rel | NoPos
 
-instance Pretty (C' d a) where
-  pretty (C sp CObj{..})  = unreadable "Obj"         $ nest 8 $ prettySpace sp
-  pretty (C sp CBox{..})  = unreadable
-                            (showTL _caxes <> "Box") $ nest 8 $ prettySpace sp <> softline <> (vcat $ pretty <$> _cs)
-  pretty (C sp CWrap{..}) = unreadable "Wrap"        $ nest 8 $ prettySpace sp <> softline <+> pretty _cw
-
-instance Pretty (Ap (C' d) a) where
-  pretty = runAp_ pretty
-
-ca'cstr ∷ Ap C a → Maybe (Cstr FixedUnit)
-ca'cstr = runAp_ (^.space.constr)
-ca'reqt ∷ Ap C a → Maybe RProduct
-ca'reqt = runAp_ (^.space.require)
-ca'size ∷ Ap C a → Maybe (Reqt FixedUnit)
-ca'size = runAp_ (^.space.size)
-ca'orig ∷ Ap C a → Maybe (Orig FixedUnit)
-ca'orig = runAp_ (^.space.origin)
-
-ca'set'orig ∷ Orig FixedUnit → Ap C a → Ap C a
-ca'set'orig v = hoistAp (& space.origin .~ Just v)
-
-
--- * Structure
---
--- data CF d a where
---   CF ∷ Show a ⇒
---     { cf'spc    ∷ Space d
---     , cf'obj    ∷ C d k (Ap (C d) a)
---     } → CF d a
-
-space    ∷ Lens' (C a) Space
-space    f c               = fmap (\s'  -> c { _space  = s' })  (f $ _space c)
-struct   ∷ Lens' (C a) (S a)
-struct   f c               = fmap (\s'  -> c { _struct = s' })  (f $ _struct c)
-
-children ∷ Lens' (C a) [Ap C a]
-children f c@(C _ s@(CBox _ _))    = fmap (\cs' -> c { _struct = s { _cs    = cs' } }) (f $ _cs s)
-children _ _ = error "Misapplication of a 'children' lens to a wrong GADT constructor.  Please convince author to go type-level."
-
-child    ∷ Lens' (C a) (Ap C a)
-child    f c@(C _ s@(CWrap _ _ _)) = fmap (\c'  -> c { _struct = s { _cw    = c' } })  (f $ _cw s)
-child    _ _ = error "Misapplication of a 'children' lens to a wrong GADT constructor.  Please convince author to go type-level."
-
 
 -- * C & S, functor and structure
 --
 type C = C' FixedUnit
 type S = S' FixedUnit
 
+type CDicts d a = (Requires a, Show a, Lin d, Show d)
+
 data C' d a where
-  C ∷ (Requires a, Show a, Show d) ⇒
-    { _space  ∷ Space
+  C ∷ CDicts d a ⇒
+    { _space  ∷ Space' d
     , _struct ∷ S' d a
     } → C' d a
 
 deriving instance (Show a, Show d) ⇒ Show (S' d a)
 deriving instance (Show a, Show d) ⇒ Show (C' d a)
 instance (Show a, Show d) ⇒ Show (Ap (C' d) a) where
-  show = runAp_ $ with'C'dicts show
+  show = runAp_ $ with'CDicts show
 
-with'C'dicts ∷ (∀ b e. (b ~ a, e ~ d, (Requires b, Show b, Show e, Show (Ap (C' e) b))) ⇒ C' e b → c) → C' d a → c
-with'C'dicts f x = x & case x of C _ _ → f
+with'CDicts ∷ (∀ b e. (b ~ a, e ~ d, CDicts e b) ⇒ C' e b → c) → C' d a → c
+with'CDicts f x = x & case x of C _ _ → f
 
 data S' d a where
-  CObj ∷ Requires a ⇒
-    { _cobj    ∷ a
+  CObj ∷ CDicts d a ⇒
+    { _co      ∷ a
     } → S' d a
-  CBox ∷ Requires a ⇒
+  CBox ∷ CDicts d a ⇒
     { _caxes   ∷ Axes
-    , _cs      ∷ [Ap (C' d) a]
+    , _cbs     ∷ [Ap (C' d) a]
     } → S' d a
-  CWrap ∷ Requires a ⇒
+  CWrap ∷ CDicts d a ⇒
     { _cwNW    ∷ !(Di d) -- ^ The combined offsets _ the left and top sides.
     , _cwSE    ∷ !(Di d) -- ^ The combined offsets _ the right and bottom sides.
     , _cw      ∷ Ap (C' d) a
@@ -382,7 +345,38 @@ data S' d a where
   --   } → C d      FBox       Many         SzCons      NoPos      a
   deriving ()
 
+instance Pretty (C' d a) where
+  pretty (C sp CObj{..})  = unreadable "Obj"         $ nest 8 $ prettySpace sp
+  pretty (C sp CBox{..})  = unreadable
+                            (showTL _caxes <> "Box") $ nest 8 $ prettySpace sp <> softline <> (vcat $ pretty <$> _cbs)
+  pretty (C sp CWrap{..}) = unreadable "Wrap"        $ nest 8 $ prettySpace sp <> softline <+> pretty _cw
+
+instance Pretty (Ap (C' d) a) where
+  pretty = runAp_ pretty
+
 -- makeLenses ''C'
+
+ca'cstr ∷ Num d ⇒ Ap (C' d) a → Maybe (Cstr d)
+ca'cstr = runAp_ (with'CDicts $ _constr  ∘ _space)
+ca'reqt ∷ (Lin d, Show d) ⇒ Ap (C' d) a → Maybe (RProduct' d)
+ca'reqt = runAp_ (_require ∘ _space)
+ca'size ∷ Num d ⇒ Ap (C' d) a → Maybe (Reqt d)
+ca'size = runAp_ (_size    ∘ _space)
+ca'orig ∷ Num d ⇒ Ap (C' d) a → Maybe (Orig d)
+ca'orig = runAp_ (_origin  ∘ _space)
+
+space    ∷ Lens' (C' d a) (Space' d)
+space    f c               = fmap (\s'  -> c { _space  = s' })  (f $ _space c)
+struct   ∷ Lens' (C' d a) (S' d a)
+struct   f c               = fmap (\s'  -> c { _struct = s' })  (f $ _struct c)
+
+children ∷ Lens' (C' d a) [Ap (C' d) a]
+children f c@(C _ s@(CBox _ _))    = fmap (\cs' -> c { _struct = s { _cbs   = cs' } }) (f $ _cbs s)
+children _ _ = error "Misapplication of a 'children' lens to a wrong GADT constructor.  Please convince author to go type-level."
+
+child    ∷ Lens' (C' d a) (Ap (C' d) a)
+child    f c@(C _ s@(CWrap _ _ _)) = fmap (\c'  -> c { _struct = s { _cw    = c' } })  (f $ _cw s)
+child    _ _ = error "Misapplication of a 'children' lens to a wrong GADT constructor.  Please convince author to go type-level."
 
 
 -- * Description language
@@ -423,17 +417,20 @@ assign'requires ∷ Requires a ⇒ ScreenCstr → C a → C a
 assign'requires _ (sp'requiring ∘ _space → True) =
   error "Asked to re-assign requirements to an already-requiring node."
 assign'requires scrc c@(C _ (CObj o))     = c & space.require .~ Just (requires scrc o)
-assign'requires scrc c@(C _ (CBox ax cs)) =
-  let chis'    = hoistAp (with'C'dicts $ assign'requires scrc) <$> cs
-      chi'reqs = runAp_  (fromJust ∘ (^. space.require)) <$> chis'
-  in c & children      .~ chis'
-       & space.require .~ Just (sum'requirements'axisMajor ax chi'reqs)
+assign'requires scrc c@(C _ (CBox ax χs)) =
+  let reqd     = hoistAp (with'CDicts $ assign'requires scrc) <$> χs
+  in c & children      .~ reqd
+       -- The 'fromJust' below should be safe, because we're doing
+       -- requirement assignment just above.
+       & space.require .~ Just (sum'requirements'axisMajor ax $
+                                fromMaybe (error "CBox: unexpected missing child reqt")
+                                ∘ ca'reqt <$> reqd)
 assign'requires _ _ = error "assign'requires: missing case"
 
 tree'reqd ∷ Ap C Double
 tree'reqd =
   let cstr  = Cstr $ di 10 10
-      reqd  = hoistAp (with'C'dicts $ assign'requires (ScreenCstr cstr)) tree
+      reqd  = hoistAp (with'CDicts $ assign'requires (ScreenCstr cstr)) tree
   in reqd
 
 sp'constraint'changed ∷ Cstr FixedUnit → Space → Bool
@@ -451,7 +448,13 @@ assign'size scrC thisC x@(sp'requiring ∘ _space → False) =
   x & assign'requires scrC
     & assign'size     scrC thisC
 
--- | Given a downward constraint, boxes consider it in two contexts:
+-- Parent does all the work for objects.
+assign'size _ _ x@(C (Space _ _ _ _) (CObj _)) = x
+
+-- | Summary: squeeze children requirements into our constraint,
+--   while redistributing the excesses.
+--
+--   Given a downward constraint, boxes consider it in two contexts:
 --   - axis-major, for the axis coincident with the box axis
 --   - axis-minor, for the other axis.
 --
@@ -464,9 +467,9 @@ assign'size scrC thisC x@(sp'requiring ∘ _space → False) =
 --   optimum requirement.  The axis-minor limit is a minumum of:
 --   - the downward constraint
 --   - maximum of the minimum and optimum (axis-minor) requirements
-assign'size scrC thisC x@(C (Space _ _ _ _) (CBox axis _)) =
+assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _)) =
   let -- Common computations
-      chi'allRs         = absolute'RProduct scrC ∘ fromJust ∘ ca'reqt <$> x^.children
+      chi'allRs         = absolute'rproduct scrC ∘ fromJust ∘ ca'reqt <$> o^.children
       minima            = _reqt ∘ _rp'min <$> chi'allRs
       optima            = _reqt ∘ _rp'opt <$> chi'allRs
       minor'axis        = other'axis axis
@@ -511,32 +514,23 @@ assign'size scrC thisC x@(C (Space _ _ _ _) (CBox axis _)) =
                           -- XXX: handle overflow
                           else (-remainder, (0, zip minima lacks))
       -- Assign constraints
-      cstrd'sized'chis  = [ hoistAp (with'C'dicts
-                                     (\o→ o & space.constr .~ Just chi'cstr
+      cstrd'sized'chis  = [ hoistAp (with'CDicts
+                                     (\χ→ χ & space.constr .~ Just chi'cstr
                                             & space.size   .~ Just sz
                                             & assign'size scrC chi'cstr)) c
-                          | ((sz, _), c) ← zip sizes (x^.children)
-                          , let chi'cstr = Cstr (fromReqt sz) ]
-  in x & space.size .~ (Just $ Reqt $ fromCstr (thisC & cstr'd axis       %~ (flip (-) unused)
+                          | ((sz, _), c) ← zip sizes (o^.children)
+                          , let chi'cstr = Cstr (_reqt'di sz) ]
+  in o & space.size .~ (Just $ Reqt $ _cstr'di (thisC & cstr'd axis       %~ (flip (-) unused)
                                                       & cstr'd minor'axis .~ minor'alloc))
        & children   .~ cstrd'sized'chis
 
--- Parent does all the work for objects.
-assign'size _ _ x@(C (Space _ _ _ _) (CObj _)) = x
-
--- assign'size scrc x@CWrap{..} =
---   let chi       = runAp (liftAp ∘ assign'size) _cw
---       chi_req   = ca'reqt chi
---       req       = (mk'reqmt _cwNW) `reqmt'add'xy` chi_req `reqmt'add'xy` (mk'reqmt _cwSE)
---   in x & space.reqt .~ req
---        & child         .~ chi
 
 assign'size _ _ _ = error "assign'size: unhandled case"
 
 tree'sized ∷ Ap C Double
 tree'sized =
   let cstr  = Cstr $ di 10 10
-      sized = hoistAp (with'C'dicts $ assign'size (ScreenCstr cstr) cstr) tree'reqd
+      sized = hoistAp (with'CDicts $ assign'size (ScreenCstr cstr) cstr) tree'reqd
   in sized
 
 foldilate ∷ (a → s → (c, s)) → s → [a] → ([c], s)
@@ -567,26 +561,36 @@ cursor'state'op y xs f = runState (mapM f xs) y
 --
 -- assign'origins   (_space → (Space _ _ _ Nothing)) = error "Attempt to assign origins to children of an unoriginated tree."
 
--- assign'origins x@CObj{..} = x
-  -- x { _space = _space { s'orig = ca'origin _cobj } }
+-- space'lu ∷ Space → LU FixedUnit
+-- space'lu (Space _ _ _ Nothing) = error "Asked to compute LU of un-originated space."
+-- space'lu (Space _ _ Nothing _) = error "Asked to compute LU of un-sized space."
+-- space'lu (Space _ _ (Just sz) (Just orig)) = orig'lu sz orig
 
--- assign'origins x@(CHBox s (_chs ∷ [Ap (C d) a])) =
---   let (origd, _) = runState (mapM f _chs) (s^.s'orig)
---       f chi      = do
---         cursor ← get
---         put $ cursor -- want something less stupid than manual shoving of Di's and Po's
---         pure $ ca'set'origin cursor chi
---   in x & children .~ origd
+po'add'axisMajor ∷ (Num d, Show d) ⇒ Axes → Di d → Po d → Po d
+po'add'axisMajor ax by pos = pos & po'd ax %~ (+ (by ^. (di'd ax)))
 
--- assign'origins x@CVBox{..} =
---   let chis      = runAp (liftAp ∘ assign'size) <$> _cvs
---       req       =
---       -- foldl' (reqmt'add Y) (s'reqmt _space) (ca'reqmt <$> chis)
---   in x { _space = _space { s'reqmt = req }
---        , _chs   = chis }
+assign'origins ∷ LU d → C' d a → C' d a
 
--- assign'origins x@CWrap{..} =
---   x & space.s'orig .~ ca'origin _cw
+assign'origins cursor o@(C (Space _ _ (Just sz) _)  CObj{..}) =
+  o & space∘origin .~ (Just $ lu'orig sz cursor)
+
+assign'origins cursor o@(C (Space _ _ (Just sz) _) (CBox axis chis)) =
+  let step ∷ CDicts d a ⇒ LU d → [Ap (C' d) a] → [Ap (C' d) a] → (LU d, [Ap (C' d) a])
+      step cur acc []     = (cur, acc)
+      step cur acc (x:xs) =
+        let χ           = hoistAp (with'CDicts $ assign'origins cur) x
+            δ           = ca'size x ^._Just.reqt'di
+            next'cursor = cur & lu'po %~ po'add'axisMajor axis δ
+        in step next'cursor (χ:acc) xs
+      (_, originated'chis) = step cursor [] chis
+  in o & space∘origin .~ (Just $ lu'orig sz cursor)
+       & children     .~ reverse originated'chis
+
+tree'origd ∷ Ap C Double
+tree'origd =
+  let orig  = LU $ po 0 0
+      origd = hoistAp (with'CDicts $ assign'origins orig) tree'sized
+  in origd
 
 
 data Gravity where
