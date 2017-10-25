@@ -87,14 +87,8 @@ someFire a b = simpler a <> simpler b
 dumpPretty ∷ Pretty a ⇒ Int → a → IO ()
 dumpPretty = TLIO.putStrLn .: ppPretty
 
-ppCompactS ∷ Pretty a ⇒ a → String
-ppCompactS = rendCompactS ∘ pretty
-
-ppCompact ∷ Pretty a ⇒ a → Text
-ppCompact = T.pack ∘ ppCompactS
-
-ppPrettyS ∷ Pretty a ⇒ Int → a → String
-ppPrettyS wi = TL.unpack ∘ ppPretty wi
+ppCompact ∷ Pretty a ⇒ a → TL.Text
+ppCompact = rendCompact ∘ pretty
 
 ppPretty ∷ Pretty a ⇒ Int → a → TL.Text
 ppPretty wi =  rendPretty wi ∘ pretty
@@ -104,12 +98,6 @@ trace'pp prefix o = trace (prefix <> TL.unpack (ppPretty 60 o)) o
 
 rendCompact ∷ Doc → TL.Text
 rendCompact = displayT ∘ renderCompact
-
-rendCompactS ∷ Doc → String
-rendCompactS = TL.unpack ∘ rendCompact
-
-rendPrettyS ∷ Int → Doc → String
-rendPrettyS wi = TL.unpack ∘ rendPretty wi
 
 rendPretty ∷ Int → Doc → TL.Text
 rendPretty wi = displayT ∘ renderPretty 1.0 wi
