@@ -91,7 +91,7 @@ import           Flatland
 --         well, the way we choose to use FA.
 --         - we should elucidate the reasoning here..
 --    3. D2 → the only other option is explicit provision of such a type-dependent method vocabulary
-
+--
 
 -- * TODO
 --
@@ -101,49 +101,6 @@ import           Flatland
 --    We'd still need to deal with the kind equality, but there's a hunch that
 --    this might be easier.
 --
-
-
--- * Cstr, Reqt, Orig: type safety wrappers over Flatland's base types
---
-newtype Cstr d = Cstr { fromCstr ∷ Di d } deriving (Eq, Num, Show)
-newtype Reqt d = Reqt { fromReqt ∷ Di d } deriving (Eq, Num, Show)
-newtype Orig d = Orig { fromOrig ∷ Po d } deriving (Eq, Num, Show)
-
-instance Num d ⇒ Monoid (Cstr d) where mempty = Cstr $ Di zero
-instance Num d ⇒ Monoid (Reqt d) where mempty = Reqt $ Di zero
-instance Num d ⇒ Monoid (Orig d) where mempty = Orig $ Po zero
-
-cstr'v f (Cstr (Di v)) = Cstr ∘ Di <$> f v
-reqt'v f (Reqt (Di v)) = Reqt ∘ Di <$> f v
-orig'v f (Orig (Po v)) = Orig ∘ Po <$> f v
-
-cstr'd X f (Cstr (Di (V2 x y))) = Cstr ∘ Di ∘ (flip V2 y) <$> f x
-cstr'd Y f (Cstr (Di (V2 x y))) = Cstr ∘ Di ∘ (id   V2 x) <$> f y
-reqt'd X f (Reqt (Di (V2 x y))) = Reqt ∘ Di ∘ (flip V2 y) <$> f x
-reqt'd Y f (Reqt (Di (V2 x y))) = Reqt ∘ Di ∘ (id   V2 x) <$> f y
-orig'd X f (Orig (Po (V2 x y))) = Orig ∘ Po ∘ (flip V2 y) <$> f x
-orig'd Y f (Orig (Po (V2 x y))) = Orig ∘ Po ∘ (id   V2 x) <$> f y
-
-instance Show d ⇒ Pretty (V2   d) where ppL x = format "{}x{}" (showT $ x^._x, showT $ x^._y)
-instance Show d ⇒ Pretty (Cstr d) where ppL = format "#<Cstr {}>" ∘ Only ∘ ppL ∘ (^.cstr'v)
-instance Show d ⇒ Pretty (Reqt d) where ppL = format "#<Reqt {}>" ∘ Only ∘ ppL ∘ (^.reqt'v)
-instance Show d ⇒ Pretty (Orig d) where ppL = format "#<Orig {}>" ∘ Only ∘ ppL ∘ (^.orig'v)
-
-reqt'add  ∷ Lin d ⇒ Axes → Reqt d → Reqt d → Reqt d
-reqt'add XY (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx   +   ly) (rx   +   ry)
-reqt'add X  (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx   +   ly) (rx `max` ry)
-reqt'add  Y (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx `max` ly) (rx   +   ry)
-
--- * TODO:
--- - alignment as parameter, instead of hard-coded N/W edge alignment
--- - switch to centre-based origin
---
-orig'beside ∷ Lin d ⇒ Orient Card → Orig d → Reqt d → Reqt d → Orig d
-orig'beside ON o r t = o & orig'v._y %~ ((-)(r^.reqt'v._y))
-orig'beside OS o r t = o & orig'v._y %~ ((+)(t^.reqt'v._y))
-orig'beside OW o r t = o & orig'v._x %~ ((-)(r^.reqt'v._x))
-orig'beside OE o r t = o & orig'v._x %~ ((+)(t^.reqt'v._x))
-
 
 -- * Temporary polymorphism reduction
 --

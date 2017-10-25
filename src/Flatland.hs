@@ -3,7 +3,7 @@
 {-# LANGUAGE ConstraintKinds, DataKinds, KindSignatures, TypeApplications, TypeInType #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, NoMonomorphismRestriction, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
 {-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies #-}
-{-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TypeOperators #-}
+{-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TypeOperators #-}
 {-# LANGUAGE DeriveFoldable, DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UnicodeSyntax #-}
@@ -35,6 +35,9 @@ import           Data.Glb
 import           Data.MeasuredMonoid
 import           Data.MonoTraversable
 import           Data.Monoid
+import           Data.Text.Format
+import qualified Data.Text.Format                  as T
+import qualified Data.Text.Lazy                    as TL
 import           Data.Type.Bool
 
 -- Algebra
@@ -45,6 +48,7 @@ import qualified GI.Pango                          as GIP (unitsToDouble, unitsF
 
 -- Misc
 import           Debug.Trace                              (trace)
+import           Text.PrettyPrint.Leijen.Text      hiding ((<>), (<$>), space)
 import           Text.Printf                              (printf)
 
 -- Dirty stuff
@@ -365,3 +369,57 @@ chord'CW o c r
   | ONW ← o = (ox, oy)
   where (vx, vy) = ori'vec'pair r o
         (ox, oy) = (poAdd c vx, poAdd c vy)
+
+
+-- * Cstr, Reqt, Orig:
+--
+newtype Cstr d = Cstr { fromCstr ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype Reqt d = Reqt { fromReqt ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype Orig d = Orig { fromOrig ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+
+-- TODO:  verify that mempty yields a 0, not a 1
+-- instance Num d ⇒ Monoid (Cstr d) where mempty = Cstr $ Di zero
+-- instance Num d ⇒ Monoid (Reqt d) where mempty = Reqt $ Di zero
+-- instance Num d ⇒ Monoid (Orig d) where mempty = Orig $ Po zero
+
+cstr'v ∷ Lens' (Cstr a) (V2 a)
+cstr'v f (Cstr (Di v)) = Cstr ∘ Di <$> f v
+reqt'v ∷ Lens' (Reqt a) (V2 a)
+reqt'v f (Reqt (Di v)) = Reqt ∘ Di <$> f v
+orig'v ∷ Lens' (Orig a) (V2 a)
+orig'v f (Orig (Po v)) = Orig ∘ Po <$> f v
+
+cstr'd ∷ Axes → Lens' (Cstr a) a
+cstr'd X f (Cstr (Di (V2 x y))) = Cstr ∘ Di ∘ (flip V2 y) <$> f x
+cstr'd Y f (Cstr (Di (V2 x y))) = Cstr ∘ Di ∘ (id   V2 x) <$> f y
+reqt'd ∷ Axes → Lens' (Reqt a) a
+reqt'd X f (Reqt (Di (V2 x y))) = Reqt ∘ Di ∘ (flip V2 y) <$> f x
+reqt'd Y f (Reqt (Di (V2 x y))) = Reqt ∘ Di ∘ (id   V2 x) <$> f y
+orig'd ∷ Axes → Lens' (Orig a) a
+orig'd X f (Orig (Po (V2 x y))) = Orig ∘ Po ∘ (flip V2 y) <$> f x
+orig'd Y f (Orig (Po (V2 x y))) = Orig ∘ Po ∘ (id   V2 x) <$> f y
+
+ppV2 ∷ Show a ⇒ V2 a → TL.Text
+ppV2 x = (showTL $ x^._x) <> "x" <> (showTL $ x^._y)
+
+instance Show a ⇒ Pretty (Cstr a) where pretty = text ∘ ("#<Cstr " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.cstr'v)
+instance Show a ⇒ Pretty (Reqt a) where pretty = text ∘ ("#<Reqt " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.reqt'v)
+instance Show a ⇒ Pretty (Orig a) where pretty = text ∘ ("#<Orig " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.orig'v)
+
+reqt'add  ∷ Lin d ⇒ Axes → Reqt d → Reqt d → Reqt d
+reqt'add X  (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx   +   ly) (rx `max` ry)
+reqt'add  Y (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx `max` ly) (rx   +   ry)
+
+reqt'axisMajor'add'max ∷ Lin d ⇒ Axes → Reqt d → Reqt d → Reqt d
+reqt'axisMajor'add'max axes = Reqt .: (di'axisMajor'add'max axes `on` fromReqt)
+
+
+-- * TODO:
+-- - alignment as parameter, instead of hard-coded N/W edge alignment
+-- - switch to centre-based origin
+--
+orig'beside ∷ Lin d ⇒ Orient Card → Orig d → Reqt d → Reqt d → Orig d
+orig'beside ON o r t = o & orig'v._y %~ ((-)(r^.reqt'v._y))
+orig'beside OS o r t = o & orig'v._y %~ ((+)(t^.reqt'v._y))
+orig'beside OW o r t = o & orig'v._x %~ ((-)(r^.reqt'v._x))
+orig'beside OE o r t = o & orig'v._x %~ ((+)(t^.reqt'v._x))
