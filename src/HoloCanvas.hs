@@ -266,8 +266,8 @@ instance Widget Text where
   query Settings{..} TextS{..} initialText = do
     let Font{..} = lookupFont' fontmap tFontKey
     laySetMaxParaLines fDetachedLayout tMaxParaLines
-    d ∷ Di (Size PU) ← layRunTextForSize fDetachedLayout fDΠ defaultWidth initialText -- XXX/GHC/inference: weak
-    pure $ mkSpace $ fromPU ∘ fromSz fDΠ <$> d
+    d ∷ Di (Dim PU) ← layRunTextForSize fDetachedLayout fDΠ defaultWidth initialText -- XXX/GHC/inference: weak
+    pure $ mkSpace $ fromPU ∘ fromDim fDΠ <$> d
   make Settings{..} (CW (Canvas Drawable{..} _ _ tFont@FontBinding{..} _))
        tStyle@(TextS _ _ _) tText tPSpace = do
     tLayout  ← makeTextLayout fbContext

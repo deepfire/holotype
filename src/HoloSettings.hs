@@ -23,7 +23,7 @@ data Settings u where
     { dπ      ∷ DΠ
     , fontmap ∷ FontMap u
     -- ⋅ XXX/hardcode ⋅
-    , defaultWidth ∷ Wi (Size PU)
+    , defaultWidth ∷ Wi (Dim PU)
     } → Settings u
 deriving instance Show (Settings u)
 

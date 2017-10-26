@@ -262,8 +262,9 @@ sp'originated    = (≢ Nothing) ∘ (^.origin)
 data Place d where
   Nowhere ∷ Place d
   Center ∷
+
     { _pCoord ∷ !(Po d)
-    } → Place d
+                 } → Place d
   Port ∷
     { _pCoord ∷ !(Po d)
     , _pPort  ∷ !(Orient a)
