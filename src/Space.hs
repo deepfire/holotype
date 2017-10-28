@@ -106,10 +106,6 @@ import           Flatland
 --    this might be easier.
 --
 
--- * Temporary polymorphism reduction
---
-type FixedUnit = Double
-
 -- * Screen-space dimensions and requirement querying
 --
 newtype ScreenCstr a = ScreenCstr { _scrcstr ∷ Cstr a } deriving (Eq, Show)
@@ -197,7 +193,7 @@ class Requires a where
   -- | Given a screen constraint contex, return requirements.  We're deliberately
   --   not providing the parent constraint, to enable a single sweeping
   --   requirement computation pass.
-  requires ∷ d ~ FixedUnit ⇒ ScreenCstr d → a → RProduct d
+  requires ∷ Num d ⇒ ScreenCstr d → a → RProduct d
 
 
 -- * Space ~ (Constraint * RProduct * Size * Area)
@@ -393,7 +389,7 @@ wrap bezel = liftAp ∘ C empty'space ∘ CWrap bezel bezel
 --     stepwise combining and propagating this composition upward through internal nodes
 --  2. assign'size, top-down: reconcile leaf requirements with screen size constraint
 --
-assign'requires ∷ (Requires a, d ~ FixedUnit) ⇒ ScreenCstr d → C d a → C d a
+assign'requires ∷ (AreaDict d, Requires a) ⇒ ScreenCstr d → C d a → C d a
 
 assign'requires _ (sp'requiring ∘ _space → True) =
   error "Asked to re-assign requirements to an already-requiring node."
@@ -420,7 +416,7 @@ assign'requires _ _ = error "assign'requires: missing case"
 sp'constraint'changed ∷ AreaDict d ⇒ Cstr d → Space d → Bool
 sp'constraint'changed cstr (Space sp'cstr _ _ _) = sp'cstr ≢ Just cstr
 
-assign'size ∷ (Requires a, d ~ FixedUnit) ⇒ ScreenCstr d → Cstr d → C d a → C d a
+assign'size ∷ ∀ d a. (AreaDict d, Requires a) ⇒ ScreenCstr d → Cstr d → C d a → C d a
 
 -- Propagate downward changes
 assign'size scrC thisC x@(sp'constraint'changed thisC ∘ _space → True) =
@@ -463,17 +459,17 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _)) =
       -- 2. constrain that with upstream
       minor'alloc       = min minor'maxR $ thisC ^. cstr'd minor'axis
       -- Distribution along the major axis
-      step ∷ (Lin d, d ~ FixedUnit) ⇒ Axes → d → d → [(Reqt d, Reqt d)] → [(Reqt d, Reqt d)] → (d, [(Reqt d, Reqt d)])
+      step ∷ (Lin d) ⇒ Axes → d → d → [(Reqt d, Reqt d)] → [(Reqt d, Reqt d)] → (d, [(Reqt d, Reqt d)])
       step _  _          rem' acc []               = (rem', acc)
       step ax unit'share rem' acc ((now, lack):rs) =
         let accept  = min unit'share (lack ^. reqt'd ax)
             sated'r = (now & reqt'd ax %~ (+ accept), lack & reqt'd ax %~ ((-) accept))
         in step ax unit'share (rem' - accept) (sated'r:acc) rs
-      assign'minor'axis ∷ d ~ FixedUnit ⇒ [(Reqt d, Reqt d)] → [(Reqt d, Reqt d)]
+      assign'minor'axis ∷ [(Reqt d, Reqt d)] → [(Reqt d, Reqt d)]
       assign'minor'axis pairs =
         [ p & _1 ∘ reqt'd minor'axis .~ min minor'alloc ((sz + δ) ^. reqt'd minor'axis)
         | p@(sz, δ) ← pairs ]
-      distribute ∷ (Lin d, Pretty d, Show d, d ~ FixedUnit) ⇒
+      distribute ∷ (AreaDict d) ⇒
         Axes → Maybe d → d → [(Reqt d, Reqt d)] → Bool → (d, [(Reqt d, Reqt d)])
       -- Test for convergence (no space left to distribute or nothing lacks it)
       distribute _ (Just last'rem) rem'@((\r→r≡0∨r≡last'rem) → True) rpairs' revved =
@@ -565,7 +561,11 @@ instance Requires Char where
   -- XXX: stub
   requires _scrc _d = RProduct (Reqmt RAbsolute $ Reqt $ di 1 1) (Reqmt RAbsolute $ Reqt $ di 2 2)
 
-tree ∷ (d ~ FixedUnit) ⇒ Ap (C d) Char
+type FixedUnit = Double
+
+tree ∷ ( AreaDict d
+       , d ~ FixedUnit -- XXX: breaker
+       ) ⇒ Ap (C d) Char
 tree =
   vbox [ lift 'a'
        , wrap (di 1 1) $
@@ -575,10 +575,22 @@ tree =
        , lift 'd'
        ]
 
-tree'canary ∷ (d ~ FixedUnit) ⇒ Ap (C d) Char
+tree'canary ∷ ∀ d.
+              ( AreaDict d
+              , d ~ FixedUnit -- XXX: breaker
+              ) ⇒ Ap (C d) Char
 tree'canary =
   let cstr  = Cstr $ di 10 10
       orig  = LU $ po 0 0
+      -- NOTE:  uncommenting the below is sufficient to make things typecheck.
+      -- tree ∷ Ap (C d) Char
+      -- tree = vbox [ lift 'a'
+      --             , wrap (di 1 1) $
+      --               hbox [ lift 'b'
+      --                    , lift 'c'
+      --                    ]
+      --             , lift 'd'
+      --             ]
       reqd  = hoistAp (with'CDicts $ assign'requires (ScreenCstr cstr))  tree
       sized = hoistAp (with'CDicts $ assign'size (ScreenCstr cstr) cstr) reqd
       origd = hoistAp (with'CDicts $ assign'origins orig)                sized
