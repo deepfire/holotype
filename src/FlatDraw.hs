@@ -1,9 +1,10 @@
+
 --{-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
 --{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE DataKinds, KindSignatures, TypeApplications, TypeInType #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, NoMonomorphismRestriction, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
 {-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies #-}
-{-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, StandaloneDeriving, TypeOperators #-}
+{-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TypeOperators #-}
 {-# LANGUAGE DeriveFoldable, DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UnicodeSyntax #-}
@@ -27,6 +28,7 @@ where
 import           Prelude.Unicode
 
 -- General types
+import           Control.Lens                      hiding (children)
 import           Control.Monad.State
 import           Data.Maybe
 
@@ -115,11 +117,16 @@ data WRoundRectFeature a where
 
 -- | Wrap rendering as a rounded rectangle.
 --   XXX: see if `Linear.V2.perp` can help with that.
-wrapRoundedRectFeatures ∷ Floating a ⇒ S Wrap True a → R a → Th a → [WRoundRectFeature a]
-wrapRoundedRectFeatures pw@Pwrap{..} rr@(R r) th =
-  let pa@(Parea (Di _) (Po (V2 w n))) = areaNarrow ((/2) <$> th) $ area pw
-      V2 e s = _poV $ pareaSE pa
-      !degrees         = pi/180
+--   XXX: lost type safety..
+wrapRoundedRectFeatures ∷ ∀ a b d. (Floating d, FromArea a b LU RB d) ⇒ Area' a b d → R d → Th d → [WRoundRectFeature d]
+wrapRoundedRectFeatures area rr@(R r) (Th th) =
+  let lurb ∷ Area'LURB d = from'area area
+      lurb'δ             = V2 (th / 2) (th / 2)
+      Area (LU (Po (V2 w n)))
+           (RB (Po (V2 e s)))
+                         = lurb & area'a∘lu'po %~ po'add lurb'δ
+                                & area'b∘rb'po %~ po'sub lurb'δ
+      !degrees           = pi/180
   in [WRR $ RRSide ON  (po (w + r)  n)      (po  (e - r) n)
      ,WRR $ RRCorn ONE (po (e - r) (n + r)) (an2 (-90 ⋅ degrees)   (0 ⋅ degrees)) rr
      ,WRR $ RRSide OE  (po  e      (n + r)) (po   e     (s - r))
@@ -143,9 +150,9 @@ executeFeature !cStart !cEnd !(WRR (RRCorn o c@(Po (V2 cx cy)) (An2 (V2 sa ea)) 
     if cStart ≢ cEnd
     then Right $ \grad → do
       GRC.setSource grad
-      GRC.arc cx cy (_rV r) sa ea
+      GRC.arc cx cy (_r'val r) sa ea
     else Left $ do
       case cStart of
         Nothing → pure ()
         Just c' → coSetSourceColor c'
-      GRC.arc cx cy (_rV r) sa ea
+      GRC.arc cx cy (_r'val r) sa ea
