@@ -224,7 +224,7 @@ instance AreaDict d ⇒ HasArea Space' d where
 
 type Space = Space' FixedUnit
 
-empty'space ∷ Space
+empty'space ∷ Space' d
 empty'space = Space Nothing Nothing Nothing Nothing
 
 prettySpace ∷ (AreaDict d) ⇒ Space' d → Doc
@@ -383,14 +383,14 @@ child    _ _ = error "Misapplication of a 'children' lens to a wrong GADT constr
 -- Note: we're mostly starting un-spaced, where appropriate.
 --
 
-lift ∷ (Requires a, AreaDict a) ⇒ a → Ap C a
+lift ∷ (CDicts d a) ⇒ a → Ap (C' d) a
 lift = liftAp . C empty'space ∘ CObj
 
-hbox, vbox ∷ (Requires a, AreaDict a) ⇒ [Ap C a] → Ap C a
+hbox, vbox ∷ (CDicts d a) ⇒ [Ap (C' d) a] → Ap (C' d) a
 hbox = liftAp ∘ C empty'space ∘ CBox X
 vbox = liftAp ∘ C empty'space ∘ CBox Y
 
-wrap ∷ (Requires a, AreaDict a) ⇒ Di FixedUnit → Ap C a → Ap C a
+wrap ∷ (CDicts d a) ⇒ Di d → Ap (C' d) a → Ap (C' d) a
 wrap bezel = liftAp ∘ C empty'space ∘ CWrap bezel bezel
 
 instance Requires Double where
