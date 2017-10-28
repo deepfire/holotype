@@ -558,14 +558,9 @@ assign'origins cursor o@(C (Space _ _ (Just sz) _) (CWrap lu rb χ)) =
 -- * Proof-of-existence code
 --
 instance Requires Char where
-  -- XXX: stub
   requires _scrc _d = RProduct (Reqmt RAbsolute $ Reqt $ di 1 1) (Reqmt RAbsolute $ Reqt $ di 2 2)
 
-type FixedUnit = Double
-
-tree ∷ ( AreaDict d
-       , d ~ FixedUnit -- XXX: breaker
-       ) ⇒ Ap (C d) Char
+tree ∷ (AreaDict d) ⇒ Ap (C d) Char
 tree =
   vbox [ lift 'a'
        , wrap (di 1 1) $
@@ -575,23 +570,14 @@ tree =
        , lift 'd'
        ]
 
-tree'canary ∷ ∀ d.
-              ( AreaDict d
-              , d ~ FixedUnit -- XXX: breaker
-              ) ⇒ Ap (C d) Char
+tree'canary ∷ ∀ d. (AreaDict d) ⇒ Ap (C d) Char
 tree'canary =
   let cstr  = Cstr $ di 10 10
       orig  = LU $ po 0 0
-      -- NOTE:  uncommenting the below is sufficient to make things typecheck.
-      -- tree ∷ Ap (C d) Char
-      -- tree = vbox [ lift 'a'
-      --             , wrap (di 1 1) $
-      --               hbox [ lift 'b'
-      --                    , lift 'c'
-      --                    ]
-      --             , lift 'd'
-      --             ]
-      reqd  = hoistAp (with'CDicts $ assign'requires (ScreenCstr cstr))  tree
+      reqd  = hoistAp (with'CDicts $ assign'requires (ScreenCstr cstr)
+                       -- * The following constraint, along with the scoped 'd',
+                       --   are crucial for keeping inference.
+                       ∷ C d a → C d a)                                  tree
       sized = hoistAp (with'CDicts $ assign'size (ScreenCstr cstr) cstr) reqd
       origd = hoistAp (with'CDicts $ assign'origins orig)                sized
   in origd
