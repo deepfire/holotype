@@ -203,34 +203,41 @@ class Requires a where
   requires ∷ ScreenCstr → a → RProduct
 
 
--- * Space ~ (Constraint * RProduct * Origin)
+-- * Space ~ (Constraint * RProduct * Size * Area)
+--
+--   Purpose: capturing all possible states in the process of layout computation,
+--            culminating in a fully-defined Area in the end.
 --
 data Space' (d ∷ Type) where
   Space ∷
-    { _constr  ∷ Maybe (Cstr d)
+    { _constr  ∷ Maybe (Cstr      d)
     , _require ∷ Maybe (RProduct' d)
-    , _size    ∷ Maybe (Size d)
-    , _origin  ∷ Maybe (Orig d)
+    , _size    ∷ Maybe (Size      d)
+    , _area    ∷ Maybe (Area'Orig d)
     } → Space' d
   deriving (Show)
 makeLenses ''Space'
+
+instance AreaDict d ⇒ HasArea Space' d where
+  area'Orig = fromMaybe (error "Asked for an Area of incomplete Space.")
+              ∘ (^.Space.area)
 
 type Space = Space' FixedUnit
 
 empty'space ∷ Space
 empty'space = Space Nothing Nothing Nothing Nothing
 
-prettySpace ∷ (Lin d, Show d) ⇒ Space' d → Doc
-prettySpace (Space c r s o) =
+prettySpace ∷ (AreaDict d) ⇒ Space' d → Doc
+prettySpace (Space c r s a) =
         prettyMaybe "*" ((text "Cstr" <:>) ∘ text ∘ ppV2  ∘ (^.cstr'v) <$> c)
     <-> prettyMaybe "*" (prettyR ∘ (^.rp'min) <$> r)
     <-> prettyMaybe "*" (prettyR ∘ (^.rp'opt) <$> r)
     <-> prettyMaybe "*" ((text "Size" <:>) ∘ text ∘ ppV2  ∘ (^.size'v) <$> s)
-    <-> prettyMaybe "*" ((text "Orig" <:>) ∘ text ∘ ppV2  ∘ (^.orig'v) <$> o)
-    <-> prettyMaybe "*" ((text "LU"   <:>) ∘ text ∘ ppV2  ∘ (^.lu'v) ∘ (orig'lu (fromMaybe (Size $ di (-1) (-1)) s)) <$> o)
+    <-> prettyMaybe "*" (pretty'Area <$> a)
+    <-> prettyMaybe "*" ((text "LU"   <:>) ∘ text ∘ ppV2  ∘ (^.lu'v) ∘ lu <$> a)
     where prettyR (Reqmt ty req) = pretty ty <:> text (ppV2 $ req^.reqt'v)
 
-instance (Lin d, Show d) ⇒ Pretty (Space' d) where
+instance AreaDict d ⇒ Pretty (Space' d) where
   pretty = unreadable "Space" ∘ prettySpace
 
 trace'space ∷ Space → Space
@@ -249,12 +256,12 @@ sp'inside = (⊥)
 --     1. orientations we can handle
 --     2. spaces we can handle
 
-sp'constrained, sp'unconstrained, sp'requiring, sp'sized, sp'originated ∷ Space → Bool
+sp'constrained, sp'unconstrained, sp'requiring, sp'sized, sp'complete ∷ Space → Bool
 sp'constrained   = (≢ Nothing) ∘ (^.constr)
 sp'unconstrained = (≡ Nothing) ∘ (^.constr)
 sp'requiring     = (≢ Nothing) ∘ (^.require)
 sp'sized         = (≢ Nothing) ∘ (^.size)
-sp'originated    = (≢ Nothing) ∘ (^.origin)
+sp'complete      = (≢ Nothing) ∘ (^.Space.area)
 
 
 -- * If we'd ever need a Place, it's here:
@@ -300,7 +307,7 @@ data KPosition  = Abs | Rel | NoPos
 type C = C' FixedUnit
 type S = S' FixedUnit
 
-type CDicts d a = (Requires a, Show a, Lin d, Show d)
+type CDicts d a = (AreaDict a, Requires a)
 
 data C' d a where
   C ∷ CDicts d a ⇒
@@ -346,13 +353,13 @@ data S' d a where
   --   } → C d      FBox       Many         SzCons      NoPos      a
   deriving ()
 
-instance Pretty (C' d a) where
+instance AreaDict d ⇒ Pretty (C' d a) where
   pretty (C sp CObj{..})  = unreadable "Obj"         $ nest 8 $ prettySpace sp
   pretty (C sp CBox{..})  = unreadable
                             (showTL _caxes <> "Box") $ nest 8 $ prettySpace sp <> softline <> (vcat $ pretty <$> _cbs)
   pretty (C sp CWrap{..}) = unreadable "Wrap"        $ nest 8 $ prettySpace sp <> softline <+> pretty _cw
 
-instance Pretty (Ap (C' d) a) where
+instance AreaDict d ⇒ Pretty (Ap (C' d) a) where
   pretty = runAp_ pretty
 
 -- makeLenses ''C'
@@ -363,8 +370,8 @@ ca'reqt ∷ (Lin d, Show d) ⇒ Ap (C' d) a → Maybe (RProduct' d)
 ca'reqt = runAp_ (_require ∘ _space)
 ca'size ∷ Num d ⇒ Ap (C' d) a → Maybe (Size d)
 ca'size = runAp_ (_size    ∘ _space)
-ca'orig ∷ Num d ⇒ Ap (C' d) a → Maybe (Orig d)
-ca'orig = runAp_ (_origin  ∘ _space)
+ca'area ∷ AreaDict d ⇒ Ap (C' d) a → Maybe (Area'Orig d)
+ca'area = runAp_ (_area  ∘ _space)
 
 space    ∷ Lens' (C' d a) (Space' d)
 space    f c               = fmap (\s'  -> c { _space  = s' })  (f $ _space c)
@@ -385,14 +392,14 @@ child    _ _ = error "Misapplication of a 'children' lens to a wrong GADT constr
 -- Note: we're mostly starting un-spaced, where appropriate.
 --
 
-lift ∷ (Requires a, Show a) ⇒ a → Ap C a
+lift ∷ (Requires a, AreaDict a) ⇒ a → Ap C a
 lift = liftAp . C empty'space ∘ CObj
 
-hbox, vbox ∷ (Requires a, Show a) ⇒ [Ap C a] → Ap C a
+hbox, vbox ∷ (Requires a, AreaDict a) ⇒ [Ap C a] → Ap C a
 hbox = liftAp ∘ C empty'space ∘ CBox X
 vbox = liftAp ∘ C empty'space ∘ CBox Y
 
-wrap ∷ (Requires a, Show a) ⇒ Di FixedUnit → Ap C a → Ap C a
+wrap ∷ (Requires a, AreaDict a) ⇒ Di FixedUnit → Ap C a → Ap C a
 wrap bezel = liftAp ∘ C empty'space ∘ CWrap bezel bezel
 
 instance Requires Double where
@@ -590,30 +597,30 @@ cursor'state'op y xs f = runState (mapM f xs) y
 -- space'lu (Space _ _ Nothing _) = error "Asked to compute LU of un-sized space."
 -- space'lu (Space _ _ (Just sz) (Just orig)) = orig'lu sz orig
 
-po'add'axisMajor ∷ (Num d, Show d) ⇒ Axes → Di d → Po d → Po d
+po'add'axisMajor ∷ AreaDict d ⇒ Axes → Di d → Po d → Po d
 po'add'axisMajor ax by pos = pos & po'd ax %~ (+ (by ^. (di'd ax)))
 
-assign'origins ∷ LU d → C' d a → C' d a
+assign'origins ∷ AreaDict d ⇒ LU d → C' d a → C' d a
 
 assign'origins cursor o@(C (Space _ _ (Just sz) _)  CObj{..}) =
-  o & space∘origin .~ (Just $ lu'orig sz cursor)
+  o & space∘Space.area .~ (Just $ Area (lu'orig sz cursor) sz)
 
 assign'origins cursor o@(C (Space _ _ (Just sz) _) (CBox axis chis)) =
-  let step ∷ CDicts d a ⇒ LU d → [Ap (C' d) a] → [Ap (C' d) a] → (LU d, [Ap (C' d) a])
+  let step ∷ (CDicts d a, AreaDict d) ⇒ LU d → [Ap (C' d) a] → [Ap (C' d) a] → (LU d, [Ap (C' d) a])
       step cur acc []     = (cur, acc)
       step cur acc (x:xs) =
-        let χ           = hoistAp (with'CDicts $ assign'origins cur) x
-            δ           = ca'size x ^._Just.size'di
+        let x'          = hoistAp (with'CDicts $ assign'origins cur) x
+            δ           = ca'size x' ^._Just.size'di
             next'cursor = cur & lu'po %~ po'add'axisMajor axis δ
-        in step next'cursor (χ:acc) xs
+        in step next'cursor (x':acc) xs
       (_, originated'chis) = step cursor [] chis
-  in o & space∘origin .~ (Just $ lu'orig sz cursor)
-       & children     .~ reverse originated'chis
+  in o & space∘Space.area .~ (Just $ Area (lu'orig sz cursor) sz)
+       & children         .~ reverse originated'chis
 
 assign'origins cursor o@(C (Space _ _ (Just sz) _) (CWrap lu rb χ)) =
   let next'cursor = cursor & lu'po %~ po'add (_di'v lu)
-  in o & space∘origin .~ (Just $ lu'orig sz cursor)
-       & child        .~ hoistAp (with'CDicts $ assign'origins next'cursor) χ
+  in o & space∘Space.area .~ (Just $ Area (lu'orig sz cursor) sz)
+       & child            .~ hoistAp (with'CDicts $ assign'origins next'cursor) χ
 
 tree'origd ∷ Ap C Double
 tree'origd =

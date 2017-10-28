@@ -293,8 +293,9 @@ rpo2po (RPo (x :+ y)) = Po $ V2 x y
 rotateRPo ∷ RealFloat a ⇒ An a → RPo a → RPo a
 rotateRPo (An a) (RPo c) = RPo $ mkPolar (magnitude c) (phase c + a)
 
-po'add ∷ Num a ⇒ V2 a → Po a → Po a
+po'add, po'sub ∷ Num a ⇒ V2 a → Po a → Po a
 po'add v _po = Po (v ^+^ _po'v _po)
+po'sub v _po = Po (v ^-^ _po'v _po)
 
 poDelta ∷ Num a ⇒ Po a → Po a → Di a
 poDelta (Po v) (Po v') = Di $ v ^-^ v'
@@ -394,11 +395,13 @@ newtype Reqt d = Reqt { _reqt'di ∷ Di d } deriving (Additive, Applicative, Fun
 newtype Size d = Size { _size'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
 newtype Orig d = Orig { _orig'po ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
 newtype LU   d = LU   { _lu'po   ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype RB   d = RB   { _rb'po   ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
 makeLenses ''Cstr
 makeLenses ''Reqt
 makeLenses ''Size
 makeLenses ''Orig
 makeLenses ''LU
+makeLenses ''RB
 
 cstr'v ∷ Lens' (Cstr a) (V2 a)
 cstr'v f (Cstr (Di v)) = Cstr ∘ Di <$> f v
@@ -410,6 +413,8 @@ orig'v ∷ Lens' (Orig a) (V2 a)
 orig'v f (Orig (Po v)) = Orig ∘ Po <$> f v
 lu'v   ∷ Lens' (LU   a) (V2 a)
 lu'v   f (LU   (Po v)) = LU   ∘ Po <$> f v
+rb'v   ∷ Lens' (RB   a) (V2 a)
+rb'v   f (RB   (Po v)) = RB   ∘ Po <$> f v
 
 cstr'd ∷ Axes → Lens' (Cstr a) a
 cstr'd X f (Cstr (Di (V2 x y))) = Cstr ∘ Di ∘ (flip V2 y) <$> f x
@@ -426,12 +431,16 @@ orig'd Y f (Orig (Po (V2 x y))) = Orig ∘ Po ∘ (id   V2 x) <$> f y
 lu'd   ∷ Axes → Lens' (LU a) a
 lu'd   X f (LU   (Po (V2 x y))) = LU   ∘ Po ∘ (flip V2 y) <$> f x
 lu'd   Y f (LU   (Po (V2 x y))) = LU   ∘ Po ∘ (id   V2 x) <$> f y
+rb'd   ∷ Axes → Lens' (RB a) a
+rb'd   X f (RB   (Po (V2 x y))) = RB   ∘ Po ∘ (flip V2 y) <$> f x
+rb'd   Y f (RB   (Po (V2 x y))) = RB   ∘ Po ∘ (id   V2 x) <$> f y
 
 instance Show d ⇒ Pretty (Cstr d) where pretty = text ∘ ("#<Cstr " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.cstr'v)
 instance Show d ⇒ Pretty (Reqt d) where pretty = text ∘ ("#<Reqt " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.reqt'v)
 instance Show d ⇒ Pretty (Size d) where pretty = text ∘ ("#<Size " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.size'v)
 instance Show d ⇒ Pretty (Orig d) where pretty = text ∘ ("#<Orig " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.orig'v)
 instance Show d ⇒ Pretty (LU   d) where pretty = text ∘ ("#<LU "   <>) ∘ (<> ">") ∘ ppV2 ∘ (^.lu'v)
+instance Show d ⇒ Pretty (RB   d) where pretty = text ∘ ("#<RB "   <>) ∘ (<> ">") ∘ ppV2 ∘ (^.rb'v)
 
 instance Lin d  ⇒ AddMax (Reqt d) where addMax ax = Reqt .: on (addMax ax) (_reqt'di)
 instance Lin d  ⇒ AddMax (Size d) where addMax ax = Size .: on (addMax ax) (_size'di)
@@ -442,9 +451,13 @@ reqt'add  Y (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx
 
 orig'lu ∷ Lin d ⇒ Size d → Orig d → LU d
 orig'lu (Size (Di size)) = LU   ∘ (& po'v %~ (flip (-) (size / 2))) ∘ _orig'po
+orig'rb ∷ Lin d ⇒ Size d → Orig d → RB d
+orig'rb (Size (Di size)) = RB   ∘ (& po'v %~ (     (+) (size / 2))) ∘ _orig'po
 
 lu'orig ∷ Lin d ⇒ Size d → LU d → Orig d
-lu'orig (Size (Di size)) = Orig ∘ (& po'v %~ (+ (size / 2))) ∘ _lu'po
+lu'orig (Size (Di size)) = Orig ∘ (& po'v %~ (     (+) (size / 2))) ∘ _lu'po
+rb'orig ∷ Lin d ⇒ Size d → RB d → Orig d
+rb'orig (Size (Di size)) = Orig ∘ (& po'v %~ (flip (-) (size / 2))) ∘ _rb'po
 
 
 -- * TODO:
@@ -456,3 +469,72 @@ orig'beside ON o r _t = o & orig'v._y %~ ((-)(r^.reqt'v._y))
 orig'beside OS o _r t = o & orig'v._y %~ ((+)(t^.reqt'v._y))
 orig'beside OW o r _t = o & orig'v._x %~ ((-)(r^.reqt'v._x))
 orig'beside OE o _r t = o & orig'v._x %~ ((+)(t^.reqt'v._x))
+
+
+-- * Geometry: rectangular Area
+--
+type AreaDict d = (Eq d, Lin d, Pretty d, Show d)
+
+data Area' (a ∷ Type → Type) (b ∷ Type → Type) d where
+  Area ∷ AreaDict d ⇒
+    { _area'a ∷ a d
+    , _area'b ∷ b d
+    } → Area' a b d
+makeLenses ''Area'
+
+deriving instance (Eq   (a d), Eq   (b d)) ⇒ Eq   (Area' a b d)
+deriving instance (Show (a d), Show (b d)) ⇒ Show (Area' a b d)
+
+pretty'Area ∷ FromArea a b Po Di d ⇒ Area' a b d → Doc
+pretty'Area a =
+  let Area (Po (V2 x y)) (Di d) = from'area a
+  in ((text "Area" <:>) ∘ text ∘ ppV2 $ d)
+     <> char '+' <> pretty x <> char '+' <> pretty y
+
+instance FromArea a b Po Di d ⇒ Pretty (Area' a b d) where
+  pretty = unreadable "Area" ∘ pretty'Area
+
+type Area      d = Area' Po   Di   d
+type Area'Orig d = Area' Orig Size d
+type Area'LU   d = Area' LU   Size d
+type Area'LURB d = Area' LU   RB   d
+
+class    AreaDict d ⇒ FromArea fa   fb   ta   tb   d where
+  from'area ∷ Area' fa fb d → Area' ta tb d
+
+instance AreaDict d ⇒ FromArea a    b    a    b    d where from'area = id
+instance AreaDict d ⇒ FromArea Po   Di   Orig Size d where from'area (Area       p        d ) = Area (Orig p)                      (Size d)
+instance AreaDict d ⇒ FromArea Orig Size Po   Di   d where from'area (Area (Orig p) (Size d)) = Area       p                             d
+
+instance AreaDict d ⇒ FromArea Orig Size LU   Size d where from'area (Area (Orig p) (Size d)) = Area (LU $ po'sub (_di'v d / 2) p) (Size d)
+instance AreaDict d ⇒ FromArea LU   Size Po   Di   d where from'area (Area (LU   p) (Size d)) = Area (     po'add (_di'v d / 2) p)       d
+instance AreaDict d ⇒ FromArea LU   Size LU   RB   d where from'area (Area (LU   p) (Size d)) = Area (LU $ p)                      (RB $ po'add (_di'v d) p)
+--   from'area (Area (Size d) (Orig p)) = Area (Size d) (LU   p)
+--   from'area (Area       d        p)  = Area (Size d) (LU   p)
+--   from'area (Area (Size d) (Orig p)) = Area (Size d) (LU   p)
+--   from'area (Area (Size d) (LU   p)) = Area (Size d) (Orig p)
+
+class AreaDict d ⇒ HasArea a d where
+  area'PoDi ∷ AreaDict d ⇒ a d → Area      d
+  area'LU   ∷ AreaDict d ⇒ a d → Area'LU   d
+  area'LURB ∷ AreaDict d ⇒ a d → Area'LURB d
+  area'Orig ∷ AreaDict d ⇒ a d → Area'Orig d
+  {-# MINIMAL area'PoDi | area'LU | area'Orig | area'LURB #-}
+  area'Orig = from'area ∘ area'PoDi
+  area'LU   = from'area ∘ area'Orig
+  area'LURB = from'area ∘ area'LU
+  area'PoDi = from'area ∘ area'LU
+
+type AreaTuple d = (Di d, Po d)
+
+instance AreaDict d ⇒ HasArea (Area' Po   Di  ) d where area'PoDi = id
+instance AreaDict d ⇒ HasArea (Area' Orig Size) d where area'Orig = id
+instance AreaDict d ⇒ HasArea (Area' LU   Size) d where area'LU   = id
+instance AreaDict d ⇒ HasArea (Area' LU   RB  ) d where area'LURB = id
+
+lu ∷ HasArea a d ⇒ a d → LU d
+lu = _area'a ∘ area'LU
+
+instance (AreaDict d, Monoid (po d), Monoid (di d)) ⇒ Monoid (Area' po di d) where
+  mempty = Area mempty mempty
+  mappend (Area lpo ldi) (Area rpo' rdi) = Area (lpo <> rpo') (ldi <> rdi)
