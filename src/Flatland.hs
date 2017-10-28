@@ -391,10 +391,12 @@ chord'CW o c r
 --
 newtype Cstr d = Cstr { _cstr'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
 newtype Reqt d = Reqt { _reqt'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype Size d = Size { _size'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
 newtype Orig d = Orig { _orig'po ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
 newtype LU   d = LU   { _lu'po   ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
 makeLenses ''Cstr
 makeLenses ''Reqt
+makeLenses ''Size
 makeLenses ''Orig
 makeLenses ''LU
 
@@ -402,6 +404,8 @@ cstr'v ∷ Lens' (Cstr a) (V2 a)
 cstr'v f (Cstr (Di v)) = Cstr ∘ Di <$> f v
 reqt'v ∷ Lens' (Reqt a) (V2 a)
 reqt'v f (Reqt (Di v)) = Reqt ∘ Di <$> f v
+size'v ∷ Lens' (Size a) (V2 a)
+size'v f (Size (Di v)) = Size ∘ Di <$> f v
 orig'v ∷ Lens' (Orig a) (V2 a)
 orig'v f (Orig (Po v)) = Orig ∘ Po <$> f v
 lu'v   ∷ Lens' (LU   a) (V2 a)
@@ -413,6 +417,9 @@ cstr'd Y f (Cstr (Di (V2 x y))) = Cstr ∘ Di ∘ (id   V2 x) <$> f y
 reqt'd ∷ Axes → Lens' (Reqt a) a
 reqt'd X f (Reqt (Di (V2 x y))) = Reqt ∘ Di ∘ (flip V2 y) <$> f x
 reqt'd Y f (Reqt (Di (V2 x y))) = Reqt ∘ Di ∘ (id   V2 x) <$> f y
+size'd ∷ Axes → Lens' (Size a) a
+size'd X f (Size (Di (V2 x y))) = Size ∘ Di ∘ (flip V2 y) <$> f x
+size'd Y f (Size (Di (V2 x y))) = Size ∘ Di ∘ (id   V2 x) <$> f y
 orig'd ∷ Axes → Lens' (Orig a) a
 orig'd X f (Orig (Po (V2 x y))) = Orig ∘ Po ∘ (flip V2 y) <$> f x
 orig'd Y f (Orig (Po (V2 x y))) = Orig ∘ Po ∘ (id   V2 x) <$> f y
@@ -420,22 +427,24 @@ lu'd   ∷ Axes → Lens' (LU a) a
 lu'd   X f (LU   (Po (V2 x y))) = LU   ∘ Po ∘ (flip V2 y) <$> f x
 lu'd   Y f (LU   (Po (V2 x y))) = LU   ∘ Po ∘ (id   V2 x) <$> f y
 
-instance Show a ⇒ Pretty (Cstr a) where pretty = text ∘ ("#<Cstr " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.cstr'v)
-instance Show a ⇒ Pretty (Reqt a) where pretty = text ∘ ("#<Reqt " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.reqt'v)
-instance Show a ⇒ Pretty (Orig a) where pretty = text ∘ ("#<Orig " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.orig'v)
-instance Show a ⇒ Pretty (LU   a) where pretty = text ∘ ("#<LU "   <>) ∘ (<> ">") ∘ ppV2 ∘ (^.lu'v)
+instance Show d ⇒ Pretty (Cstr d) where pretty = text ∘ ("#<Cstr " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.cstr'v)
+instance Show d ⇒ Pretty (Reqt d) where pretty = text ∘ ("#<Reqt " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.reqt'v)
+instance Show d ⇒ Pretty (Size d) where pretty = text ∘ ("#<Size " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.size'v)
+instance Show d ⇒ Pretty (Orig d) where pretty = text ∘ ("#<Orig " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.orig'v)
+instance Show d ⇒ Pretty (LU   d) where pretty = text ∘ ("#<LU "   <>) ∘ (<> ">") ∘ ppV2 ∘ (^.lu'v)
+
 instance Lin d  ⇒ AddMax (Reqt d) where addMax ax = Reqt .: on (addMax ax) (_reqt'di)
+instance Lin d  ⇒ AddMax (Size d) where addMax ax = Size .: on (addMax ax) (_size'di)
 
 reqt'add  ∷ Lin d ⇒ Axes → Reqt d → Reqt d → Reqt d
 reqt'add X  (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx   +   ly) (rx `max` ry)
 reqt'add  Y (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx `max` ly) (rx   +   ry)
 
-orig'lu ∷ Lin d ⇒ Reqt d → Orig d → LU d
-orig'lu (Reqt (Di size)) = LU   ∘ (& po'v %~ (flip (-) (size / 2))) ∘ _orig'po
+orig'lu ∷ Lin d ⇒ Size d → Orig d → LU d
+orig'lu (Size (Di size)) = LU   ∘ (& po'v %~ (flip (-) (size / 2))) ∘ _orig'po
 
-lu'orig ∷ Lin d ⇒ Reqt d → LU d → Orig d
-lu'orig (Reqt (Di size)) = Orig ∘ (& po'v %~ (+ (size / 2))) ∘ _lu'po
-
+lu'orig ∷ Lin d ⇒ Size d → LU d → Orig d
+lu'orig (Size (Di size)) = Orig ∘ (& po'v %~ (+ (size / 2))) ∘ _lu'po
 
 
 -- * TODO:

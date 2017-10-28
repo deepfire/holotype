@@ -209,7 +209,7 @@ data Space' (d ∷ Type) where
   Space ∷
     { _constr  ∷ Maybe (Cstr d)
     , _require ∷ Maybe (RProduct' d)
-    , _size    ∷ Maybe (Reqt d)
+    , _size    ∷ Maybe (Size d)
     , _origin  ∷ Maybe (Orig d)
     } → Space' d
   deriving (Show)
@@ -225,9 +225,9 @@ prettySpace (Space c r s o) =
         prettyMaybe "*" ((text "Cstr" <:>) ∘ text ∘ ppV2  ∘ (^.cstr'v) <$> c)
     <-> prettyMaybe "*" (prettyR ∘ (^.rp'min) <$> r)
     <-> prettyMaybe "*" (prettyR ∘ (^.rp'opt) <$> r)
-    <-> prettyMaybe "*" ((text "Size" <:>) ∘ text ∘ ppV2  ∘ (^.reqt'v) <$> s)
+    <-> prettyMaybe "*" ((text "Size" <:>) ∘ text ∘ ppV2  ∘ (^.size'v) <$> s)
     <-> prettyMaybe "*" ((text "Orig" <:>) ∘ text ∘ ppV2  ∘ (^.orig'v) <$> o)
-    <-> prettyMaybe "*" ((text "LU"   <:>) ∘ text ∘ ppV2  ∘ (^.lu'v) ∘ (orig'lu (fromMaybe (Reqt $ di (-1) (-1)) s)) <$> o)
+    <-> prettyMaybe "*" ((text "LU"   <:>) ∘ text ∘ ppV2  ∘ (^.lu'v) ∘ (orig'lu (fromMaybe (Size $ di (-1) (-1)) s)) <$> o)
     where prettyR (Reqmt ty req) = pretty ty <:> text (ppV2 $ req^.reqt'v)
 
 instance (Lin d, Show d) ⇒ Pretty (Space' d) where
@@ -361,7 +361,7 @@ ca'cstr ∷ Num d ⇒ Ap (C' d) a → Maybe (Cstr d)
 ca'cstr = runAp_ (with'CDicts $ _constr  ∘ _space)
 ca'reqt ∷ (Lin d, Show d) ⇒ Ap (C' d) a → Maybe (RProduct' d)
 ca'reqt = runAp_ (_require ∘ _space)
-ca'size ∷ Num d ⇒ Ap (C' d) a → Maybe (Reqt d)
+ca'size ∷ Num d ⇒ Ap (C' d) a → Maybe (Size d)
 ca'size = runAp_ (_size    ∘ _space)
 ca'orig ∷ Num d ⇒ Ap (C' d) a → Maybe (Orig d)
 ca'orig = runAp_ (_origin  ∘ _space)
@@ -530,11 +530,11 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _)) =
       -- Assign constraints
       cstrd'sized'chis  = [ hoistAp (with'CDicts
                                      (\χ→ χ & space.constr .~ Just chi'cstr
-                                            & space.size   .~ Just sz
+                                            & space.size   .~ Just (Size sz)
                                             & assign'size scrC chi'cstr)) c
-                          | ((sz, _), c) ← zip sizes (o^.children)
-                          , let chi'cstr = Cstr (_reqt'di sz) ]
-  in o & space.size .~ (Just $ Reqt $ _cstr'di (thisC & cstr'd axis       %~ (flip (-) unused)
+                          | (((Reqt sz), _), c) ← zip sizes (o^.children)
+                          , let chi'cstr = Cstr sz ]
+  in o & space.size .~ (Just $ Size $ _cstr'di (thisC & cstr'd axis       %~ (flip (-) unused)
                                                       & cstr'd minor'axis .~ minor'alloc))
        & children   .~ cstrd'sized'chis
 
@@ -543,10 +543,10 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CWrap lu rb χ)) =
       χR    = _reqt $ _rp'opt $ absolute'rproduct scrC $ fromJust $ ca'reqt χ
       χDi   = liftA2 min (χC ^. cstr'di) (χR ^. reqt'di)
       sized = hoistAp (with'CDicts (\χ→ χ & space.constr .~ Just (Cstr χDi)
-                                          & space.size   .~ Just (Reqt χDi)
+                                          & space.size   .~ Just (Size χDi)
                                           & assign'size scrC (Cstr χDi)))
               χ
-  in o & space.size .~ Just (Reqt $ χDi + lu + rb)
+  in o & space.size .~ Just (Size $ χDi + lu + rb)
        & child      .~ sized
 
 assign'size _ _ _ = error "assign'size: unhandled case"
@@ -603,7 +603,7 @@ assign'origins cursor o@(C (Space _ _ (Just sz) _) (CBox axis chis)) =
       step cur acc []     = (cur, acc)
       step cur acc (x:xs) =
         let χ           = hoistAp (with'CDicts $ assign'origins cur) x
-            δ           = ca'size x ^._Just.reqt'di
+            δ           = ca'size x ^._Just.size'di
             next'cursor = cur & lu'po %~ po'add'axisMajor axis δ
         in step next'cursor (χ:acc) xs
       (_, originated'chis) = step cursor [] chis
