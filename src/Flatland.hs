@@ -322,9 +322,14 @@ other'axis Y = X
 
 -- * Axis-derived operation
 --
-di'axisMajor'add'max ∷ (Num a, Ord a) ⇒ Axes → Di a → Di a → Di a
-di'axisMajor'add'max X  (Di (V2 lx ly)) (Di (V2 rx ry)) = Di $ V2 (lx   +   rx) (ly `max` ry)
-di'axisMajor'add'max Y  (Di (V2 lx ly)) (Di (V2 rx ry)) = Di $ V2 (lx `max` rx) (ly   +   ry)
+class AddMax (t ∷ Type) where
+  addMax ∷ Axes → t → t → t
+
+instance Lin d ⇒ AddMax (V2 d) where
+  addMax X  (V2 lx ly) (V2 rx ry) = V2 (lx   +   ly) (rx `max` ry)
+  addMax  Y (V2 lx ly) (V2 rx ry) = V2 (lx `max` ly) (rx   +   ry)
+
+instance Lin d ⇒ AddMax (Di d) where addMax ax = Di .: on (addMax ax) _di'v
 
 
 -- * Orientation: _ north-west, clockwise to west.
@@ -419,6 +424,7 @@ instance Show a ⇒ Pretty (Cstr a) where pretty = text ∘ ("#<Cstr " <>) ∘ (
 instance Show a ⇒ Pretty (Reqt a) where pretty = text ∘ ("#<Reqt " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.reqt'v)
 instance Show a ⇒ Pretty (Orig a) where pretty = text ∘ ("#<Orig " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.orig'v)
 instance Show a ⇒ Pretty (LU   a) where pretty = text ∘ ("#<LU "   <>) ∘ (<> ">") ∘ ppV2 ∘ (^.lu'v)
+instance Lin d  ⇒ AddMax (Reqt d) where addMax ax = Reqt .: on (addMax ax) (_reqt'di)
 
 reqt'add  ∷ Lin d ⇒ Axes → Reqt d → Reqt d → Reqt d
 reqt'add X  (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx   +   ly) (rx `max` ry)
@@ -430,8 +436,6 @@ orig'lu (Reqt (Di size)) = LU   ∘ (& po'v %~ (flip (-) (size / 2))) ∘ _orig'
 lu'orig ∷ Lin d ⇒ Reqt d → LU d → Orig d
 lu'orig (Reqt (Di size)) = Orig ∘ (& po'v %~ (+ (size / 2))) ∘ _lu'po
 
-reqt'axisMajor'add'max ∷ Lin d ⇒ Axes → Reqt d → Reqt d → Reqt d
-reqt'axisMajor'add'max axes = Reqt .: (di'axisMajor'add'max axes `on` _reqt'di)
 
 
 -- * TODO:

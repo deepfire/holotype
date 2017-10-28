@@ -154,8 +154,8 @@ absolute'reqmt (ScreenCstr (Cstr scrC)) reqmt@(Reqmt ty (Reqt req)) =
     RAbsolute  → reqmt
     RScreenRel → Reqmt RAbsolute $ Reqt $ req ⋅ scrC
 
-reqmt'axisMajor'add'max ∷ Lin d ⇒ Axes → Reqmt' d → Reqmt' d → Reqmt' d
-reqmt'axisMajor'add'max axes = Reqmt RAbsolute .: (reqt'axisMajor'add'max axes `on` _reqt)
+instance Lin d ⇒ AddMax (Reqmt' d) where
+  addMax ax = Reqmt RAbsolute .: addMax ax `on` _reqt
 
 
 type RProduct = RProduct' FixedUnit
@@ -193,7 +193,7 @@ rproduct'δ RProduct{..} = Reqmt RAbsolute $ (on (-) _reqt) _rp'opt _rp'min
 sum'requirements'axisMajor ∷ (Lin d, Show d) ⇒ Axes → [RProduct' d] → RProduct' d
 sum'requirements'axisMajor axis reqs =
   foldl' (\(RProduct lmin lopt) (RProduct rmin ropt) →
-            RProduct (reqmt'axisMajor'add'max axis lmin rmin) (reqmt'axisMajor'add'max axis lopt ropt))
+            RProduct (addMax axis lmin rmin) (addMax axis lopt ropt))
   mempty reqs
 
 class Requires a where
@@ -489,7 +489,7 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _)) =
       minor'axis        = other'axis axis
       -- Process minor axis first:
       -- 1. find largest (min or max) requirement on the minor axis
-      reqs'axis'max reqs = foldl' (reqt'axisMajor'add'max axis) mempty reqs ^. reqt'd minor'axis
+      reqs'axis'max reqs = foldl' (addMax axis) mempty reqs ^. reqt'd minor'axis
       minor'maxR        = reqs'axis'max optima `max` reqs'axis'max minima
       -- 2. constrain that with upstream
       minor'alloc       = min minor'maxR $ thisC ^. cstr'd minor'axis
@@ -519,7 +519,7 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _)) =
       -- Process major axis
       lacks             = _reqt ∘ rproduct'δ <$> chi'allRs
       rpairs            = zip minima lacks
-      total'lacks       = foldl' (reqt'axisMajor'add'max axis) mempty minima
+      total'lacks       = foldl' (addMax axis) mempty minima
       remainder         = thisC^.cstr'd axis - (total'lacks^.reqt'd axis)
       (,)
        overflow
