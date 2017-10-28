@@ -393,18 +393,18 @@ vbox = liftAp ∘ C empty'space ∘ CBox Y
 wrap ∷ (CDicts d a) ⇒ Di d → Ap (C' d) a → Ap (C' d) a
 wrap bezel = liftAp ∘ C empty'space ∘ CWrap bezel bezel
 
-instance Requires Double where
+instance Requires Char where
   -- XXX: stub
   requires _scrc _d = RProduct (Reqmt RAbsolute $ Reqt $ di 1 1) (Reqmt RAbsolute $ Reqt $ di 2 2)
 
-tree ∷ Ap C Double
+tree ∷ Ap C Char
 tree =
-  vbox [ lift 0
+  vbox [ lift 'a'
        , wrap (di 1 1) $
-         hbox [ lift 1
-              , lift 2
+         hbox [ lift 'b'
+              , lift 'c'
               ]
-       , lift 3
+       , lift 'd'
        ]
 
 
@@ -439,7 +439,7 @@ assign'requires scrc c@(C _ (CWrap nw se χ)) =
                                 & rp'opt ∘ reqt ∘ reqt'di %~ (+ (nw + se)))
 assign'requires _ _ = error "assign'requires: missing case"
 
-tree'reqd ∷ Ap C Double
+tree'reqd ∷ Ap C Char
 tree'reqd =
   let cstr  = Cstr $ di 10 10
       reqd  = hoistAp (with'CDicts $ assign'requires (ScreenCstr cstr)) tree
@@ -548,7 +548,7 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CWrap lu rb χ)) =
 
 assign'size _ _ _ = error "assign'size: unhandled case"
 
-tree'sized ∷ Ap C Double
+tree'sized ∷ Ap C Char
 tree'sized =
   let cstr  = Cstr $ di 10 10
       sized = hoistAp (with'CDicts $ assign'size (ScreenCstr cstr) cstr) tree'reqd
@@ -592,7 +592,7 @@ assign'origins cursor o@(C (Space _ _ (Just sz) _) (CWrap lu rb χ)) =
   in o & space∘Space.area .~ (Just $ Area (lu'orig sz cursor) sz)
        & child            .~ hoistAp (with'CDicts $ assign'origins next'cursor) χ
 
-tree'origd ∷ Ap C Double
+tree'origd ∷ Ap C Char
 tree'origd =
   let orig  = LU $ po 0 0
       origd = hoistAp (with'CDicts $ assign'origins orig) tree'sized
