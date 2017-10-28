@@ -47,7 +47,7 @@ import           Data.Void                                (Void)
 import           Text.PrettyPrint.Leijen.Text      hiding ((<>), (<$>), space)
 
 -- Algebra
-import           Linear                            hiding (trace)
+import           Linear                            hiding (trace, unit)
 
 -- glib-introspection -based Pango
 import qualified GI.Pango                          as GIP (unitsToDouble, unitsFromDouble)
@@ -304,21 +304,16 @@ data KPosition  = Abs | Rel | NoPos
 
 -- * C & S, functor and structure
 --
+type CDicts d a = (AreaDict d, Pretty a, Requires a)
 type C = C' FixedUnit
 type S = S' FixedUnit
 
-type CDicts d a = (AreaDict a, Requires a)
 
 data C' d a where
   C ∷ CDicts d a ⇒
     { _space  ∷ Space' d
     , _struct ∷ S' d a
     } → C' d a
-
-deriving instance (Show a, Show d) ⇒ Show (S' d a)
-deriving instance (Show a, Show d) ⇒ Show (C' d a)
-instance (Show a, Show d) ⇒ Show (Ap (C' d) a) where
-  show = runAp_ $ with'CDicts show
 
 with'CDicts ∷ (∀ b e. (b ~ a, e ~ d, CDicts e b) ⇒ C' e b → c) → C' d a → c
 with'CDicts f x = x & case x of C _ _ → f
@@ -347,10 +342,6 @@ data S' d a where
   -- CGrav ∷
   --   { _cas     ∷ ![(Gravity, a)]
   --   } → C d      Grav       One          NoSize      NoPos      a
-  -- CFBox ∷
-  --   { _cvAlloc ∷ ![Th d] -- ^ Relative allocations
-  --   , _cvs     ∷ [a]
-  --   } → C d      FBox       Many         SzCons      NoPos      a
   deriving ()
 
 instance AreaDict d ⇒ Pretty (C' d a) where
@@ -460,8 +451,7 @@ sp'constraint'changed cstr (Space sp'cstr _ _ _) = sp'cstr ≢ Just cstr
 assign'size ∷ Requires a ⇒ ScreenCstr → Cstr FixedUnit → C a → C a
 
 -- Propagate downward changes
-assign'size scrC thisC x@(sp'constraint'changed thisC ∘ --trace "space changed"
-                         _space → True) =
+assign'size scrC thisC x@(sp'constraint'changed thisC ∘ _space → True) =
   x & space.constr .~ Just thisC
     & assign'size scrC thisC
 
@@ -564,19 +554,6 @@ tree'sized =
       sized = hoistAp (with'CDicts $ assign'size (ScreenCstr cstr) cstr) tree'reqd
   in sized
 
-foldilate ∷ (a → s → (c, s)) → s → [a] → ([c], s)
-foldilate f s xs = runState (mapM f' xs) s
-  where f' x = do
-          (x', state'') ← f x <$> get
-          put state''
-          pure x'
-
-space'op ∷ Space → [C a] → (C a → State Space (C a)) → ([C a], Space)
-space'op spc xs f = runState (mapM f xs) spc
-
-cursor'state'op ∷ Po d → [C a] → (C a → State (Po d) (C a)) → ([C a], Po d)
-cursor'state'op y xs f = runState (mapM f xs) y
-
 
 -- * Origination
 --
@@ -589,13 +566,6 @@ cursor'state'op y xs f = runState (mapM f xs) y
 --  - ability to put things beside each other
 --    - Orients
 --    - a combination of Di and Po in the combinator
---
--- assign'origins   (_space → (Space _ _ _ Nothing)) = error "Attempt to assign origins to children of an unoriginated tree."
-
--- space'lu ∷ Space → LU FixedUnit
--- space'lu (Space _ _ _ Nothing) = error "Asked to compute LU of un-originated space."
--- space'lu (Space _ _ Nothing _) = error "Asked to compute LU of un-sized space."
--- space'lu (Space _ _ (Just sz) (Just orig)) = orig'lu sz orig
 
 po'add'axisMajor ∷ AreaDict d ⇒ Axes → Di d → Po d → Po d
 po'add'axisMajor ax by pos = pos & po'd ax %~ (+ (by ^. (di'd ax)))

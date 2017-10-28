@@ -1,4 +1,3 @@
-
 --{-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
 --{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE DataKinds, KindSignatures, TypeApplications, TypeInType #-}

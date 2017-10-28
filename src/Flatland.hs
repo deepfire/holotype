@@ -173,8 +173,6 @@ instance FromDim (Dim Pt) where
 infinity ∷ Double
 infinity = read "Infinity"
 
-type Lin a = (Fractional a, Ord a, Num a)
-
 newtype R   a = R   { _r'val  ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Radius
 newtype An  a = An  { _an'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Angle
 newtype Th  a = Th  { _th'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
@@ -195,11 +193,7 @@ deriving instance Foldable An
 deriving instance Foldable Th
 deriving instance Foldable He
 deriving instance Foldable Wi
--- instance Metric R  where
--- instance Metric An where
--- instance Metric Th where
--- instance Metric He where
--- instance Metric Wi where
+-- instance Metric …  where ?
 deriving instance Show a ⇒ Show (R  a)
 deriving instance Show a ⇒ Show (An a)
 deriving instance Show a ⇒ Show (Th a)
@@ -270,7 +264,6 @@ instance Show a ⇒ Pretty (Di a) where pretty = text ∘ ("#<Di " <>) ∘ (<> "
 instance Show a ⇒ Pretty (Po a) where pretty = text ∘ ("#<Po " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.po'v)
 ---------- </boilerplate>
 
-
 di ∷ Wi a → He a  → Di a
 di  (Wi x) (He y) = Di $ V2 x y
 po ∷ a → a → Po a
@@ -301,7 +294,7 @@ poDelta ∷ Num a ⇒ Po a → Po a → Di a
 poDelta (Po v) (Po v') = Di $ v ^-^ v'
 
 goldXdi ∷ RealFrac a ⇒ Wi a → Di a
-goldXdi (Wi x) = Di $ V2  x               (x / realToFrac goldenRatio)
+goldXdi (Wi x) = Di $ V2  x (x / realToFrac goldenRatio)
 goldYdi ∷ RealFrac a ⇒ He a → Di a
 goldYdi (He y) = Di $ V2 (y / realToFrac goldenRatio) y
 
@@ -321,10 +314,12 @@ other'axis ∷ Axes → Axes
 other'axis X = Y
 other'axis Y = X
 
--- * Axis-derived operation
+-- * Axis-derived operations
 --
 class AddMax (t ∷ Type) where
   addMax ∷ Axes → t → t → t
+
+type Lin a = (Fractional a, Ord a, Num a)
 
 instance Lin d ⇒ AddMax (V2 d) where
   addMax X  (V2 lx ly) (V2 rx ry) = V2 (lx   +   ly) (rx `max` ry)
@@ -384,17 +379,19 @@ chord'CW o c r
         (ox, oy) = (po'add vx c, po'add vy c)
 
 
--- * Cstr, Reqt, Orig, LU:
--- - constraint
--- - requirement
--- - origin, center-based
--- - left-upper corner
+-- * Higher-semantics geometry
 --
+-- | Constraint
 newtype Cstr d = Cstr { _cstr'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+-- | Requirement
 newtype Reqt d = Reqt { _reqt'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+-- | XXX: extraneous?
 newtype Size d = Size { _size'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+-- | Origin
 newtype Orig d = Orig { _orig'po ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+-- | Upper-left corner
 newtype LU   d = LU   { _lu'po   ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+-- | Bottom-right corner
 newtype RB   d = RB   { _rb'po   ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
 makeLenses ''Cstr
 makeLenses ''Reqt
