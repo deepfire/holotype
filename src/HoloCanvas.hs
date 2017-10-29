@@ -146,21 +146,6 @@ framePutDrawable (HC.Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y))
     Q3.mat4ToM44F $! toScreen Vc..*. (Vc.fromProjective $! Vc.translation cvpos)
 
 
--- * Very early style code.
-
--- | Free Applicative Element
-data FAE s where
-  FAE ∷ { fromFAE ∷ s } → FAE s
-deriving instance Show w ⇒ Show (FAE w)
-
-type Style = Ap FAE
-style ∷ s → Style s
-style s = liftAp $ FAE s
-
--- | The key point of analysis -- vain, as yet, yet still..
-runStyle ∷ Style s → s
-runStyle s = runIdentity $ runAp (return ∘ fromFAE) s
-
 
 -- * Very early generic widget code.
 type DrawableSpace p d = Space             p Double d
