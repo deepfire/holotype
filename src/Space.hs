@@ -577,10 +577,10 @@ instance Requires Char where
 unit ∷ (AreaDict d) ⇒ Ap (C d) a
 unit = lift 'a'
 
-unit'canary ∷ (AreaDict d) ⇒ Ap (C d) Char
+unit'canary ∷ (AreaDict d) ⇒ Ap (C d) a
 unit'canary = layout (LU $ po 0 0) (Cstr $ di 10 10) unit
 
-tree ∷ (AreaDict d) ⇒ Ap (C d) Char
+tree ∷ (AreaDict d) ⇒ Ap (C d) a
 tree =
   vbox [ unit
        , wrap (di 1 1) $
@@ -590,7 +590,7 @@ tree =
        , lift 'd'
        ]
 
-tree'canary ∷ ∀ d. (AreaDict d) ⇒ Ap (C d) Char
+tree'canary ∷ (AreaDict d) ⇒ Ap (C d) a
 tree'canary = layout (LU $ po 0 0) (Cstr $ di 10 10) tree
 
 
