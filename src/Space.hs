@@ -295,26 +295,26 @@ data KPosition  = Abs | Rel | NoPos
 
 -- * C & S, functor and structure
 --
-type CDicts d a = (AreaDict d, Pretty a, Requires a)
+type CDict d a = (AreaDict d, Pretty a, Requires a)
 
 data C d a where
-  C ∷ CDicts d a ⇒
+  C ∷ CDict d a ⇒
     { _space  ∷ Space d
     , _struct ∷ S d a
     } → C d a
 
-with'CDicts ∷ (∀ b e. (b ~ a, e ~ d, CDicts e b) ⇒ C e b → c) → C d a → c
-with'CDicts f x = x & case x of C _ _ → f
+with'CDict ∷ (∀ b e. (b ~ a, e ~ d, CDict e b) ⇒ C e b → c) → C d a → c
+with'CDict f x = x & case x of C _ _ → f
 
 data S d a where
-  CObj ∷ CDicts d a ⇒
+  CObj ∷ CDict d a ⇒
     { _co      ∷ a
     } → S d a
-  CBox ∷ CDicts d a ⇒
+  CBox ∷ CDict d a ⇒
     { _caxes   ∷ Axes
     , _cbs     ∷ [Ap (C d) a]
     } → S d a
-  CWrap ∷ CDicts d a ⇒
+  CWrap ∷ CDict d a ⇒
     { _cwNW    ∷ !(Di d) -- ^ The combined offsets _ the left and top sides.
     , _cwSE    ∷ !(Di d) -- ^ The combined offsets _ the right and bottom sides.
     , _cw      ∷ Ap (C d) a
@@ -344,7 +344,7 @@ instance AreaDict d ⇒ Pretty (Ap (C d) a) where
 -- makeLenses ''C
 
 ca'cstr ∷ Num d ⇒ Ap (C d) a → Maybe (Cstr d)
-ca'cstr = runAp_ (with'CDicts $ _constr  ∘ _space)
+ca'cstr = runAp_ (with'CDict $ _constr  ∘ _space)
 ca'reqt ∷ (Lin d, Show d) ⇒ Ap (C d) a → Maybe (RProduct d)
 ca'reqt = runAp_ (_require ∘ _space)
 ca'size ∷ Num d ⇒ Ap (C d) a → Maybe (Size d)
@@ -371,14 +371,14 @@ child    _ _ = error "Misapplication of a 'children' lens to a wrong GADT constr
 -- Note: we're mostly starting un-spaced, where appropriate.
 --
 
-lift ∷ (CDicts d a) ⇒ a → Ap (C d) a
+lift ∷ (CDict d a) ⇒ a → Ap (C d) a
 lift = liftAp . C empty'space ∘ CObj
 
-hbox, vbox ∷ (CDicts d a) ⇒ [Ap (C d) a] → Ap (C d) a
+hbox, vbox ∷ (CDict d a) ⇒ [Ap (C d) a] → Ap (C d) a
 hbox = liftAp ∘ C empty'space ∘ CBox X
 vbox = liftAp ∘ C empty'space ∘ CBox Y
 
-wrap ∷ (CDicts d a) ⇒ Di d → Ap (C d) a → Ap (C d) a
+wrap ∷ (CDict d a) ⇒ Di d → Ap (C d) a → Ap (C d) a
 wrap bezel = liftAp ∘ C empty'space ∘ CWrap bezel bezel
 
 
@@ -395,7 +395,7 @@ assign'requires _ (sp'requiring ∘ _space → True) =
   error "Asked to re-assign requirements to an already-requiring node."
 assign'requires scrc c@(C _ (CObj o))     = c & space.require .~ Just (requires scrc o)
 assign'requires scrc c@(C _ (CBox ax χs)) =
-  let reqd     = hoistAp (with'CDicts $ assign'requires scrc) <$> χs
+  let reqd     = hoistAp (with'CDict $ assign'requires scrc) <$> χs
   in c & children      .~ reqd
        -- The 'fromJust' below should be safe, because we're doing
        -- requirement assignment just above.
@@ -403,7 +403,7 @@ assign'requires scrc c@(C _ (CBox ax χs)) =
                                 fromMaybe (error "CBox: unexpected missing child reqt")
                                 ∘ ca'reqt <$> reqd)
 assign'requires scrc c@(C _ (CWrap nw se χ)) =
-  let reqd     = hoistAp (with'CDicts $ assign'requires scrc) χ
+  let reqd     = hoistAp (with'CDict $ assign'requires scrc) χ
   in c & child         .~ reqd
        -- The 'fromJust' below should be safe, because we're doing
        -- requirement assignment just above.
@@ -493,7 +493,7 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _)) =
                           -- XXX: handle overflow
                           else (-remainder, (0, zip minima lacks))
       -- Assign constraints
-      cstrd'sized'chis  = [ hoistAp (with'CDicts
+      cstrd'sized'chis  = [ hoistAp (with'CDict
                                      (\χ→ χ & space.constr .~ Just chi'cstr
                                             & space.size   .~ Just (Size sz)
                                             & assign'size scrC chi'cstr)) c
@@ -507,7 +507,7 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CWrap lu rb χ)) =
   let χC    = thisC & cstr'di %~ (flip (-) (lu + rb))
       χR    = _reqt $ _rp'opt $ absolute'rproduct scrC $ fromJust $ ca'reqt χ
       χDi   = liftA2 min (χC ^. cstr'di) (χR ^. reqt'di)
-      sized = hoistAp (with'CDicts (\χ→ χ & space.constr .~ Just (Cstr χDi)
+      sized = hoistAp (with'CDict (\χ→ χ & space.constr .~ Just (Cstr χDi)
                                           & space.size   .~ Just (Size χDi)
                                           & assign'size scrC (Cstr χDi)))
               χ
@@ -538,10 +538,10 @@ assign'origins cursor o@(C (Space _ _ (Just sz) _)  CObj{..}) =
   o & space∘Space.area .~ (Just $ Area (lu'orig sz cursor) sz)
 
 assign'origins cursor o@(C (Space _ _ (Just sz) _) (CBox axis chis)) =
-  let step ∷ (CDicts d a, AreaDict d) ⇒ LU d → [Ap (C d) a] → [Ap (C d) a] → (LU d, [Ap (C d) a])
+  let step ∷ (CDict d a, AreaDict d) ⇒ LU d → [Ap (C d) a] → [Ap (C d) a] → (LU d, [Ap (C d) a])
       step cur acc []     = (cur, acc)
       step cur acc (x:xs) =
-        let x'          = hoistAp (with'CDicts $ assign'origins cur) x
+        let x'          = hoistAp (with'CDict $ assign'origins cur) x
             δ           = ca'size x' ^._Just.size'di
             next'cursor = cur & lu'po %~ po'add'axisMajor axis δ
         in step next'cursor (x':acc) xs
@@ -552,20 +552,20 @@ assign'origins cursor o@(C (Space _ _ (Just sz) _) (CBox axis chis)) =
 assign'origins cursor o@(C (Space _ _ (Just sz) _) (CWrap lu rb χ)) =
   let next'cursor = cursor & lu'po %~ po'add (_di'v lu)
   in o & space∘Space.area .~ (Just $ Area (lu'orig sz cursor) sz)
-       & child            .~ hoistAp (with'CDicts $ assign'origins next'cursor) χ
+       & child            .~ hoistAp (with'CDict $ assign'origins next'cursor) χ
 
 
 -- * Now, all together
 --
-layout ∷ ∀ d a. (CDicts d a) ⇒ LU d → Cstr d → Ap (C d) a → Ap (C d) a
+layout ∷ ∀ d a. (CDict d a) ⇒ LU d → Cstr d → Ap (C d) a → Ap (C d) a
 layout orig cstr x =
-  let reqd  = hoistAp (with'CDicts $ assign'requires (ScreenCstr cstr)
+  let reqd  = hoistAp (with'CDict $ assign'requires (ScreenCstr cstr)
                        -- * The following constraint, along with the scoped 'd',
                        --   are crucial for keeping inference.
                        ∷ C d b → C d b)
                        x
-      sized = hoistAp (with'CDicts $ assign'size (ScreenCstr cstr) cstr) reqd
-      origd = hoistAp (with'CDicts $ assign'origins orig)                sized
+      sized = hoistAp (with'CDict $ assign'size (ScreenCstr cstr) cstr) reqd
+      origd = hoistAp (with'CDict $ assign'origins orig)                sized
   in  origd
 
 
