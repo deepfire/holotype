@@ -316,16 +316,22 @@ other'axis Y = X
 
 -- * Axis-derived operations
 --
-class AddMax (t ∷ Type) where
-  addMax ∷ Axes → t → t → t
+class AddMax (l ∷ Type) (r ∷ Type) where
+  type Result l r ∷ Type
+  type Result l r = l
+  addMax ∷ Axes → l → r → Result l r
 
 type Lin a = (Fractional a, Ord a, Num a)
 
-instance Lin d ⇒ AddMax (V2 d) where
+instance Lin d ⇒ AddMax (V2 d) (V2 d) where
   addMax X  (V2 lx ly) (V2 rx ry) = V2 (lx   +   ly) (rx `max` ry)
   addMax  Y (V2 lx ly) (V2 rx ry) = V2 (lx `max` ly) (rx   +   ry)
 
-instance Lin d ⇒ AddMax (Di d) where addMax ax = Di .: on (addMax ax) _di'v
+instance Lin d ⇒ AddMax (Di d) (Di d) where
+  addMax ax = Di .: on (addMax ax) _di'v
+
+instance Lin d ⇒ AddMax (Po d) (Di d) where
+  addMax ax pos by =  pos & po'd ax %~ (+ (by ^. (di'd ax)))
 
 
 -- * Orientation: _ north-west, clockwise to west.
@@ -439,8 +445,10 @@ instance Show d ⇒ Pretty (Orig d) where pretty = text ∘ ("#<Orig " <>) ∘ (
 instance Show d ⇒ Pretty (LU   d) where pretty = text ∘ ("#<LU "   <>) ∘ (<> ">") ∘ ppV2 ∘ (^.lu'v)
 instance Show d ⇒ Pretty (RB   d) where pretty = text ∘ ("#<RB "   <>) ∘ (<> ">") ∘ ppV2 ∘ (^.rb'v)
 
-instance Lin d  ⇒ AddMax (Reqt d) where addMax ax = Reqt .: on (addMax ax) (_reqt'di)
-instance Lin d  ⇒ AddMax (Size d) where addMax ax = Size .: on (addMax ax) (_size'di)
+instance Lin d  ⇒ AddMax (Reqt d) (Reqt d) where
+  addMax ax = Reqt .: on (addMax ax) (_reqt'di)
+instance Lin d  ⇒ AddMax (Size d) (Size d) where
+  addMax ax = Size .: on (addMax ax) (_size'di)
 
 reqt'add  ∷ Lin d ⇒ Axes → Reqt d → Reqt d → Reqt d
 reqt'add X  (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx   +   ly) (rx `max` ry)

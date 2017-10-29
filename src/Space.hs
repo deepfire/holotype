@@ -148,7 +148,7 @@ absolute'reqmt (ScreenCstr (Cstr scrC)) reqmt@(Reqmt ty (Reqt req)) =
     RAbsolute  → reqmt
     RScreenRel → Reqmt RAbsolute $ Reqt $ req ⋅ scrC
 
-instance Lin d ⇒ AddMax (Reqmt d) where
+instance Lin d ⇒ AddMax (Reqmt d) (Reqmt d) where
   addMax ax = Reqmt RAbsolute .: addMax ax `on` _reqt
 
 
@@ -529,8 +529,6 @@ assign'size _ _ _ = error "assign'size: unhandled case"
 --    - Orients
 --    - a combination of Di and Po in the combinator
 
-po'add'axisMajor ∷ AreaDict d ⇒ Axes → Di d → Po d → Po d
-po'add'axisMajor ax by pos = pos & po'd ax %~ (+ (by ^. (di'd ax)))
 
 assign'origins ∷ AreaDict d ⇒ LU d → C d a → C d a
 
@@ -543,7 +541,7 @@ assign'origins cursor o@(C (Space _ _ (Just sz) _) (CBox axis chis)) =
       step cur acc (x:xs) =
         let x'          = hoistAp (with'CDict $ assign'origins cur) x
             δ           = ca'size x' ^._Just.size'di
-            next'cursor = cur & lu'po %~ po'add'axisMajor axis δ
+            next'cursor = cur & lu'po %~ flip (addMax axis) δ
         in step next'cursor (x':acc) xs
       (_, originated'chis) = step cursor [] chis
   in o & space∘Space.area .~ (Just $ Area (lu'orig sz cursor) sz)
