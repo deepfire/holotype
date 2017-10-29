@@ -555,6 +555,20 @@ assign'origins cursor o@(C (Space _ _ (Just sz) _) (CWrap lu rb χ)) =
        & child            .~ hoistAp (with'CDicts $ assign'origins next'cursor) χ
 
 
+-- * Now, all together
+--
+layout ∷ ∀ d a. (CDicts d a) ⇒ LU d → Cstr d → Ap (C d) a → Ap (C d) a
+layout orig cstr x =
+  let reqd  = hoistAp (with'CDicts $ assign'requires (ScreenCstr cstr)
+                       -- * The following constraint, along with the scoped 'd',
+                       --   are crucial for keeping inference.
+                       ∷ C d b → C d b)
+                       x
+      sized = hoistAp (with'CDicts $ assign'size (ScreenCstr cstr) cstr) reqd
+      origd = hoistAp (with'CDicts $ assign'origins orig)                sized
+  in  origd
+
+
 -- * Proof-of-existence code
 --
 instance Requires Char where
@@ -571,16 +585,7 @@ tree =
        ]
 
 tree'canary ∷ ∀ d. (AreaDict d) ⇒ Ap (C d) Char
-tree'canary =
-  let cstr  = Cstr $ di 10 10
-      orig  = LU $ po 0 0
-      reqd  = hoistAp (with'CDicts $ assign'requires (ScreenCstr cstr)
-                       -- * The following constraint, along with the scoped 'd',
-                       --   are crucial for keeping inference.
-                       ∷ C d a → C d a)                                  tree
-      sized = hoistAp (with'CDicts $ assign'size (ScreenCstr cstr) cstr) reqd
-      origd = hoistAp (with'CDicts $ assign'origins orig)                sized
-  in origd
+tree'canary = layout (LU $ po 0 0) (Cstr $ di 10 10) tree
 
 
 data Gravity where
