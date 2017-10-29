@@ -295,7 +295,7 @@ data KPosition  = Abs | Rel | NoPos
 
 -- * C & S, functor and structure
 --
-type CDict d a = (AreaDict d, Pretty a, Requires a)
+type CDict d a = (AreaDict d)
 
 data C d a where
   C ∷ CDict d a ⇒
@@ -307,8 +307,8 @@ with'CDict ∷ (∀ b e. (b ~ a, e ~ d, CDict e b) ⇒ C e b → c) → C d a �
 with'CDict f x = x & case x of C _ _ → f
 
 data S d a where
-  CObj ∷ CDict d a ⇒
-    { _co      ∷ a
+  CObj ∷ (CDict d a, Requires b) ⇒
+    { _co      ∷ b
     } → S d a
   CBox ∷ CDict d a ⇒
     { _caxes   ∷ Axes
@@ -371,7 +371,7 @@ child    _ _ = error "Misapplication of a 'children' lens to a wrong GADT constr
 -- Note: we're mostly starting un-spaced, where appropriate.
 --
 
-lift ∷ (CDict d a) ⇒ a → Ap (C d) a
+lift ∷ (CDict d a, Requires b) ⇒ b → Ap (C d) a
 lift = liftAp . C empty'space ∘ CObj
 
 hbox, vbox ∷ (CDict d a) ⇒ [Ap (C d) a] → Ap (C d) a
@@ -389,7 +389,7 @@ wrap bezel = liftAp ∘ C empty'space ∘ CWrap bezel bezel
 --     stepwise combining and propagating this composition upward through internal nodes
 --  2. assign'size, top-down: reconcile leaf requirements with screen size constraint
 --
-assign'requires ∷ (AreaDict d, Requires a) ⇒ ScreenCstr d → C d a → C d a
+assign'requires ∷ (AreaDict d) ⇒ ScreenCstr d → C d a → C d a
 
 assign'requires _ (sp'requiring ∘ _space → True) =
   error "Asked to re-assign requirements to an already-requiring node."
@@ -416,7 +416,7 @@ assign'requires _ _ = error "assign'requires: missing case"
 sp'constraint'changed ∷ AreaDict d ⇒ Cstr d → Space d → Bool
 sp'constraint'changed cstr (Space sp'cstr _ _ _) = sp'cstr ≢ Just cstr
 
-assign'size ∷ ∀ d a. (AreaDict d, Requires a) ⇒ ScreenCstr d → Cstr d → C d a → C d a
+assign'size ∷ ∀ d a. (AreaDict d) ⇒ ScreenCstr d → Cstr d → C d a → C d a
 
 -- Propagate downward changes
 assign'size scrC thisC x@(sp'constraint'changed thisC ∘ _space → True) =
@@ -574,7 +574,7 @@ layout orig cstr x =
 instance Requires Char where
   requires _scrc _d = RProduct (Reqmt RAbsolute $ Reqt $ di 1 1) (Reqmt RAbsolute $ Reqt $ di 2 2)
 
-unit ∷ (AreaDict d) ⇒ Ap (C d) Char
+unit ∷ (AreaDict d) ⇒ Ap (C d) a
 unit = lift 'a'
 
 unit'canary ∷ (AreaDict d) ⇒ Ap (C d) Char
