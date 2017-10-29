@@ -574,9 +574,15 @@ layout orig cstr x =
 instance Requires Char where
   requires _scrc _d = RProduct (Reqmt RAbsolute $ Reqt $ di 1 1) (Reqmt RAbsolute $ Reqt $ di 2 2)
 
+unit ∷ (AreaDict d) ⇒ Ap (C d) Char
+unit = lift 'a'
+
+unit'canary ∷ (AreaDict d) ⇒ Ap (C d) Char
+unit'canary = layout (LU $ po 0 0) (Cstr $ di 10 10) unit
+
 tree ∷ (AreaDict d) ⇒ Ap (C d) Char
 tree =
-  vbox [ lift 'a'
+  vbox [ unit
        , wrap (di 1 1) $
          hbox [ lift 'b'
               , lift 'c'
