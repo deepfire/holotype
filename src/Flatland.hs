@@ -88,14 +88,14 @@ newtype DΠ = DΠ { fromDΠ ∷ Double } deriving (Num, Show)
 
 -- * Universal, multi-density linear size.
 
-data Unit = PU | PUI | Pt | Ratio
+data UnitK = PU | PUI | Pt | Ratio
 
 type instance Element (Dim PU)    = Double
 type instance Element (Dim PUI)   = F.Int32
 type instance Element (Dim Pt)    = F.Int32
 type instance Element (Dim Ratio) = Double
 
-data Dim (u ∷ Unit) where
+data Dim (u ∷ UnitK) where
   PUs    ∷ { fromPU    ∷ !(Element (Dim PU))    } → Dim PU    -- ^ Pango size, in device units
   PUIs   ∷ { fromPUI   ∷ !(Element (Dim PUI))   } → Dim PUI   -- ^ Pango size, in device units, scaled by PANGO_SCALE
   Pts    ∷ { fromPt    ∷ !(Element (Dim Pt))    } → Dim Pt    -- ^ Pango size, in points (at 72ppi--see PΠ above--rate), device-agnostic

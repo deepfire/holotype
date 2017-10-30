@@ -222,7 +222,7 @@ dpx (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >>
 
 
 -- * Text
-data TextS (u ∷ Unit) where
+data TextS (u ∷ UnitK) where
   TextS ∷
     { tFontKey      ∷ FontKey
     , tMaxParaLines ∷ Int
