@@ -90,48 +90,48 @@ newtype DΠ = DΠ { fromDΠ ∷ Double } deriving (Num, Show)
 
 data UnitK = PU | PUI | Pt | Ratio
 
-type instance Element (Dim PU)    = Double
-type instance Element (Dim PUI)   = F.Int32
-type instance Element (Dim Pt)    = F.Int32
-type instance Element (Dim Ratio) = Double
+type instance Element (Unit PU)    = Double
+type instance Element (Unit PUI)   = F.Int32
+type instance Element (Unit Pt)    = F.Int32
+type instance Element (Unit Ratio) = Double
 
-data Dim (u ∷ UnitK) where
-  PUs    ∷ { fromPU    ∷ !(Element (Dim PU))    } → Dim PU    -- ^ Pango size, in device units
-  PUIs   ∷ { fromPUI   ∷ !(Element (Dim PUI))   } → Dim PUI   -- ^ Pango size, in device units, scaled by PANGO_SCALE
-  Pts    ∷ { fromPt    ∷ !(Element (Dim Pt))    } → Dim Pt    -- ^ Pango size, in points (at 72ppi--see PΠ above--rate), device-agnostic
-  PRatio ∷ { fromRatio ∷ !(Element (Dim Ratio)) } → Dim Ratio -- ^ Relative
-type family DimType a = r | r → a where
-  DimType (Dim PU)    = PU
-  DimType (Dim PUI)   = PUI
-  DimType (Dim Pt)    = Pt
-  DimType (Dim Ratio) = Ratio
+data Unit (u ∷ UnitK) where
+  PUs    ∷ { fromPU    ∷ !(Element (Unit PU))    } → Unit PU    -- ^ Pango size, in device units
+  PUIs   ∷ { fromPUI   ∷ !(Element (Unit PUI))   } → Unit PUI   -- ^ Pango size, in device units, scaled by PANGO_SCALE
+  Pts    ∷ { fromPt    ∷ !(Element (Unit Pt))    } → Unit Pt    -- ^ Pango size, in points (at 72ppi--see PΠ above--rate), device-agnostic
+  PRatio ∷ { fromRatio ∷ !(Element (Unit Ratio)) } → Unit Ratio -- ^ Relative
+type family UnitType a = r | r → a where
+  UnitType (Unit PU)    = PU
+  UnitType (Unit PUI)   = PUI
+  UnitType (Unit Pt)    = Pt
+  UnitType (Unit Ratio) = Ratio
 
 -- <Boilerplate>
-deriving instance Eq   (Dim u)
-deriving instance Show (Dim u)
-instance Fractional (Dim PU) where
+deriving instance Eq   (Unit u)
+deriving instance Show (Unit u)
+instance Fractional (Unit PU) where
   fromRational x = PUs $ fromRational x
   recip          = omap recip
-instance MonoFunctor (Dim PU)    where omap f (PUs    x) = PUs    (f x)
-instance MonoFunctor (Dim PUI)   where omap f (PUIs   x) = PUIs   (f x)
-instance MonoFunctor (Dim Pt)    where omap f (Pts    x) = Pts    (f x)
-instance MonoFunctor (Dim Ratio) where omap f (PRatio x) = PRatio (f x)
-instance Ord (Dim PU)    where PUs    l <= PUs    r = l <= r
-instance Ord (Dim PUI)   where PUIs   l <= PUIs   r = l <= r
-instance Ord (Dim Pt)    where Pts    l <= Pts    r = l <= r
-instance Ord (Dim Ratio) where PRatio l <= PRatio r = l <= r
-instance Num (Dim PU)    where fromInteger = PUs    ∘ fromIntegral; PUs    x + PUs    y = PUs    $ x + y; PUs    x * PUs    y = PUs    $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
-instance Num (Dim PUI)   where fromInteger = PUIs   ∘ fromIntegral; PUIs   x + PUIs   y = PUIs   $ x + y; PUIs   x * PUIs   y = PUIs   $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
-instance Num (Dim Pt)    where fromInteger = Pts    ∘ fromIntegral; Pts    x + Pts    y = Pts    $ x + y; Pts    x * Pts    y = Pts    $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
-instance Num (Dim Ratio) where fromInteger = PRatio ∘ fromIntegral; PRatio x + PRatio y = PRatio $ x + y; PRatio x * PRatio y = PRatio $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
+instance MonoFunctor (Unit PU)    where omap f (PUs    x) = PUs    (f x)
+instance MonoFunctor (Unit PUI)   where omap f (PUIs   x) = PUIs   (f x)
+instance MonoFunctor (Unit Pt)    where omap f (Pts    x) = Pts    (f x)
+instance MonoFunctor (Unit Ratio) where omap f (PRatio x) = PRatio (f x)
+instance Ord (Unit PU)    where PUs    l <= PUs    r = l <= r
+instance Ord (Unit PUI)   where PUIs   l <= PUIs   r = l <= r
+instance Ord (Unit Pt)    where Pts    l <= Pts    r = l <= r
+instance Ord (Unit Ratio) where PRatio l <= PRatio r = l <= r
+instance Num (Unit PU)    where fromInteger = PUs    ∘ fromIntegral; PUs    x + PUs    y = PUs    $ x + y; PUs    x * PUs    y = PUs    $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
+instance Num (Unit PUI)   where fromInteger = PUIs   ∘ fromIntegral; PUIs   x + PUIs   y = PUIs   $ x + y; PUIs   x * PUIs   y = PUIs   $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
+instance Num (Unit Pt)    where fromInteger = Pts    ∘ fromIntegral; Pts    x + Pts    y = Pts    $ x + y; Pts    x * Pts    y = Pts    $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
+instance Num (Unit Ratio) where fromInteger = PRatio ∘ fromIntegral; PRatio x + PRatio y = PRatio $ x + y; PRatio x * PRatio y = PRatio $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
 
-instance Random (Dim PU) where
+instance Random (Unit PU) where
   randomR (PUs a, PUs a')   = runState $ liftA PUs $ state $ randomR (a, a')
   random                    = runState $ liftA PUs $ state random
-instance Random (Dim PUI) where
+instance Random (Unit PUI) where
   randomR (PUIs a, PUIs a') = runState $ liftA PUIs $ state $ randomR (a, a')
   random                    = runState $ liftA PUIs $ state random
-instance Random (Dim Pt) where
+instance Random (Unit Pt) where
   randomR (Pts a, Pts a')   = runState $ liftA Pts $ state $ randomR (a, a')
   random                    = runState $ liftA Pts $ state random
 instance Random a ⇒ Random (V2 a) where
@@ -146,26 +146,26 @@ instance Random a ⇒ Random (V4 a) where
 -- </Boilerplate>
 
 -- | Conversion between unit sizes -- See Note [Pango resolution & unit conversion]
--- class a ~ (Dim (DimType a)) ⇒ FromDim a where
---   fromDim ∷ FromDim b ⇒ DΠ → b → a
-class FromDim a where
-  fromDim ∷ FromDim (Dim b) ⇒ DΠ → (Dim b) → a
+-- class a ~ (Unit (UnitType a)) ⇒ FromUnit a where
+--   fromUnit ∷ FromUnit b ⇒ DΠ → b → a
+class FromUnit a where
+  fromUnit ∷ FromUnit (Unit b) ⇒ DΠ → (Unit b) → a
 
-instance FromDim (Dim PU) where
-  fromDim _       x@(PUs _)    = x
-  fromDim _         (PUIs pis) = PUs $ UN.unsafePerformIO ∘ GIP.unitsToDouble   $ pis -- fromIntegral pis / fromIntegral GIP.SCALE
-  fromDim (DΠ dπ)   (Pts pts)  = PUs $ (fromIntegral pts) ⋅ dπ / pπVal pπ
-  fromDim _         _          = error "x -fromDim→ PU: unsupported combination, for an unknown type of 'x'."
-instance FromDim (Dim PUI) where
-  fromDim _       x@(PUIs _)   = x
-  fromDim _         (PUs pus)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ pus -- floor $ pus ⋅ fromIntegral GIP.SCALE
-  fromDim (DΠ dπ)   (Pts pts)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ fromIntegral pts ⋅ dπ / pπVal pπ
-  fromDim _         _          = error "x -fromDim→ PUI: unsupported combination, for an unknown type of 'x'."
-instance FromDim (Dim Pt) where
-  fromDim _       x@(Pts _)    = x
-  fromDim (DΠ dπ)   (PUs pus)  = Pts $ floor $                                                                 pus ⋅ pπVal pπ / dπ
-  fromDim (DΠ dπ)   (PUIs pis) = Pts $ floor $ UN.unsafePerformIO ∘ GIP.unitsToDouble ∘ floor $ (fromIntegral pis) ⋅ pπVal pπ / dπ
-  fromDim _         _          = error "x -fromDim→ Pt: unsupported combination, for an unknown type of 'x'."
+instance FromUnit (Unit PU) where
+  fromUnit _       x@(PUs _)    = x
+  fromUnit _         (PUIs pis) = PUs $ UN.unsafePerformIO ∘ GIP.unitsToDouble   $ pis -- fromIntegral pis / fromIntegral GIP.SCALE
+  fromUnit (DΠ dπ)   (Pts pts)  = PUs $ (fromIntegral pts) ⋅ dπ / pπVal pπ
+  fromUnit _         _          = error "x -fromDim→ PU: unsupported combination, for an unknown type of 'x'."
+instance FromUnit (Unit PUI) where
+  fromUnit _       x@(PUIs _)   = x
+  fromUnit _         (PUs pus)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ pus -- floor $ pus ⋅ fromIntegral GIP.SCALE
+  fromUnit (DΠ dπ)   (Pts pts)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ fromIntegral pts ⋅ dπ / pπVal pπ
+  fromUnit _         _          = error "x -fromDim→ PUI: unsupported combination, for an unknown type of 'x'."
+instance FromUnit (Unit Pt) where
+  fromUnit _       x@(Pts _)    = x
+  fromUnit (DΠ dπ)   (PUs pus)  = Pts $ floor $                                                                 pus ⋅ pπVal pπ / dπ
+  fromUnit (DΠ dπ)   (PUIs pis) = Pts $ floor $ UN.unsafePerformIO ∘ GIP.unitsToDouble ∘ floor $ (fromIntegral pis) ⋅ pπVal pπ / dπ
+  fromUnit _         _          = error "x -fromDim→ Pt: unsupported combination, for an unknown type of 'x'."
 
 
 -- * Specialized linear dimension classification:

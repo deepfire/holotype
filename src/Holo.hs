@@ -47,7 +47,7 @@ data Holosome a where
     , holoStyle  ∷ StyleOf (Visual a)
     , holoStream ∷ ObjectStream
     , holoVisual ∷ Visual a
-    -- , holoPosRef ∷ IO.IORef (Po (Dim PU))
+    -- , holoPosRef ∷ IO.IORef (Po (Unit PU))
     } → Holosome a
 
 instance Show (Holosome a) where
@@ -72,7 +72,7 @@ update stts Holosome{..} f = do
 
 
 -- class HoloSpace a where
---   position ∷ a → Holosome h → Po (Dim PU)
+--   position ∷ a → Holosome h → Po (Unit PU)
 
 
 -- class HoloSpace a ⇒ HoloPlace a where
@@ -83,5 +83,5 @@ update stts Holosome{..} f = do
 
 -- data RandomLayout where
 --   RandomLayout ∷
---     { rlArea ∷ Area (Dim PU)
+--     { rlArea ∷ Area (Unit PU)
 --     } → RandomLayout
