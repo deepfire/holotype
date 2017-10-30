@@ -189,7 +189,7 @@ sum'requirements'axisMajor axis reqs =
             RProduct (addMax axis lmin rmin) (addMax axis lopt ropt))
   mempty reqs
 
-class Requires a where
+class HasRequires a where
   -- | Given a screen constraint contex, return requirements.  We're deliberately
   --   not providing the parent constraint, to enable a single sweeping
   --   requirement computation pass.
@@ -307,7 +307,7 @@ with'CDict ∷ (∀ b e. (b ~ a, e ~ d, CDict e b) ⇒ C e b → c) → C d a �
 with'CDict f x = x & case x of C _ _ → f
 
 data S d a where
-  CObj ∷ (CDict d a, Requires b) ⇒
+  CObj ∷ (CDict d a, HasRequires b) ⇒
     { _co      ∷ b
     } → S d a
   CBox ∷ CDict d a ⇒
@@ -371,7 +371,7 @@ child    _ _ = error "Misapplication of a 'children' lens to a wrong GADT constr
 -- Note: we're mostly starting un-spaced, where appropriate.
 --
 
-lift ∷ (CDict d a, Requires b) ⇒ b → Ap (C d) a
+lift ∷ (CDict d a, HasRequires b) ⇒ b → Ap (C d) a
 lift = liftAp . C empty'space ∘ CObj
 
 hbox, vbox ∷ (CDict d a) ⇒ [Ap (C d) a] → Ap (C d) a
@@ -569,7 +569,7 @@ layout orig cstr x =
 
 -- * Proof-of-existence code
 --
-instance Requires Char where
+instance HasRequires Char where
   requires _scrc _d = RProduct (Reqmt RAbsolute $ Reqt $ di 1 1) (Reqmt RAbsolute $ Reqt $ di 2 2)
 
 unit ∷ (AreaDict d) ⇒ Ap (C d) a
