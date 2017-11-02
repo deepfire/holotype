@@ -1,5 +1,3 @@
---{-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
---{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE ConstraintKinds, DataKinds, KindSignatures, TypeApplications, TypeInType #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, NoMonomorphismRestriction, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
 {-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies #-}
@@ -32,7 +30,6 @@ import           Data.List
 import           Data.Lub
 import           Data.Maybe
 import           Data.Glb
-import           Data.MeasuredMonoid
 import           Data.MonoTraversable
 import           Data.Monoid
 import           Data.Text.Format
@@ -96,7 +93,7 @@ type instance Element (Unit Pt)    = F.Int32
 type instance Element (Unit Ratio) = Double
 
 data Unit (u ∷ UnitK) where
-  PUs    ∷ { fromPU    ∷ !(Element (Unit PU))    } → Unit PU    -- ^ Pango size, in device units
+  PUs    ∷ { fromPU    ∷ !(Element (Unit PU))    } → Unit PU    -- ^ Pango size, in device units -- aka pixels, as evidence overwhelmingly points to
   PUIs   ∷ { fromPUI   ∷ !(Element (Unit PUI))   } → Unit PUI   -- ^ Pango size, in device units, scaled by PANGO_SCALE
   Pts    ∷ { fromPt    ∷ !(Element (Unit Pt))    } → Unit Pt    -- ^ Pango size, in points (at 72ppi--see PΠ above--rate), device-agnostic
   PRatio ∷ { fromRatio ∷ !(Element (Unit Ratio)) } → Unit Ratio -- ^ Relative
@@ -111,6 +108,9 @@ deriving instance Eq   (Unit u)
 deriving instance Show (Unit u)
 instance Fractional (Unit PU) where
   fromRational x = PUs $ fromRational x
+  recip          = omap recip
+instance Fractional (Unit Ratio) where
+  fromRational x = PRatio $ fromRational x
   recip          = omap recip
 instance MonoFunctor (Unit PU)    where omap f (PUs    x) = PUs    (f x)
 instance MonoFunctor (Unit PUI)   where omap f (PUIs   x) = PUIs   (f x)
@@ -298,19 +298,22 @@ goldXdi (Wi x) = Di $ V2  x (x / realToFrac goldenRatio)
 goldYdi ∷ RealFrac a ⇒ He a → Di a
 goldYdi (He y) = Di $ V2 (y / realToFrac goldenRatio) y
 
-di'd   ∷ Axes → Lens' (Di a) a
+di'd   ∷ Axis → Lens' (Di a) a
 di'd   X f (Di (V2 x y)) = Di ∘ (flip V2 y) <$> f x
 di'd   Y f (Di (V2 x y)) = Di ∘ (id   V2 x) <$> f y
-po'd   ∷ Axes → Lens' (Po a) a
+po'd   ∷ Axis → Lens' (Po a) a
 po'd   X f (Po (V2 x y)) = Po ∘ (flip V2 y) <$> f x
 po'd   Y f (Po (V2 x y)) = Po ∘ (id   V2 x) <$> f y
 
 
--- * Axes
+-- * Axis
 --
-data Axes = X | Y deriving (Eq, Show)
+data Axis = X | Y deriving (Eq, Show)
 
-other'axis ∷ Axes → Axes
+newtype Major = Major { fromMajor ∷ Axis } deriving (Eq, Show)
+newtype Minor = Minor { fromMinor ∷ Axis } deriving (Eq, Show)
+
+other'axis ∷ Axis → Axis
 other'axis X = Y
 other'axis Y = X
 
@@ -319,7 +322,7 @@ other'axis Y = X
 class AddMax (l ∷ Type) (r ∷ Type) where
   type Result l r ∷ Type
   type Result l r = l
-  addMax ∷ Axes → l → r → Result l r
+  addMax ∷ Axis → l → r → Result l r
 
 type Lin a = (Fractional a, Ord a, Num a)
 
@@ -332,6 +335,19 @@ instance Lin d ⇒ AddMax (Di d) (Di d) where
 
 instance Lin d ⇒ AddMax (Po d) (Di d) where
   addMax ax pos by =  pos & po'd ax %~ (+ (by ^. (di'd ax)))
+
+
+-- | Axis-major vector, major axis is: 1) first, 2) not recorded.
+--
+newtype V2A d = V2A (V2 d)
+
+v2a ∷ Axis → d → d → V2A d
+v2a X x y = V2A $ V2 x y
+v2a Y x y = V2A $ V2 y x
+
+v2a'lift ∷ Axis → V2 d → V2A d
+v2a'lift X v        = V2A v
+v2a'lift Y (V2 x y) = V2A $ (V2 y x)
 
 
 -- * Orientation: _ north-west, clockwise to west.
@@ -419,22 +435,22 @@ lu'v   f (LU   (Po v)) = LU   ∘ Po <$> f v
 rb'v   ∷ Lens' (RB   a) (V2 a)
 rb'v   f (RB   (Po v)) = RB   ∘ Po <$> f v
 
-cstr'd ∷ Axes → Lens' (Cstr a) a
+cstr'd ∷ Axis → Lens' (Cstr a) a
 cstr'd X f (Cstr (Di (V2 x y))) = Cstr ∘ Di ∘ (flip V2 y) <$> f x
 cstr'd Y f (Cstr (Di (V2 x y))) = Cstr ∘ Di ∘ (id   V2 x) <$> f y
-reqt'd ∷ Axes → Lens' (Reqt a) a
+reqt'd ∷ Axis → Lens' (Reqt a) a
 reqt'd X f (Reqt (Di (V2 x y))) = Reqt ∘ Di ∘ (flip V2 y) <$> f x
 reqt'd Y f (Reqt (Di (V2 x y))) = Reqt ∘ Di ∘ (id   V2 x) <$> f y
-size'd ∷ Axes → Lens' (Size a) a
+size'd ∷ Axis → Lens' (Size a) a
 size'd X f (Size (Di (V2 x y))) = Size ∘ Di ∘ (flip V2 y) <$> f x
 size'd Y f (Size (Di (V2 x y))) = Size ∘ Di ∘ (id   V2 x) <$> f y
-orig'd ∷ Axes → Lens' (Orig a) a
+orig'd ∷ Axis → Lens' (Orig a) a
 orig'd X f (Orig (Po (V2 x y))) = Orig ∘ Po ∘ (flip V2 y) <$> f x
 orig'd Y f (Orig (Po (V2 x y))) = Orig ∘ Po ∘ (id   V2 x) <$> f y
-lu'd   ∷ Axes → Lens' (LU a) a
+lu'd   ∷ Axis → Lens' (LU a) a
 lu'd   X f (LU   (Po (V2 x y))) = LU   ∘ Po ∘ (flip V2 y) <$> f x
 lu'd   Y f (LU   (Po (V2 x y))) = LU   ∘ Po ∘ (id   V2 x) <$> f y
-rb'd   ∷ Axes → Lens' (RB a) a
+rb'd   ∷ Axis → Lens' (RB a) a
 rb'd   X f (RB   (Po (V2 x y))) = RB   ∘ Po ∘ (flip V2 y) <$> f x
 rb'd   Y f (RB   (Po (V2 x y))) = RB   ∘ Po ∘ (id   V2 x) <$> f y
 
@@ -450,7 +466,7 @@ instance Lin d  ⇒ AddMax (Reqt d) (Reqt d) where
 instance Lin d  ⇒ AddMax (Size d) (Size d) where
   addMax ax = Size .: on (addMax ax) (_size'di)
 
-reqt'add  ∷ Lin d ⇒ Axes → Reqt d → Reqt d → Reqt d
+reqt'add  ∷ Lin d ⇒ Axis → Reqt d → Reqt d → Reqt d
 reqt'add X  (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx   +   ly) (rx `max` ry)
 reqt'add  Y (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx `max` ly) (rx   +   ry)
 

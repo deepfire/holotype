@@ -1,5 +1,3 @@
---{-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
---{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE ConstraintKinds, DataKinds, KindSignatures, TypeApplications, TypeInType #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, NoMonomorphismRestriction, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
 {-# LANGUAGE GADTs, FunctionalDependencies, TypeFamilies, TypeFamilyDependencies #-}
@@ -33,7 +31,6 @@ import           Data.Lub
 import qualified Data.Map                          as Map
 import           Data.Maybe
 import           Data.Glb
-import           Data.MeasuredMonoid
 import           Data.MonoTraversable
 import           Data.Monoid
 import qualified Data.Text                         as T
