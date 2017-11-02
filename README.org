@@ -76,6 +76,71 @@
        structural (or even mutation) control over, so can't pin "within" the data.
   - model does not cover data mutability :: 
 
+*** Layout data flow summary
+
+    Note: this leaves view-porting (as an overflow handling mechanism) out of scope for now.
+
+***** Possibilities
+
+      | Leaf  | Modifier  | FromTop | Style       | Hardness | ToTop | Shrinkable | Notes                                     |
+      |-------+-----------+---------+-------------+----------+-------+------------+-------------------------------------------|
+      | Text  | One-line  | ()      | font, break | Hard     | Abs   | no         |                                           |
+      |       |           | ()      | font, break | Soft     | Rel   | ellipsis   |                                           |
+      |       | Breakable | AbsCstr | font        | Soft     | Rel   | ellipsis   | hard breakable is ⊥                       |
+      | Image | Fixed     | ()      | fixed       | Hard     | Abs   | no         | soft fixed image is ⊥, unless viewporting |
+      |       | Scalable  | AbsCstr | ()          | Soft     | Rel   | yes        | scaling                                   |
+      | ???   |           |         |             |          |       |            | any other leaf types?                     |
+
+      | Inter | Modifier | FromTop | Style     | ToBot   | FromBot | Hardness Honoring | ToTop |   | Notes |
+      |-------+----------+---------+-----------+---------+---------+-------------------+-------+---+-------|
+      | Box   |          | AbsCstr | ()        | AbsCstr | AbsReq  | Rebalancing       |       |   |       |
+      | Wrap  |          | AbsCstr | thickness | AbsCstr | AbsReq  | ????????????????? |       |   |       |
+
+      Apparent fallout from fundamentals ∷
+        1. Hard requirements are naturally context-free
+        2. Relative hards are possible, though (ratios being a question of design)
+        3. Context-ful requirements are impossible up-front, in a single pass
+
+      Observations ∷
+        1. Child ratio knowledge is minimum for Box's downward propagation of AbsCstr
+        2. Some children don't have ratios, but absolutes can be relativised
+           (absolutisation of relatives is a feasible dual that can lead to better pixel-level stability)
+        3. #1 + #2 → child ratios always available, and always immediately -- assuming no inter-level balancing
+
+      Box hardness honoring procedure ∷
+        1. Query all children for direct requirements
+        2. Allocate hards (absolutising relatives), computing the remaining soft share
+        3. Relativise all soft absolutes from #1
+        4. When softs sum to overflow, normalise them
+        5. When softs sum to underflow, normalise them, unless there are filler children
+        6. Absolutise softs back
+        7. When there's underflow and fillers, distrubute slack between fillers
+        8. ??? hards overflow handling policy
+           - ideally, propagate upward
+             - as a "lacks absolute N"?
+
+        Summary: hards first, then redistribute remainder while keeping fillers in mind.
+
+      Wrap hardness honoring procedure ∷
+        1. Query children for direct requirements
+        2. Absolutes that fit exactly: easy
+        3. Absolutes that underflow: ???
+        4. Absolutes that overflow:
+           - ideally, propagate upward (see same for box hardness)
+
+***** Case generalisation progression
+******* Top Leaf
+
+        1. Top  :: AbsCstr
+        2. Leaf:
+           - Text, one-line ::        AbsReqt
+           - Text, line-breakable ::  AbsCstr -> AbsReqt
+           - Image, hard ::           AbsReqt              -- request violation has severe consequences for UI parts (e.g. theming)
+           - Image, fit ::            AbsCstr -> AbsReqt   -- will fit to match aspect ratio
+
+******* Top [Leaf, Leaf]
+******* Top (Cont Leaf) (Cont Leaf)
+******* Top (Cont [Leaf, Leaf]) (Cont [Leaf, Leaf])
 * Graph representation
 *** DONE DeltaGraph
 
