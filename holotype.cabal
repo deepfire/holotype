@@ -59,6 +59,7 @@ library
                      , MissingH
                      , MonadRandom
                      , mono-traversable
+                     , monadplus
                      , pretty
                      , pretty-show
                      , profunctors
@@ -108,6 +109,15 @@ library
 
                      , mtl
 
+                     , tasty
+                     , tasty-expected-failure
+                     , tasty-hspec
+                     , tasty-hunit
+                     , tasty-quickcheck
+                     , tasty-smallcheck
+                     , tasty-hedgehog
+                     , hedgehog
+
 test-suite test
   main-is:             Driver.hs
   hs-source-dirs:      tests
@@ -122,8 +132,10 @@ test-suite test
                      , filepath   >= 1.3 && < 2.0
                      , Glob       >= 0.8 && < 1.0
                      , lens
+                     , linear
                      , tasty
                      , tasty-discover
+                     , tasty-expected-failure
                      , tasty-hspec
                      , tasty-hunit
                      , tasty-quickcheck
