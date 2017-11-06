@@ -8,7 +8,7 @@
 --
 -- Two caveats:
 --
--- 1. Wrapping and size callbacks are not implemented
+-- 1. Wrap and order properties and size callbacks are not implemented.
 -- 2. Initially, this is a very direct translation from C -- and it shows a lot.
 --
 module Flex where
@@ -82,8 +82,8 @@ data Item where
     , _it'wrap            ∷ Wrapping
     , _it'grow            ∷ Int
     , _it'shrink          ∷ Int
-    , _it'order           ∷ Int
-    , _it'basis           ∷ Maybe Double
+    , _it'order           ∷ Maybe Int
+    , _it'basis           ∷ Double
     -- frame: output
     , _it'po              ∷ Po Double
     , _it'di              ∷ Di Double
@@ -94,9 +94,9 @@ data Item where
     deriving (Show)
 makeLenses ''Item
 
-mkItem ∷ Double → Double → [Item] → Item
-mkItem width height children =
-  Item { _it'size            = Di $ V2 (Just width) (Just height)
+mkItem' ∷ Maybe Double → Maybe Double → [Item] → Item
+mkItem' width height children =
+  Item { _it'size            = Di $ V2 width height
        , _it'position        = LRTB Nothing Nothing Nothing Nothing
        , _it'padding         = LRTB 0 0 0 0
        , _it'margin          = LRTB 0 0 0 0
@@ -109,13 +109,16 @@ mkItem width height children =
        , _it'wrap            = NoWrap
        , _it'grow            = 0
        , _it'shrink          = 1
-       , _it'order           = 0
-       , _it'basis           = Nothing
+       , _it'order           = Nothing
+       , _it'basis           = 0
        , _it'children        = children
        --
        , _it'po              = Po $ V2 0 0
        , _it'di              = Di $ V2 0 0
        }
+
+mkItem ∷ Double → Double → [Item] → Item
+mkItem width height = mkItem' (Just width) (Just height)
 
 instance Monoid Item where
   mempty  = mkItem 0 0 []
@@ -254,7 +257,7 @@ mkLayout Item{..} (Di (V2 width' height')) =
   in Layout{..}
 
 layout'reset ∷ Layout → Layout
-layout'reset l@Layout{..} = trace'pp "layout'reset" $ l
+layout'reset l@Layout{..} = trace'pp "\n        layout'reset" $ l
   & la'line'dim     .~ (if _la'wrap then 0 else _la'align'dim)
   & la'flex'dim     .~ _la'size'dim
   & la'flex'grows   .~ 0
@@ -319,7 +322,7 @@ layout_items item@Item{..} children l@Layout{..} =
         let flex'size   = if | l'^.la'flex'dim > 0 ∧ _it'grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral _it'grow   / fromIntegral (l'^.la'flex'grows)
                              | l'^.la'flex'dim < 0 ∧ _it'shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral _it'shrink / fromIntegral (l'^.la'flex'shrinks)
                              | otherwise → 0
-            c1          = c0 &  child'size  _la'major +~ (trace (printf "flex'size %f %f %d" flex'size (l'^.la'flex'dim) (l'^.la'flex'grows)) flex'size)
+            c1          = c0 &  child'size  _la'major +~ (trace (printf "        flex'size %f %f %d" flex'size (l'^.la'flex'dim) (l'^.la'flex'grows)) flex'size)
             -- Set the minor axis position (and stretch the minor axis size if needed).
             align'size  = c1 ^. child'size2 _la'minor
             c'align     = child'align c1 item
@@ -349,7 +352,7 @@ layout_items item@Item{..} children l@Layout{..} =
       step ∷ [Item] → Double → [Item] → [Item]
       step []     _   acc = reverse acc
       step (c:cs) pos acc = let (pos', c') = layout'child pos c
-                            in step cs pos' (trace'pp "c''" c':acc)
+                            in step cs pos' (trace'pp "        c''" c':acc)
       children'         = step children pos2 []
       l''               = if not _la'wrap ∨ _la'reverse2 ≡ Forward then l'
                           else l' & la'pos2 +~ (l'^.la'line'dim)
@@ -379,7 +382,7 @@ layout_item item cstr =
                       & it'po .~ c'pos
         in (,) l $ layout_item c' c'dim
       lay'one l@Layout{..} c@Item{..} =
-        let c' = c & child'size  _la'major .~ (fromMaybe 0 $ _it'basis <|> (_it'size^.di'd (fromMajor _la'major)))
+        let c' = c & child'size  _la'major .~ (fromMaybe 0 $ partial (>0) _it'basis <|> (_it'size^.di'd (fromMajor _la'major)))
                    & child'size2 _la'minor .~ flip fromMaybe (_it'size^.di'd (fromMinor _la'minor))
                                               (cstr^.di'd (if _la'vertical ≡ Vertical then X else Y) -
                                                      child'marginLT c _la'vertical Forward -
@@ -400,8 +403,8 @@ layout_item item cstr =
       step ∷ [Item] → Layout → [Item] → (Layout, [Item])
       step []     l acc = (l, reverse acc)
       step (x:xs) l acc =
-        let (,) l' x' = lay'one (trace'pp "l " l) x
-        in step xs (trace'pp "l'" l') ((trace'pp "c' " x'):acc)
+        let (,) l' x' = lay'one (trace'pp "        l " l) x
+        in step xs (trace'pp "        l'" l') ((trace'pp "        c' " x'):acc)
       (layout', children') = step (item^.it'children) layout []
       -- n'relative           = length $ filter ((≡Relative) ∘ _it'positioning) children'
       (,) _ children''     = layout_items item children' layout'
@@ -417,17 +420,14 @@ flex_layout x = layout_item x $ fromMaybe (error "Root missing coord.") <$> x^.i
 --
 type Frame a = (Po Double, Di Double)
 
-frame'of ∷ Item → Frame a
-frame'of Item{..} = (,) _it'po _it'di
+frame  ∷ Lens' Item (Po Double, Di Double)
+frame f it@Item{..} = (\(p,d)→ it { _it'po = p, _it'di = d }) <$> f (_it'po, _it'di)
+
+frame' ∷ Po Double → Di Double → Frame a
+frame' = (,)
 
 frame'test ∷ (Frame a → Bool) → Item → Bool
-frame'test f = f ∘ frame'of
-
-frame'is ∷ Po Double → Di Double → Frame a → Bool
-frame'is p d = ((p, d) ≡)
-
-frame ∷ Po Double → Di Double → Frame a
-frame = (,)
+frame'test f = f ∘ (^.frame)
 
 frame'of'is ∷ Po Double → Di Double → Item → Bool
-frame'of'is p d = frame'is p d ∘ frame'of
+frame'of'is p d = ((p, d)≡) ∘ (^.frame)
