@@ -17,24 +17,26 @@ library
 
   exposed-modules:
 
-                  Data.MeasuredMonoid
+                  -- Data.MeasuredMonoid
 
                   Elsewhere
 
                   Flatland
                   FlatDraw
 
-                  Holo
-                  HoloCairo
-                  HoloCanvas
-                  HoloCube
-                  HoloFont
-                  HoloSettings
-                  HoloSys
-                  Holotype
+                  -- Holo
+                  -- HoloCairo
+                  -- HoloCanvas
+                  -- HoloCube
+                  -- HoloFont
+                  -- HoloSettings
+                  -- HoloSys
+                  -- Holotype
 
-                  Reflex.GLFW
-                  Reflex.Random
+                  -- Reflex.GLFW
+                  -- Reflex.Random
+
+                  Flex
 
   build-depends:       aeson
                      , base >=4.8
@@ -105,6 +107,31 @@ library
                      , ghc-typelits-natnormalise
 
                      , mtl
+
+test-suite test
+  main-is:             Driver.hs
+  hs-source-dirs:      tests
+  ghc-options:         -Wall
+  type:                exitcode-stdio-1.0
+  default-language:    Haskell2010
+  build-depends:
+                       base       >= 4.8 && < 5.0
+                     , base-unicode-symbols
+                     , containers >= 0.4 && < 1.0
+                     , directory  >= 1.1 && < 2.0
+                     , filepath   >= 1.3 && < 2.0
+                     , Glob       >= 0.8 && < 1.0
+                     , lens
+                     , tasty
+                     , tasty-discover
+                     , tasty-hspec
+                     , tasty-hunit
+                     , tasty-quickcheck
+                     , tasty-smallcheck
+                     , tasty-hedgehog
+                     , hedgehog
+
+                     , holotype
 
 executable holotype
   hs-source-dirs:      .
