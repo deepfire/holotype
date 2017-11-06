@@ -3,20 +3,44 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
 
-module Elsewhere where
+module Elsewhere
+  ( partial
+  , fromMaybe
+  , (.:)
+  , (<>)
+  , Text
+  , trace
+  , goldenRatio
+
+  , dumpPretty
+  , ppCompact, ppPretty
+  , trace'pp
+  , rendCompact, rendPretty
+  , prettyMaybe
+  , unreadable
+  , (<->), (<:>)
+
+  , ppV2
+
+  , PP(..)
+  , showT, showTS, showTL
+  , errorT, errorTL
+  )
+where
 
 import qualified Alib                              as M
 import           Control.Applicative
 import           Control.Exception
 import           Control.Lens                      hiding (children)
+import           Control.Monad.Plus                       (partial)
 import           Control.Monad.Random
 import           Control.Monad.State
 import           Data.Complex
-import           Data.Glb                            (HasGlb(..))
-import           Data.Lub                            (HasLub(..))
-import           Data.Maybe                          (fromMaybe)
-import           Data.Monoid                         ((<>))
-import           Data.Text                           (Text)
+import           Data.Glb                                 (HasGlb(..))
+import           Data.Lub                                 (HasLub(..))
+import           Data.Maybe                               (fromMaybe)
+import           Data.Monoid                              ((<>))
+import           Data.Text                                (Text)
 import qualified Data.Text                         as T
 import qualified Data.Text.Lazy                    as TL
 import qualified Data.Text.Format                  as T
