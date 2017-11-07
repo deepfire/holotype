@@ -21,6 +21,7 @@ module Elsewhere
   , (<->), (<:>)
 
   , ppV2
+  , trace'
 
   , PP(..)
   , showT, showTS, showTL
@@ -140,6 +141,9 @@ l <:> r = l <> char ':' <> r
 
 ppV2 ∷ Show a ⇒ V2 a → TL.Text
 ppV2 x = (showTL $ x^._x) <> "x" <> (showTL $ x^._y)
+
+trace' ∷ Show a ⇒ String → a → a
+trace' prefix o = trace (prefix <> (show o)) o
 
 class Show a ⇒ PP a where
   {-# MINIMAL pp | ppL #-}
