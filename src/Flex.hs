@@ -299,7 +299,7 @@ layout_items item@Item{..} children l@Layout{..} =
   -- Determine the major axis initial position and optional spacing.
   let (pos0, spacing0)  = (,) 0 0
       (pos1, spacing1)  = if _la'flex'grows ≡ 0 ∧
-                             _la'flex'grows > 0
+                             _la'flex'dim > 0      -- Bug #3 (was la'flex'grows): 50 failures → All 329 tests passed (0.09s)
                           then let may'aligned = layout'align _it'justify'content _la'flex'dim
                                                  (length children) False
                                    (pos', spacing') = flip fromMaybe may'aligned $ error "incorrect justify_content"
@@ -382,7 +382,8 @@ layout_item item cstr =
                       & it'po .~ c'pos
         in (,) l $ layout_item c' c'dim
       lay'one l@Layout{..} c@Item{..} =
-        let c' = c & child'size  _la'major .~ (fromMaybe 0 $ partial (>0) _it'basis <|> (_it'size^.di'd (fromMajor _la'major)))
+        let c' = c & child'size  _la'major .~ (fromMaybe 0 $ partial (>0) _it'basis <|> -- Bug #2, after fix → 50 out of 329 tests failed
+                                               (_it'size^.di'd (fromMajor _la'major)))
                    & child'size2 _la'minor .~ flip fromMaybe (_it'size^.di'd (fromMinor _la'minor))
                                               (cstr^.di'd (if _la'vertical ≡ Vertical then X else Y) -
                                                      child'marginLT c _la'vertical Forward -
