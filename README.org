@@ -68,6 +68,8 @@
       - doi:10.1007/978-3-319-27261-0
       - http://www.csun.edu/gd2015/accepted.htm
     - 2016 :: https://arxiv.org/html/1609.02443v1
+  - http://users.encs.concordia.ca/~haarslev/publications/
+  - https://github.com/xamarin/flex/blob/master/flex.c
 
 * Open questions
 
@@ -82,19 +84,19 @@
 
 ***** Possibilities
 
-      | Leaf  | Modifier  | FromTop | Style       | Hardness | ToTop | Shrinkable | Notes                                     |
-      |-------+-----------+---------+-------------+----------+-------+------------+-------------------------------------------|
-      | Text  | One-line  | ()      | font, break | Hard     | Abs   | no         |                                           |
-      |       |           | ()      | font, break | Soft     | Rel   | ellipsis   |                                           |
-      |       | Breakable | AbsCstr | font        | Soft     | Rel   | ellipsis   | hard breakable is ⊥                       |
-      | Image | Fixed     | ()      | fixed       | Hard     | Abs   | no         | soft fixed image is ⊥, unless viewporting |
-      |       | Scalable  | AbsCstr | ()          | Soft     | Rel   | yes        | scaling                                   |
-      | ???   |           |         |             |          |       |            | any other leaf types?                     |
+      | Leaf  | Modifier  | FromTop | Style         | Hardness | ToTop | Shrink method | Notes                                     |
+      |-------+-----------+---------+---------------+----------+-------+---------------+-------------------------------------------|
+      | Text  | One-line  | ()      | font, unbreak | Hard     | Abs   | no            |                                           |
+      |       |           | ()      | font, unbreak | Soft     | Rel   | ellipsis      |                                           |
+      |       | Breakable | AbsCstr | font          | Soft     | Rel   | ellipsis      | hard breakable is ⊥                       |
+      | Image | Fixed     | ()      | fixed         | Hard     | Abs   | no            | soft fixed image is ⊥, unless viewporting |
+      |       | Scalable  | AbsCstr | ()            | Soft     | Rel   | scale         |                                           |
+      | ???   |           |         |               |          |       |               | any other leaf types?                     |
 
-      | Inter | Modifier | FromTop | Style     | ToBot   | FromBot | Hardness Honoring | ToTop |   | Notes |
-      |-------+----------+---------+-----------+---------+---------+-------------------+-------+---+-------|
-      | Box   |          | AbsCstr | ()        | AbsCstr | AbsReq  | Rebalancing       |       |   |       |
-      | Wrap  |          | AbsCstr | thickness | AbsCstr | AbsReq  | ????????????????? |       |   |       |
+      | Inter | Modifier | FromTop | Style     | FromBot | ToBot | Hardness Honoring | ToTop |   | Notes |
+      |-------+----------+---------+-----------+---------+-------+-------------------+-------+---+-------|
+      | Box   |          | AbsCstr | ()        | Abs/Rel | ?     | Rebalancing       |       |   |       |
+      | Wrap  |          | AbsCstr | thickness | Abs/Rel | ?     | ????????????????? |       |   |       |
 
       Apparent fallout from fundamentals ∷
         1. Hard requirements are naturally context-free
@@ -141,6 +143,132 @@
 ******* Top [Leaf, Leaf]
 ******* Top (Cont Leaf) (Cont Leaf)
 ******* Top (Cont [Leaf, Leaf]) (Cont [Leaf, Leaf])
+*** =flex= notes
+***** Attributes
+      - *width*, *height*        ∷ float         -- absolute-only?
+      - *left*, *right*, *top*, *bottom*
+                                 ∷ float         -- def(0), ???
+      - *padding_LRTB*, *margin_LRTB*    
+                                 ∷ float         -- def(0)
+
+      - *justify_content*        ∷ def(=ALIGN_START=)
+      - *align_content*          ∷ def(=ALIGN_STRETCH=)
+      - *align_items*            ∷ def(=ALIGN_START=)
+      - *align_self*             ∷ def(=ALIGN_AUTO=)
+      - *position*               ∷ def(=POSITION_RELATIVE=)
+      - *direction*              ∷ def(=DIRECTION_COLUMN=)
+      - *wrap*                   ∷ def(=NO_WRAP=)
+
+      - *grow*                   ∷ def(0)
+      - *shrink*                 ∷ def(1)
+      - *order*                  ∷ def(0)
+      - *basis*                  ∷ def(0)
+***** =flex_item=
+      - …attributes (see above)  ∷ xxx
+      - *frame*                  ∷ float[4]
+      - *parent*                 ∷ ptr flex_item
+      - *children*               ∷ [ptr flex_item]
+      - *should_order_children*  ∷ bool
+***** =flex_layout=
+      - set during init
+        - wrap                   ∷ bool
+        - reverse                ∷ bool   -- whether main axis is reversed
+        - reverse2               ∷ bool   -- whether cross axis is reversed (wrap only)
+        - vertical               ∷ bool
+        - size_dim               ∷ float  -- main axis parent size
+        - align_dim              ∷ float  -- cross axis parent size
+        - frame_pos_i            ∷ uint   -- main axis position
+        - frame_pos2_i           ∷ uint   -- cross axis position
+        - frame_size_i           ∷ uint   -- main axis size
+        - frame_size2_i          ∷ uint   -- cross axis size
+        - ordered_indices        ∷ [int]
+     
+      - set for each line layout
+        - line_dim               ∷ float  -- the cross-axis size
+        - flex_dim               ∷ float  -- the flexible part of the main axis size
+        - flex_grows             ∷ int
+        - flex_shrinks           ∷ int
+        - pos2                   ∷ float  -- cross axis position
+        - lines                  ∷ [struct flex_layout_line]
+          - child_begin          ∷ uint
+          - child_end            ∷ uint
+          - size                 ∷ float
+        - lines_count            ∷ uint
+        - lines_sizes            ∷ float
+***** Function index
+      - update_should_order_children() ∷ set parent's should_order_children to *true*
+      - item_property_changed(property) ∷ property ≡ order → update_should_order_children
+      - flex_item_new/free() ∷ malloc + default attributes & stuff / free() children, then self
+
+******* 
+        - grow_if_needed                         ∷ flex_item → void
+        - child_set                              ∷ flex_item → flex_item → int → void
+        - flex_item_add                          ∷ flex_item → flex_item → void
+        - flex_item_insert                       ∷ flex_item → void
+        - flex_item_delete                       ∷ flex_item → flex_item
+        - flex_item_count                        ∷ flex_item → uint
+        - flex_item_child                        ∷ flex_item → flex_item
+        - flex_item_parent                       ∷ flex_item → flex_item
+        - flex_item_root                         ∷ flex_item → flex_item
+        - flex_item_get_frame_{x,y,width,height} ∷ flex_item → float
+******* 
+        - layout_init                            ∷ flex_item → float → float → flex_layout → void
+          let width/height        = args.w/args.h - item→padding_left - item→padding_right
+              (,,,,)
+                reverse vertical
+                size_dim align_dim
+                frame_pos{,2}_i
+                frame_size{,2}_i 
+                                  = case item→direction of
+                                      DIRECTION_ROW_REVERSE    | f width height
+                                      DIRECTION_ROW            | 
+                                      DIRECTION_COLUMN_REVERSE | 
+                                      DIRECTION_COLUMN         | 
+              ordered_indices     = | f item→should_order_children
+                                    |   item→children_count
+                                    |   item→children
+                                    | -- sorted children indices by their =.order= property
+              flex_{dim,grows,shrinks}
+                                  = (,,) 0 0 0
+              wrap                = item→wrap != NO_WRAP
+              (,) pos2 reverse2   = | f wrap item→wrap
+                                    |   align_dim
+                                    |   vertical
+                                    |   item→padding_top
+              lines               = []
+          in Layout{..}
+        - layout_cleanup                         ∷ flex_layout → void
+******* 
+        - LAYOUT_RESET                           ∷ flex_layout → flex_layout
+          layout & line_dim     .~ if wrap then 0 else align_dim
+                 & flex_dim     .~ size_dim
+                 & flex_grows   .~ 0
+                 & flex_shrinks .~ 0
+        - _LAYOUT_FRAME                          ∷ layout → child → {pos,pos2,size,size2} → float
+        - CHILD_POS, CHILD_POS2, CHILD_SIZE, CHILD_SIZE2 = _LAYOUT_FRAME(…)
+        - CHILD_MARGIN                           ∷ child → if_vertical ∷ bool → if_horizontal ∷ bool → 
+******* 
+        - layout_align                           ∷ align           ∷ flex_align →
+                                                   flex_dim        ∷ float →
+                                                   children_count  ∷ uint →
+                                                   pos_p           ∷ ptr float →
+                                                   spacing_p       ∷ ptr float →
+                                                   stretch_allowed ∷ bool
+
+        - child_align                            ∷ child ∷ flex_item → parent ∷ flex_item → flex_align
+
+        - layout_items                           ∷ item            ∷ flex_item →
+                                                   child_begin     ∷ uint →
+                                                   child_end       ∷ uint →
+                                                   children_count  ∷ int →
+                                                   layout          ∷ flex_layout → void
+
+        - layout_item                            ∷ item            ∷ flex_item →
+                                                   width           ∷ float →
+                                                   height          ∷ float
+
+        - flex_layout                            ∷ item            ∷ flex_item → void
+***** Algorithm
 * Graph representation
 *** DONE DeltaGraph
 

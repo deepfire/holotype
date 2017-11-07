@@ -103,6 +103,49 @@ import           Flatland
 --    this might be easier.
 --
 
+
+-- * Layout process steps, from the perspective of a container (see README.org#Open questions/Layout data flow summary):
+--
+-- * 1. Query expected ratio of parent
+--
+data RSum where
+  ReqEqDist   ∷              RSum
+  ReqShare    ∷ Unit Ratio → RSum
+  ReqAbsolute ∷ Unit PU    → RSum
+  deriving (Show)
+
+data Sizing where
+  Sizing ∷
+    { _sizi'reqt   ∷ Reqt RSum -- ^ Either an absolute, or a ratio of the parent, per axis.
+    , _sizi'soft   ∷ V2 Bool   -- ^ Allows for shrinking.
+    , _sizi'filler ∷ V2 Bool   -- ^ Allows for expansion.
+    } → Sizing
+    deriving (Show)
+makeLenses ''Sizing
+
+instance Monoid Sizing where
+  -- XXX: non-total & severely flawed
+  -- Where it's defined, the fact it's a monoid is un-proven.
+  mempty = Sizing (Reqt (Di (V2 ReqEqDist ReqEqDist))) (V2 False False) (V2 False False)
+  mappend l r = errorTL $ format "Sizing.⊕ {} {}" (show l, show r)
+  -- mappend (Sizing (Reqt lrat) (V2 lhx lhy) (V2 lfx lfy))
+  --         (Sizing (Reqt rrat) (V2 rhx rhy) (V2 rfx rfy)) =
+  --   Sizing (Left $ liftA2 (+) lrat rrat)
+  --          (V2 (lhx ∨ rhx) (lhy ∨ rhy))
+  --          (V2 (lfx ∨ rfx) (lfy ∨ rfy))
+
+class HasSizing a where
+  -- | Return the design-specified Sizing.
+  sizing ∷ a → Sizing
+
+instance HasSizing () where
+  -- | An instance for the case where the user doesn't care about the non-generic aspects.
+  sizing = const mempty
+
+
+-- * 2. Compute soft absolute constraints, then, providing that, ask for requirements
+
+
 -- * Screen-space dimensions and requirement querying
 --
 newtype ScreenCstr a = ScreenCstr { _scrcstr ∷ Cstr a } deriving (Eq, Show)
@@ -180,7 +223,7 @@ absolute'rproduct scrC r =
 rproduct'δ ∷ Num a ⇒ RProduct a → Reqmt a
 rproduct'δ RProduct{..} = Reqmt RAbsolute $ (on (-) _reqt) _rp'opt _rp'min
 
-sum'requirements'axisMajor ∷ (Lin d, Show d) ⇒ Axes → [RProduct d] → RProduct d
+sum'requirements'axisMajor ∷ (Lin d, Show d) ⇒ Axis → [RProduct d] → RProduct d
 sum'requirements'axisMajor axis reqs =
   foldl' (\(RProduct lmin lopt) (RProduct rmin ropt) →
             RProduct (addMax axis lmin rmin) (addMax axis lopt ropt))
@@ -191,6 +234,12 @@ class HasRequires a where
   --   not providing the parent constraint, to enable a single sweeping
   --   requirement computation pass.
   requires ∷ Num d ⇒ ScreenCstr d → a → RProduct d
+
+
+-- * Layout types
+--
+type LayoutInner d = (HasSizing d)
+type LayoutLeaf  d = (HasSizing d, HasRequires d)
 
 
 -- * Space ~ (Constraint * RProduct * Size * Area)
@@ -304,16 +353,18 @@ with'CDict ∷ (∀ b e. (b ~ a, e ~ d, CDict e b) ⇒ C e b → c) → C d a �
 with'CDict f x = x & case x of C _ _ → f
 
 data S d a where
-  CObj ∷ (CDict d a, HasRequires b) ⇒
+  CObj  ∷ (CDict d a, LayoutLeaf b) ⇒
     { _co      ∷ b
     } → S d a
-  CBox ∷ CDict d a ⇒
-    { _caxes   ∷ Axes
+  CBox  ∷ (CDict d a, LayoutInner b) ⇒
+    { _caxes   ∷ Axis
+    , _cbc     ∷ b
     , _cbs     ∷ [Ap (C d) a]
     } → S d a
-  CWrap ∷ CDict d a ⇒
+  CWrap ∷ (CDict d a, LayoutInner b) ⇒
     { _cwNW    ∷ !(Di d) -- ^ The combined offsets _ the left and top sides.
     , _cwSE    ∷ !(Di d) -- ^ The combined offsets _ the right and bottom sides.
+    , _cwc     ∷ b
     , _cw      ∷ Ap (C d) a
     } → S d a
   -- CRel ∷
@@ -355,11 +406,11 @@ struct   ∷ Lens' (C d a) (S d a)
 struct   f c               = fmap (\s'  -> c { _struct = s' })  (f $ _struct c)
 
 children ∷ Lens' (C d a) [Ap (C d) a]
-children f c@(C _ s@(CBox _ _))    = fmap (\cs' -> c { _struct = s { _cbs   = cs' } }) (f $ _cbs s)
+children f c@(C _ s@(CBox _ _ _))    = fmap (\cs' -> c { _struct = s { _cbs   = cs' } }) (f $ _cbs s)
 children _ _ = error "Misapplication of a 'children' lens to a wrong GADT constructor.  Please convince author to go type-level."
 
 child    ∷ Lens' (C d a) (Ap (C d) a)
-child    f c@(C _ s@(CWrap _ _ _)) = fmap (\c'  -> c { _struct = s { _cw    = c' } })  (f $ _cw s)
+child    f c@(C _ s@(CWrap _ _ _ _)) = fmap (\c'  -> c { _struct = s { _cw    = c' } })  (f $ _cw s)
 child    _ _ = error "Misapplication of a 'children' lens to a wrong GADT constructor.  Please convince author to go type-level."
 
 
@@ -368,15 +419,15 @@ child    _ _ = error "Misapplication of a 'children' lens to a wrong GADT constr
 -- Note: we're mostly starting un-spaced, where appropriate.
 --
 
-lift ∷ (CDict d a, HasRequires b) ⇒ b → Ap (C d) a
+lift ∷ (CDict d a, LayoutLeaf o) ⇒ o → Ap (C d) a
 lift = liftAp . C empty'space ∘ CObj
 
-hbox, vbox ∷ (CDict d a) ⇒ [Ap (C d) a] → Ap (C d) a
-hbox = liftAp ∘ C empty'space ∘ CBox X
-vbox = liftAp ∘ C empty'space ∘ CBox Y
+hbox, vbox ∷ (CDict d a, LayoutInner o) ⇒ o → [Ap (C d) a] → Ap (C d) a
+hbox o = liftAp ∘ C empty'space ∘ CBox X o
+vbox o = liftAp ∘ C empty'space ∘ CBox Y o
 
-wrap ∷ (CDict d a) ⇒ Di d → Ap (C d) a → Ap (C d) a
-wrap bezel = liftAp ∘ C empty'space ∘ CWrap bezel bezel
+wrap ∷ (CDict d a, LayoutInner o) ⇒ Di d → o → Ap (C d) a → Ap (C d) a
+wrap bezel o = liftAp ∘ C empty'space ∘ CWrap bezel bezel o
 
 
 
@@ -391,7 +442,7 @@ assign'requires ∷ (AreaDict d) ⇒ ScreenCstr d → C d a → C d a
 assign'requires _ (sp'requiring ∘ _space → True) =
   error "Asked to re-assign requirements to an already-requiring node."
 assign'requires scrc c@(C _ (CObj o))     = c & space.require .~ Just (requires scrc o)
-assign'requires scrc c@(C _ (CBox ax χs)) =
+assign'requires scrc c@(C _ (CBox ax _ χs)) =
   let reqd     = hoistAp (with'CDict $ assign'requires scrc) <$> χs
   in c & children      .~ reqd
        -- The 'fromJust' below should be safe, because we're doing
@@ -399,7 +450,7 @@ assign'requires scrc c@(C _ (CBox ax χs)) =
        & space.require .~ Just (sum'requirements'axisMajor ax $
                                 fromMaybe (error "CBox: unexpected missing child reqt")
                                 ∘ ca'reqt <$> reqd)
-assign'requires scrc c@(C _ (CWrap nw se χ)) =
+assign'requires scrc c@(C _ (CWrap nw se _ χ)) =
   let reqd     = hoistAp (with'CDict $ assign'requires scrc) χ
   in c & child         .~ reqd
        -- The 'fromJust' below should be safe, because we're doing
@@ -443,7 +494,7 @@ assign'size _ _ x@(C (Space _ _ _ _) (CObj _)) = x
 --   optimum requirement.  The axis-minor limit is a minumum of:
 --   - the downward constraint
 --   - maximum of the minimum and optimum (axis-minor) requirements
-assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _)) =
+assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _ _)) =
   let -- Common computations
       chi'allRs         = absolute'rproduct scrC ∘ fromJust ∘ ca'reqt <$> o^.children
       minima            = _reqt ∘ _rp'min <$> chi'allRs
@@ -456,7 +507,7 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _)) =
       -- 2. constrain that with upstream
       minor'alloc       = min minor'maxR $ thisC ^. cstr'd minor'axis
       -- Distribution along the major axis
-      step ∷ (Lin d) ⇒ Axes → d → d → [(Reqt d, Reqt d)] → [(Reqt d, Reqt d)] → (d, [(Reqt d, Reqt d)])
+      step ∷ (Lin d) ⇒ Axis → d → d → [(Reqt d, Reqt d)] → [(Reqt d, Reqt d)] → (d, [(Reqt d, Reqt d)])
       step _  _          rem' acc []               = (rem', acc)
       step ax unit'share rem' acc ((now, lack):rs) =
         let accept  = min unit'share (lack ^. reqt'd ax)
@@ -467,7 +518,7 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _)) =
         [ p & _1 ∘ reqt'd minor'axis .~ min minor'alloc ((sz + δ) ^. reqt'd minor'axis)
         | p@(sz, δ) ← pairs ]
       distribute ∷ (AreaDict d) ⇒
-        Axes → Maybe d → d → [(Reqt d, Reqt d)] → Bool → (d, [(Reqt d, Reqt d)])
+        Axis → Maybe d → d → [(Reqt d, Reqt d)] → Bool → (d, [(Reqt d, Reqt d)])
       -- Test for convergence (no space left to distribute or nothing lacks it)
       distribute _ (Just last'rem) rem'@((\r→r≡0∨r≡last'rem) → True) rpairs' revved =
         -- every pass of 'step' over 'rpairs' reverses the latter -- keep track of that..
@@ -500,7 +551,7 @@ assign'size scrC thisC o@(C (Space _ _ _ _) (CBox axis _)) =
                                                       & cstr'd minor'axis .~ minor'alloc))
        & children   .~ cstrd'sized'chis
 
-assign'size scrC thisC o@(C (Space _ _ _ _) (CWrap lu rb χ)) =
+assign'size scrC thisC o@(C (Space _ _ _ _) (CWrap lu rb _ χ)) =
   let χC    = thisC & cstr'di %~ (flip (-) (lu + rb))
       χR    = _reqt $ _rp'opt $ absolute'rproduct scrC $ fromJust $ ca'reqt χ
       χDi   = liftA2 min (χC ^. cstr'di) (χR ^. reqt'di)
@@ -532,7 +583,7 @@ assign'origins ∷ AreaDict d ⇒ LU d → C d a → C d a
 assign'origins cursor o@(C (Space _ _ (Just sz) _)  CObj{..}) =
   o & space∘Space.area .~ (Just $ Area (lu'orig sz cursor) sz)
 
-assign'origins cursor o@(C (Space _ _ (Just sz) _) (CBox axis chis)) =
+assign'origins cursor o@(C (Space _ _ (Just sz) _) (CBox axis _ chis)) =
   let step ∷ (CDict d a, AreaDict d) ⇒ LU d → [Ap (C d) a] → [Ap (C d) a] → (LU d, [Ap (C d) a])
       step cur acc []     = (cur, acc)
       step cur acc (x:xs) =
@@ -544,7 +595,7 @@ assign'origins cursor o@(C (Space _ _ (Just sz) _) (CBox axis chis)) =
   in o & space∘Space.area .~ (Just $ Area (lu'orig sz cursor) sz)
        & children         .~ reverse originated'chis
 
-assign'origins cursor o@(C (Space _ _ (Just sz) _) (CWrap lu rb χ)) =
+assign'origins cursor o@(C (Space _ _ (Just sz) _) (CWrap lu rb _ χ)) =
   let next'cursor = cursor & lu'po %~ po'add (_di'v lu)
   in o & space∘Space.area .~ (Just $ Area (lu'orig sz cursor) sz)
        & child            .~ hoistAp (with'CDict $ assign'origins next'cursor) χ
@@ -568,6 +619,8 @@ layout orig cstr x =
 --
 instance HasRequires Char where
   requires _scrc _d = RProduct (Reqmt RAbsolute $ Reqt $ di 1 1) (Reqmt RAbsolute $ Reqt $ di 2 2)
+instance HasSizing Char where
+  sizing _ = Sizing (Reqt ∘ Di $ V2 ReqEqDist ReqEqDist) (V2 False False) (V2 False False)
 
 unit ∷ (AreaDict d) ⇒ Ap (C d) a
 unit = lift 'a'
@@ -577,13 +630,13 @@ unit'canary = layout (LU $ po 0 0) (Cstr $ di 10 10) unit
 
 tree ∷ (AreaDict d) ⇒ Ap (C d) a
 tree =
-  vbox [ unit
-       , wrap (di 1 1) $
-         hbox [ lift 'b'
-              , lift 'c'
-              ]
-       , lift 'd'
-       ]
+  vbox () [ unit
+          , wrap (di 1 1) () $
+            hbox () [ lift 'b'
+                    , lift 'c'
+                    ]
+          , lift 'd'
+          ]
 
 tree'canary ∷ (AreaDict d) ⇒ Ap (C d) a
 tree'canary = layout (LU $ po 0 0) (Cstr $ di 10 10) tree
