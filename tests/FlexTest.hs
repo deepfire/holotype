@@ -125,14 +125,10 @@ test_wrap2 =
             & it'align'content .~ AlignStart
             & flex_layout
   in testGroup "wrap2: four non-stretching children wrap across two rows"
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50 150)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0 150) (di  50 150)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  50   0) (di  50 150)
-     , expectFail $
-       testCase "child 3" $ r^.child 3.frame @?= frame' (po  50 150) (di  50 150)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50 150)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0 150) (di  50 150)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  50   0) (di  50 150)
+     , testCase "child 3" $ r^.child 3.frame @?= frame' (po  50 150) (di  50 150)
      ]
 
 test_wrap3 ∷ TestTree
@@ -145,12 +141,9 @@ test_wrap3 =
             & it'align'content .~ AlignStart
             & flex_layout
   in testGroup "wrap3: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  50  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  50   0) (di  50  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  50  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  50   0) (di  50  50)
      ]
 
 test_wrap4 ∷ TestTree
@@ -166,18 +159,12 @@ test_wrap4 =
             & it'align'content .~ AlignStart
             & flex_layout
   in testGroup "wrap4: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  25  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  25  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  25   0) (di  25  50)
-     , expectFail $
-       testCase "child 3" $ r^.child 3.frame @?= frame' (po  25  50) (di  25  50)
-     , expectFail $
-       testCase "child 4" $ r^.child 4.frame @?= frame' (po  50   0) (di  25  50)
-     , expectFail $
-       testCase "child 5" $ r^.child 5.frame @?= frame' (po  50  50) (di  25  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  25  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  25  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  25   0) (di  25  50)
+     , testCase "child 3" $ r^.child 3.frame @?= frame' (po  25  50) (di  25  50)
+     , testCase "child 4" $ r^.child 4.frame @?= frame' (po  50   0) (di  25  50)
+     , testCase "child 5" $ r^.child 5.frame @?= frame' (po  50  50) (di  25  50)
      ]
 
 test_wrap5 ∷ TestTree
@@ -191,12 +178,9 @@ test_wrap5 =
             & it'align'content   .~ AlignStart
             & flex_layout
   in testGroup "wrap5: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0  20) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  70) (di  50  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  50  70) (di  50  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0  20) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  70) (di  50  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  50  70) (di  50  50)
      ]
 
 test_wrap6 ∷ TestTree
@@ -210,12 +194,9 @@ test_wrap6 =
             & it'align'content   .~ AlignStart
             & flex_layout
   in testGroup "wrap6: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0  10) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  60) (di  50  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  50  35) (di  50  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0  10) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  60) (di  50  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  50  35) (di  50  50)
      ]
 
 test_wrap7 ∷ TestTree
@@ -229,12 +210,9 @@ test_wrap7 =
             & it'align'content   .~ AlignStart
             & flex_layout
   in testGroup "wrap7: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   5) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  65) (di  50  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  50  35) (di  50  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   5) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  65) (di  50  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  50  35) (di  50  50)
      ]
 
 test_wrap8 ∷ TestTree
@@ -248,12 +226,9 @@ test_wrap8 =
             & it'align'content   .~ AlignStart
             & flex_layout
   in testGroup "wrap8: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  70) (di  50  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  50   0) (di  50  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  70) (di  50  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  50   0) (di  50  50)
      ]
 
 test_wrap9 ∷ TestTree
@@ -267,14 +242,10 @@ test_wrap9 =
             & it'align'content   .~ AlignStart
             & flex_layout
   in testGroup "wrap9: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  50  70)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  50   0) (di  50  70)
-     , expectFail $
-       testCase "child 3" $ r^.child 3.frame @?= frame' (po  50  70) (di  50  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  50  70)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  50   0) (di  50  70)
+     , testCase "child 3" $ r^.child 3.frame @?= frame' (po  50  70) (di  50  50)
      ]
 
 test_wrap10 ∷ TestTree
@@ -286,21 +257,17 @@ test_wrap10 =
           , mkItem 40 50 []
           , mkItem 50 60 []
           ] & it'wrap            .~ Wrap
-            & it'align'content   .~ AlignStart
+            & it'align'items     .~ AlignStart
             & flex_layout
   in testGroup "wrap10: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  40)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  40) (di  70  30)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po   0  70) (di  60  40)
-     , expectFail $
-       testCase "child 3" $ r^.child 3.frame @?= frame' (po  70   0) (di  40  50)
-     , expectFail $
-       testCase "child 4" $ r^.child 4.frame @?= frame' (po  70  50) (di  50  60)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  40)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  40) (di  70  30)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po   0  70) (di  60  40)
+     , testCase "child 3" $ r^.child 3.frame @?= frame' (po  70   0) (di  40  50)
+     , testCase "child 4" $ r^.child 4.frame @?= frame' (po  70  50) (di  50  60)
      ]
 
+-- XXX: ⊥
 test_wrap11 ∷ TestTree
 test_wrap11 =
   let r = mkItem 120 120
@@ -310,19 +277,14 @@ test_wrap11 =
           , mkItem 40 50 []
           , mkItem 50 60 []
           ] & it'wrap            .~ Wrap
-            & it'align'content   .~ AlignCenter
+            & it'align'items     .~ AlignCenter
             & flex_layout
   in testGroup "wrap11: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po  10   0) (di  50  40)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  40) (di  70  30)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po   5  70) (di  60  40)
-     , expectFail $
-       testCase "child 3" $ r^.child 3.frame @?= frame' (po  75   0) (di  40  50)
-     , expectFail $
-       testCase "child 4" $ r^.child 4.frame @?= frame' (po  70  50) (di  50  60)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po  10   0) (di  50  40)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  40) (di  70  30)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po   5  70) (di  60  40)
+     , testCase "child 3" $ r^.child 3.frame @?= frame' (po  75   0) (di  40  50)
+     , testCase "child 4" $ r^.child 4.frame @?= frame' (po  70  50) (di  50  60)
      ]
 
 test_wrap12 ∷ TestTree
@@ -334,45 +296,34 @@ test_wrap12 =
           , mkItem 40 50 []
           , mkItem 50 60 []
           ] & it'wrap            .~ Wrap
-            & it'align'content   .~ AlignEnd
+            & it'align'items     .~ AlignEnd
             & flex_layout
   in testGroup "wrap12: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po  20   0) (di  50  40)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  40) (di  70  30)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  10  70) (di  60  40)
-     , expectFail $
-       testCase "child 3" $ r^.child 3.frame @?= frame' (po  80   0) (di  40  50)
-     , expectFail $
-       testCase "child 4" $ r^.child 4.frame @?= frame' (po  70  50) (di  50  60)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po  20   0) (di  50  40)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  40) (di  70  30)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  10  70) (di  60  40)
+     , testCase "child 3" $ r^.child 3.frame @?= frame' (po  80   0) (di  40  50)
+     , testCase "child 4" $ r^.child 4.frame @?= frame' (po  70  50) (di  50  60)
      ]
 
 test_wrap13 ∷ TestTree
 test_wrap13 =
   let r = mkItem 120 120
-          [ mkItem 50 40 [] & it'align'content .~ AlignEnd
+          [ mkItem 50 40 [] & it'align'self .~ AlignEnd
           , mkItem 70 30 []
-          , mkItem 60 40 [] & it'align'content .~ AlignCenter
-          , mkItem 40 50 [] & it'align'content .~ AlignStart
+          , mkItem 60 40 [] & it'align'self .~ AlignCenter
+          , mkItem 40 50 [] & it'align'self .~ AlignStart
           , mkItem 50 60 []
-          , mkItem 10 10 [] & it'align'content .~ AlignEnd
+          , mkItem 10 10 [] & it'align'self .~ AlignEnd
           ] & it'wrap .~ Wrap
             & flex_layout
   in testGroup "wrap13: potpourri"
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po  20   0) (di  50  40)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  40) (di  70  30)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po   5  70) (di  60  40)
-     , expectFail $
-       testCase "child 3" $ r^.child 3.frame @?= frame' (po  70   0) (di  40  50)
-     , expectFail $
-       testCase "child 4" $ r^.child 4.frame @?= frame' (po  70  50) (di  50  60)
-     , expectFail $
-       testCase "child 5" $ r^.child 5.frame @?= frame' (po 110 110) (di  10  10)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po  20   0) (di  50  40)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  40) (di  70  30)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po   5  70) (di  60  40)
+     , testCase "child 3" $ r^.child 3.frame @?= frame' (po  70   0) (di  40  50)
+     , testCase "child 4" $ r^.child 4.frame @?= frame' (po  70  50) (di  50  60)
+     , testCase "child 5" $ r^.child 5.frame @?= frame' (po 110 110) (di  10  10)
      ]
 
 test_wrap14 ∷ TestTree
@@ -385,12 +336,9 @@ test_wrap14 =
             & it'align'content   .~ AlignStart
             & flex_layout
   in testGroup "wrap14: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po  70   0) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po  70  50) (di  50  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  20   0) (di  50  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po  70   0) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po  70  50) (di  50  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  20   0) (di  50  50)
      ]
 
 test_wrap15 ∷ TestTree
@@ -406,37 +354,28 @@ test_wrap15 =
             & it'align'content .~ AlignStart
             & flex_layout
   in testGroup "wrap15: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po  95   0) (di  25  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po  95  50) (di  25  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  70   0) (di  25  50)
-     , expectFail $
-       testCase "child 3" $ r^.child 3.frame @?= frame' (po  70  50) (di  25  50)
-     , expectFail $
-       testCase "child 4" $ r^.child 4.frame @?= frame' (po  45   0) (di  25  50)
-     , expectFail $
-       testCase "child 5" $ r^.child 5.frame @?= frame' (po  45  50) (di  25  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po  95   0) (di  25  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po  95  50) (di  25  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  70   0) (di  25  50)
+     , testCase "child 3" $ r^.child 3.frame @?= frame' (po  70  50) (di  25  50)
+     , testCase "child 4" $ r^.child 4.frame @?= frame' (po  45   0) (di  25  50)
+     , testCase "child 5" $ r^.child 5.frame @?= frame' (po  45  50) (di  25  50)
      ]
 
 test_wrap16 ∷ TestTree
 test_wrap16 =
   let r = mkItem 120 120
-          [ mkItem 50 50 []
-          , mkItem 50 50 []
-          , mkItem 50 50 []
+          [ mkItem 20 50 []
+          , mkItem 20 50 []
+          , mkItem 20 50 []
           ] & it'direction       .~ DirColumn
             & it'wrap            .~ Wrap
             & it'align'content   .~ AlignStretch
             & flex_layout
   in testGroup "wrap16: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  20  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  20  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  60   0) (di  20  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  20  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  20  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  60   0) (di  20  50)
      ]
 
 test_wrap17 ∷ TestTree
@@ -452,16 +391,11 @@ test_wrap17 =
             & it'align'content   .~ AlignStretch
             & flex_layout
   in testGroup "wrap17: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  20  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  20  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  40   0) (di  20  50)
-     , expectFail $
-       testCase "child 3" $ r^.child 3.frame @?= frame' (po  40  50) (di  20  50)
-     , expectFail $
-       testCase "child 4" $ r^.child 4.frame @?= frame' (po  80   0) (di  20  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  20  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  20  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  40   0) (di  20  50)
+     , testCase "child 3" $ r^.child 3.frame @?= frame' (po  40  50) (di  20  50)
+     , testCase "child 4" $ r^.child 4.frame @?= frame' (po  80   0) (di  20  50)
      ]
 -- COMPLETE
 
@@ -988,13 +922,10 @@ test_position7 =
             & it'align'content   .~ AlignStart
             & flex_layout
   in testGroup "position7: items with an absolute position are separated from the other items during the layout and are not taken into account when calculating spacing"
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   5) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  65) (di  50  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   5) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  65) (di  50  50)
      , testCase "child 2" $ r^.child 2.frame @?= frame' (po  70   0) (di  50  50)
-     , expectFail $
-       testCase "child 3" $ r^.child 3.frame @?= frame' (po  50  35) (di  50  50)
+     , testCase "child 3" $ r^.child 3.frame @?= frame' (po  50  35) (di  50  50)
      ]
 
 test_position8 ∷ TestTree
@@ -1250,12 +1181,9 @@ test_align_content1 =
             & it'align'content .~ AlignStart
             & flex_layout
   in testGroup "align_content1: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  60  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po  60   0) (di  40  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  60  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po  60   0) (di  40  50)
      ]
 
 test_align_content2 ∷ TestTree
@@ -1268,12 +1196,9 @@ test_align_content2 =
             & it'align'content .~ AlignCenter
             & flex_layout
   in testGroup "align_content2: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po  50   0) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po  50  50) (di  60  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po 110   0) (di  40  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po  50   0) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po  50  50) (di  60  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po 110   0) (di  40  50)
      ]
 
 test_align_content3 ∷ TestTree
@@ -1286,12 +1211,9 @@ test_align_content3 =
             & it'align'content .~ AlignEnd
             & flex_layout
   in testGroup "align_content3: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po 100   0) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po 100  50) (di  60  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po 160   0) (di  40  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po 100   0) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po 100  50) (di  60  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po 160   0) (di  40  50)
      ]
 
 test_align_content4 ∷ TestTree
@@ -1304,12 +1226,9 @@ test_align_content4 =
             & it'align'content .~ AlignSpaceBetween
             & flex_layout
   in testGroup "align_content4: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  60  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po 160   0) (di  40  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po   0   0) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po   0  50) (di  60  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po 160   0) (di  40  50)
      ]
 
 test_align_content5 ∷ TestTree
@@ -1322,17 +1241,14 @@ test_align_content5 =
             & it'align'content .~ AlignSpaceAround
             & flex_layout
   in testGroup "align_content5: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po  25   0) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po  25  50) (di  60  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po 135   0) (di  40  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po  25   0) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po  25  50) (di  60  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po 135   0) (di  40  50)
      ]
 
 test_align_content6 ∷ TestTree
 test_align_content6 =
-  let r = mkItem 200 120
+  let r = mkItem 250 120
           [ mkItem  50  50      []
           , mkItem  60  50      []
           , mkItem  40  50      []
@@ -1340,12 +1256,9 @@ test_align_content6 =
             & it'align'content .~ AlignSpaceEvenly
             & flex_layout
   in testGroup "align_content6: "
-     [ expectFail $
-       testCase "child 0" $ r^.child 0.frame @?= frame' (po  50   0) (di  50  50)
-     , expectFail $
-       testCase "child 1" $ r^.child 1.frame @?= frame' (po  50  50) (di  60  50)
-     , expectFail $
-       testCase "child 2" $ r^.child 2.frame @?= frame' (po 160   0) (di  40  50)
+     [ testCase "child 0" $ r^.child 0.frame @?= frame' (po  50   0) (di  50  50)
+     , testCase "child 1" $ r^.child 1.frame @?= frame' (po  50  50) (di  60  50)
+     , testCase "child 2" $ r^.child 2.frame @?= frame' (po 160   0) (di  40  50)
      ]
 -- COMPLETE
 
