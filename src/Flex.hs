@@ -424,23 +424,25 @@ layout_item item cstr =
       (layout'@Layout{..},
        (to'process, processed)) = step (item^.it'children) layout ([], [])
       -- n'relative           = length $ filter ((≡Relative) ∘ _it'positioning) children'
-      (,) _ processed' = layout_items item (reverse to'process) layout'
+      (,) layout'' processed' = layout_items item (reverse to'process) layout'
+      layout'lines = reverse $ layout''^.la'lines
       children'  = processed <> processed'
-      -- In wrap mode if the `align_content' property changed from its default
+      -- In wrap mode if the 'align_content' property changed from its default
       -- value, we need to tweak the position of each line accordingly.
-      children'' = if not _la'wrap ∨ (item^.it'align'content) ≡ AlignStart ∨ length (layout'^.la'lines) ≡ 0 then children'
+      children'' = if not _la'wrap ∨ (item^.it'align'content) ≡ AlignStart ∨ length layout'lines ≡ 0 then children'
                    else let (,) pos  spacing  = (0 ∷ Double, 0 ∷ Double)
-                            flex'dim          = _la'align'dim - (layout'^.la'lines'sizes)
-                            may'aligned       = layout'align (item^.it'align'content) _la'flex'dim
-                                                (length $ layout'^.la'lines) True
+                            flex'dim          = layout''^.la'align'dim - (layout''^.la'lines'sizes)
+                            may'aligned       = layout'align (item^.it'align'content) flex'dim
+                                                (length $ layout'lines) True
                             (,) pos' spacing' = if flex'dim ≤ 0 then (,) pos spacing
                                                 else flip fromMaybe may'aligned $ error "incorrect align_content"
                             (,) pos'' old'pos = if _la'reverse2 ≢ Reverse then (,) pos' 0
-                                                else (,) (_la'align'dim - pos') _la'align'dim
+                                                else (,) (layout''^.la'align'dim - pos') (layout''^.la'align'dim)
                             line'step ∷ [LayoutLine] → [Item] → [[Item]] → Double → Double → ([Item], Double, Double)
-                            line'step [] remaining acc pos old'pos = (,,) (concat (reverse acc) <> remaining) pos old'pos
+                            line'step [] []     acc pos old'pos = (,,) (concat $ reverse acc) pos old'pos
+                            line'step [] (u:us) _   _   _       = error $ printf "Invariant failed: %d children left unaccounted for." (length us + 1)
                             line'step (LayoutLine{..}:ls) cs acc pos old'pos =
-                              let (,) pos' old'pos'   = trace (printf "pos=%f old_pos=%f" pos' old'pos') $
+                              let (,) pos' old'pos'   = trace (printf "pos=%f old_pos=%f" pos old'pos) $
                                                         if _la'reverse2 ≢ Reverse then (,) pos  old'pos
                                                         else (,) (pos - _li'size - spacing') (old'pos - _li'size)
                                   (,) line rest       = splitAt _li'nchildren cs
@@ -448,9 +450,9 @@ layout_item item cstr =
                                   line'               = line <&> \c→ if c^.it'positioning ≡ Absolute then c
                                                                      else c & child'pos2 _la'minor +~ trace' "pos2<- %f" (pos' - old'pos')
                                   (,) pos'' old'pos'' = if _la'reverse2 ≡ Reverse then (,) pos' old'pos'
-                                                        else (,) (pos + _li'size + spacing') (old'pos - _li'size)
+                                                        else (,) (pos + _li'size + spacing') (old'pos + _li'size)
                               in line'step ls rest (line':acc) pos'' $ (trace (printf "pos0=%f old_pos0=%f" pos'' old'pos'') old'pos'')
-                        in (^._1) $ line'step (layout'^.la'lines) children' [] pos'' old'pos 
+                        in (^._1) $ line'step layout'lines children' [] pos'' old'pos
       -- XXX: key piece of wrapping implementation ignored
   in item & it'children .~ children''
 
