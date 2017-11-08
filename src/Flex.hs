@@ -219,9 +219,10 @@ instance Pretty Layout where
   pretty = unreadable "" ∘ pretty'layout
 
 
-mkLayout ∷ Item → Di Double → Layout
-mkLayout Item{..} (Di (V2 width' height')) =
-  let width              = width'  - (left _it'padding + right  _it'padding)
+mkLayout ∷ Item → Layout
+mkLayout Item{..} =
+  let V2 width' height'  = _it'di^.di'v
+      width              = width'  - (left _it'padding + right  _it'padding)
       height             = height' - (top  _it'padding + bottom _it'padding)
       (,,,,,)
         _la'major
@@ -285,44 +286,38 @@ layout'align' align flex'dim nchilds stretch'allowed
                                 else Just (0, flex'dim / fromIntegral nchilds)
   | AlignAuto         ← align = Nothing
 
-is'vertical, is'reverse, is'reverse2 ∷ Layout → Bool
-is'vertical = (≡Vertical) ∘ _la'vertical
-is'reverse  = (≡Reverse)  ∘ _la'reverse
-is'reverse2 = (≡Reverse)  ∘ _la'reverse2
-
 count'relatives ∷ [Item] → Int
 count'relatives = length ∘ filter ((≡Relative) ∘ (^.it'positioning))
 
 layout_items ∷ Item → [Item] → Layout → (Layout, [Item])
--- Q: is this short-cut even needed?
--- layout_items _             []       l            = (,) l []
+layout_items _             []       l            = (,) l []
 layout_items item@Item{..} children l@Layout{..} =
   -- Determine the major axis initial position and optional spacing.
-  let (pos0, spacing0)  = (,) 0 0
-      (pos1, spacing1)  = if _la'flex'grows ≡ 0 ∧
+  let (pos1, spacing1)  = if _la'flex'grows ≡ 0 ∧
                              _la'flex'dim > 0
                           then let may'aligned = layout'align _it'justify'content _la'flex'dim (count'relatives children) False
                                    (pos', spacing') = flip fromMaybe may'aligned $ error "incorrect justify_content"
                                in (, spacing') $
-                                  if is'reverse l
+                                  if _la'reverse ≡ Reverse
                                   then _la'size'dim - pos'
                                   else pos'
-                          else (pos0, spacing0)
-      pos2              = if is'reverse l
-                          then pos1 - if is'vertical l then bottom _it'padding else right _it'padding
-                          else pos1 + if is'vertical l then top    _it'padding else left  _it'padding
+                          else (,) 0 0
+      pos2              = if _la'reverse ≡ Reverse
+                          then pos1 - if _la'vertical ≡ Vertical then bottom _it'padding else right _it'padding
+                          else pos1 + if _la'vertical ≡ Vertical then top    _it'padding else left  _it'padding
       -- This is suspicious: line 455 in flex.c
-      l'                = if _la'wrap ∧ is'reverse2 l                 -- line 454: l→wrap implied by l→reverse2
-                          then l & la'pos2 -~ (l^.la'line'dim)
+      l'                = if _la'wrap ∧ _la'reverse2 ≡ Reverse       -- line 454: l→wrap implied by l→reverse2
+                          then l & la'pos2 -~ _la'line'dim
                           else l
-      layout'child ∷ Double → Item → (Double, Item)
-      layout'child pos c@((^.it'positioning) → Absolute) = (,) pos c -- Already positioned.
-      layout'child pos c0@Item{..} =
+      layout'children ∷ Double → [Item] → [Item] → (Double, [Item])
+      layout'children pos  []                                      acc = (,) pos (reverse acc)
+      layout'children pos (c@((^.it'positioning) → Absolute):rest) acc = layout'children pos rest (c:acc) -- Already positioned.
+      layout'children pos (c@Item{..}:rest) acc =
         -- Grow or shrink the major axis item size if needed.
         let flex'size   = if | l'^.la'flex'dim > 0 ∧ _it'grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral _it'grow   / fromIntegral (l'^.la'flex'grows)
                              | l'^.la'flex'dim < 0 ∧ _it'shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral _it'shrink / fromIntegral (l'^.la'flex'shrinks)
                              | otherwise → 0
-            c1          = c0 &  child'size  _la'major +~ flex'size
+            c1          = c &  child'size  _la'major +~ flex'size
             -- Set the minor axis position (and stretch the minor axis size if needed).
             align'size  = c1 ^. child'size2 _la'minor
             c'align     = child'align c1 item
@@ -348,101 +343,94 @@ layout_items item@Item{..} children l@Layout{..} =
             pos''       = if _la'reverse ≡ Reverse
                           then pos' - spacing1 - margin'LTr
                           else pos' + c4^.child'size _la'major + spacing1 + margin'RBr
-        in (,) pos'' $ layout_item c4 (c4^.it'di)
-      step ∷ [Item] → Double → [Item] → [Item]
-      step []     _   acc = reverse acc
-      step (c:cs) pos acc = let (pos', c') = layout'child pos c
-                            in step cs pos' (c':acc)
-      children'         = step children pos2 []
-      l''               = if not _la'wrap ∨ is'reverse2 l' then l'
+        in layout'children pos'' rest $ (:acc) $ layout_item c4
+      children'         = snd $ layout'children pos2 children []
+      l''               = if not _la'wrap ∨ _la'reverse2 ≡ Reverse then l'
                           else l' & la'pos2 +~ (l'^.la'line'dim)
       l'''              = if not _la'wrap ∨ _it'align'content ≡ AlignStart then l''
                           else l'' & la'lines %~ (LayoutLine (length children') (l''^.la'line'dim) :)
                                    & la'lines'sizes +~ l''^.la'line'dim
   in (,) l''' children'
 
-layout_item ∷ Item → Di Double → Item
-layout_item item@(_it'children → []) _ = item
-layout_item item cstr =
-  let layout = layout'reset $ mkLayout item cstr
-      lay'one ∷ Layout → Item → ([Item], [Item]) → (Layout, Item, ([Item], [Item]))
-      lay'one l@Layout{..} c@(_it'positioning → Absolute) (to'process, processed) =
+layout_item ∷ Item → Item
+layout_item p@(_it'children → []) = p
+layout_item p@Item{..} =
+  let cstr   = p^.it'di
+      assign'sizes ∷ [Item] → Layout → [Item] → [Item] → (Layout, [Item], [Item])
+      assign'sizes []                                       l            sized positioned = (,,) l (reverse sized) positioned
+      assign'sizes (c@((^.it'positioning) → Absolute):rest) l@Layout{..} sized positioned =
         let abs'size (Just val)  _           _          _   = val
             abs'size  Nothing   (Just pos1) (Just pos2) dim = dim - pos2 - pos1
             abs'size  _          _           _          _   = 0
             abs'pos  (Just pos1) _           _          _   = pos1
             abs'pos   Nothing   (Just pos2) (Just size) dim = dim - size - pos2
             abs'pos   _          _           _          _   = 0
-            (pos, dim) = (_it'position c, _it'size c)
-            c'dim      = Di $ V2 (abs'size (dim^.di'd X) (left pos) (right  pos) (cstr^.di'd X))
-                                 (abs'size (dim^.di'd Y) (top  pos) (bottom pos) (cstr^.di'd Y))
-            c'pos      = Po $ V2 (abs'pos  (left pos) (right  pos) (dim^.di'd X) (cstr^.di'd X))
-                                 (abs'pos  (top  pos) (bottom pos) (dim^.di'd Y) (cstr^.di'd Y))
-            c'         = c & it'di .~ c'dim
-                           & it'po .~ c'pos
-            c''         = layout_item c' c'dim
-        in (,,) l c'' (c'':to'process, processed)
-      lay'one l@Layout{..} c (to'process, processed) =
-        let c' = c & child'size  _la'major .~ (fromMaybe 0 $ partial (>0) (c^.it'basis) <|>
-                                               (c^.it'size.di'd (fromMajor _la'major)))
-                   & child'size2 _la'minor .~ flip fromMaybe (c^.it'size.di'd (fromMinor _la'minor))
-                                              (cstr^.di'd (if _la'vertical ≡ Vertical then X else Y) -
-                                                     child'marginLT c _la'vertical Forward -
-                                                     child'marginRB c _la'vertical Forward)
+            (pos, dim) = (c^.it'position, c^.it'size)
+            c'         = c & it'di .~ (Di $ V2 (abs'size (dim^.di'd X) (left pos) (right  pos) (cstr^.di'd X))
+                                               (abs'size (dim^.di'd Y) (top  pos) (bottom pos) (cstr^.di'd Y)))
+                           & it'po .~ (Po $ V2 (abs'pos  (left pos) (right  pos) (dim^.di'd X) (cstr^.di'd X))
+                                               (abs'pos  (top  pos) (bottom pos) (dim^.di'd Y) (cstr^.di'd Y)))
+                           & layout_item
+        in assign'sizes rest l (c':sized) positioned
+      assign'sizes (c:rest) l@Layout{..} sized positioned =
+        let c'size  = fromMaybe 0 $ partial (>0) (c^.it'basis) <|>
+                                    (c^.it'size.di'd (fromMajor _la'major))
+            c'size2 = flip fromMaybe (c^.it'size.di'd (fromMinor _la'minor))
+                       (cstr^.di'd (if _la'vertical ≡ Vertical then X else Y) -
+                         child'marginLT c _la'vertical Forward -
+                         child'marginRB c _la'vertical Forward)
             -- NB: self_sizing callback implementation ignored
-            no'wrap = not (layout^.la'wrap)
-            c'size  = c'^.child'size _la'major
-            (,,) l' tp' p' = let (l',tp',p') = if no'wrap ∨ l^.la'flex'dim ≥ c'size then (l, to'process, processed)
-                                               else let (,) l' pcs = layout_items item (reverse to'process) l
-                                                    in (,,) (layout'reset l') [] (processed <> pcs)
-                                 c'size2     = c'^.child'size2 _la'minor
-                             in (,tp',p') $ if no'wrap ∨ c'size2 ≤ l'^.la'line'dim then l'
-                                            else l' & la'line'dim .~ c'size2
-            l'' = l' & la'flex'grows   +~ c'^.it'grow
+            (,,) sized' positioned' l'
+              = if not _la'wrap ∨ l^.la'flex'dim ≥ c'size then (,,) sized positioned l
+                else let (,) lay' positioned' = layout_items p (reverse sized) l
+                     in (,,) [] (positioned <> positioned') (layout'reset lay')
+            l'' = l' & la'line'dim %~ (\line'dim→ if not _la'wrap ∨ c'size2 ≤ line'dim then line'dim
+                                                  else c'size2)
+                     & la'flex'grows   +~ c'^.it'grow
                      & la'flex'shrinks +~ c'^.it'shrink
-                     & la'flex'dim     -~ c'size
-                       + child'marginLT c' _la'vertical Reverse
-                       + child'marginRB c' _la'vertical Reverse
-        in (,,) l'' c' (c':tp', p')
-      step ∷ [Item] → Layout → ([Item], [Item]) → (Layout, ([Item], [Item]))
-      step []     l (to'process, processed) = (l, (to'process, processed))
-      step (x:xs) l (to'process, processed) =
-        let (,,) l' x' (tp', p') = lay'one l x (to'process, processed)
-        in step xs l' (tp', p')
-      (layout'@Layout{..},
-       (to'process, processed)) = step (item^.it'children) layout ([], [])
-      (,) layout'' processed' = layout_items item (reverse to'process) layout'
-      layout'lines = reverse $ layout''^.la'lines
-      children'  = processed <> processed'
-      -- In wrap mode if the 'align_content' property changed from its default
-      -- value, we need to tweak the position of each line accordingly.
-      children'' = if not _la'wrap ∨ (item^.it'align'content) ≡ AlignStart ∨ length layout'lines ≡ 0 then children'
-                   else let (,) pos  spacing  = (0 ∷ Double, 0 ∷ Double)
-                            flex'dim          = layout''^.la'align'dim - (layout''^.la'lines'sizes)
-                            may'aligned       = layout'align (item^.it'align'content) flex'dim
-                                                (length $ layout'lines) True
-                            (,) pos' spacing' = if flex'dim ≤ 0 then (,) pos spacing
-                                                else flip fromMaybe may'aligned $ error "incorrect align_content"
-                            (,) pos'' old'pos = if _la'reverse2 ≢ Reverse then (,) pos' 0
-                                                else (,) (layout''^.la'align'dim - pos') (layout''^.la'align'dim)
-                            line'step ∷ [LayoutLine] → [Item] → [[Item]] → Double → Double → ([Item], Double, Double)
-                            line'step [] []     acc pos old'pos = (,,) (concat $ reverse acc) pos old'pos
-                            line'step [] (u:us) _   _   _       = error $ printf "Invariant failed: %d children left unaccounted for." (length us + 1)
-                            line'step (LayoutLine{..}:ls) cs acc pos old'pos =
-                              let (,) pos' old'pos'   = if _la'reverse2 ≢ Reverse then (,) pos  old'pos
-                                                        else (,) (pos - _li'size - spacing') (old'pos - _li'size)
-                                  (,) line rest       = splitAt _li'nchildren cs
-                                  -- Re-position the children of this line, honoring any child alignment previously set within the line
-                                  line'               = line <&> \c→ if c^.it'positioning ≡ Absolute then c
-                                                                     else c & child'pos2 _la'minor +~ pos' - old'pos'
-                                  (,) pos'' old'pos'' = if _la'reverse2 ≡ Reverse then (,) pos' old'pos'
-                                                        else (,) (pos + _li'size + spacing') (old'pos + _li'size)
-                              in line'step ls rest (line':acc) pos'' old'pos''
-                        in (^._1) $ line'step layout'lines children' [] pos'' old'pos
-  in item & it'children .~ children''
+                     & la'flex'dim     -~ c'size + child'marginLT c' _la'vertical Reverse
+                                                 + child'marginRB c' _la'vertical Reverse
+            c' = c & child'size  _la'major .~ c'size
+                   & child'size2 _la'minor .~ c'size2
+        in assign'sizes rest l'' (c':sized') positioned'
+      -- 1. Assign sizes (and some of positions, if wrapping):
+      (,,) lay       sized positioned  = assign'sizes _it'children (layout'reset $ mkLayout p) [] []
+      -- 2. Assign remainder of positions:
+      (,)  lay'@Layout{..} positioned' = layout_items p sized lay
+      -- 3. Merge wrap-generated positionals & the results of remainder processing:
+      children'  = positioned <> positioned'
+      -- 4. In wrap mode if the 'align_content' property changed from its default
+      --    value, we need to tweak the position of each line accordingly.
+      align'children ∷ Layout → [Item] → [Item]
+      align'children Layout{..} cs =
+        let flex'dim          = _la'align'dim - _la'lines'sizes
+            may'aligned       = layout'align _it'align'content flex'dim (length _la'lines) True
+            (,) pos' spacing' = if flex'dim ≤ 0 then (,) 0 0
+                                else flip fromMaybe may'aligned $ error "incorrect align_content"
+            (,) pos'' old'pos = if _la'reverse2 ≢ Reverse then (,) pos' 0
+                                else (,) (_la'align'dim - pos') _la'align'dim
+            line'step ∷ [LayoutLine] → [Item] → [[Item]] → Double → Double → ([Item], Double, Double)
+            line'step [] []     acc pos old'pos = (,,) (concat $ reverse acc) pos old'pos
+            line'step [] (u:us) _   _   _       = error $ printf "Invariant failed: %d children left unaccounted for." (length us + 1)
+            line'step (LayoutLine{..}:ls) cs acc pos old'pos =
+              let (,) pos' old'pos'   = if _la'reverse2 ≢ Reverse then (,) pos  old'pos
+                                        else (,) (pos - _li'size - spacing') (old'pos - _li'size)
+                  (,) line rest       = splitAt _li'nchildren cs
+                  -- Re-position the children of this line, honoring any child alignment previously set within the line
+                  line'               = line <&> \c→ if c^.it'positioning ≡ Absolute then c
+                                                     else c & child'pos2 _la'minor +~ pos' - old'pos'
+                  (,) pos'' old'pos'' = if _la'reverse2 ≡ Reverse then (,) pos' old'pos'
+                                        else (,) (pos + _li'size + spacing') (old'pos + _li'size)
+              in line'step ls rest (line':acc) pos'' old'pos''
+        in (^._1) $ line'step (reverse _la'lines) cs [] pos'' old'pos
+  in p & it'children .~ if _la'wrap ∧ _it'align'content ≢ AlignStart
+                        then align'children lay' children'
+                        else children'
 
 flex_layout ∷ Item → Item
-flex_layout x = layout_item x $ fromMaybe (error "Root missing coord.") <$> x^.it'size
+flex_layout x =
+  let size = fromMaybe (error "Root missing coord.") <$> x^.it'size
+  in layout_item (x & it'di .~ size)
 
 
 -- * Test accessories.
