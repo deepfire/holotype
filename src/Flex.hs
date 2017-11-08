@@ -4,7 +4,7 @@
 -- Development-only muffles.
 {-# OPTIONS_GHC -Wno-unused-binds -Wno-unused-matches #-}
 --
--- Flex:  a flexbox layout implementation, based on xamarin/flex.
+-- Flex:  a flexbox layout implementation, based on github.com/xamarin/flex.
 --
 -- Two caveats:
 --
@@ -300,7 +300,7 @@ layout_items item@Item{..} children l@Layout{..} =
   -- Determine the major axis initial position and optional spacing.
   let (pos0, spacing0)  = (,) 0 0
       (pos1, spacing1)  = if _la'flex'grows ≡ 0 ∧
-                             _la'flex'dim > 0      -- Bug #3 (was la'flex'grows): 50 failures → All 329 tests passed (0.09s)
+                             _la'flex'dim > 0
                           then let may'aligned = layout'align _it'justify'content _la'flex'dim (count'relatives children) False
                                    (pos', spacing') = flip fromMaybe may'aligned $ error "incorrect justify_content"
                                in (, spacing') $
@@ -383,7 +383,7 @@ layout_item item cstr =
             c''         = layout_item c' c'dim
         in (,,) l c'' (c'':to'process, processed)
       lay'one l@Layout{..} c (to'process, processed) =
-        let c' = c & child'size  _la'major .~ (fromMaybe 0 $ partial (>0) (c^.it'basis) <|> -- Bug #2, after fix → 50 out of 329 tests failed
+        let c' = c & child'size  _la'major .~ (fromMaybe 0 $ partial (>0) (c^.it'basis) <|>
                                                (c^.it'size.di'd (fromMajor _la'major)))
                    & child'size2 _la'minor .~ flip fromMaybe (c^.it'size.di'd (fromMinor _la'minor))
                                               (cstr^.di'd (if _la'vertical ≡ Vertical then X else Y) -
@@ -398,13 +398,11 @@ layout_item item cstr =
                                  c'size2     = c'^.child'size2 _la'minor
                              in (,tp',p') $ if no'wrap ∨ c'size2 ≤ l'^.la'line'dim then l'
                                             else l' & la'line'dim .~ c'size2
-            -- XXX: key piece of wrapping implementation ignored
             l'' = l' & la'flex'grows   +~ c'^.it'grow
                      & la'flex'shrinks +~ c'^.it'shrink
                      & la'flex'dim     -~ c'size
                        + child'marginLT c' _la'vertical Reverse
                        + child'marginRB c' _la'vertical Reverse
-            -- XXX: relative children count story?
         in (,,) l'' c' (c':tp', p')
       step ∷ [Item] → Layout → ([Item], [Item]) → (Layout, ([Item], [Item]))
       step []     l (to'process, processed) = (l, (to'process, processed))
@@ -413,7 +411,6 @@ layout_item item cstr =
         in step xs l' (tp', p')
       (layout'@Layout{..},
        (to'process, processed)) = step (item^.it'children) layout ([], [])
-      -- n'relative           = length $ filter ((≡Relative) ∘ _it'positioning) children'
       (,) layout'' processed' = layout_items item (reverse to'process) layout'
       layout'lines = reverse $ layout''^.la'lines
       children'  = processed <> processed'
@@ -442,7 +439,6 @@ layout_item item cstr =
                                                         else (,) (pos + _li'size + spacing') (old'pos + _li'size)
                               in line'step ls rest (line':acc) pos'' old'pos''
                         in (^._1) $ line'step layout'lines children' [] pos'' old'pos
-      -- XXX: key piece of wrapping implementation ignored
   in item & it'children .~ children''
 
 flex_layout ∷ Item → Item
