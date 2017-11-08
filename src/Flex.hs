@@ -245,7 +245,8 @@ mkLayout Item{..} (Di (V2 width' height')) =
       _la'wrap           = _it'wrap ≢ NoWrap
       reverse'wrapping   = _it'wrap ≡ ReverseWrap
       _la'reverse2       = if _la'wrap ∧ reverse'wrapping then Reverse else Forward
-      _la'pos2           = case _la'wrap of
+      _la'pos2           = trace' "li/pos2=" $
+                           case _la'wrap of
                              True  → if reverse'wrapping
                                      then _la'align'dim
                                      else 0                        -- XXX: ⊥ in original code
@@ -257,7 +258,8 @@ mkLayout Item{..} (Di (V2 width' height')) =
   in Layout{..}
 
 layout'reset ∷ Layout → Layout
-layout'reset l@Layout{..} = trace'pp "\n        layout'reset" $ l
+layout'reset l@Layout{..} = --trace'pp "\n        layout'reset" $
+  l
   & la'line'dim     .~ (if _la'wrap then 0 else _la'align'dim)
   & la'flex'dim     .~ _la'size'dim
   & la'flex'grows   .~ 0
@@ -267,7 +269,7 @@ layout'reset l@Layout{..} = trace'pp "\n        layout'reset" $ l
 layout'align  ∷ Alignment → Double → Int → Bool → Maybe (Double, Double)
 layout'align _ 0        _ _ = Nothing
 layout'align a flex'dim c d =
-  (\ps@(p,s)→trace (printf "pos %f") ps)
+  (\ps@(p,s)→trace (printf "la/pos=%f la/spacing=%f" p s) ps)
   <$> layout'align' a flex'dim c d
 
 layout'align' ∷ Alignment → Double → Int → Bool → Maybe (Double, Double)
@@ -322,7 +324,7 @@ layout_items item@Item{..} children l@Layout{..} =
         let flex'size   = if | l'^.la'flex'dim > 0 ∧ _it'grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral _it'grow   / fromIntegral (l'^.la'flex'grows)
                              | l'^.la'flex'dim < 0 ∧ _it'shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral _it'shrink / fromIntegral (l'^.la'flex'shrinks)
                              | otherwise → 0
-            c1          = c0 &  child'size  _la'major +~ (trace (printf "        flex'size %f %f %d" flex'size (l'^.la'flex'dim) (l'^.la'flex'grows)) flex'size)
+            c1          = c0 &  child'size  _la'major +~ (trace (printf "c/flex_size=%f l/flex_dim=%f l/flex_grows=%d" flex'size (l'^.la'flex'dim) (l'^.la'flex'grows)) flex'size)
             -- Set the minor axis position (and stretch the minor axis size if needed).
             align'size  = c1 ^. child'size2 _la'minor
             c'align     = child'align c1 item
