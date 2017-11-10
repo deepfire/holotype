@@ -1,5 +1,7 @@
-{-# LANGUAGE GADTs, GeneralizedNewtypeDeriving, RankNTypes #-}
-{-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, UnicodeSyntax, ViewPatterns #-}
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, GeneralizedNewtypeDeriving, StandaloneDeriving #-}      -- Deriving
+{-# LANGUAGE FlexibleInstances, GADTs, InstanceSigs, RankNTypes, ScopedTypeVariables #-}          -- Types
+{-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings, RecordWildCards #-}       -- Syntactic
+{-# LANGUAGE TemplateHaskell, TupleSections, UnicodeSyntax, ViewPatterns #-}
 {-# OPTIONS_GHC -Wextra #-}
 -- Development-only muffles.
 {-# OPTIONS_GHC -Wno-unused-binds -Wno-unused-matches #-}
@@ -11,13 +13,49 @@
 -- 1. Order property and size callbacks are not implemented.
 -- 2. Initially, this is a very direct translation from C -- and it shows a lot.
 --
-module Flex where
+module Flex
+  ( -- * Language of Style
+    LRTB(..), left, right, top, bottom
+  , Alignment(..)
+  , Direction(..)
+  , Positioning(..)
+  , Wrapping(..)
+  --
+  , Style(..), defaultStyle
+  , padding
+  , margin
+  , justify'content
+  , align'content
+  , align'items
+  , align'self
+  , positioning
+  , direction
+  , wrap
+  , grow
+  , shrink
+  , order
+  , basis
+  -- * Item
+  , Item(..), mkItem, mkItem'
+  , AItem
+  , size
+  , absolute
+  , style
+  , area
+  , child, children
+  , item
+  -- * Layout API
+  , layout
+  )
+where
 
 import           Control.Applicative
+import           Control.Applicative.Free
 import           Control.Lens                      hiding (children)
 import           Data.Maybe                               (fromMaybe)
 import           Data.Monoid                              ((<>))
 import qualified Data.Text.Lazy                    as TL
+-- import           Data.Traversable
 import           Linear                            hiding (basis, trace)
 import           Prelude.Unicode
 import           Text.PrettyPrint.Leijen.Text      hiding ((<>), (<$>), space)
@@ -27,6 +65,9 @@ import           Text.Printf                              (printf)
 import Elsewhere
 import Flatland
 
+
+-- * A language of Style
+--
 data LRTB a where
   LRTB ∷
     { _left          ∷ a
@@ -48,16 +89,16 @@ data Alignment where
   AlignSpaceEvenly   ∷ Alignment
   deriving (Eq, Show)
 
-data Positioning where
-  Relative           ∷ Positioning
-  Absolute           ∷ Positioning
-  deriving (Eq, Show)
-
 data Direction where
   DirColumn          ∷ Direction
   DirColumnReverse   ∷ Direction
   DirRow             ∷ Direction
   DirRowReverse      ∷ Direction
+  deriving (Eq, Show)
+
+data Positioning where
+  Relative           ∷ Positioning
+  Absolute           ∷ Positioning
   deriving (Eq, Show)
 
 data Wrapping where
@@ -85,8 +126,8 @@ data Style where
     deriving (Show)
 makeLenses ''Style
 
-mkStyle ∷ Style
-mkStyle = Style
+defaultStyle ∷ Style
+defaultStyle = Style
   { _padding         = LRTB 0 0 0 0
   , _margin          = LRTB 0 0 0 0
   , _justify'content = AlignStart
@@ -102,6 +143,9 @@ mkStyle = Style
   , _basis           = 0
   }
 
+
+-- * The Item
+--
 data Item a where
   Item ∷
     { _size               ∷ Di   (Maybe Double)
@@ -109,29 +153,37 @@ data Item a where
     , _style              ∷ Style
     , _area               ∷ Area Double
     , _children           ∷ [Item a]
-    , _obj                ∷ a
+    , _item               ∷ a
     } → Item a
+    deriving (Functor)
 deriving instance Show a ⇒ Show (Item a)
 makeLenses ''Item
 
+child  ∷ Int → Traversal' (Item a) (Item a)
+child n = children ∘ ix n
+
 mkItem' ∷ Maybe Double → Maybe Double → [Item a] → a → Item a
-mkItem' width height _children _obj =
+mkItem' width height _children _item =
   let _size     = Di $ V2 width height
       _absolute = LRTB Nothing Nothing Nothing Nothing
-      _style    = mkStyle
+      _style    = defaultStyle
       _area     = Area (po 0 0) (di 0 0)
   in Item{..}
 
 mkItem ∷ Double → Double → [Item a] → a → Item a
 mkItem width height = mkItem' (Just width) (Just height)
 
-instance Monoid a ⇒ Monoid (Item a) where
-  mempty  = mkItem 0 0 [] mempty
-  mappend = error "'⊕' for Item is not implemented."
+
+-- * Instances
+--
+instance Pretty a ⇒  Pretty (Item a) where
+  pretty = unreadable "" ∘ pretty'item
 
-child  ∷ Int → Traversal' (Item a) (Item a)
-child n = children ∘ ix n
 
+--
+-- * no user-serviceable parts below, except for the 'layout' function at the very bottom.
+--
+
 
 pretty'mdouble ∷ Maybe Double → Doc
 pretty'mdouble Nothing  = char '*'
@@ -145,19 +197,16 @@ pretty'item Item{..} = text "Item size:"
   <>  pretty'mdi _size
   <+> pretty'Area _area
 
-instance Pretty a ⇒  Pretty (Item a) where
-  pretty = unreadable "" ∘ pretty'item
-
 
 item'marginLT, item'marginRB ∷ Item a → Vertical → Reverse → Double
-item'marginLT Item{..} Vertical   Forward = _style^.margin.left
-item'marginLT Item{..} Vertical   Reverse = _style^.margin.top
-item'marginLT Item{..} Horisontal Forward = _style^.margin.top
-item'marginLT Item{..} Horisontal Reverse = _style^.margin.left
-item'marginRB Item{..} Vertical   Forward = _style^.margin.right
-item'marginRB Item{..} Vertical   Reverse = _style^.margin.bottom
-item'marginRB Item{..} Horisontal Forward = _style^.margin.bottom
-item'marginRB Item{..} Horisontal Reverse = _style^.margin.right
+item'marginLT Item{..} Vertical   Forward = _style & _margin & _left
+item'marginLT Item{..} Vertical   Reverse = _style & _margin & _top
+item'marginLT Item{..} Horisontal Forward = _style & _margin & _top
+item'marginLT Item{..} Horisontal Reverse = _style & _margin & _left
+item'marginRB Item{..} Vertical   Forward = _style & _margin & _right
+item'marginRB Item{..} Vertical   Reverse = _style & _margin & _bottom
+item'marginRB Item{..} Horisontal Forward = _style & _margin & _bottom
+item'marginRB Item{..} Horisontal Reverse = _style & _margin & _right
 
 item'size  ∷ Major → Lens' (Item a) Double
 item'size   (Major axis) = area ∘ area'b ∘ di'd axis
@@ -175,8 +224,8 @@ data Reverse  = Forward    | Reverse     deriving (Eq, Show)
 
 data LayoutLine where
   LayoutLine ∷
-    { _li'nchildren  ∷ Int
-    , _li'size       ∷ Double
+    { _li'nchildren ∷ Int
+    , _li'size      ∷ Double
     } → LayoutLine
     deriving (Show)
 makeLenses ''LayoutLine
@@ -191,12 +240,11 @@ data Layout where
     , _la'minor        ∷ Minor
     , _la'size'dim     ∷ Double    -- major axis parent size
     , _la'align'dim    ∷ Double    -- minor axis parent size
-    -- int *ordered_indices -- ordering property ignored
     , _la'line'dim     ∷ Double    -- minor axis size
     , _la'flex'dim     ∷ Double    -- flexible part of the major axis size
     , _la'flex'grows   ∷ Int
     , _la'flex'shrinks ∷ Int
-    , _la'pos2         ∷ Double    -- duplicate: "minor axis position"
+    , _la'pos2         ∷ Double    -- minor axis position
     , _la'lines        ∷ [LayoutLine]
     , _la'lines'sizes  ∷ Double
     } → Layout
@@ -242,8 +290,7 @@ mkLayout Item{..} =
         _la'flex'grows
         _la'flex'shrinks
         _la'flex'dim
-        _la'line'dim
-                         = (,,,) 0 0 0
+        _la'line'dim     = (,,,) 0 0 0
                            (if _la'wrap then 0 else _la'align'dim) -- XXX: ⊥ in original code
       _la'wrap           = _wrap ≢ NoWrap
       reverse'wrapping   = _wrap ≡ ReverseWrap
@@ -432,18 +479,9 @@ layout_item p@Item{..} =
                      then align'children lay' children'
                      else children'
 
-flex_layout ∷ Item a → Item a
-flex_layout x = layout_item $
-  x & area.area'b .~ (fromMaybe (error "Root missing coord.") <$> x^.size)
-
 
--- * Test accessories.
---
-frame  ∷ Lens' (Item a) (Area Double)
-frame f it@Item{..} = (\a→ it { _area = a }) <$> f _area
-
-frame' ∷ Po Double → Di Double → Area Double
-frame' = Area
-
-frame'test ∷ (Area Double → Bool) → Item a → Bool
-frame'test f = f ∘ (^.frame)
+-- | Lay out children according to their and item's properties.
+--   Size is taken from the 'item', origin is fixed to 0:0.
+layout ∷ Item a → Item a
+layout x = layout_item $
+  x & area.area'b .~ (fromMaybe (error "Root missing coord.") <$> x^.size)
