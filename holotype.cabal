@@ -50,6 +50,7 @@ library
                      , extra
                      , filepath
                      , free
+                     , fsnotify
                      , ghc-prim >=0.4
                      , hashable >= 1.2.3.3
                      , lens >= 4.13.2
@@ -62,8 +63,10 @@ library
                      , monadplus
                      , pretty
                      , pretty-show
+                     , primitive
                      , profunctors
                      , random
+                     , ref-tf
                      , semigroupoids >= 5.0.0.3
                      , semigroups >= 0.16.2.2
                      , text
@@ -103,9 +106,6 @@ library
                      , gi-pango
                      , gi-pangocairo
                      , haskell-gi-base
-
-                     , ghc-typelits-extra
-                     , ghc-typelits-natnormalise
 
                      , mtl
 

@@ -1,18 +1,18 @@
 { mkDerivation, aeson, base, base-unicode-symbols, binary
 , bytestring, cairo, clock, containers, dependent-sum, directory
-, dlist, exceptions, extra, filepath, free, ghc-prim
-, ghc-typelits-extra, ghc-typelits-natnormalise, gi-cairo, gi-pango
-, gi-pangocairo, GLFW-b, Glob, hashable, haskell-gi-base, hedgehog
-, hspec, hxt, JuicyPixels, lambdacube-compiler, lambdacube-gl
-, lambdacube-ir, lambdacube-quake3, lens, linear, lub, metamorphic
-, MissingH, monadplus, MonadRandom, mono-traversable, mtl, OpenGL
-, OpenGLRaw, pretty, pretty-show, profunctors, proteaaudio
-, QuickCheck, random, rapid, reflex, semigroupoids, semigroups
-, stdenv, stm, tasty, tasty-discover, tasty-expected-failure
-, tasty-hedgehog, tasty-hspec, tasty-hunit, tasty-quickcheck
-, tasty-smallcheck, text, text-format, text-lens, text-zipper
-, these, transformers, tuple, unordered-containers, vect, vector
-, wl-pprint-extras, wl-pprint-text
+, dlist, exceptions, extra, filepath, free, fsnotify, ghc-prim
+, gi-cairo, gi-pango, gi-pangocairo, GLFW-b, Glob, hashable
+, haskell-gi-base, hedgehog, hspec, hxt, JuicyPixels
+, lambdacube-compiler, lambdacube-gl, lambdacube-ir
+, lambdacube-quake3, lens, linear, lub, metamorphic, MissingH
+, monadplus, MonadRandom, mono-traversable, mtl, OpenGL, OpenGLRaw
+, pretty, pretty-show, primitive, profunctors, proteaaudio
+, QuickCheck, random, rapid, ref-tf, reflex, semigroupoids
+, semigroups, stdenv, stm, tasty, tasty-discover
+, tasty-expected-failure, tasty-hedgehog, tasty-hspec, tasty-hunit
+, tasty-quickcheck, tasty-smallcheck, text, text-format, text-lens
+, text-zipper, these, transformers, tuple, unordered-containers
+, vect, vector, wl-pprint-extras, wl-pprint-text
 }:
 mkDerivation {
   pname = "holotype";
@@ -23,17 +23,17 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson base base-unicode-symbols binary bytestring cairo clock
     containers dependent-sum directory dlist exceptions extra filepath
-    free ghc-prim ghc-typelits-extra ghc-typelits-natnormalise gi-cairo
-    gi-pango gi-pangocairo GLFW-b hashable haskell-gi-base hedgehog
-    hspec hxt JuicyPixels lambdacube-compiler lambdacube-gl
-    lambdacube-ir lambdacube-quake3 lens linear lub metamorphic
-    MissingH monadplus MonadRandom mono-traversable mtl OpenGL
-    OpenGLRaw pretty pretty-show profunctors proteaaudio QuickCheck
-    random rapid reflex semigroupoids semigroups stm tasty
-    tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
-    tasty-quickcheck tasty-smallcheck text text-format text-lens
-    text-zipper these transformers tuple unordered-containers vect
-    vector wl-pprint-extras wl-pprint-text
+    free fsnotify ghc-prim gi-cairo gi-pango gi-pangocairo GLFW-b
+    hashable haskell-gi-base hedgehog hspec hxt JuicyPixels
+    lambdacube-compiler lambdacube-gl lambdacube-ir lambdacube-quake3
+    lens linear lub metamorphic MissingH monadplus MonadRandom
+    mono-traversable mtl OpenGL OpenGLRaw pretty pretty-show primitive
+    profunctors proteaaudio QuickCheck random rapid ref-tf reflex
+    semigroupoids semigroups stm tasty tasty-expected-failure
+    tasty-hedgehog tasty-hspec tasty-hunit tasty-quickcheck
+    tasty-smallcheck text text-format text-lens text-zipper these
+    transformers tuple unordered-containers vect vector
+    wl-pprint-extras wl-pprint-text
   ];
   executableHaskellDepends = [
     aeson base base-unicode-symbols bytestring cairo clock containers
@@ -43,7 +43,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     base base-unicode-symbols containers directory filepath Glob
-    hedgehog lens tasty tasty-discover tasty-expected-failure
+    hedgehog lens linear tasty tasty-discover tasty-expected-failure
     tasty-hedgehog tasty-hspec tasty-hunit tasty-quickcheck
     tasty-smallcheck
   ];
