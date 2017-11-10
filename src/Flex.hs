@@ -18,7 +18,7 @@ import           Control.Lens                      hiding (children)
 import           Data.Maybe                               (fromMaybe)
 import           Data.Monoid                              ((<>))
 import qualified Data.Text.Lazy                    as TL
-import           Linear                            hiding (trace)
+import           Linear                            hiding (basis, trace)
 import           Prelude.Unicode
 import           Text.PrettyPrint.Leijen.Text      hiding ((<>), (<$>), space)
 
@@ -68,38 +68,38 @@ data Wrapping where
 
 data Style where
   Style ∷
-    { _sty'padding         ∷ LRTB Double
-    , _sty'margin          ∷ LRTB Double
-    , _sty'justify'content ∷ Alignment
-    , _sty'align'content   ∷ Alignment
-    , _sty'align'items     ∷ Alignment
-    , _sty'align'self      ∷ Alignment
-    , _sty'positioning     ∷ Positioning
-    , _sty'direction       ∷ Direction
-    , _sty'wrap            ∷ Wrapping
-    , _sty'grow            ∷ Int
-    , _sty'shrink          ∷ Int
-    , _sty'order           ∷ Maybe Int
-    , _sty'basis           ∷ Double
+    { _padding         ∷ LRTB Double
+    , _margin          ∷ LRTB Double
+    , _justify'content ∷ Alignment
+    , _align'content   ∷ Alignment
+    , _align'items     ∷ Alignment
+    , _align'self      ∷ Alignment
+    , _positioning     ∷ Positioning
+    , _direction       ∷ Direction
+    , _wrap            ∷ Wrapping
+    , _grow            ∷ Int
+    , _shrink          ∷ Int
+    , _order           ∷ Maybe Int
+    , _basis           ∷ Double
     } → Style
     deriving (Show)
 makeLenses ''Style
 
 mkStyle ∷ Style
 mkStyle = Style
-  { _sty'padding         = LRTB 0 0 0 0
-  , _sty'margin          = LRTB 0 0 0 0
-  , _sty'justify'content = AlignStart
-  , _sty'align'content   = AlignStretch
-  , _sty'align'items     = AlignStart
-  , _sty'align'self      = AlignAuto
-  , _sty'positioning     = Relative
-  , _sty'direction       = DirColumn
-  , _sty'wrap            = NoWrap
-  , _sty'grow            = 0
-  , _sty'shrink          = 1
-  , _sty'order           = Nothing
-  , _sty'basis           = 0
+  { _padding         = LRTB 0 0 0 0
+  , _margin          = LRTB 0 0 0 0
+  , _justify'content = AlignStart
+  , _align'content   = AlignStretch
+  , _align'items     = AlignStart
+  , _align'self      = AlignAuto
+  , _positioning     = Relative
+  , _direction       = DirColumn
+  , _wrap            = NoWrap
+  , _grow            = 0
+  , _shrink          = 1
+  , _order           = Nothing
+  , _basis           = 0
   }
 
 data Item a where
@@ -150,14 +150,14 @@ instance Pretty a ⇒  Pretty (Item a) where
 
 
 item'marginLT, item'marginRB ∷ Item a → Vertical → Reverse → Double
-item'marginLT Item{..} Vertical   Forward = _style^.sty'margin.left
-item'marginLT Item{..} Vertical   Reverse = _style^.sty'margin.top
-item'marginLT Item{..} Horisontal Forward = _style^.sty'margin.top
-item'marginLT Item{..} Horisontal Reverse = _style^.sty'margin.left
-item'marginRB Item{..} Vertical   Forward = _style^.sty'margin.right
-item'marginRB Item{..} Vertical   Reverse = _style^.sty'margin.bottom
-item'marginRB Item{..} Horisontal Forward = _style^.sty'margin.bottom
-item'marginRB Item{..} Horisontal Reverse = _style^.sty'margin.right
+item'marginLT Item{..} Vertical   Forward = _style^.margin.left
+item'marginLT Item{..} Vertical   Reverse = _style^.margin.top
+item'marginLT Item{..} Horisontal Forward = _style^.margin.top
+item'marginLT Item{..} Horisontal Reverse = _style^.margin.left
+item'marginRB Item{..} Vertical   Forward = _style^.margin.right
+item'marginRB Item{..} Vertical   Reverse = _style^.margin.bottom
+item'marginRB Item{..} Horisontal Forward = _style^.margin.bottom
+item'marginRB Item{..} Horisontal Reverse = _style^.margin.right
 
 item'size  ∷ Major → Lens' (Item a) Double
 item'size   (Major axis) = area ∘ area'b ∘ di'd axis
@@ -224,15 +224,15 @@ mkLayout ∷ Item a → Layout
 mkLayout Item{..} =
   let V2 width' height'  = _area^.area'b.di'v
       Style{..}          = _style
-      width              = width'  - (_sty'padding^.left + _sty'padding^.right)
-      height             = height' - (_sty'padding^.top  + _sty'padding^.bottom)
+      width              = width'  - (_padding^.left + _padding^.right)
+      height             = height' - (_padding^.top  + _padding^.bottom)
       (,,,,,)
         _la'major
         _la'minor
         _la'vertical
         _la'reverse
         _la'size'dim
-        _la'align'dim    = case _sty'direction of
+        _la'align'dim    = case _direction of
                              DirRow           → (Major X, Minor Y, Horisontal, Forward, width,  height)
                              DirRowReverse    → (Major X, Minor Y, Vertical,   Reverse, width,  height)
                              DirColumn        → (Major Y, Minor X, Vertical,   Forward, height, width)
@@ -245,16 +245,16 @@ mkLayout Item{..} =
         _la'line'dim
                          = (,,,) 0 0 0
                            (if _la'wrap then 0 else _la'align'dim) -- XXX: ⊥ in original code
-      _la'wrap           = _sty'wrap ≢ NoWrap
-      reverse'wrapping   = _sty'wrap ≡ ReverseWrap
+      _la'wrap           = _wrap ≢ NoWrap
+      reverse'wrapping   = _wrap ≡ ReverseWrap
       _la'reverse2       = if _la'wrap ∧ reverse'wrapping then Reverse else Forward
       _la'pos2           = case _la'wrap of
                              True  → if reverse'wrapping
                                      then _la'align'dim
                                      else 0                        -- XXX: ⊥ in original code
                              False → if _la'vertical ≡ Vertical
-                                     then _sty'padding^.left
-                                     else _sty'padding^.top
+                                     then _padding^.left
+                                     else _padding^.top
       _la'lines          = []
       _la'lines'sizes    = 0
   in Layout{..}
@@ -289,7 +289,7 @@ layout'align' align flex'dim nchilds stretch'allowed
   | AlignAuto         ← align = Nothing
 
 count'relatives ∷ [Item a] → Int
-count'relatives = length ∘ filter ((≡Relative) ∘ (^.style.sty'positioning))
+count'relatives = length ∘ filter ((≡Relative) ∘ (^.style.positioning))
 
 layout_items ∷ Item a → [Item a] → Layout → (Layout, [Item a])
 layout_items _             []       l            = (,) l []
@@ -298,7 +298,7 @@ layout_items item@Item{..} children l@Layout{..} =
   let Style{..}         = _style
       (pos1, spacing1)  = if _la'flex'grows ≡ 0 ∧
                              _la'flex'dim > 0
-                          then let may'aligned = layout'align _sty'justify'content _la'flex'dim (count'relatives children) False
+                          then let may'aligned = layout'align _justify'content _la'flex'dim (count'relatives children) False
                                    (pos', spacing') = flip fromMaybe may'aligned $ error "incorrect justify_content"
                                in (, spacing') $
                                   if _la'reverse ≡ Reverse
@@ -306,26 +306,26 @@ layout_items item@Item{..} children l@Layout{..} =
                                   else pos'
                           else (,) 0 0
       pos2              = if _la'reverse ≡ Reverse
-                          then pos1 - if _la'vertical ≡ Vertical then _sty'padding^.bottom else _sty'padding^.right
-                          else pos1 + if _la'vertical ≡ Vertical then _sty'padding^.top    else _sty'padding^.left
+                          then pos1 - if _la'vertical ≡ Vertical then _padding^.bottom else _padding^.right
+                          else pos1 + if _la'vertical ≡ Vertical then _padding^.top    else _padding^.left
       -- This is suspicious: line 455 in flex.c
       l'                = if _la'wrap ∧ _la'reverse2 ≡ Reverse       -- line 454: l→wrap implied by l→reverse2
                           then l & la'pos2 -~ _la'line'dim
                           else l
       layout'children ∷ Double → [Item a] → [Item a] → (Double, [Item a])
       layout'children pos  []                                      acc = (,) pos (reverse acc)
-      layout'children pos (c@((^.style.sty'positioning) → Absolute):rest) acc = layout'children pos rest (c:acc) -- Already positioned.
+      layout'children pos (c@((^.style.positioning) → Absolute):rest) acc = layout'children pos rest (c:acc) -- Already positioned.
       layout'children pos (c@Item{..}:rest) acc =
         -- Grow or shrink the major axis item size if needed.
-        let flex'size   = if | l'^.la'flex'dim > 0 ∧ _style^.sty'grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_style^.sty'grow)   / fromIntegral (l'^.la'flex'grows)
-                             | l'^.la'flex'dim < 0 ∧ _style^.sty'shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_style^.sty'shrink) / fromIntegral (l'^.la'flex'shrinks)
+        let flex'size   = if | l'^.la'flex'dim > 0 ∧ _style^.grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_style^.grow)   / fromIntegral (l'^.la'flex'grows)
+                             | l'^.la'flex'dim < 0 ∧ _style^.shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_style^.shrink) / fromIntegral (l'^.la'flex'shrinks)
                              | otherwise → 0
             c1          = c &  item'size  _la'major +~ flex'size
             -- Set the minor axis position (and stretch the minor axis size if needed).
             align'size  = c1 ^. item'size2 _la'minor
-            c'align     = if c1^.style.sty'align'self ≡ AlignAuto
-                          then item^.style.sty'align'items
-                          else c1^.style.sty'align'self
+            c'align     = if c1^.style.align'self ≡ AlignAuto
+                          then item^.style.align'items
+                          else c1^.style.align'self
             margin'LT   = item'marginLT c1 _la'vertical Forward
             margin'RB   = item'marginRB c1 _la'vertical Forward
             c2          = if c'align ≡ AlignStretch ∧ align'size ≡ 0
@@ -352,7 +352,7 @@ layout_items item@Item{..} children l@Layout{..} =
       children'         = snd $ layout'children pos2 children []
       l''               = if not _la'wrap ∨ _la'reverse2 ≡ Reverse then l'
                           else l' & la'pos2 +~ (l'^.la'line'dim)
-      l'''              = if not _la'wrap ∨ _sty'align'content ≡ AlignStart then l''
+      l'''              = if not _la'wrap ∨ _align'content ≡ AlignStart then l''
                           else l'' & la'lines %~ (LayoutLine (length children') (l''^.la'line'dim) :)
                                    & la'lines'sizes +~ l''^.la'line'dim
   in (,) l''' children'
@@ -363,7 +363,7 @@ layout_item p@Item{..} =
   let cstr   = p^.area.area'b
       assign'sizes ∷ [Item a] → Layout → [Item a] → [Item a] → (Layout, [Item a], [Item a])
       assign'sizes []                                       l            sized positioned = (,,) l (reverse sized) positioned
-      assign'sizes (c@((^.style.sty'positioning) → Absolute):rest) l@Layout{..} sized positioned =
+      assign'sizes (c@((^.style.positioning) → Absolute):rest) l@Layout{..} sized positioned =
         let abs'size (Just val)  _           _          _   = val
             abs'size  Nothing   (Just pos1) (Just pos2) dim = dim - pos2 - pos1
             abs'size  _          _           _          _   = 0
@@ -378,7 +378,7 @@ layout_item p@Item{..} =
                            & layout_item
         in assign'sizes rest l (c':sized) positioned
       assign'sizes (c:rest) l@Layout{..} sized positioned =
-        let c'size  = fromMaybe 0 $ partial (>0) (c^.style.sty'basis) <|>
+        let c'size  = fromMaybe 0 $ partial (>0) (c^.style.basis) <|>
                                                  (c^.size.di'd (fromMajor _la'major))
             c'size2 = flip fromMaybe (c^.size.di'd (fromMinor _la'minor))
                                      (cstr^.di'd (if _la'vertical ≡ Vertical then X else Y) -
@@ -391,8 +391,8 @@ layout_item p@Item{..} =
                      in (,,) [] (positioned <> positioned') (layout'reset lay')
             l'' = l' & la'line'dim %~ (\line'dim→ if not _la'wrap ∨ c'size2 ≤ line'dim then line'dim
                                                   else c'size2)
-                     & la'flex'grows   +~ c'^.style.sty'grow
-                     & la'flex'shrinks +~ c'^.style.sty'shrink
+                     & la'flex'grows   +~ c'^.style.grow
+                     & la'flex'shrinks +~ c'^.style.shrink
                      & la'flex'dim     -~ c'size + item'marginLT c' _la'vertical Reverse
                                                  + item'marginRB c' _la'vertical Reverse
             c' = c & item'size  _la'major .~ c'size
@@ -409,7 +409,7 @@ layout_item p@Item{..} =
       align'children ∷ Layout → [Item a] → [Item a]
       align'children Layout{..} cs =
         let flex'dim          = _la'align'dim - _la'lines'sizes
-            may'aligned       = layout'align (_style^.sty'align'content) flex'dim (length _la'lines) True
+            may'aligned       = layout'align (_style^.align'content) flex'dim (length _la'lines) True
             (,) pos' spacing' = if flex'dim ≤ 0 then (,) 0 0
                                 else flip fromMaybe may'aligned $ error "incorrect align_content"
             (,) pos'' old'pos = if _la'reverse2 ≢ Reverse then (,) pos' 0
@@ -422,13 +422,13 @@ layout_item p@Item{..} =
                                         else (,) (pos - _li'size - spacing') (old'pos - _li'size)
                   (,) line rest       = splitAt _li'nchildren cs
                   -- Re-position the children of this line, honoring any child alignment previously set within the line
-                  line'               = line <&> \c→ if c^.style.sty'positioning ≡ Absolute then c
+                  line'               = line <&> \c→ if c^.style.positioning ≡ Absolute then c
                                                      else c & item'pos2 _la'minor +~ pos' - old'pos'
                   (,) pos'' old'pos'' = if _la'reverse2 ≡ Reverse then (,) pos' old'pos'
                                         else (,) (pos + _li'size + spacing') (old'pos + _li'size)
               in line'step ls rest (line':acc) pos'' old'pos''
         in (^._1) $ line'step (reverse _la'lines) cs [] pos'' old'pos
-  in p & children .~ if _la'wrap ∧ _style^.sty'align'content ≢ AlignStart
+  in p & children .~ if _la'wrap ∧ _style^.align'content ≢ AlignStart
                      then align'children lay' children'
                      else children'
 
