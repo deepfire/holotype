@@ -69,14 +69,20 @@
       - http://www.csun.edu/gd2015/accepted.htm
     - 2016 :: https://arxiv.org/html/1609.02443v1
   - http://users.encs.concordia.ca/~haarslev/publications/
-  - https://github.com/xamarin/flex/blob/master/flex.c
+  - flexbox layout implementations ::
+    - https://github.com/xamarin/flex/blob/master/flex.c
+      - initial re-implementation:
+        - =b77ebb29d6e9c34a4d998d3eacacde50f95ba073=
+        - 2017-10-24 17:35:55
+        - "update document to follow recent changes"
+    - https://github.com/randrew/layout/blob/master/layout.h
 
 * Open questions
 
   - reliable ephemeral identification for tag overlays ::
        How to pin overlaid metadata to source data -- there are sources we have no
        structural (or even mutation) control over, so can't pin "within" the data.
-  - model does not cover data mutability :: 
+  - model does not cover data mutability ::
 
 *** Layout data flow summary
 
@@ -148,7 +154,7 @@
       - *width*, *height*        ∷ float         -- absolute-only?
       - *left*, *right*, *top*, *bottom*
                                  ∷ float         -- def(0), ???
-      - *padding_LRTB*, *margin_LRTB*    
+      - *padding_LRTB*, *margin_LRTB*
                                  ∷ float         -- def(0)
 
       - *justify_content*        ∷ def(=ALIGN_START=)
@@ -182,7 +188,7 @@
         - frame_size_i           ∷ uint   -- main axis size
         - frame_size2_i          ∷ uint   -- cross axis size
         - ordered_indices        ∷ [int]
-     
+
       - set for each line layout
         - line_dim               ∷ float  -- the cross-axis size
         - flex_dim               ∷ float  -- the flexible part of the main axis size
@@ -200,7 +206,7 @@
       - item_property_changed(property) ∷ property ≡ order → update_should_order_children
       - flex_item_new/free() ∷ malloc + default attributes & stuff / free() children, then self
 
-******* 
+*******
         - grow_if_needed                         ∷ flex_item → void
         - child_set                              ∷ flex_item → flex_item → int → void
         - flex_item_add                          ∷ flex_item → flex_item → void
@@ -211,19 +217,19 @@
         - flex_item_parent                       ∷ flex_item → flex_item
         - flex_item_root                         ∷ flex_item → flex_item
         - flex_item_get_frame_{x,y,width,height} ∷ flex_item → float
-******* 
+*******
         - layout_init                            ∷ flex_item → float → float → flex_layout → void
           let width/height        = args.w/args.h - item→padding_left - item→padding_right
               (,,,,)
                 reverse vertical
                 size_dim align_dim
                 frame_pos{,2}_i
-                frame_size{,2}_i 
+                frame_size{,2}_i
                                   = case item→direction of
                                       DIRECTION_ROW_REVERSE    | f width height
-                                      DIRECTION_ROW            | 
-                                      DIRECTION_COLUMN_REVERSE | 
-                                      DIRECTION_COLUMN         | 
+                                      DIRECTION_ROW            |
+                                      DIRECTION_COLUMN_REVERSE |
+                                      DIRECTION_COLUMN         |
               ordered_indices     = | f item→should_order_children
                                     |   item→children_count
                                     |   item→children
@@ -238,7 +244,7 @@
               lines               = []
           in Layout{..}
         - layout_cleanup                         ∷ flex_layout → void
-******* 
+*******
         - LAYOUT_RESET                           ∷ flex_layout → flex_layout
           layout & line_dim     .~ if wrap then 0 else align_dim
                  & flex_dim     .~ size_dim
@@ -246,8 +252,8 @@
                  & flex_shrinks .~ 0
         - _LAYOUT_FRAME                          ∷ layout → child → {pos,pos2,size,size2} → float
         - CHILD_POS, CHILD_POS2, CHILD_SIZE, CHILD_SIZE2 = _LAYOUT_FRAME(…)
-        - CHILD_MARGIN                           ∷ child → if_vertical ∷ bool → if_horizontal ∷ bool → 
-******* 
+        - CHILD_MARGIN                           ∷ child → if_vertical ∷ bool → if_horizontal ∷ bool →
+*******
         - layout_align                           ∷ align           ∷ flex_align →
                                                    flex_dim        ∷ float →
                                                    children_count  ∷ uint →
