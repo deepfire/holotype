@@ -76,7 +76,7 @@ let
       ({ stdenv, mkDerivation, base, containers, data-default, dependent-map, dependent-sum
        , exception-transformers, filemanip, haskell-src-exts, haskell-src-meta, hlint
        , MemoTrie, lens, monad-control, mtl, primitive, prim-uniq, ref-tf, reflection, semigroups, semigroupoids, split, syb
-       , template-haskell, these, transformers, transformers-compat
+       , template-haskell, these, transformers, transformers-compat, unbounded-delays
        }:
        mkDerivation {
            pname = "reflex";
@@ -84,13 +84,13 @@ let
            src = pkgs.fetchFromGitHub {
              owner = "deepfire";
              repo = "reflex";
-             rev = "72165498522201b4d339da7678922ef324fd28c6";
-             sha256 = "1zan8l2kczd4mnd1sd7sr1vjbyqrz9gm7bsy7jibjf8qb5asbgyp";
+             rev = "60d2878142943487987feeeea108dbed5405f469";
+             sha256 = "1gzyclfc18k881ww990fydgci3zcszy0rny0p979qdjfv4f50396";
            };
            libraryHaskellDepends = [
              base containers data-default dependent-map dependent-sum exception-transformers filemanip
              haskell-src-exts haskell-src-meta hlint lens MemoTrie monad-control mtl primitive prim-uniq ref-tf reflection
-             semigroups semigroupoids split syb template-haskell these transformers transformers-compat
+             semigroups semigroupoids split syb template-haskell these transformers transformers-compat unbounded-delays
            ];
            testHaskellDepends = [
              base containers dependent-map MemoTrie mtl ref-tf
