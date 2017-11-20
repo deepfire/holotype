@@ -30,7 +30,7 @@ import           Reflex.GLFW
 import Flatland
 import HoloCanvas
 import HoloCube (ObjectStream)
-import HoloSettings (Settings)
+import HoloSettings
 
 
 -- | 'Holo': anything visualisable.

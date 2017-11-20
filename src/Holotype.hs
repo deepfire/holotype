@@ -106,6 +106,7 @@ holotype win _evCtl setupE windowFrameE inputE = do
                    ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
   rendererDrawFrame rendererV
   settingsV@Settings{..} ← defaultSettings
+  systemV@System{..} ← systemSetup settingsV
 
   -- INPUT
   let worldE        = translateEvent <$> inputE
