@@ -141,11 +141,11 @@ addOverlay name ca prevFB =
 
 --main :: Output
 main = ScreenOut $
-       addOverlay "canvasStream" canvasMtl $
+       addOverlay "portStream" portMtl $
        FrameBuffer (depthImage1 1000, colorImage1 (V4 0.002 0.002 0.008 1))
 
-canvasMtl :: CommonAttrs
-canvasMtl =
+portMtl :: CommonAttrs
+portMtl =
   CommonAttrs
   { caSkyParms       = ()
   , caFogParms       = ()
@@ -168,12 +168,12 @@ canvasMtl =
       , saAlphaGen          = A_Identity
       , saTCGen             = TG_Base
       , saTCMod             = []
-      , saTexture           = ST_ClampMap "canvasMtl"
+      , saTexture           = ST_ClampMap "portMtl"
       , saDepthWrite        = True
       , saDepthFunc         = D_Lequal
       , saAlphaFunc         = Nothing
       , saDepthMaskExplicit = False
-      , saTextureUniform    = "canvasMtl"
+      , saTextureUniform    = "portMtl"
       }
 
 -- makeFrame (viewProj :: Mat 4 4 Float)
@@ -192,8 +192,8 @@ canvasMtl =
 
 -- main = renderFrame $
 --    makeFrame (Uniform "viewProj")
---              (Texture2DSlot "canvasMtl")
---              (fetch "canvasStream" (Attribute "position", Attribute "uv"))
+--              (Texture2DSlot "portMtl")
+--              (fetch "portStream" (Attribute "position", Attribute "uv"))
 
 -- Local Variables:
 -- eval: (progn (haskell-mode) (intero-disable))

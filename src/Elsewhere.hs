@@ -2,84 +2,28 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
+{-# OPTIONS_GHC -Weverything #-}
+{-# OPTIONS_GHC -Wno-implicit-prelude -Wno-missing-import-lists -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-unsafe #-}
 
 module Elsewhere
-  ( partial
-  , fromMaybe
-  , (.:)
-  , (<>)
-  , Text
-  , trace
-  , goldenRatio
-
-  , dumpPretty
-  , ppCompact, ppPretty
-  , trace'pp
-  , rendCompact, rendPretty
-  , prettyMaybe
-  , unreadable
-  , (<->), (<:>)
-
-  , ppV2
-  , trace'
-
-  , PP(..)
-  , showT, showTS, showTL
-  , errorT, errorTL
+  ( ppV2
+  , textZipper, zipperText
   )
 where
 
-import qualified Alib                              as M
-import           Control.Applicative
-import           Control.Exception
-import           Control.Lens                      hiding (children)
-import           Control.Monad.Plus                       (partial)
+import           HoloPrelude
+
 import           Control.Monad.Random
 import           Control.Monad.State
 import           Data.Complex
 import           Data.Glb                                 (HasGlb(..))
 import           Data.Lub                                 (HasLub(..))
-import           Data.Maybe                               (fromMaybe)
 import           Data.Monoid                              ((<>))
-import           Data.Text                                (Text)
 import qualified Data.Text                         as T
 import qualified Data.Text.Lazy                    as TL
-import qualified Data.Text.Format                  as T
 import qualified Data.Text.Zipper                  as T
-import           Data.Void
-import           Debug.Trace                              (trace)
-import           GHC.Stack
 import           Linear                            hiding (trace)
-import           Prelude.Unicode
-import           Reflex
-import qualified Data.Text.Lazy.IO                 as TLIO
--- import           Text.PrettyPrint.Free             hiding ((<>), space)
-import           Text.PrettyPrint.Leijen.Text      hiding ((<>), (<$>), space)
-
-
--- * Pretty numbers
-goldenRatio ∷ Double
-goldenRatio = 1.61803398875
-
-
--- * Cool functions
-(.:) ∷ ∀ a f g b. (b → a) → (f → g → b) → f → g → a
-(.:) = M.o
-
-infixr 9 .:
-
-void ∷ Void
-void = (⊥)
-
-
-catchAny ∷ IO a → (SomeException → IO a) → IO a
-catchAny guarded handler = Control.Exception.catch guarded onExc
-  where onExc e | shouldCatch e = handler e
-                | otherwise = throwIO e
-        shouldCatch e
-          | show e ≡ "<<timeout>>" = False
-          | Just (_ ∷ AsyncException) ← fromException e = False
-          | otherwise = True
 
 
 -- * 'lub' + 'linear'
@@ -94,75 +38,14 @@ instance Random a ⇒ Random (Complex a) where
   random                 = runState $ liftA2 (:+) (state $ random)         (state $ random)
 
 
--- * 'text-zipper'
-textZipper ∷ [Text] → T.TextZipper Text
-textZipper = flip T.textZipper Nothing
-
-zipperText ∷ T.TextZipper Text → Text
-zipperText = T.dropEnd 1 ∘ T.unlines ∘ T.getText
-
-
--- * 'reflex'
-simpler ∷ Reflex t ⇒ Event t a → Event t ()
-simpler = (() <$)
-
-someFire ∷ Reflex t ⇒ Event t a → Event t b → Event t ()
-someFire a b = simpler a <> simpler b
-
-
 -- * Pretty
-dumpPretty ∷ Pretty a ⇒ Int → a → IO ()
-dumpPretty = TLIO.putStrLn .: ppPretty
-
-ppCompact ∷ Pretty a ⇒ a → TL.Text
-ppCompact = rendCompact ∘ pretty
-
-ppPretty ∷ Pretty a ⇒ Int → a → TL.Text
-ppPretty wi =  rendPretty wi ∘ pretty
-
-trace'pp ∷ Pretty a ⇒ String → a → a
-trace'pp prefix o = trace (prefix <> TL.unpack (ppPretty 60 o)) o
-
-rendCompact ∷ Doc → TL.Text
-rendCompact = displayT ∘ renderCompact
-
-rendPretty ∷ Int → Doc → TL.Text
-rendPretty wi = displayT ∘ renderPretty 1.0 wi
-
-prettyMaybe ∷ Pretty a ⇒ TL.Text → Maybe a → Doc
-prettyMaybe m = fromMaybe (text m) ∘ (pretty <$>)
-
-unreadable ∷ TL.Text → Doc → Doc
-unreadable ty x = char '#' <> angles (text ty <+> x)
-
-(<->), (<:>) ∷ Doc → Doc → Doc
-l <-> r = l <> char '-' <> r
-l <:> r = l <> char ':' <> r
-
 ppV2 ∷ Show a ⇒ V2 a → TL.Text
 ppV2 x = (showTL $ x^._x) <> "x" <> (showTL $ x^._y)
 
-trace' ∷ Show a ⇒ String → a → a
-trace' prefix o = trace (prefix <> (show o)) o
+
+-- * Text.Zipper
+textZipper ∷ [T.Text] → T.TextZipper T.Text
+textZipper = flip T.textZipper Nothing
 
-class Show a ⇒ PP a where
-  {-# MINIMAL pp | ppL #-}
-  pp  ∷ a → Text
-  ppL ∷ a → TL.Text
-  ppS ∷ a → String
-  pp  = TL.toStrict ∘ ppL
-  ppL = TL.fromStrict ∘ pp
-  ppS = T.unpack ∘ pp
-
-showTS, showT ∷ Show a ⇒ a → Text
-showTS = T.pack ∘ show
-showT = showTS
-
-showTL ∷ Show a ⇒ a → TL.Text
-showTL = TL.pack ∘ show
-
-errorT ∷ HasCallStack ⇒ Text → a
-errorT = error ∘ T.unpack
-
-errorTL ∷ HasCallStack ⇒ TL.Text → a
-errorTL = error ∘ TL.unpack
+zipperText ∷ T.TextZipper T.Text → T.Text
+zipperText = T.dropEnd 1 ∘ T.unlines ∘ T.getText

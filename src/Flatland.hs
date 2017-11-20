@@ -11,27 +11,20 @@
 module Flatland where
 
 -- Basis
-import           Prelude.Unicode
+import           HoloPrelude
 
 -- Type-level
-import           GHC.Generics                             (Generic)
 import           GHC.TypeLits
-import           GHC.Types                         hiding (Constraint)
 
 -- General types
-import           Control.Applicative
 import           Control.Applicative.Free
 import           Control.Lens                      hiding (children)
 import           Control.Monad.Random              hiding (lift)
 import           Control.Monad.State               hiding (lift)
 import           Data.Complex
-import           Data.Function
-import           Data.List
 import           Data.Lub
-import           Data.Maybe
 import           Data.Glb
 import           Data.MonoTraversable
-import           Data.Monoid
 import           Data.Text.Format
 import qualified Data.Text.Format                  as T
 import qualified Data.Text.Lazy                    as TL
@@ -44,9 +37,7 @@ import           Linear                            hiding (trace)
 import qualified GI.Pango                          as GIP (unitsToDouble, unitsFromDouble)
 
 -- Misc
-import           Debug.Trace                              (trace)
 import           Text.PrettyPrint.Leijen.Text      hiding ((<>), (<$>), space)
-import           Text.Printf                              (printf)
 
 -- Dirty stuff
 import qualified Foreign                           as F
@@ -102,6 +93,13 @@ type family UnitType a = r | r → a where
   UnitType (Unit Pt)    = Pt
   UnitType (Unit Ratio) = Ratio
 
+pu'val  ∷ Lens' (Unit PU) (Element (Unit PU))
+pu'val  f (PUs x)  = PUs  <$> f x
+pui'val ∷ Lens' (Unit PUI) (Element (Unit PUI))
+pui'val f (PUIs x) = PUIs <$> f x
+pt'val  ∷ Lens' (Unit Pt) (Element (Unit Pt))
+pt'val  f (Pts x)  = Pts  <$> f x
+
 -- <Boilerplate>
 deriving instance Eq   (Unit u)
 deriving instance Show (Unit u)
@@ -141,24 +139,23 @@ instance Random a ⇒ Random (V4 a) where
 -- | Conversion between unit sizes -- See Note [Pango resolution & unit conversion]
 -- class a ~ (Unit (UnitType a)) ⇒ FromUnit a where
 --   fromUnit ∷ FromUnit b ⇒ DΠ → b → a
-class FromUnit a where
-  fromUnit ∷ FromUnit (Unit b) ⇒ DΠ → (Unit b) → a
+class FromUnit' a where
+  fromUnit ∷ FromUnit' (Unit b) ⇒ DΠ → (Unit b) → a
 
-instance FromUnit (Unit PU) where
+type FromUnit u = FromUnit' (Unit u)
+
+instance FromUnit' (Unit PU) where
   fromUnit _       x@(PUs _)    = x
   fromUnit _         (PUIs pis) = PUs $ UN.unsafePerformIO ∘ GIP.unitsToDouble   $ pis -- fromIntegral pis / fromIntegral GIP.SCALE
   fromUnit (DΠ dπ)   (Pts pts)  = PUs $ (fromIntegral pts) ⋅ dπ / pπVal pπ
-  fromUnit _         _          = error "x -fromDim→ PU: unsupported combination, for an unknown type of 'x'."
-instance FromUnit (Unit PUI) where
+instance FromUnit' (Unit PUI) where
   fromUnit _       x@(PUIs _)   = x
   fromUnit _         (PUs pus)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ pus -- floor $ pus ⋅ fromIntegral GIP.SCALE
   fromUnit (DΠ dπ)   (Pts pts)  = PUIs $ UN.unsafePerformIO ∘ GIP.unitsFromDouble $ fromIntegral pts ⋅ dπ / pπVal pπ
-  fromUnit _         _          = error "x -fromDim→ PUI: unsupported combination, for an unknown type of 'x'."
-instance FromUnit (Unit Pt) where
+instance FromUnit' (Unit Pt) where
   fromUnit _       x@(Pts _)    = x
   fromUnit (DΠ dπ)   (PUs pus)  = Pts $ floor $                                                                 pus ⋅ pπVal pπ / dπ
   fromUnit (DΠ dπ)   (PUIs pis) = Pts $ floor $ UN.unsafePerformIO ∘ GIP.unitsToDouble ∘ floor $ (fromIntegral pis) ⋅ pπVal pπ / dπ
-  fromUnit _         _          = error "x -fromDim→ Pt: unsupported combination, for an unknown type of 'x'."
 
 
 -- * Specialized linear dimension classification:
@@ -223,8 +220,8 @@ deriving instance (Ord a) ⇒ HasLub (Di a)
 deriving instance (Ord a) ⇒ HasGlb (Di a)
 deriving instance (Ord a) ⇒ HasLub (Po a)
 deriving instance (Ord a) ⇒ HasGlb (Po a)
-newtype An2 a = An2 { _an2V ∷ V2 a } deriving (Eq, Functor) -- ^ Unordered pair of angles
-newtype Co  a = Co  { _coV  ∷ V4 a } deriving (Eq, Functor) -- ^ Color
+newtype An2 a = An2 { _an2V ∷ V2 a } deriving (Eq, Applicative, Functor) -- ^ Unordered pair of angles
+newtype Co  a = Co  { _coV  ∷ V4 a } deriving (Eq, Applicative, Functor) -- ^ Color
 deriving instance Show a ⇒ Show (An2 a)
 deriving instance Show a ⇒ Show (Co a)
 deriving instance Random a ⇒ Random (Di a)
@@ -239,9 +236,9 @@ instance Num a ⇒ Monoid (Di a) where
   mempty              = Di zero
   Di l `mappend` Di r = Di $ l + r
 
-instance Num a ⇒ Monoid (Po a) where
+instance (Fractional a) ⇒ Monoid (Po a) where
   mempty              = Po zero
-  Po l `mappend` Po r = Po $ l + r
+  Po l `mappend` Po r = Po $ (l + r) / 2
 
 -- instance Applicative RPo where pure x = RPo (R x, An x); RPo (R fr, An fan) <*> RPo (R r, An an) = RPo (R $ fr r, An $ fan an)
 -- instance Additive    RPo where zero = RPo (zero, zero)
@@ -297,6 +294,29 @@ di'd   Y f (Di (V2 x y)) = Di ∘ (id   V2 x) <$> f y
 po'd   ∷ Axis → Lens' (Po a) a
 po'd   X f (Po (V2 x y)) = Po ∘ (flip V2 y) <$> f x
 po'd   Y f (Po (V2 x y)) = Po ∘ (id   V2 x) <$> f y
+
+
+-- * Colors
+--
+instance Monoid (Co Double) where
+  mempty              = white
+  Co l `mappend` Co r = Co $ (l + r) / 2
+
+red, green, blue, white, black ∷ Co Double
+red   = co 1 0 0 1
+green = co 0 1 0 1
+blue  = co 0 0 1 1
+white = co 1 1 1 1
+black = co 0 0 0 1
+
+opaque ∷ Num a ⇒ a → a → a → Co a
+opaque r g b = co r g b 1
+
+gray ∷ a → a → Co a
+gray x a = co x x x a
+
+coMult ∷ Num a ⇒ a → Co a → Co a
+coMult x (Co (V4 r g b a)) = Co $ V4 (r*x) (g*x) (b*x) a
 
 
 -- * Axis

@@ -17,26 +17,24 @@ library
 
   exposed-modules:
 
-                  -- Data.MeasuredMonoid
-
                   Elsewhere
 
                   Flatland
                   FlatDraw
-
-                  -- Holo
-                  -- HoloCairo
-                  -- HoloCanvas
-                  -- HoloCube
-                  -- HoloFont
-                  -- HoloSettings
-                  -- HoloSys
-                  -- Holotype
-
-                  -- Reflex.GLFW
-                  -- Reflex.Random
-
                   Flex
+
+                  Holo
+                  HoloCairo
+                  HoloCube
+                  HoloFont
+                  HoloOS
+                  HoloPort
+                  HoloPrelude
+
+                  Reflex.GLFW
+                  Reflex.Random
+
+                  Holotype
 
   build-depends:       aeson
                      , base >=4.8
@@ -51,6 +49,7 @@ library
                      , filepath
                      , free
                      , fsnotify
+                     --, generic-lens
                      , ghc-prim >=0.4
                      , hashable >= 1.2.3.3
                      , lens >= 4.13.2
@@ -61,6 +60,7 @@ library
                      , MonadRandom
                      , mono-traversable
                      , monadplus
+                     , parsers
                      , pretty
                      , pretty-show
                      , primitive
@@ -73,6 +73,7 @@ library
                      , text-format
                      , these
                      , transformers
+                     , trifecta
                      , tuple
                      , unordered-containers
                      , vect

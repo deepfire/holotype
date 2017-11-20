@@ -67,91 +67,6 @@ import Flex
 import HoloFont
 import HoloCairo
 import qualified HoloCube                          as HC
-import HoloSettings
-
-
--- | A Cairo-capable 'Drawable' to display on a GL 'Frame'.
-data Drawable where
-  Drawable ∷
-    { dObjectStream ∷ HC.ObjectStream
-    , dDi           ∷ Di Int
-    , dSurfaceData  ∷ (F.Ptr F.CUChar, (Int, Int))
-    , dCairo        ∷ Cairo
-    , dGIC          ∷ GIC.Context
-    --
-    , dMesh         ∷ LC.Mesh
-    , dGPUMesh      ∷ GL.GPUMesh
-    , dGLObject     ∷ GL.Object
-    , dTexId        ∷ GLuint
-    } → Drawable
-
-makeDrawable ∷ (MonadIO m) ⇒ HC.ObjectStream → Di Double → m Drawable
-makeDrawable dObjectStream@HC.ObjectStream{..} dDi' = liftIO $ do
-  let dDi@(Di (V2 w h)) = fmap ceiling dDi'
-  dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
-  dCairo        ← cairoCreate  dSurface
-  dGIC          ← cairoToGICairo dCairo
-
-  let (dx, dy) = (fromIntegral w, fromIntegral $ -h)
-      -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
-      position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
-      texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
-      dMesh    = LC.Mesh { mPrimitive  = P_Triangles
-                         , mAttributes = Map.fromList [ ("position",  A_V2F position)
-                                                      , ("uv",        A_V2F texcoord) ] }
-  dGPUMesh      ← GL.uploadMeshToGPU dMesh
-  SMem.addFinalizer dGPUMesh $
-    GL.disposeMesh dGPUMesh
-  dGLObject     ← GL.addMeshToObjectArray osStorage (HC.fromOANS osObjArray) [HC.unameStr osUniform, "viewProj"] dGPUMesh
-
-  dSurfaceData  ← imageSurfaceGetPixels' dSurface
-  dTexId        ← F.alloca $! \pto → glGenTextures 1 pto >> F.peek pto
-
-  -- dTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi dStridePixels, h, GL_BGRA, pixels)
-  pure Drawable{..}
-
-imageSurfaceGetPixels' :: GRC.Surface → IO (F.Ptr F.CUChar, (Int, Int))
-imageSurfaceGetPixels' pb = do
-  pixPtr ← GRCI.imageSurfaceGetData pb
-  when (pixPtr ≡ F.nullPtr) $ do
-    fail "imageSurfaceGetPixels: image surface not available"
-  h ← GRC.imageSurfaceGetHeight pb
-  r ← GRC.imageSurfaceGetStride pb
-  return (pixPtr, (r, h))
-
-drawableContentToGPU ∷ (MonadIO m) ⇒ Drawable → m ()
-drawableContentToGPU Drawable{..} = liftIO $ do
-  let HC.ObjectStream{..} = dObjectStream
-
-  let (pixels, (strideBytes, pixelrows)) = dSurfaceData
-  cTexture ← HC.uploadTexture2DToGPU'''' False False False False (strideBytes `div` 4, pixelrows, GL_BGRA, pixels) dTexId
-
-  GL.updateObjectUniforms dGLObject $ do
-    HC.fromUNS osUniform GL.@= return cTexture
-
--- | To screen space conversion matrix.
-screenM :: Int → Int → Mat4
-screenM w h =
-  Vc.Mat4 (Vc.Vec4 (1/fw)  0     0 0)
-          (Vc.Vec4  0     (1/fh) 0 0)
-          (Vc.Vec4  0      0     1 0)
-          (Vc.Vec4  0      0     0 0.5) -- where does that 0.5 factor COMEFROM?
-  where (fw, fh) = (fromIntegral w, fromIntegral h)
-
-framePutDrawable ∷ (MonadIO m) ⇒ HC.Frame → Drawable → Po Float → m ()
-framePutDrawable (HC.Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = do
-  let cvpos    = Vec3 x y 0
-      toScreen = screenM screenW screenH
-  liftIO $ GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
-    Q3.mat4ToM44F $! toScreen Vc..*. (Vc.fromProjective $! Vc.translation cvpos)
-
-
--- * Cairo render debug utils
---
-dpx ∷ Po Double → Co Double → GRCI.Render ()
-dpx (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >>
-                                      -- GRC.rectangle (x) (y) 1 1 >> GRC.fill
-                                      GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
 
 
 -- * Very early generic widget code.
@@ -262,13 +177,6 @@ dpx (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >>
 --
 
 -- * Text
---
--- query'text'size ∷ Settings u → TextS u → T.Text → Di Double
--- query'text'size Settings{..} TextS{..} text = XXX.unsafePerformIO $ do
---     let Font{..} = lookupFont' fontmap tFontKey
---     laySetMaxParaLines fDetachedLayout tMaxParaLines
---     d ∷ Di (Unit PU) ← layRunTextForSize fDetachedLayout fDΠ defaultWidth text -- XXX/GHC/inference: weak
---     pure $ fromPU ∘ fromUnit fDΠ <$> d
 
 -- Problem statement:
 

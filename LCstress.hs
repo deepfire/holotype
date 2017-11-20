@@ -97,14 +97,14 @@ experiment scen n store dMesh = do
     ManMesh → do
       GL.disposeMesh     mesh
     ManMeshObj → do
-      object ← GL.addMeshToObjectArray store "canvasStream" ["canvasMtl"] mesh
+      object ← GL.addMeshToObjectArray store "portStream" ["portMtl"] mesh
       GL.removeObject          store  object
       GL.disposeMesh     mesh
     AutoMesh → do
       SMem.addFinalizer  mesh $ do
         GL.disposeMesh   mesh
     AutoMeshObj → do
-      object ← GL.addMeshToObjectArray store "canvasStream" ["canvasMtl"] mesh
+      object ← GL.addMeshToObjectArray store "portStream" ["portMtl"] mesh
       SMem.addFinalizer               object $ do
         printf "running finalizer, n=%d\n" n
         GL.removeObject        store  object
@@ -155,7 +155,7 @@ main = do
   GL.glEnable GL.GL_FRAMEBUFFER_SRGB
   GLFW.swapInterval 0
 
-  glstorage ← GL.allocStorage $ pipelineSchema [("canvasStream", "canvasMtl")]
+  glstorage ← GL.allocStorage $ pipelineSchema [("portStream", "portMtl")]
 
   let pipelineJSON = "Holotype.json"
       pipelineSrc  = "Holotype.lc"

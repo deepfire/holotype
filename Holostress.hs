@@ -17,13 +17,13 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-type-defaults -Wno-unused #-}
+{-# OPTIONS_GHC -Wextra -Wno-unticked-promoted-constructors -Wno-type-defaults #-}
 
-import           Prelude.Unicode
+import           HoloPrelude
+import           Elsewhere
 
-import           Control.Monad                            (when)
+import qualified Data.List
 import qualified Data.Map                          as Map
-import           Data.List
 import qualified Data.Vector                       as V
 
 import           Linear
@@ -39,28 +39,22 @@ import qualified LambdaCube.GL.Input               as GL
 import qualified LambdaCube.Linear                 as LCLin
 import           LambdaCube.Mesh                   as LC
 
-import           Text.Printf                              (printf)
-
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
 
-import qualified System.Mem.Weak                   as SMem
-
 
-import Flatland
+import           Flatland
 
-import HoloCube
-import HoloCairo
-import HoloCanvas
-import HoloFont
-import HoloSettings
+import           HoloCube
+import           HoloCairo
 import qualified HoloCube                          as HC
-import qualified HoloSys                           as HS
+import qualified HoloOS                            as HOS
+import           HoloPort
 
 
 main ∷ IO ()
 main = do
-  HS.unbufferStdout
+  HOS.unbufferStdout
   _ ← GLFW.init
   GLFW.defaultWindowHints
   mapM_ GLFW.windowHint
@@ -74,23 +68,19 @@ main = do
   GL.glEnable GL.GL_FRAMEBUFFER_SRGB
   GLFW.swapInterval 0
 
-  (_renderer, stream@ObjectStream{..}) ← makeSimpleRenderedStream win (("canvasStream", "canvasMtl") ∷ (ObjArrayNameS, UniformNameS))
+  (_renderer, ObjectStream{..}) ← makeSimpleRenderedStream win (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))
 
   -- * Holo
-  stts@Settings{..}   ← defaultSettings
+  Settings{..}        ← defaultSettings
 
-  timeStart           ← HS.fromSec <$> HS.getTime
-  let style  = (In (CanvasS @PU "default")
-                 (In (RRectS { rrCLBezel = coGray 1 1, rrCDBezel = coGray 0.1 0.5, rrCBorder = coGray 0.5 1, rrCBG = coOpaq 0.1 0.1 0.5
-                             , rrThBezel = 2, rrThBorder = 5, rrThPadding = 16 })
-                   (TextS @PU "default" 7 $ coGray 1 1)))
-      text n        = [ T.pack $ printf "Object #%d:" n
+  timeStart           ← HOS.fromSec <$> HOS.getTime
+  let text n        = [ T.pack $ printf "Object #%d:" n
                       , "  Esc:           quit"
                       , "  F1:            toggle per-frame object stream"
                       , "  Editing keys:  edit"
                       , ""
                       , "Yay!"] ∷ [T.Text]
-      zipper = textZipper $ text (42 ∷ Int)
+      zipper = T.textZipper $ text (42 ∷ Int)
       dim@(Di (V2 w h)) = di 256 256
       navg = 10
       loop (iterN, timePre) avgPre preKB = do
@@ -137,10 +127,10 @@ main = do
         -- render vis
 
         --- do stats
-        timePreGC ← HS.fromSec <$> HS.getTime
-        HS.gc
-        new       ← HS.gcKBytesUsed
-        timePost  ← HS.fromSec <$> HS.getTime
+        timePreGC ← HOS.fromSec <$> HOS.getTime
+        HOS.gc
+        new       ← HOS.gcKBytesUsed
+        timePost  ← HOS.fromSec <$> HOS.getTime
         let dt     = timePost  - timePre
             nonGCt = timePreGC - timePre
             avgPost@(avgVal, _) = avgStep dt avgPre
@@ -151,13 +141,7 @@ main = do
                  iterN new (new - preKB) (ceiling $ (fromIntegral new / fromIntegral iterN) ∷ Int)
                  (avgVal ⋅ 1000) (nonGCt ⋅ 1000)
         loop (iterN + 1, timePost) avgPost new
-  loop (0 ∷ Integer, timeStart) (0.0, (navg, 0, [])) =<< HS.gcKBytesUsed
-
-textZipper ∷ [T.Text] → T.TextZipper T.Text
-textZipper = flip T.textZipper Nothing
-
-zipperText ∷ T.TextZipper T.Text → T.Text
-zipperText = T.dropEnd 1 ∘ T.unlines ∘ T.getText
+  loop (0 ∷ Integer, timeStart) (0.0, (navg, 0, [])) =<< HOS.gcKBytesUsed
 
 type Avg a = (Int, Int, [a])
 avgStep ∷ Fractional a ⇒ a → (a, Avg a) → (a, Avg a)

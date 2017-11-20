@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFunctor, DeriveFoldable, GeneralizedNewtypeDeriving, StandaloneDeriving #-}      -- Deriving
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable, GeneralizedNewtypeDeriving, StandaloneDeriving #-}      -- Deriving
 {-# LANGUAGE FlexibleInstances, GADTs, InstanceSigs, RankNTypes, ScopedTypeVariables #-}          -- Types
 {-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings, RecordWildCards #-}       -- Syntactic
 {-# LANGUAGE TemplateHaskell, TupleSections, UnicodeSyntax, ViewPatterns #-}
@@ -37,32 +37,31 @@ module Flex
   , basis
   -- * Item
   , Item(..), mkItem, mkItem'
+  --
+  , Place(..)
   , size
   , absolute
+  -- * Item
+  , Item(..), mkItem, _mkItem, _mkItem'
   , style
+  , place
   , area
   , child, children
-  , item
+  , this
   -- * Layout API
   , layout
   )
 where
 
-import           Control.Applicative
-import           Control.Applicative.Free
-import           Control.Lens                      hiding (children)
-import           Data.Maybe                               (fromMaybe)
-import           Data.Monoid                              ((<>))
-import qualified Data.Text.Lazy                    as TL
--- import           Data.Traversable
-import           Linear                            hiding (basis, trace)
-import           Prelude.Unicode
-import           Text.PrettyPrint.Leijen.Text      hiding ((<>), (<$>), space)
+import           HoloPrelude
 
--- import           Debug.Trace                              (trace)
-import           Text.Printf                              (printf)
-import Elsewhere
-import Flatland
+import qualified Data.Text.Lazy                    as TL
+import           Linear                            hiding (basis, trace)
+import           Prelude                           hiding (floor)
+import qualified Text.PrettyPrint.Leijen.Text      as WL
+
+import           Elsewhere
+import           Flatland
 
 
 -- * A language of Style
@@ -74,8 +73,13 @@ data LRTB a where
     , _top           ∷ a
     , _bottom        ∷ a
     } → LRTB a
-    deriving (Show)
+    deriving (Functor, Show)
 makeLenses ''LRTB
+
+instance Applicative LRTB where
+  pure x = LRTB x x x x
+  LRTB f0 f1 f2 f3 <*> LRTB v0 v1 v2 v3 =
+    LRTB (f0 v0) (f1 v1) (f2 v2) (f3 v3)
 
 data Alignment where
   AlignAuto          ∷ Alignment
@@ -142,42 +146,63 @@ defaultStyle = Style
   , _basis           = 0
   }
 
+instance Monoid Style where
+  mempty  = defaultStyle
+  mappend = error "Monoidal append not implemented for Flex.Style."
+
+data Place where
+  Place ∷
+    { _size          ∷ Di   (Maybe Double)
+    , _absolute      ∷ LRTB (Maybe Double)
+    } → Place
+    deriving (Show)
+makeLenses ''Place
+
+instance Monoid Place where
+  mempty
+    = Place { _size     = (Di $ V2 Nothing Nothing)
+            , _absolute = LRTB Nothing Nothing Nothing Nothing
+            }
+  Place ls la `mappend` Place rs ra
+    = Place (liftA2 (<|>) ls rs) (liftA2 (<|>) la ra)
+
 
 -- * The Item
 --
 data Item a where
   Item ∷
-    { _size               ∷ Di   (Maybe Double)
-    , _absolute           ∷ LRTB (Maybe Double)
-    , _style              ∷ Style
-    , _area               ∷ Area Double
-    , _children           ∷ [Item a]
-    , _item               ∷ a
+    { _style        ∷ Style
+    , _place        ∷ Place
+    , _area         ∷ Area Double
+    , _children     ∷ [Item a]
+    , _this         ∷ a
     } → Item a
-    deriving (Functor)
+    deriving (Functor, Foldable, Traversable)
 deriving instance Show a ⇒ Show (Item a)
 makeLenses ''Item
 
 child  ∷ Int → Traversal' (Item a) (Item a)
 child n = children ∘ ix n
 
-mkItem' ∷ Maybe Double → Maybe Double → [Item a] → a → Item a
-mkItem' width height _children _item =
-  let _size     = Di $ V2 width height
-      _absolute = LRTB Nothing Nothing Nothing Nothing
+mkItem ∷ a → [Item a] → Item a
+mkItem _item _children =
+  let _place    = mempty
       _style    = defaultStyle
       _area     = Area (po 0 0) (di 0 0)
   in Item{..}
 
-mkItem ∷ Double → Double → [Item a] → a → Item a
-mkItem width height = mkItem' (Just width) (Just height)
+_mkItem' ∷ Maybe Double → Maybe Double → a → [Item a] → Item a
+_mkItem' width height _item _children =
+  mkItem _item _children & place.size .~ (Di $ V2 width height)
+
+_mkItem ∷ Double → Double → a → [Item a] → Item a
+_mkItem width height = _mkItem' (Just width) (Just height)
 
 
 -- * Instances
 --
-instance Pretty a ⇒  Pretty (Item a) where
+instance Pretty a ⇒ Pretty (Item a) where
   pretty = unreadable "" ∘ pretty'item
-
 
 --
 -- * no user-serviceable parts below, except for the 'layout' function at the very bottom.
@@ -185,15 +210,15 @@ instance Pretty a ⇒  Pretty (Item a) where
 
 
 pretty'mdouble ∷ Maybe Double → Doc
-pretty'mdouble Nothing  = char '*'
-pretty'mdouble (Just x) = double x
+pretty'mdouble Nothing  = WL.char '*'
+pretty'mdouble (Just x) = WL.double x
 
 pretty'mdi ∷ Di (Maybe Double) → Doc
 pretty'mdi (Di (V2 ma mb)) = pretty'mdouble ma <:> pretty'mdouble mb
 
 pretty'item ∷ Item a → Doc
-pretty'item Item{..} = text "Item size:"
-  <>  pretty'mdi _size
+pretty'item Item{..} = WL.text "Item size:"
+  <>  pretty'mdi (_size _place)
   <+> pretty'Area _area
 
 
@@ -252,16 +277,16 @@ makeLenses ''Layout
 
 pretty'layout ∷ Layout → Doc
 pretty'layout Layout{..} =
-  let axes  = text $ showTL (fromMajor _la'major) <> ":" <> showTL (fromMinor _la'minor)
-      wrap  = if _la'wrap then text " Wrap" else mempty
-      dir   = text $ TL.take 4 $ showTL _la'vertical
-      revMj = text $ (<>) "Maj" $ TL.take 4 $ showTL _la'reverse
-      revMi = text $ (<>) "Min" $ TL.take 4 $ showTL _la'reverse2
-  in text "Layout " <> wrap <+> axes <+> dir <+> revMj <+> revMi
-     <+> text ("par:" <> ppV2 (V2 _la'size'dim _la'align'dim))
-     <+> text ("chi:" <> ppV2 (V2 _la'flex'dim _la'line'dim))
-     <+> text ("g/s:"  <> ppV2 (V2 _la'flex'grows _la'flex'shrinks))
-     <+> text ("pos2:") <> double _la'pos2
+  let axes  = WL.text $ showTL (fromMajor _la'major) <> ":" <> showTL (fromMinor _la'minor)
+      wrap  = if _la'wrap then WL.text " Wrap" else mempty
+      dir   = WL.text $ TL.take 4 $ showTL _la'vertical
+      revMj = WL.text $ (<>) "Maj" $ TL.take 4 $ showTL _la'reverse
+      revMi = WL.text $ (<>) "Min" $ TL.take 4 $ showTL _la'reverse2
+  in WL.text "Layout " <> wrap <+> axes <+> dir <+> revMj <+> revMi
+     <+> WL.text ("par:" <> ppV2 (V2 _la'size'dim _la'align'dim))
+     <+> WL.text ("chi:" <> ppV2 (V2 _la'flex'dim _la'line'dim))
+     <+> WL.text ("g/s:"  <> ppV2 (V2 _la'flex'grows _la'flex'shrinks))
+     <+> WL.text ("pos2:") <> WL.double _la'pos2
 
 instance Pretty Layout where
   pretty = unreadable "" ∘ pretty'layout
@@ -416,7 +441,7 @@ layout_item p@Item{..} =
             abs'pos  (Just pos1) _           _          _   = pos1
             abs'pos   Nothing   (Just pos2) (Just size) dim = dim - size - pos2
             abs'pos   _          _           _          _   = 0
-            (pos, dim) = (c^.absolute, c^.size)
+            (pos, dim) = (c^.place.absolute, c^.place.size)
             c' = c & area .~ Area (Po $ V2 (abs'pos  (pos^.left) (pos^.right) (dim^.di'd X) (cstr^.di'd X))
                                            (abs'pos  (pos^.top)  (pos^.bottom) (dim^.di'd Y) (cstr^.di'd Y)))
                                   (Di $ V2 (abs'size (dim^.di'd X) (pos^.left) (pos^.right) (cstr^.di'd X))
@@ -425,8 +450,8 @@ layout_item p@Item{..} =
         in assign'sizes rest l (c':sized) positioned
       assign'sizes (c:rest) l@Layout{..} sized positioned =
         let c'size  = fromMaybe 0 $ partial (>0) (c^.style.basis) <|>
-                                                 (c^.size.di'd (fromMajor _la'major))
-            c'size2 = flip fromMaybe (c^.size.di'd (fromMinor _la'minor))
+                                                 (c^.place.size.di'd (fromMajor _la'major))
+            c'size2 = flip fromMaybe (c^.place.size.di'd (fromMinor _la'minor))
                                      (cstr^.di'd (if _la'vertical ≡ Vertical then X else Y) -
                                       item'marginLT c _la'vertical Forward -
                                       item'marginRB c _la'vertical Forward)
@@ -483,4 +508,24 @@ layout_item p@Item{..} =
 --   Size is taken from the 'item', origin is fixed to 0:0.
 layout ∷ Item a → Item a
 layout x = layout_item $
-  x & area.area'b .~ (fromMaybe (error "Root missing coord.") <$> x^.size)
+  x & area.area'b .~ (fromMaybe (error "Root missing coord.") <$> x^.place.size)
+
+
+-- * Playground
+--
+type Ty = (Style, Di Double)
+
+root ∷ Item ()
+root = layout $
+  _mkItem 100 100 () cs
+
+cs ∷ [Item a]
+cs = []
+
+
+-- `π` ≡ preimage
+-- π ∷ 
+-- π = (,) (defaultStyle & )
+--     $ di 10 10
+
+-- proof ∷ Item 

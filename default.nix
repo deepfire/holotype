@@ -6,13 +6,14 @@
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir
 , lambdacube-quake3, lens, linear, lub, metamorphic, MissingH
 , monadplus, MonadRandom, mono-traversable, mtl, OpenGL, OpenGLRaw
-, pretty, pretty-show, primitive, profunctors, proteaaudio
+, parsers, pretty, pretty-show, primitive, profunctors, proteaaudio
 , QuickCheck, random, rapid, ref-tf, reflex, semigroupoids
 , semigroups, stdenv, stm, tasty, tasty-discover
 , tasty-expected-failure, tasty-hedgehog, tasty-hspec, tasty-hunit
 , tasty-quickcheck, tasty-smallcheck, text, text-format, text-lens
-, text-zipper, these, transformers, tuple, unordered-containers
-, vect, vector, wl-pprint-extras, wl-pprint-text
+, text-zipper, these, transformers, trifecta, tuple
+, unordered-containers, vect, vector, wl-pprint-extras
+, wl-pprint-text
 }:
 mkDerivation {
   pname = "holotype";
@@ -27,12 +28,12 @@ mkDerivation {
     hashable haskell-gi-base hedgehog hspec hxt JuicyPixels
     lambdacube-compiler lambdacube-gl lambdacube-ir lambdacube-quake3
     lens linear lub metamorphic MissingH monadplus MonadRandom
-    mono-traversable mtl OpenGL OpenGLRaw pretty pretty-show primitive
-    profunctors proteaaudio QuickCheck random rapid ref-tf reflex
-    semigroupoids semigroups stm tasty tasty-expected-failure
+    mono-traversable mtl OpenGL OpenGLRaw parsers pretty pretty-show
+    primitive profunctors proteaaudio QuickCheck random rapid ref-tf
+    reflex semigroupoids semigroups stm tasty tasty-expected-failure
     tasty-hedgehog tasty-hspec tasty-hunit tasty-quickcheck
     tasty-smallcheck text text-format text-lens text-zipper these
-    transformers tuple unordered-containers vect vector
+    transformers trifecta tuple unordered-containers vect vector
     wl-pprint-extras wl-pprint-text
   ];
   executableHaskellDepends = [

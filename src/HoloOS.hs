@@ -5,7 +5,7 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors #-}
 
-module HoloSys
+module HoloOS
   (
     Sec(..), getTime
   , gc, gcKBytesUsed

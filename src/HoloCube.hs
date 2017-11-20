@@ -1,36 +1,32 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs, StrictData #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase, OverloadedStrings, PackageImports, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators #-}
+{-# LANGUAGE BangPatterns, LambdaCase, OverloadedStrings, PackageImports, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module HoloCube
   ( ObjectStream(..), Renderer(..)
-  , makeSimpleRenderedStream              -- used by HoloType
+  , makeSimpleRenderedStream
+  , rendererShutdown
   , ObjArrayNameS(..)
-  , UniformNameS(..), unameStr            -- used by HoloCanvas
+  , UniformNameS(..), unameStr
   , Frame(..)
-  , rendererSetupFrame, rendererDrawFrame -- used by HoloType
+  , rendererSetupFrame, rendererDrawFrame
   --
-  , uploadTexture2DToGPU''''              -- used by HoloCanvas
+  , uploadTexture2DToGPU''''
   )
 where
 
 -- Basis
+import           HoloPrelude
 import           Prelude                           hiding ((.), id)
-import           Prelude.Unicode
-import           Control.Lens
 
 -- Generic
-import           Control.Monad                            (unless, when, filterM)
-import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
 import           Data.Map                                 (Map)
 import qualified Data.Map                          as Map
-import           Data.Maybe
-import           Data.String
-import           Text.Printf                              (printf)
+import qualified Data.Maybe
 
 -- Algebra
 import           Linear
@@ -55,14 +51,13 @@ import "GLFW-b"  Graphics.UI.GLFW                  as GLFW
 import           Graphics.GL.Core33                as GL
 
 -- LambdaCube
-import           GameEngine.Data.Material          as Q3
 import qualified GameEngine.Utils                  as Q3
 import qualified LambdaCube.Compiler               as LCC
 import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Type                as GL
 
 -- Local imports
-import Flatland
+import           Flatland
 
 
 -- | Render context for all objects with the same GL pipeline.
@@ -134,7 +129,7 @@ data Renderer where
     , rWindow     ∷ GLFW.Window
     } → Renderer
 
--- | A GL 'Frame' to display a Cairo-capable 'Drawable'.
+-- | A GL 'Frame'.
 data Frame where
   Frame ∷
     { fDim ∷ Di Int
@@ -158,17 +153,17 @@ makeRenderer rWindow ous = liftIO $ do
     unless success $
       fail "FATAL: failed to compile the GPU pipeline."
     renderer' ← bindPipeline rGLStorage pipelineJSON
-    unless (isJust renderer') $
+    unless (Data.Maybe.isJust renderer') $
       fail "FATAL: failed to bind the compiled GPU pipeline."
-    let rGLRenderer = fromJust renderer'
+    let rGLRenderer = Data.Maybe.fromJust renderer'
 
     mFailure ← GL.setStorage rGLRenderer rGLStorage
     pure $ case mFailure of -- XXX/expressivity: there ought to be some kind of a standard Maybe-to-Either transform..
       Just failure → Left failure
       Nothing      → Right Renderer{..}
 
-shutdownRenderer ∷ (MonadIO m) ⇒ Renderer → m ()
-shutdownRenderer Renderer{..} = liftIO $ do
+rendererShutdown ∷ (MonadIO m) ⇒ Renderer → m ()
+rendererShutdown Renderer{..} = liftIO $ do
   GL.disposeRenderer rGLRenderer
   GLFW.destroyWindow rWindow
 
@@ -176,8 +171,8 @@ rStream ∷ Renderer → (ObjArrayNameS, UniformNameS) → Maybe ObjectStream
 rStream Renderer{..} = flip Map.lookup rStreams
 
 makeSimpleRenderedStream ∷ (MonadIO m) ⇒ GLFW.Window → (ObjArrayNameS, UniformNameS) → m (Renderer, ObjectStream)
-makeSimpleRenderedStream rWindow streamDesc = do
-  rend' ← makeRenderer rWindow [streamDesc]
+makeSimpleRenderedStream glWindow streamDesc = do
+  rend' ← makeRenderer glWindow [streamDesc]
   let rend@Renderer{..} = case rend' of
                             Left failure → error $ printf "FATAL: failed to create a renderer: %s" failure
                             Right r → r
@@ -205,20 +200,20 @@ rendererDrawFrame Renderer{..} = liftIO $ do
   GLFW.swapBuffers rWindow
 
 
--- * Shader attributery
-canvasCommonAttrs ∷ UniformNameS → CommonAttrs
-canvasCommonAttrs uname =
-  Q3.defaultCommonAttrs
-  { caSort   = 10.0
-  , caStages =
-    [ Q3.defaultStageAttrs
-      { saTexture        = ST_ClampMap ∘ SB.unpack ∘ fromUNS $ uname
-      , saTextureUniform = SB.unpack $ fromUNS uname
-      , saBlend          = Just ( B_SrcAlpha , B_OneMinusSrcAlpha )
-      , saTCGen          = TG_Base
-      , saDepthWrite     = True
-      , saRGBGen         = RGB_IdentityLighting
-      }]}
+-- * Shader attributery (XXX: unused)
+-- canvasCommonAttrs ∷ UniformNameS → CommonAttrs
+-- canvasCommonAttrs uname =
+--   Q3.defaultCommonAttrs
+--   { caSort   = 10.0
+--   , caStages =
+--     [ Q3.defaultStageAttrs
+--       { saTexture        = ST_ClampMap ∘ SB.unpack ∘ fromUNS $ uname
+--       , saTextureUniform = SB.unpack $ fromUNS uname
+--       , saBlend          = Just ( B_SrcAlpha , B_OneMinusSrcAlpha )
+--       , saTCGen          = TG_Base
+--       , saDepthWrite     = True
+--       , saRGBGen         = RGB_IdentityLighting
+--       }]}
 
 
 -- * GL Toolkit

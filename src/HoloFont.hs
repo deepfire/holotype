@@ -9,12 +9,15 @@ module HoloFont
   ( Font(..), FKind(..)
   , FontSizeRequest(..)
   , FamilyName, FaceName
+  , LayoutHeightLimit(..)
+  , TextSizeSpec(..), tssWidth, tssHeight
 
   -- * Query
   , fmDefault
   , fmFamilies, fmResolution
   , ffamName, ffamFaces
-  , ffacName, ffacPISizes
+  , ffaceName, ffacePISizes
+  , fontQuerySize
 
   -- * Main API
   , validateFont, chooseFont, bindFont
@@ -23,7 +26,7 @@ module HoloFont
   , fdSetSize
 
   -- * Text
-  , makeTextLayout, laySetWidth, laySetHeight, laySetSize, layGetSize, laySetMaxParaLines
+  , makeTextLayout, laySetWidth, laySetHeight, laySetSize, layGetSize, laySetHeightLimit
   , layPrintLimits , layRunTextForSize
   , layDrawText
 
@@ -34,23 +37,19 @@ module HoloFont
 where
 
 -- Basis
+import           HoloPrelude                       hiding ((.))
 import           Prelude                           hiding (fail)
-import           Prelude.Unicode
 import           Control.Arrow                            ((***))
-import           Control.Lens
-import           GHC.Stack
 
 -- Types
 import           Control.Monad                            (foldM)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import           Data.Either
 import           Data.Either.Extra
-import           Data.List
 import           Data.Map                                 (Map)
 import           Data.Ord
 import qualified Data.Map                          as Map
 import           Data.Maybe                               (fromMaybe)
-import           Data.String                              (IsString)
 import           Data.Text                         as T   (Text, unpack)
 
 -- Algebra
@@ -113,7 +112,7 @@ instance Show GIPC.FontMap where
 instance Show GIP.FontFamily where
   show = printf "FontFamily { name = '%s' }" ∘ ffamName
 instance Show GIP.FontFace where
-  show = printf "FontFace { name = '%s' }" ∘ ffacName
+  show = printf "FontFace { name = '%s' }" ∘ ffaceName
 
 fmDefault ∷ GIPC.FontMap
 fmDefault = GIPC.fontMapGetDefault & UN.unsafePerformIO
@@ -140,10 +139,10 @@ ffamName = UN.unsafePerformIO ∘ GIP.fontFamilyGetName
 ffamFaces ∷ GIP.FontFamily → [GIP.FontFace]
 ffamFaces = UN.unsafePerformIO ∘ GIP.fontFamilyListFaces
 
-ffacName ∷ GIP.FontFace → Text
-ffacName = UN.unsafePerformIO ∘ GIP.fontFaceGetFaceName
-ffacPISizes ∷ GIP.FontFace → Maybe [Unit PUI]
-ffacPISizes fface = (fromIntegral <$>) <$> (UN.unsafePerformIO (GIP.fontFaceListSizes fface))
+ffaceName ∷ GIP.FontFace → Text
+ffaceName = UN.unsafePerformIO ∘ GIP.fontFaceGetFaceName
+ffacePISizes ∷ GIP.FontFace → Maybe [Unit PUI]
+ffacePISizes fface = (fromIntegral <$>) <$> (UN.unsafePerformIO (GIP.fontFaceListSizes fface))
 
 
 -- * Font sizes
@@ -157,10 +156,10 @@ fdSetSize fd (PUIs is)  = GIP.fontDescriptionSetAbsoluteSize fd $ fromIntegral i
 fdSetSize fd (Pts  pts) = GIP.fontDescriptionSetSize         fd $ pts * GIP.SCALE
 
 data FontSizeRequest u where
-  FSROutline ∷ FromUnit (Unit u) ⇒
+  FSROutline ∷ FromUnit u ⇒
     { fsValue   ∷ Unit u
     } → FontSizeRequest u
-  FSRBitmap  ∷ FromUnit (Unit u) ⇒
+  FSRBitmap  ∷ FromUnit u ⇒
     { fsValue   ∷ Unit u
     , fsbPolicy ∷ Ordering
     } → FontSizeRequest u
@@ -194,6 +193,7 @@ data Font (k ∷ FKind) u where
     , fFaceName        ∷ FaceName
     , fSize            ∷ Unit u
     , fDΠ              ∷ DΠ
+    , fMaxHeight       ∷ He (Unit u)
     --
     , fDesc            ∷ GIP.FontDescription
     , fFontMap         ∷ GIPC.FontMap
@@ -219,27 +219,27 @@ instance Eq   (Font Spec  u) where
   FontSpec famnl facnl fsrl          == FontSpec famnr facnr fsrr =
     famnl ≡ famnr ∧ facnl ≡ facnr ∧ fsrl ≡ fsrr
 instance Eq   (Font Found u) where
-  Font famnl facnl fszl fdπl _ _ _ _ == Font famnr facnr fszr fdπr _ _ _ _ =
+  Font famnl facnl fszl fdπl _ _ _ _ _ == Font famnr facnr fszr fdπr _ _ _ _ _ =
     famnl ≡ famnr ∧ facnl ≡ facnr ∧ fszl ≡ fszr ∧ fdπl ≡ fdπr
 instance Eq   (Font Bound u) where
   FontBinding fl _                   == FontBinding fr _ =
     fl ≡ fr
 
-validateFont ∷ (MonadIO m) ⇒ FromUnit (Unit u) ⇒ GIPC.FontMap → Font Spec u → m (Either String (Font Found u))
+validateFont ∷ (MonadIO m) ⇒ FromUnit u ⇒ GIPC.FontMap → Font Spec u → m (Either String (Font Found u))
 validateFont fFontMap (FontSpec
                        fFamilyName@(FamilyName ffamname)
                        fFaceName@(FaceName ffacename)
                        fSizeRequest) =
   let fams  = filter ((≡ ffamname)  ∘ ffamName) $ fmFamilies fFontMap
-      faces = filter ((≡ ffacename) ∘ ffacName) $ concat $ ffamFaces <$> fams
+      faces = filter ((≡ ffacename) ∘ ffaceName) $ concat $ ffamFaces <$> fams
       fDΠ   = fmResolution fFontMap
       fPI   = fromUnit fDΠ $ fsValue fSizeRequest
   in case (fams, faces) of
-    ([],_)           → pure ∘ Left $ printf "Missing font family '%s'." ffamname
-    (_:_,[])      → pure ∘ Left $ printf "No face '%s' in family '%s'." ffacename ffamname
+    ([],_)   → pure ∘ Left $ printf "Missing font family '%s'." ffamname
+    (_:_,[]) → pure ∘ Left $ printf "No face '%s' in family '%s'." ffacename ffamname
     (_:_,(fFace ∷ GIP.FontFace):_) → do
       fDesc  ← GIP.fontFaceDescribe fFace
-      let mayfPISizes = ffacPISizes fFace
+      let mayfPISizes = ffacePISizes fFace
           eifSizeFail = case (fSizeRequest, mayfPISizes) of
             (FSROutline fs, Nothing)       → Right fs -- Outline font was requested, and was obtained: we can request any size
             (FSROutline fs, Just fPISizes) →
@@ -259,6 +259,10 @@ validateFont fFontMap (FontSpec
                        Just sz → Right $ fromUnit fDΠ sz
               where failure = printf "Bitmap font face '%s' of family '%s' does not have font sizes matching policy %s against size %s, among %s."
                               ffacename ffamname (show policy) (show $ fromPU $ fromUnit fDΠ fPI) (show $ (fromPU ∘ fromUnit fDΠ) <$> fPISizes)
+          fontQueryMaxHeight ∷ ∀ m u. (MonadIO m, FromUnit u) ⇒ GIP.Layout → m (He (Unit u))
+          fontQueryMaxHeight fDetachedLayout = do
+            laySetHeightLimit fDetachedLayout OneLine
+            He ∘ (^.di'v._y) <$> layRunTextForSize fDetachedLayout fDΠ (Nothing ∷ Maybe (Wi (Unit u))) "ly"
       case eifSizeFail of
         Left failure → pure $ Left failure
         Right  fSize → do
@@ -267,11 +271,13 @@ validateFont fFontMap (FontSpec
           GIP.contextSetFontDescription    fDetachedContext fDesc
           GIPC.contextSetResolution        fDetachedContext (fromDΠ fDΠ)
           fDetachedLayout ← makeTextLayout fDetachedContext
+          fMaxHeight ← fontQueryMaxHeight fDetachedLayout
           pure $ Right $ Font{..}
 
-chooseFont ∷ (MonadIO m) ⇒ FromUnit (Unit u) ⇒ GIPC.FontMap → [Font Spec u] → m (Maybe (Font Found u), [String])
+
+chooseFont ∷ (MonadIO m) ⇒ FromUnit u ⇒ GIPC.FontMap → [Font Spec u] → m (Maybe (Font Found u), [String])
 chooseFont fMap freqs = loop freqs []
-  where loop ∷ (MonadIO m) ⇒ FromUnit (Unit u) ⇒ [Font Spec u] → [String] → m (Maybe (Font Found u), [String])
+  where loop ∷ (MonadIO m) ⇒ FromUnit u ⇒ [Font Spec u] → [String] → m (Maybe (Font Found u), [String])
         loop [] failures  = pure (Nothing, failures)
         loop (fr:rest) fs = validateFont fMap fr
                             >>= (\case
@@ -285,6 +291,60 @@ bindFont fbFont@Font{..} gic = do
   GIPC.contextSetResolution     fbContext (fromDΠ fDΠ)
   pure FontBinding{..}
 
+-- | 'LayoutHeightLimit', quoting Pango documentation:
+--
+-- @height: the desired height of the layout in Pango units if positive,
+--          or desired number of lines if negative.
+
+-- Sets the height to which the #PangoLayout should be ellipsized at.  There
+-- are two different behaviors, based on whether @height is positive or
+-- negative.
+--
+-- If @height is positive, it will be the maximum height of the layout.  Only
+-- lines would be shown that would fit, and if there is any text omitted,
+-- an ellipsis added.  At least one line is included in each paragraph regardless
+-- of how small the height value is.  A value of zero will render exactly one
+-- line for the entire layout.
+--
+-- If @height is negative, it will be the (negative of) maximum number of lines per
+-- paragraph.  That is, the total number of lines shown may well be more than
+-- this value if the layout contains multiple paragraphs of text.
+-- The default value of -1 means that first line of each paragraph is ellipsized.
+-- ...
+-- Height setting only has effect if a positive width is set on
+-- @layout and ellipsization mode of @layout is not %PANGO_ELLIPSIZE_NONE.
+-- The behavior is undefined if a height other than -1 is set and
+-- ellipsization mode is set to %PANGO_ELLIPSIZE_NONE, and may change in the
+-- future.
+data LayoutHeightLimit where
+  OneLine   ∷ LayoutHeightLimit
+  ParaLines ∷ Int → LayoutHeightLimit
+  Units     ∷ Unit PUI → LayoutHeightLimit
+  deriving (Eq, Show)
+
+instance Monoid LayoutHeightLimit where
+  mempty      = OneLine
+  mappend l r = choosePartially OneLine l r
+
+data TextSizeSpec u where
+  TextSizeSpec ∷ FromUnit u ⇒
+    { _tssWidth  ∷ Maybe (Wi (Unit u))
+    , _tssHeight ∷ LayoutHeightLimit
+    } → TextSizeSpec u
+
+tssWidth  ∷ Lens' (TextSizeSpec u) (Maybe (Wi (Unit u)))
+tssWidth  f (TextSizeSpec w h) = flip TextSizeSpec h <$> f w
+tssHeight ∷ Lens' (TextSizeSpec u) LayoutHeightLimit
+tssHeight f (TextSizeSpec w h) =      TextSizeSpec w <$> f h
+
+fontQuerySize ∷ (HasCallStack, MonadIO m, FromUnit u) ⇒ Font Found u → TextSizeSpec u → Maybe T.Text → m (Either T.Text (Di (Unit u)))
+fontQuerySize _ TextSizeSpec{_tssWidth=Nothing} Nothing = pure $ Left "Invariant failed: text size underconstrained."
+fontQuerySize Font{..} TextSizeSpec{_tssWidth=Just wi} Nothing =
+  pure $ Right $ di wi fMaxHeight
+fontQuerySize Font{..} TextSizeSpec{..} (Just text) = do
+  laySetHeightLimit fDetachedLayout _tssHeight
+  Right <$> layRunTextForSize fDetachedLayout fDΠ _tssWidth text
+
 
 -- * Text
 makeTextLayout ∷ (MonadIO m) ⇒ GIP.Context → m (GIP.Layout)
@@ -294,27 +354,31 @@ makeTextLayout gipc = do
   GIP.layoutSetEllipsize gip GIP.EllipsizeModeEnd
   pure gip
 
-laySetWidth ∷ (MonadIO m) ⇒ FromUnit (Unit s) ⇒ GIP.Layout → DΠ → Wi (Unit s) → m ()
+laySetWidth ∷ (MonadIO m) ⇒ FromUnit s ⇒ GIP.Layout → DΠ → Wi (Unit s) → m ()
 laySetWidth lay dπ (Wi sz) = do
   let csz = fromPUI $ fromUnit dπ sz
   GIP.layoutSetWidth lay csz
 
-laySetHeight ∷ (MonadIO m) ⇒ FromUnit (Unit s) ⇒ GIP.Layout → DΠ → Wi (Unit s) → m ()
+laySetHeight ∷ (MonadIO m) ⇒ FromUnit s ⇒ GIP.Layout → DΠ → Wi (Unit s) → m ()
 laySetHeight lay dπ (Wi sz) = do
   let csz = fromPUI $ fromUnit dπ sz
   GIP.layoutSetHeight lay csz
 
-laySetMaxParaLines ∷ (MonadIO m) ⇒ GIP.Layout → Int → m ()
-laySetMaxParaLines lay maxParaLines = do
-  GIP.layoutSetHeight lay $ fromIntegral (-1 ⋅ abs maxParaLines)
+laySetHeightLimit ∷ (MonadIO m) ⇒ GIP.Layout → LayoutHeightLimit → m ()
+laySetHeightLimit lay limit = do
+  GIP.layoutSetHeight lay $
+    case limit of
+      OneLine   → 0
+      ParaLines x → fromIntegral (-1 ⋅ abs x)
+      Units     x → fromIntegral $ fromPUI x
 
-laySetSize ∷ (MonadIO m) ⇒ FromUnit (Unit s) ⇒ GIP.Layout → DΠ → Di (Unit s) → m ()
+laySetSize ∷ (MonadIO m) ⇒ FromUnit s ⇒ GIP.Layout → DΠ → Di (Unit s) → m ()
 laySetSize lay dπ sz = do
   let (Di (V2 cx cy)) = fromPUI ∘ fromUnit dπ <$> sz
   GIP.layoutSetWidth  lay cx
   GIP.layoutSetHeight lay cy
 
-layGetSize ∷ (MonadIO m) ⇒ FromUnit (Unit s) ⇒ GIP.Layout → DΠ → m (Di (Unit s))
+layGetSize ∷ (MonadIO m) ⇒ FromUnit s ⇒ GIP.Layout → DΠ → m (Di (Unit s))
 layGetSize lay dπ = do
   (pix, piy) ← GIP.layoutGetPixelSize lay
   pure $ Di $ V2 (fromUnit dπ $ PUs $ fromIntegral pix) (fromUnit dπ $ PUs $ fromIntegral piy)
@@ -325,10 +389,12 @@ layPrintLimits key lay = do
   h ← GIP.layoutGetHeight lay
   liftIO $ printf "-- %s  limw: %s, limh: %s\n" key (show w) (show h)
 
-layRunTextForSize ∷ (MonadIO m) ⇒ (FromUnit (Unit s), FromUnit (Unit t)) ⇒
-                    GIP.Layout → DΠ → Wi (Unit s) → Text → m (Di (Unit t))
-layRunTextForSize lay dπ width text = do
-  laySetWidth       lay dπ width
+layRunTextForSize ∷ (MonadIO m) ⇒ (FromUnit s, FromUnit t) ⇒
+                    GIP.Layout → DΠ → Maybe (Wi (Unit s)) → Text → m (Di (Unit t))
+layRunTextForSize lay dπ mWidth text = do
+  case mWidth of
+    Nothing    → pure ()
+    Just width → laySetWidth lay dπ width
   GIP.layoutSetText lay text (-1)
   sz ← layGetSize        lay dπ
   -- liftIO $ printf "LRTFS '%s' w=%s → %s\n" text (show $ width^.wiV) (show $ sz^.diV)
@@ -364,7 +430,7 @@ data FontMap u where
     } → FontMap u
 deriving instance Show (FontMap u)
 
-makeFontMap ∷ (MonadIO m) ⇒ FromUnit (Unit u) ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → m (FontMap u)
+makeFontMap ∷ (MonadIO m) ⇒ FromUnit u ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → m (FontMap u)
 makeFontMap dπ gipcFM (FontPreferences prefsAndAliases) =
                          foldM resolvePrefs Map.empty ((id *** fromRight (⊥)) <$> prefs)
   <&> FontMap dπ ∘ flip (foldl resolveAlias)          ((id *** fromLeft  (⊥)) <$> aliases)

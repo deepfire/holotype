@@ -8,7 +8,7 @@
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
 module FlatDraw
   ( -- * Colors
-    coOpaq, coGray, coMult
+    opaque, white, gray, black, red, green, blue, coMult
   , coSetSourceColor, coGradientSet
   , coPatternGradLinear, coWithMaybePatternGradLinear, coPatternGradRadial
 
@@ -41,15 +41,6 @@ import Flatland
 
 
 -- * Colors
-coOpaq ∷ Num a ⇒ a → a → a → Co a
-coOpaq r g b = Co $ V4 r g b 1
-
-coGray ∷ a → a → Co a
-coGray x a = Co $ V4 x x x a
-
-coMult ∷ Num a ⇒ a → Co a → Co a
-coMult x (Co (V4 r g b a)) = Co $ V4 (r*x) (g*x) (b*x) a
-
 coSetSourceColor ∷ Co Double → GRCI.Render ()
 coSetSourceColor !(Co (V4 r g b a))
   = GRC.setSourceRGBA r g b a
