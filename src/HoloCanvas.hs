@@ -63,11 +63,11 @@ import           GameEngine.Utils                  as Q3
 import Elsewhere
 import Flatland
 import FlatDraw
+import Flex
 import HoloFont
 import HoloCairo
 import qualified HoloCube                          as HC
 import HoloSettings
-import Space
 
 
 -- | A Cairo-capable 'Drawable' to display on a GL 'Frame'.
@@ -158,12 +158,12 @@ dpx (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >>
 -- type DrawableSpace p d = Space             p Double d
 -- type WidgetSpace     d = DrawableSpace False        d
 
-class Show (StyleOf a) ⇒ Element a where
-  type StyleOf a = (r ∷ Type) | r → a
-  type Content a ∷ Type
-  type Depth   a ∷ Nat
+-- class Show (StyleOf a) ⇒ Element a where
+--   type StyleOf a = (r ∷ Type) | r → a
+--   type Content a ∷ Type
+--   type Depth   a ∷ Nat
 
-class Element w ⇒ Widget w where
+-- class Element w ⇒ Widget w where
   -- | Query size: style meets content → compute spatial parameters.
   -- query          ∷ (MonadIO m) ⇒ Settings PU           → StyleOf w → Content w → m (DrawableSpace False (Depth w))
   -- -- | Add target and space: given a drawable and a pinned space, prepare for 'render'.
@@ -189,27 +189,27 @@ class Element w ⇒ Widget w where
 -- Different instances of composition compose different kinds of widgets.
 -- Applicative much?
 
-data In o i where
-  In ∷ --(Widget wo, Widget wi, StyleOf wo ~ o, StyleOf wi ~ i) ⇒ -- disabled by XXX/recursive pain
-    { insideOf ∷ o
-    , internal ∷ i
-    } → In o i
-deriving instance (Show o, Show i) ⇒ Show (In o i)
+-- data In o i where
+--   In ∷ --(Widget wo, Widget wi, StyleOf wo ~ o, StyleOf wi ~ i) ⇒ -- disabled by XXX/recursive pain
+--     { insideOf ∷ o
+--     , internal ∷ i
+--     } → In o i
+-- deriving instance (Show o, Show i) ⇒ Show (In o i)
 
-data By o b where
-  By ∷ --(Widget wo, Widget wb, StyleOf wo ~ o, StyleOf wb ~ b) ⇒
-    { bOrigin  ∷ o
-    , bOrient  ∷ Orient Card
-    , bBeside  ∷ b
-    } → By o b
-deriving instance (Show o, Show b) ⇒ Show (By o b)
+-- data By o b where
+--   By ∷ --(Widget wo, Widget wb, StyleOf wo ~ o, StyleOf wb ~ b) ⇒
+--     { bOrigin  ∷ o
+--     , bOrient  ∷ Orient Card
+--     , bBeside  ∷ b
+--     } → By o b
+-- deriving instance (Show o, Show b) ⇒ Show (By o b)
 
-data RRectS where
-  RRectS ∷
-    { rrCLBezel, rrCBorder, rrCDBezel, rrCBG ∷ Co Double
-    , rrThBezel, rrThBorder, rrThPadding ∷ Th Double
-    } → RRectS
-deriving instance Show RRectS
+-- data RRectS where
+--   RRectS ∷
+--     { rrCLBezel, rrCBorder, rrCDBezel, rrCBG ∷ Co Double
+--     , rrThBezel, rrThBorder, rrThPadding ∷ Th Double
+--     } → RRectS
+-- deriving instance Show RRectS
 
 
 -- * (): a null widget
@@ -263,57 +263,65 @@ deriving instance Show RRectS
 
 -- * Text
 --
-query'text'size ∷ Settings u → TextS u → T.Text → Di Double
-query'text'size Settings{..} TextS{..} text = XXX.unsafePerformIO $ do
-    let Font{..} = lookupFont' fontmap tFontKey
-    laySetMaxParaLines fDetachedLayout tMaxParaLines
-    d ∷ Di (Unit PU) ← layRunTextForSize fDetachedLayout fDΠ defaultWidth text -- XXX/GHC/inference: weak
-    pure $ fromPU ∘ fromUnit fDΠ <$> d
+-- query'text'size ∷ Settings u → TextS u → T.Text → Di Double
+-- query'text'size Settings{..} TextS{..} text = XXX.unsafePerformIO $ do
+--     let Font{..} = lookupFont' fontmap tFontKey
+--     laySetMaxParaLines fDetachedLayout tMaxParaLines
+--     d ∷ Di (Unit PU) ← layRunTextForSize fDetachedLayout fDΠ defaultWidth text -- XXX/GHC/inference: weak
+--     pure $ fromPU ∘ fromUnit fDΠ <$> d
 
-text ∷ (AreaDict d) ⇒ FontKey → Int → Co Double → Ap (C d) a
-text fk = lift .: TextS fk
+-- Problem statement:
 
-instance HasRequires (TextS u) where
-  -- requires _scrc _d = RProduct (Reqmt RAbsolute $ Reqt $ di 1 1) (Reqmt RAbsolute $ Reqt $ di 2 2)
-  -- * So, at 'requires' time we need:
-  --   - style and contents
-  --   - 
-  requires scrc TextS{..} =
-    RProduct min opt
-    where
-          min = Reqmt RAbsolute (⊥)
-          opt = Reqmt RAbsolute (⊥)
+--   1. Given:
+--      - a tree of boxy styles
+--      - with leaves:
+--        - font
+--        - content
+--        - style
+--   2. Build a tree of Flex Items
 
-text'canary ∷ (AreaDict d) ⇒ Ap (C d) a
-text'canary = layout (LU $ po 0 0) (Cstr $ di 10 10) text
+-- data TextStyle where
+--   TextStyle ∷
+--     { tsFontKey      ∷ FontKey
+--     , tsMaxParaLines ∷ Int
+--     , tsMaxLineChars ∷ Int
+--     , tsColor        ∷ Co Double
+--     } → TextS
+-- deriving instance Show TextStyle
 
-data TextS (u ∷ UnitK) where
-  TextS ∷
-    { tFontKey      ∷ FontKey
-    , tMaxParaLines ∷ Int
-    , tColor        ∷ Co Double
-    } → TextS u
-deriving instance Show (TextS u)
+-- data Element where
+--   Text ∷
+--     { _query'size   ∷ Element → Di Double
+--     , _style        ∷ Style
+--     , _style'text   ∷ TextStyle
+--     , _content'text ∷ Text
+--     } → Element
 
-data Text where
-  Text ∷
-    { -- tPSpace       ∷ DrawableSpace True 1
-    -- ,
-      tStyle        ∷ StyleOf Text
-    , tFont         ∷ Font Bound PU
-    , tLayout       ∷ GIP.Layout
-    , tTextRef      ∷ IO.IORef T.Text
-    } → Text
+-- text ∷ (AreaDict d) ⇒ FontKey → Int → Co Double → Ap (C d) a
+-- text fk = lift .: TextS fk
 
--- | Sets the text content of WText, but doesn't update its rendering.
-wtextSetText ∷ (MonadIO m) ⇒ Text → T.Text → m ()
-wtextSetText Text{..} textVal = liftIO $ IO.writeIORef tTextRef textVal
+-- text'canary ∷ (AreaDict d) ⇒ Ap (C d) a
+-- text'canary = layout (LU $ po 0 0) (Cstr $ di 10 10) text
 
-instance Element Text where
-  type  StyleOf Text = TextS PU
-  type  Content Text = T.Text
-  type    Depth Text = 1
-instance Widget Text where
+-- data Text where
+--   Text ∷
+--     { -- tPSpace       ∷ DrawableSpace True 1
+--     -- ,
+--       tStyle        ∷ StyleOf Text
+--     , tFont         ∷ Font Bound PU
+--     , tLayout       ∷ GIP.Layout
+--     , tTextRef      ∷ IO.IORef T.Text
+--     } → Text
+
+-- -- | Sets the text content of WText, but doesn't update its rendering.
+-- wtextSetText ∷ (MonadIO m) ⇒ Text → T.Text → m ()
+-- wtextSetText Text{..} textVal = liftIO $ IO.writeIORef tTextRef textVal
+
+-- instance Element Text where
+--   type  StyleOf Text = TextS PU
+--   type  Content Text = T.Text
+--   type    Depth Text = 1
+-- instance Widget Text where
   -- query Settings{..} TextS{..} initialText = do
   --   let Font{..} = lookupFont' fontmap tFontKey
   --   laySetMaxParaLines fDetachedLayout tMaxParaLines
