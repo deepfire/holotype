@@ -193,9 +193,10 @@ data Font (k ∷ FKind) u where
     { fFamilyName      ∷ FamilyName
     , fFaceName        ∷ FaceName
     , fSize            ∷ Unit u
+    , fDΠ              ∷ DΠ
+    --
     , fDesc            ∷ GIP.FontDescription
     , fFontMap         ∷ GIPC.FontMap
-    , fDΠ              ∷ DΠ
     , fDetachedContext ∷ GIP.Context
     , fDetachedLayout  ∷ GIP.Layout
     } → Font Found u
@@ -203,6 +204,7 @@ data Font (k ∷ FKind) u where
     { fbFont           ∷ Font Found u
     , fbContext        ∷ GIP.Context
     } → Font Bound u
+deriving instance Eq   (FontSizeRequest u)
 
 instance Show (Font Spec u) where
   show FontSpec{..} =
@@ -212,6 +214,16 @@ instance Show (Font Found u) where
   show Font{..} =
     printf "Font { family = %s, face = %s, size = %s }"
     (fromFamilyName fFamilyName) (fromFaceName fFaceName) (show fSize)
+
+instance Eq   (Font Spec  u) where
+  FontSpec famnl facnl fsrl          == FontSpec famnr facnr fsrr =
+    famnl ≡ famnr ∧ facnl ≡ facnr ∧ fsrl ≡ fsrr
+instance Eq   (Font Found u) where
+  Font famnl facnl fszl fdπl _ _ _ _ == Font famnr facnr fszr fdπr _ _ _ _ =
+    famnl ≡ famnr ∧ facnl ≡ facnr ∧ fszl ≡ fszr ∧ fdπl ≡ fdπr
+instance Eq   (Font Bound u) where
+  FontBinding fl _                   == FontBinding fr _ =
+    fl ≡ fr
 
 validateFont ∷ (MonadIO m) ⇒ FromUnit (Unit u) ⇒ GIPC.FontMap → Font Spec u → m (Either String (Font Found u))
 validateFont fFontMap (FontSpec
@@ -343,6 +355,7 @@ newtype FontAlias
 
 newtype FontPreferences u
   =     FontPreferences [(FontKey, Either FontAlias [Font Spec u])]
+  deriving (Eq, Show)
 
 data FontMap u where
   FontMap ∷
