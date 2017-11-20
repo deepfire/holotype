@@ -63,7 +63,7 @@ newtype PΠ = PΠ { pπVal ∷ Double } deriving (Num, Show)
 pπ ∷ PΠ
 pπ = 72
 
-newtype DΠ = DΠ { fromDΠ ∷ Double } deriving (Num, Show)
+newtype DΠ = DΠ { fromDΠ ∷ Double } deriving (Eq, Num, Show)
 
 -- $Note [Pango resolution & unit conversion]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -96,7 +96,6 @@ data Unit (u ∷ UnitK) where
   PUs    ∷ { fromPU    ∷ !(Element (Unit PU))    } → Unit PU    -- ^ Pango size, in device units -- aka pixels, as evidence overwhelmingly points to
   PUIs   ∷ { fromPUI   ∷ !(Element (Unit PUI))   } → Unit PUI   -- ^ Pango size, in device units, scaled by PANGO_SCALE
   Pts    ∷ { fromPt    ∷ !(Element (Unit Pt))    } → Unit Pt    -- ^ Pango size, in points (at 72ppi--see PΠ above--rate), device-agnostic
-  PRatio ∷ { fromRatio ∷ !(Element (Unit Ratio)) } → Unit Ratio -- ^ Relative
 type family UnitType a = r | r → a where
   UnitType (Unit PU)    = PU
   UnitType (Unit PUI)   = PUI
@@ -109,21 +108,15 @@ deriving instance Show (Unit u)
 instance Fractional (Unit PU) where
   fromRational x = PUs $ fromRational x
   recip          = omap recip
-instance Fractional (Unit Ratio) where
-  fromRational x = PRatio $ fromRational x
-  recip          = omap recip
 instance MonoFunctor (Unit PU)    where omap f (PUs    x) = PUs    (f x)
 instance MonoFunctor (Unit PUI)   where omap f (PUIs   x) = PUIs   (f x)
 instance MonoFunctor (Unit Pt)    where omap f (Pts    x) = Pts    (f x)
-instance MonoFunctor (Unit Ratio) where omap f (PRatio x) = PRatio (f x)
 instance Ord (Unit PU)    where PUs    l <= PUs    r = l <= r
 instance Ord (Unit PUI)   where PUIs   l <= PUIs   r = l <= r
 instance Ord (Unit Pt)    where Pts    l <= Pts    r = l <= r
-instance Ord (Unit Ratio) where PRatio l <= PRatio r = l <= r
 instance Num (Unit PU)    where fromInteger = PUs    ∘ fromIntegral; PUs    x + PUs    y = PUs    $ x + y; PUs    x * PUs    y = PUs    $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
 instance Num (Unit PUI)   where fromInteger = PUIs   ∘ fromIntegral; PUIs   x + PUIs   y = PUIs   $ x + y; PUIs   x * PUIs   y = PUIs   $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
 instance Num (Unit Pt)    where fromInteger = Pts    ∘ fromIntegral; Pts    x + Pts    y = Pts    $ x + y; Pts    x * Pts    y = Pts    $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
-instance Num (Unit Ratio) where fromInteger = PRatio ∘ fromIntegral; PRatio x + PRatio y = PRatio $ x + y; PRatio x * PRatio y = PRatio $ x * y; abs = omap abs; signum = omap signum; negate = omap negate
 
 instance Random (Unit PU) where
   randomR (PUs a, PUs a')   = runState $ liftA PUs $ state $ randomR (a, a')
