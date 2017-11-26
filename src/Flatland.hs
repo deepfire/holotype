@@ -76,12 +76,14 @@ newtype DΠ = DΠ { fromDΠ ∷ Double } deriving (Eq, Num, Show)
 
 -- * Universal, multi-density linear size.
 
-data UnitK = PU | PUI | Pt | Ratio
+data UnitK = PU | PUI | Pt
 
-type instance Element (Unit PU)    = Double
-type instance Element (Unit PUI)   = F.Int32
-type instance Element (Unit Pt)    = F.Int32
-type instance Element (Unit Ratio) = Double
+type instance Element (Unit PU)   = Double
+type instance Element (Unit PUI)  = F.Int32
+type instance Element (Unit Pt)   = F.Int32
+
+class StandardUnit (a ∷ UnitK → Type) where
+  convert ∷ (FromUnit u, FromUnit v) ⇒ DΠ → a u → a v
 
 data Unit (u ∷ UnitK) where
   PUs    ∷ { fromPU    ∷ !(Element (Unit PU))    } → Unit PU    -- ^ Pango size, in device units -- aka pixels, as evidence overwhelmingly points to
@@ -91,13 +93,12 @@ type family UnitType a = r | r → a where
   UnitType (Unit PU)    = PU
   UnitType (Unit PUI)   = PUI
   UnitType (Unit Pt)    = Pt
-  UnitType (Unit Ratio) = Ratio
 
-pu'val  ∷ Lens' (Unit PU) (Element (Unit PU))
+pu'val  ∷ Lens' (Unit PU)  (Element (Unit PU))
 pu'val  f (PUs x)  = PUs  <$> f x
 pui'val ∷ Lens' (Unit PUI) (Element (Unit PUI))
 pui'val f (PUIs x) = PUIs <$> f x
-pt'val  ∷ Lens' (Unit Pt) (Element (Unit Pt))
+pt'val  ∷ Lens' (Unit Pt)  (Element (Unit Pt))
 pt'val  f (Pts x)  = Pts  <$> f x
 
 -- <Boilerplate>
@@ -139,7 +140,7 @@ instance Random a ⇒ Random (V4 a) where
 -- | Conversion between unit sizes -- See Note [Pango resolution & unit conversion]
 -- class a ~ (Unit (UnitType a)) ⇒ FromUnit a where
 --   fromUnit ∷ FromUnit b ⇒ DΠ → b → a
-class FromUnit' a where
+class Ord a ⇒ FromUnit' a where
   fromUnit ∷ FromUnit' (Unit b) ⇒ DΠ → (Unit b) → a
 
 type FromUnit u = FromUnit' (Unit u)
@@ -295,6 +296,11 @@ po'd   ∷ Axis → Lens' (Po a) a
 po'd   X f (Po (V2 x y)) = Po ∘ (flip V2 y) <$> f x
 po'd   Y f (Po (V2 x y)) = Po ∘ (id   V2 x) <$> f y
 
+di'w ∷ Lens' (Di a) (Wi a)
+di'h ∷ Lens' (Di a) (He a)
+di'w f (Di (V2 x y)) = Di ∘ (flip V2 y) ∘ _wi'val <$> f (Wi x)
+di'h f (Di (V2 x y)) = Di ∘       V2 x  ∘ _he'val <$> f (He y)
+
 
 -- * Colors
 --
@@ -350,7 +356,7 @@ instance Lin d ⇒ AddMax (Po d) (Di d) where
   addMax ax pos by =  pos & po'd ax %~ (+ (by ^. (di'd ax)))
 
 
--- | Axis-major vector, major axis is: 1) first, 2) not recorded.
+-- | Axis-major vector, major axis is: 1. first, 2. not recorded.
 --
 newtype V2A d = V2A (V2 d)
 
@@ -493,6 +499,9 @@ lu'orig (Size (Di size)) = Orig ∘ (& po'v %~ (     (+) (size / 2))) ∘ _lu'po
 rb'orig ∷ Lin d ⇒ Size d → RB d → Orig d
 rb'orig (Size (Di size)) = Orig ∘ (& po'v %~ (flip (-) (size / 2))) ∘ _rb'po
 
+lurb'di ∷ Num d ⇒ LU d → RB d → Di d
+lurb'di (LU lu) (RB rb) = poDelta rb lu
+
 
 -- * TODO:
 -- - alignment as parameter, instead of hard-coded N/W edge alignment
@@ -553,11 +562,16 @@ class AreaDict d ⇒ HasArea a d where
   area'LU   ∷ AreaDict d ⇒ a d → Area'LU   d
   area'LURB ∷ AreaDict d ⇒ a d → Area'LURB d
   area'Orig ∷ AreaDict d ⇒ a d → Area'Orig d
+  luOf      ∷ AreaDict d ⇒ a d → LU d
+  dimOf     ∷ AreaDict d ⇒ a d → Di d
   {-# MINIMAL area'PoDi | area'LU | area'Orig | area'LURB #-}
   area'Orig = from'area ∘ area'PoDi
   area'LU   = from'area ∘ area'Orig
   area'LURB = from'area ∘ area'LU
   area'PoDi = from'area ∘ area'LU
+  luOf      = _area'a   ∘ area'LU
+  dimOf x   = lurb'di (ar^.area'a) (ar^.area'b)
+    where ar = area'LURB x
 
 type AreaTuple d = (Di d, Po d)
 
@@ -565,9 +579,6 @@ instance AreaDict d ⇒ HasArea (Area' Po   Di  ) d where area'PoDi = id
 instance AreaDict d ⇒ HasArea (Area' Orig Size) d where area'Orig = id
 instance AreaDict d ⇒ HasArea (Area' LU   Size) d where area'LU   = id
 instance AreaDict d ⇒ HasArea (Area' LU   RB  ) d where area'LURB = id
-
-lu ∷ HasArea a d ⇒ a d → LU d
-lu = _area'a ∘ area'LU
 
 instance (AreaDict d, Monoid (po d), Monoid (di d)) ⇒ Monoid (Area' po di d) where
   mempty = Area mempty mempty
