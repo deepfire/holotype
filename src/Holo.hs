@@ -140,12 +140,13 @@ holoLeaf port sty holo = flip (mkItem defaultGeo mempty) [] ∘ Visual holo Fals
 
 
 -- * Leaves
+--
 -- * This is a complicated story:
 --
 -- Actors:
 --  1. u-free text style
 --  2. PU-wired Fontmap from the Port 
-mkText ∷ (MonadIO m, FromUnit u) ⇒ Port → TextStyle u → Maybe T.Text → m (VisualOf u T.Text)
+mkText ∷ ∀ m u. (MonadIO m, FromUnit u) ⇒ Port → TextStyle u → Maybe T.Text → m (VisualOf u T.Text)
 mkText port@Port{..} tStyle@TextStyle{..} mText = do
   let Settings{..} = portSettings
       font         = lookupFont' portFontmap _tsFontKey
