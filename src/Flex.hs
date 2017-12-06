@@ -14,14 +14,14 @@
 -- 2. Initially, this is a very direct translation from C -- and it shows a lot.
 --
 module Flex
-  ( -- * Language of Style
+  ( -- * Language of Geo
     LRTB(..), left, right, top, bottom
   , Alignment(..)
   , Direction(..)
   , Positioning(..)
   , Wrapping(..)
   --
-  , Style(..), defaultStyle
+  , Geo(..), defaultGeo
   , padding
   , margin
   , justify'content
@@ -43,7 +43,7 @@ module Flex
   , absolute
   -- * Item
   , Item(..), mkItem, _mkItem, _mkItem'
-  , style
+  , geo
   , place
   , area
   , child, children
@@ -64,7 +64,7 @@ import           Elsewhere
 import           Flatland
 
 
--- * A language of Style
+-- * A language of Geo
 --
 data LRTB a where
   LRTB ∷
@@ -110,8 +110,8 @@ data Wrapping where
   ReverseWrap        ∷ Wrapping
   deriving (Eq, Show)
 
-data Style where
-  Style ∷
+data Geo where
+  Geo ∷
     { _padding         ∷ LRTB Double
     , _margin          ∷ LRTB Double
     , _justify'content ∷ Alignment
@@ -125,12 +125,12 @@ data Style where
     , _shrink          ∷ Int
     , _order           ∷ Maybe Int
     , _basis           ∷ Double
-    } → Style
+    } → Geo
     deriving (Show)
-makeLenses ''Style
+makeLenses ''Geo
 
-defaultStyle ∷ Style
-defaultStyle = Style
+defaultGeo ∷ Geo
+defaultGeo = Geo
   { _padding         = LRTB 0 0 0 0
   , _margin          = LRTB 0 0 0 0
   , _justify'content = AlignStart
@@ -146,9 +146,9 @@ defaultStyle = Style
   , _basis           = 0
   }
 
-instance Monoid Style where
-  mempty  = defaultStyle
-  mappend = error "Monoidal append not implemented for Flex.Style."
+instance Monoid Geo where
+  mempty  = defaultGeo
+  mappend = error "Monoidal append not implemented for Flex.Geo."
 
 data Place where
   Place ∷
@@ -171,11 +171,11 @@ instance Monoid Place where
 --
 data Item a where
   Item ∷
-    { _style        ∷ Style
+    { _geo          ∷ Geo
     , _place        ∷ Place
-    , _area         ∷ Area Double
-    , _children     ∷ [Item a]
     , _this         ∷ a
+    , _children     ∷ [Item a]
+    , _area         ∷ Area Double
     } → Item a
     deriving (Functor, Foldable, Traversable)
 deriving instance Show a ⇒ Show (Item a)
@@ -184,16 +184,14 @@ makeLenses ''Item
 child  ∷ Int → Traversal' (Item a) (Item a)
 child n = children ∘ ix n
 
-mkItem ∷ a → [Item a] → Item a
-mkItem _item _children =
-  let _place    = mempty
-      _style    = defaultStyle
-      _area     = Area (po 0 0) (di 0 0)
+mkItem ∷ Geo → Place → a → [Item a] → Item a
+mkItem _geo _place _this _children =
+  let _area = mempty
   in Item{..}
 
 _mkItem' ∷ Maybe Double → Maybe Double → a → [Item a] → Item a
 _mkItem' width height _item _children =
-  mkItem _item _children & place.size .~ (Di $ V2 width height)
+  mkItem defaultGeo mempty _item _children & place.size .~ (Di $ V2 width height)
 
 _mkItem ∷ Double → Double → a → [Item a] → Item a
 _mkItem width height = _mkItem' (Just width) (Just height)
@@ -223,14 +221,14 @@ pretty'item Item{..} = WL.text "Item size:"
 
 
 item'marginLT, item'marginRB ∷ Item a → Vertical → Reverse → Double
-item'marginLT Item{..} Vertical   Forward = _style & _margin & _left
-item'marginLT Item{..} Vertical   Reverse = _style & _margin & _top
-item'marginLT Item{..} Horisontal Forward = _style & _margin & _top
-item'marginLT Item{..} Horisontal Reverse = _style & _margin & _left
-item'marginRB Item{..} Vertical   Forward = _style & _margin & _right
-item'marginRB Item{..} Vertical   Reverse = _style & _margin & _bottom
-item'marginRB Item{..} Horisontal Forward = _style & _margin & _bottom
-item'marginRB Item{..} Horisontal Reverse = _style & _margin & _right
+item'marginLT Item{..} Vertical   Forward = _geo & _margin & _left
+item'marginLT Item{..} Vertical   Reverse = _geo & _margin & _top
+item'marginLT Item{..} Horisontal Forward = _geo & _margin & _top
+item'marginLT Item{..} Horisontal Reverse = _geo & _margin & _left
+item'marginRB Item{..} Vertical   Forward = _geo & _margin & _right
+item'marginRB Item{..} Vertical   Reverse = _geo & _margin & _bottom
+item'marginRB Item{..} Horisontal Forward = _geo & _margin & _bottom
+item'marginRB Item{..} Horisontal Reverse = _geo & _margin & _right
 
 item'size  ∷ Major → Lens' (Item a) Double
 item'size   (Major axis) = area ∘ area'b ∘ di'd axis
@@ -295,7 +293,7 @@ instance Pretty Layout where
 mkLayout ∷ Item a → Layout
 mkLayout Item{..} =
   let V2 width' height'  = _area^.area'b.di'v
-      Style{..}          = _style
+      Geo{..}            = _geo
       width              = width'  - (_padding^.left + _padding^.right)
       height             = height' - (_padding^.top  + _padding^.bottom)
       (,,,,,)
@@ -360,13 +358,13 @@ layout'align' align flex'dim nchilds stretch'allowed
   | AlignAuto         ← align = Nothing
 
 count'relatives ∷ [Item a] → Int
-count'relatives = length ∘ filter ((≡Relative) ∘ (^.style.positioning))
+count'relatives = length ∘ filter ((≡Relative) ∘ (^.geo.positioning))
 
 layout_items ∷ Item a → [Item a] → Layout → (Layout, [Item a])
 layout_items _             []       l            = (,) l []
 layout_items item@Item{..} children l@Layout{..} =
   -- Determine the major axis initial position and optional spacing.
-  let Style{..}         = _style
+  let Geo{..}      = _geo
       (pos1, spacing1)  = if _la'flex'grows ≡ 0 ∧
                              _la'flex'dim > 0
                           then let may'aligned = layout'align _justify'content _la'flex'dim (count'relatives children) False
@@ -385,18 +383,18 @@ layout_items item@Item{..} children l@Layout{..} =
                           else l
       layout'children ∷ Double → [Item a] → [Item a] → (Double, [Item a])
       layout'children pos  []                                      acc = (,) pos (reverse acc)
-      layout'children pos (c@((^.style.positioning) → Absolute):rest) acc = layout'children pos rest (c:acc) -- Already positioned.
+      layout'children pos (c@((^.geo.positioning) → Absolute):rest) acc = layout'children pos rest (c:acc) -- Already positioned.
       layout'children pos (c@Item{..}:rest) acc =
         -- Grow or shrink the major axis item size if needed.
-        let flex'size   = if | l'^.la'flex'dim > 0 ∧ _style^.grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_style^.grow)   / fromIntegral (l'^.la'flex'grows)
-                             | l'^.la'flex'dim < 0 ∧ _style^.shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_style^.shrink) / fromIntegral (l'^.la'flex'shrinks)
+        let flex'size   = if | l'^.la'flex'dim > 0 ∧ _geo^.grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_geo^.grow)   / fromIntegral (l'^.la'flex'grows)
+                             | l'^.la'flex'dim < 0 ∧ _geo^.shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_geo^.shrink) / fromIntegral (l'^.la'flex'shrinks)
                              | otherwise → 0
             c1          = c &  item'size  _la'major +~ flex'size
             -- Set the minor axis position (and stretch the minor axis size if needed).
             align'size  = c1 ^. item'size2 _la'minor
-            c'align     = if c1^.style.align'self ≡ AlignAuto
-                          then item^.style.align'items
-                          else c1^.style.align'self
+            c'align     = if c1^.geo.align'self ≡ AlignAuto
+                          then item^.geo.align'items
+                          else c1^.geo.align'self
             margin'LT   = item'marginLT c1 _la'vertical Forward
             margin'RB   = item'marginRB c1 _la'vertical Forward
             c2          = if c'align ≡ AlignStretch ∧ align'size ≡ 0
@@ -434,7 +432,7 @@ layout_item p@Item{..} =
   let cstr   = p^.area.area'b
       assign'sizes ∷ [Item a] → Layout → [Item a] → [Item a] → (Layout, [Item a], [Item a])
       assign'sizes []                                       l            sized positioned = (,,) l (reverse sized) positioned
-      assign'sizes (c@((^.style.positioning) → Absolute):rest) l@Layout{..} sized positioned =
+      assign'sizes (c@((^.geo.positioning) → Absolute):rest) l@Layout{..} sized positioned =
         let abs'size (Just val)  _           _          _   = val
             abs'size  Nothing   (Just pos1) (Just pos2) dim = dim - pos2 - pos1
             abs'size  _          _           _          _   = 0
@@ -449,7 +447,7 @@ layout_item p@Item{..} =
                            & layout_item
         in assign'sizes rest l (c':sized) positioned
       assign'sizes (c:rest) l@Layout{..} sized positioned =
-        let c'size  = fromMaybe 0 $ partial (>0) (c^.style.basis) <|>
+        let c'size  = fromMaybe 0 $ partial (>0) (c^.geo.basis) <|>
                                                  (c^.place.size.di'd (fromMajor _la'major))
             c'size2 = flip fromMaybe (c^.place.size.di'd (fromMinor _la'minor))
                                      (cstr^.di'd (if _la'vertical ≡ Vertical then X else Y) -
@@ -462,8 +460,8 @@ layout_item p@Item{..} =
                      in (,,) [] (positioned <> positioned') (layout'reset lay')
             l'' = l' & la'line'dim %~ (\line'dim→ if not _la'wrap ∨ c'size2 ≤ line'dim then line'dim
                                                   else c'size2)
-                     & la'flex'grows   +~ c'^.style.grow
-                     & la'flex'shrinks +~ c'^.style.shrink
+                     & la'flex'grows   +~ c'^.geo.grow
+                     & la'flex'shrinks +~ c'^.geo.shrink
                      & la'flex'dim     -~ c'size + item'marginLT c' _la'vertical Reverse
                                                  + item'marginRB c' _la'vertical Reverse
             c' = c & item'size  _la'major .~ c'size
@@ -480,7 +478,7 @@ layout_item p@Item{..} =
       align'children ∷ Layout → [Item a] → [Item a]
       align'children Layout{..} cs =
         let flex'dim          = _la'align'dim - _la'lines'sizes
-            may'aligned       = layout'align (_style^.align'content) flex'dim (length _la'lines) True
+            may'aligned       = layout'align (_geo^.align'content) flex'dim (length _la'lines) True
             (,) pos' spacing' = if flex'dim ≤ 0 then (,) 0 0
                                 else flip fromMaybe may'aligned $ error "incorrect align_content"
             (,) pos'' old'pos = if _la'reverse2 ≢ Reverse then (,) pos' 0
@@ -493,13 +491,13 @@ layout_item p@Item{..} =
                                         else (,) (pos - _li'size - spacing') (old'pos - _li'size)
                   (,) line rest       = splitAt _li'nchildren cs
                   -- Re-position the children of this line, honoring any child alignment previously set within the line
-                  line'               = line <&> \c→ if c^.style.positioning ≡ Absolute then c
+                  line'               = line <&> \c→ if c^.geo.positioning ≡ Absolute then c
                                                      else c & item'pos2 _la'minor +~ pos' - old'pos'
                   (,) pos'' old'pos'' = if _la'reverse2 ≡ Reverse then (,) pos' old'pos'
                                         else (,) (pos + _li'size + spacing') (old'pos + _li'size)
               in line'step ls rest (line':acc) pos'' old'pos''
         in (^._1) $ line'step (reverse _la'lines) cs [] pos'' old'pos
-  in p & children .~ if _la'wrap ∧ _style^.align'content ≢ AlignStart
+  in p & children .~ if _la'wrap ∧ _geo^.align'content ≢ AlignStart
                      then align'children lay' children'
                      else children'
 
@@ -508,24 +506,4 @@ layout_item p@Item{..} =
 --   Size is taken from the 'item', origin is fixed to 0:0.
 layout ∷ Item a → Item a
 layout x = layout_item $
-  x & area.area'b .~ (fromMaybe (error "Root missing coord.") <$> x^.place.size)
-
-
--- * Playground
---
-type Ty = (Style, Di Double)
-
-root ∷ Item ()
-root = layout $
-  _mkItem 100 100 () cs
-
-cs ∷ [Item a]
-cs = []
-
-
--- `π` ≡ preimage
--- π ∷ 
--- π = (,) (defaultStyle & )
---     $ di 10 10
-
--- proof ∷ Item 
+  x & area.area'b .~ (fromMaybe (error "Root missing size.") <$> x^.place.size)
