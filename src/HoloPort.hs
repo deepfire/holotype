@@ -16,6 +16,7 @@ import           HoloPrelude
 
 -- Types
 import qualified Data.Map                          as Map
+import qualified Data.Text                         as T
 import qualified Data.Vector                       as V
 import qualified Data.Vect                         as Vc
 import           Data.Vect                                (Mat4(..), Vec3(..))
@@ -29,6 +30,7 @@ import qualified Graphics.Rendering.Cairo.Internal as GRCI
 
 -- glib-introspection -based Cairo and Pango
 import qualified GI.Cairo                          as GIC
+import qualified GI.Pango                          as GIP
 
 -- Dirty stuff
 import qualified Foreign.C.Types                   as F
@@ -57,30 +59,40 @@ import           HoloFont
 
 -- | Usher Cairo + Pango -enabled surfaces onto a GL Window,
 --   according to user-controlled Settings.
-data Port u where
+data Port where
   Port ∷
     { portSettings     ∷ Settings
-    , portFontmap      ∷ FontMap u
+    , portFontmap      ∷ FontMap PU
     , portWindow       ∷ GL.Window
     , portObjectStream ∷ ObjectStream
     , portRenderer     ∷ Renderer
-    } → Port u
+    } → Port
 
-portCreate  ∷ (MonadIO m) ⇒ GL.Window → Settings → m (Port PU)
+portDΠ ∷ Port → DΠ
+portDΠ = sttsDΠ ∘ portSettings
+
+portCreate  ∷ (MonadIO m) ⇒ GL.Window → Settings → m (Port)
 portCreate portWindow portSettings@Settings{..} = do
   portFontmap                      ← makeFontMap sttsDΠ fmDefault sttsFontPreferences
   (portRenderer, portObjectStream) ← makeSimpleRenderedStream portWindow (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))
   rendererDrawFrame portRenderer
   pure Port{..}
 
-portUpdateSettings ∷ (MonadIO m) ⇒ Port PU → Settings → m (Port PU)
+portUpdateSettings ∷ (MonadIO m) ⇒ Port → Settings → m (Port)
 portUpdateSettings port portSettings = do
   pure $ port { portSettings = portSettings }
 
-portNextFrame ∷ (MonadIO m) ⇒ Port PU → m Frame
+portNextFrame ∷ (MonadIO m) ⇒ Port → m Frame
 portNextFrame Port{..} = do
   rendererDrawFrame  portRenderer
   rendererSetupFrame portRenderer
+
+portFont  ∷ Port → FontKey → Maybe (Font Found PU)
+portFont Port{..} = lookupFont portFontmap
+
+portFont' ∷ Port → FontKey → Font Found PU
+portFont' po fk = portFont po fk
+  & fromMaybe (errorMissingFontkey fk)
 
 
 data Settings where
@@ -125,7 +137,7 @@ imageSurfaceGetPixels' pb = do
   r ← GRC.imageSurfaceGetStride pb
   return (pixPtr, (r, h))
 
-makeDrawable ∷ (MonadIO m) ⇒ Port u → Di Double → m Drawable
+makeDrawable ∷ (MonadIO m) ⇒ Port → Di Double → m Drawable
 makeDrawable Port {portObjectStream = dObjectStream@ObjectStream{..}} dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
@@ -168,6 +180,17 @@ framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = 
     Q3.mat4ToM44F $! (Vc.fromProjective $! Vc.translation cvpos) Vc..*. toScreen
 
 
+-- * Drawables and fonts
+--
+drawableBindFontLayout ∷ (MonadIO m, FromUnit u, FromUnit v) ⇒
+  DΠ → Drawable → Font Found u → Di (Unit v) → TextSizeSpec v → m (WFont Bound, GIP.Layout)
+drawableBindFontLayout dπ Drawable{..} = bindWFontLayout dπ dGIC
+
+drawableDrawText ∷ (MonadIO m) ⇒ Drawable → GIP.Layout → Co Double → T.Text → m ()
+drawableDrawText Drawable{..} layout color text = do
+  layDrawText dCairo dGIC layout (po 0 0) color text
+
+
 -- * Matrix works
 -- 
 -- This one, while canonical, murders the projection.
@@ -197,17 +220,23 @@ screenM w h =
 -- * Render debug utils
 --
 dpx ∷ Po Double → Co Double → GRCI.Render ()
-dpx (Po (V2 x y)) (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a >>
-                                      -- GRC.rectangle (x) (y) 1 1 >> GRC.fill
-                                      GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
+dpx (Po (V2 x y)) color = crColor color >>
+                          -- GRC.rectangle (x) (y) 1 1 >> GRC.fill
+                          GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
+
+redrawRectDrawable ∷ (MonadIO m, FromUnit u) ⇒ Port → Drawable → Co Double → Di (Unit u) → m ()
+redrawRectDrawable Port{portSettings=Settings{..}} d@Drawable{..} color dim' = do
+  let dim = fromUnit sttsDΠ <$> dim'
+  runCairo dCairo $ do
+    crColor color
+    GRC.rectangle (0) (0) (fromPU $ dim^.di'v._x) (fromPU $ dim^.di'v._y)
+    GRC.fill
+  drawableContentToGPU d
+  pure ()
 
 -- Render with: framePutDrawable frame px0 (doubleToFloat <$> po 0 0)
-dPx ∷ (MonadIO m) ⇒ Port u → Co Double → m Drawable
-dPx port (Co (V4 r g b a)) = do
-  drawable@Drawable{..} ← makeDrawable port (di 2 2)
-  runCairo dCairo $ do
-    GRC.setSourceRGBA r g b a
-    GRC.rectangle (0) (0) 2 2
-    GRC.fill
-  drawableContentToGPU drawable
-  pure drawable
+mkRectDrawable ∷ (MonadIO m, FromUnit u) ⇒ Port → Di (Unit u) → Co Double → m Drawable
+mkRectDrawable port@Port{portSettings=Settings{..}} dim color = do
+  d@Drawable{..} ← makeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> dim
+  redrawRectDrawable port d color dim
+  pure d

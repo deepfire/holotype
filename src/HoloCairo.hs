@@ -10,6 +10,8 @@ module HoloCairo
     Cairo, cairoCreate
   , runCairo
   , cairoToGICairo
+  --
+  , crColor
   )
 where
 
@@ -25,6 +27,10 @@ import qualified GI.Cairo.Structs.Context          as GIC
 
 import qualified Foreign                           as F
 import qualified Foreign.ForeignPtr.Unsafe         as F
+
+import           Linear
+
+import           Flatland
 
 
 newtype Cairo = Cairo { _unCairo ∷ F.ForeignPtr GRC.Cairo }
@@ -44,3 +50,7 @@ runCairo (Cairo fpGRC) body =
 cairoToGICairo ∷ (MonadIO m) ⇒ Cairo → m GIC.Context
 cairoToGICairo (Cairo cairoFptr) =
   liftIO $ GIC.Context <$> GI.newManagedPtr (F.castPtr $ F.unsafeForeignPtrToPtr cairoFptr) (F.touchForeignPtr cairoFptr)
+
+
+crColor ∷ Co Double → GRC.Render ()
+crColor (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a

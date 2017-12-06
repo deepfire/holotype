@@ -66,7 +66,7 @@ import           GHC.Generics                             (Generic)
 import           GHC.Stack                                (HasCallStack)
 import           GHC.Types                         hiding (Constraint, Word)
 import           Numeric.Extra                            (doubleToFloat)
-import           Prelude                           hiding ((.), Word)
+import           Prelude                           hiding ((.), Word, words)
 import           Prelude.Unicode
 import           Text.PrettyPrint.Leijen.Text             (Doc, Pretty
                                                           , displayT, renderCompact, renderPretty
