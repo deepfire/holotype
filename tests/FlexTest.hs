@@ -840,13 +840,13 @@ test_position2 ∷ TestTree
 test_position2 =
   let r = _mkItem 100 100 ()
           [ _mkItem  10 10 () [] & geo.positioning .~ Absolute
-                                 & place.absolute    .~ LRTB (Just 10) Nothing  (Just 10) Nothing
+                                 & geo.absolute    .~ LRTB (Just 10) Nothing  (Just 10) Nothing
           , _mkItem  10 10 () [] & geo.positioning .~ Absolute
-                                 & place.absolute    .~ LRTB  Nothing (Just 10) (Just 10) Nothing
+                                 & geo.absolute    .~ LRTB  Nothing (Just 10) (Just 10) Nothing
           , _mkItem  10 10 () [] & geo.positioning .~ Absolute
-                                 & place.absolute    .~ LRTB  Nothing (Just 10)  Nothing (Just 10)
+                                 & geo.absolute    .~ LRTB  Nothing (Just 10)  Nothing (Just 10)
           , _mkItem  10 10 () [] & geo.positioning .~ Absolute
-                                 & place.absolute    .~ LRTB (Just 10) Nothing   Nothing (Just 10)
+                                 & geo.absolute    .~ LRTB (Just 10) Nothing   Nothing (Just 10)
           ] & geo.align'items     .~ AlignCenter
             & geo.justify'content .~ AlignStart
             & layout
@@ -861,9 +861,9 @@ test_position3 ∷ TestTree
 test_position3 =
   let r = _mkItem 100 100 ()
           [ _mkItem  10 10 () [] & geo.positioning .~ Absolute
-                                 & place.absolute    .~ LRTB (Just 10) (Just 10) Nothing   Nothing
+                                 & geo.absolute    .~ LRTB (Just 10) (Just 10) Nothing   Nothing
           , _mkItem  10 10 () [] & geo.positioning .~ Absolute
-                                 & place.absolute    .~ LRTB  Nothing   Nothing (Just 10) (Just 10)
+                                 & geo.absolute    .~ LRTB  Nothing   Nothing (Just 10) (Just 10)
           ] & layout
   in testGroup "position3: if both left/right or top/bottom are given, left/top get the priority if the item has the appropriate size dimension set"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  10   0) (di  10  10)
@@ -874,9 +874,9 @@ test_position4 ∷ TestTree
 test_position4 =
   let r = _mkItem 100 100 ()
           [ _mkItem' Nothing (Just 20) () [] & geo.positioning .~ Absolute
-                                             & place.absolute    .~ LRTB (Just 10) (Just 10) Nothing   Nothing
+                                             & geo.absolute    .~ LRTB (Just 10) (Just 10) Nothing   Nothing
           , _mkItem' (Just 20) Nothing () [] & geo.positioning .~ Absolute
-                                             & place.absolute    .~ LRTB  Nothing   Nothing (Just 10) (Just 10)
+                                             & geo.absolute    .~ LRTB  Nothing   Nothing (Just 10) (Just 10)
           ] & layout
   in testGroup "position4: if both left/right or top/bottom are given, the item is properly resized if the appropriate size dimension hasn't been set"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  10   0) (di  80  20)
@@ -888,7 +888,7 @@ test_position5 =
   let r = _mkItem 100 100 ()
           [ _mkItem  10 10 () [] & geo.positioning .~ Absolute
                                  & geo.basis       .~ 20
-                                 & place.absolute    .~ LRTB (Just 10) Nothing Nothing (Just 10)
+                                 & geo.absolute    .~ LRTB (Just 10) Nothing Nothing (Just 10)
           ] & layout
   in testGroup "position5: the `basis' property is ignored for items with an absolute position"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  10  80) (di  10  10)
@@ -899,7 +899,7 @@ test_position6 =
   let r = _mkItem 200 200 ()
           [ _mkItem  50 50 () []
           , _mkItem  50 50 () [] & geo.positioning .~ Absolute
-                                 & place.absolute    .~ LRTB Nothing (Just 0) Nothing (Just 0)
+                                 & geo.absolute    .~ LRTB Nothing (Just 0) Nothing (Just 0)
           , _mkItem  50 50 () []
           ] & geo.direction .~ DirRow
             & layout
@@ -915,7 +915,7 @@ test_position7 =
           [ _mkItem  50 50 () []
           , _mkItem  50 50 () []
           , _mkItem  50 50 () [] & geo.positioning .~ Absolute
-                                 & place.absolute    .~ LRTB Nothing (Just 0) (Just 0) Nothing
+                                 & geo.absolute    .~ LRTB Nothing (Just 0) (Just 0) Nothing
           , _mkItem  50 50 () []
           ] & geo.wrap            .~ Wrap
             & geo.justify'content .~ AlignSpaceAround
@@ -934,11 +934,11 @@ test_position8 =
           [ _mkItem' Nothing Nothing ()
             [ _mkItem  60 60 ()
               [ _mkItem  40 40 () [] & geo.positioning .~ Absolute
-                                     & place.absolute    .~ LRTB (Just 10)  Nothing   Nothing (Just 10)
+                                     & geo.absolute    .~ LRTB (Just 10)  Nothing   Nothing (Just 10)
               ] & geo.positioning .~ Absolute
-                & place.absolute    .~ LRTB  Nothing  (Just 10) (Just 10) Nothing
+                & geo.absolute    .~ LRTB  Nothing  (Just 10) (Just 10) Nothing
             ] & geo.positioning .~ Absolute
-              & place.absolute    .~ LRTB (Just 10) (Just 10) (Just 10) (Just 10)
+              & geo.absolute    .~ LRTB (Just 10) (Just 10) (Just 10) (Just 10)
           ] & geo.direction .~ DirRow
             & layout
   in testGroup "position8: items with an absolute position can be nested"

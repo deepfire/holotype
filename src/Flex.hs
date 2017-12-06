@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable, GeneralizedNewtypeDeriving, StandaloneDeriving #-}      -- Deriving
-{-# LANGUAGE FlexibleInstances, GADTs, InstanceSigs, RankNTypes, ScopedTypeVariables #-}          -- Types
+{-# LANGUAGE FlexibleInstances, GADTs, InstanceSigs, RankNTypes, ScopedTypeVariables, TypeFamilies #-}          -- Types
 {-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings, RecordWildCards #-}       -- Syntactic
 {-# LANGUAGE TemplateHaskell, TupleSections, UnicodeSyntax, ViewPatterns #-}
 {-# OPTIONS_GHC -Wextra #-}
@@ -20,10 +20,12 @@ module Flex
   , Direction(..)
   , Positioning(..)
   , Wrapping(..)
+  , child
   --
   , Geo(..), defaultGeo
   , padding
   , margin
+  , absolute
   , justify'content
   , align'content
   , align'items
@@ -35,16 +37,17 @@ module Flex
   , shrink
   , order
   , basis
-  -- * Item
+  --  * Item
   , Item(..), mkItem
   --
-  , Place(..)
+  -- * Flex class
+  -- , Flex(..)
   , size
   , absolute
   -- * Item
   , Item(..), mkItem, _mkItem, _mkItem'
   , geo
-  , place
+  , size
   , area
   , child, children
   , this
@@ -114,6 +117,7 @@ data Geo where
   Geo ∷
     { _padding         ∷ LRTB Double
     , _margin          ∷ LRTB Double
+    , _absolute        ∷ LRTB (Maybe Double)
     , _justify'content ∷ Alignment
     , _align'content   ∷ Alignment
     , _align'items     ∷ Alignment
@@ -133,6 +137,7 @@ defaultGeo ∷ Geo
 defaultGeo = Geo
   { _padding         = LRTB 0 0 0 0
   , _margin          = LRTB 0 0 0 0
+  , _absolute        = LRTB Nothing Nothing Nothing Nothing
   , _justify'content = AlignStart
   , _align'content   = AlignStretch
   , _align'items     = AlignStart
@@ -150,21 +155,17 @@ instance Monoid Geo where
   mempty  = defaultGeo
   mappend = error "Monoidal append not implemented for Flex.Geo."
 
-data Place where
-  Place ∷
-    { _size          ∷ Di   (Maybe Double)
-    , _absolute      ∷ LRTB (Maybe Double)
-    } → Place
-    deriving (Show)
-makeLenses ''Place
+
+-- * API
+--
+-- class Flex a where
+--   geo      ∷ Lens' a Geo
+--   size     ∷ Lens' a (Di (Maybe Double))
+--   children ∷ Lens' a [a]
+--   area     ∷ Lens' a (Area Double)
 
-instance Monoid Place where
-  mempty
-    = Place { _size     = (Di $ V2 Nothing Nothing)
-            , _absolute = LRTB Nothing Nothing Nothing Nothing
-            }
-  Place ls la `mappend` Place rs ra
-    = Place (liftA2 (<|>) ls rs) (liftA2 (<|>) la ra)
+    -- = Place { _size     = (Di $ V2 Nothing Nothing)
+    --         , _absolute = LRTB Nothing Nothing Nothing Nothing
 
 
 -- * The Item
@@ -172,7 +173,7 @@ instance Monoid Place where
 data Item a where
   Item ∷
     { _geo          ∷ Geo
-    , _place        ∷ Place
+    , _size         ∷ Di (Maybe Double)
     , _this         ∷ a
     , _children     ∷ [Item a]
     , _area         ∷ Area Double
@@ -184,14 +185,14 @@ makeLenses ''Item
 child  ∷ Int → Traversal' (Item a) (Item a)
 child n = children ∘ ix n
 
-mkItem ∷ Geo → Place → a → [Item a] → Item a
-mkItem _geo _place _this _children =
+mkItem ∷ Geo → (Di (Maybe Double)) → a → [Item a] → Item a
+mkItem _geo _size _this _children =
   let _area = mempty
   in Item{..}
 
 _mkItem' ∷ Maybe Double → Maybe Double → a → [Item a] → Item a
 _mkItem' width height _item _children =
-  mkItem defaultGeo mempty _item _children & place.size .~ (Di $ V2 width height)
+  mkItem defaultGeo (Di $ V2 width height) _item _children
 
 _mkItem ∷ Double → Double → a → [Item a] → Item a
 _mkItem width height = _mkItem' (Just width) (Just height)
@@ -199,8 +200,8 @@ _mkItem width height = _mkItem' (Just width) (Just height)
 
 -- * Instances
 --
-instance Pretty a ⇒ Pretty (Item a) where
-  pretty = unreadable "" ∘ pretty'item
+-- instance Pretty a ⇒ Pretty (a) where
+--   pretty = unreadable "" ∘ pretty'item
 
 --
 -- * no user-serviceable parts below, except for the 'layout' function at the very bottom.
@@ -216,7 +217,7 @@ pretty'mdi (Di (V2 ma mb)) = pretty'mdouble ma <:> pretty'mdouble mb
 
 pretty'item ∷ Item a → Doc
 pretty'item Item{..} = WL.text "Item size:"
-  <>  pretty'mdi (_size _place)
+  <>  pretty'mdi  _size
   <+> pretty'Area _area
 
 
@@ -389,7 +390,7 @@ layout_items item@Item{..} children l@Layout{..} =
         let flex'size   = if | l'^.la'flex'dim > 0 ∧ _geo^.grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_geo^.grow)   / fromIntegral (l'^.la'flex'grows)
                              | l'^.la'flex'dim < 0 ∧ _geo^.shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_geo^.shrink) / fromIntegral (l'^.la'flex'shrinks)
                              | otherwise → 0
-            c1          = c &  item'size  _la'major +~ flex'size
+            c1          = c & item'size  _la'major +~ flex'size
             -- Set the minor axis position (and stretch the minor axis size if needed).
             align'size  = c1 ^. item'size2 _la'minor
             c'align     = if c1^.geo.align'self ≡ AlignAuto
@@ -439,24 +440,24 @@ layout_item p@Item{..} =
             abs'pos  (Just pos1) _           _          _   = pos1
             abs'pos   Nothing   (Just pos2) (Just size) dim = dim - size - pos2
             abs'pos   _          _           _          _   = 0
-            (pos, dim) = (c^.place.absolute, c^.place.size)
+            (pos, dim) = (c^.geo.absolute, c^.size)
             c' = c & area .~ Area (Po $ V2 (abs'pos  (pos^.left) (pos^.right) (dim^.di'd X) (cstr^.di'd X))
                                            (abs'pos  (pos^.top)  (pos^.bottom) (dim^.di'd Y) (cstr^.di'd Y)))
                                   (Di $ V2 (abs'size (dim^.di'd X) (pos^.left) (pos^.right) (cstr^.di'd X))
                                            (abs'size (dim^.di'd Y) (pos^.top) (pos^.bottom) (cstr^.di'd Y)))
-                           & layout_item
+                   & layout_item
         in assign'sizes rest l (c':sized) positioned
       assign'sizes (c:rest) l@Layout{..} sized positioned =
         let c'size  = fromMaybe 0 $ partial (>0) (c^.geo.basis) <|>
-                                                 (c^.place.size.di'd (fromMajor _la'major))
-            c'size2 = flip fromMaybe (c^.place.size.di'd (fromMinor _la'minor))
+                                                 (c^.size.di'd (fromMajor _la'major))
+            c'size2 = flip fromMaybe (c^.size.di'd (fromMinor _la'minor))
                                      (cstr^.di'd (if _la'vertical ≡ Vertical then X else Y) -
                                       item'marginLT c _la'vertical Forward -
                                       item'marginRB c _la'vertical Forward)
             -- NB: self_sizing callback implementation ignored
             (,,) sized' positioned' l'
               = if not _la'wrap ∨ l^.la'flex'dim ≥ c'size then (,,) sized positioned l
-                else let (,) lay' positioned' = layout_items p (reverse sized) l
+                else let (,) lay' positioned' = layout_items (p) (reverse sized) l
                      in (,,) [] (positioned <> positioned') (layout'reset lay')
             l'' = l' & la'line'dim %~ (\line'dim→ if not _la'wrap ∨ c'size2 ≤ line'dim then line'dim
                                                   else c'size2)
@@ -506,4 +507,4 @@ layout_item p@Item{..} =
 --   Size is taken from the 'item', origin is fixed to 0:0.
 layout ∷ Item a → Item a
 layout x = layout_item $
-  x & area.area'b .~ (fromMaybe (error "Root missing size.") <$> x^.place.size)
+  x & area.area'b .~ (fromMaybe (error "Root missing size.") <$> x^.size)
