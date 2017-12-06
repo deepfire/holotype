@@ -6,7 +6,7 @@
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
 
 module HoloFont
-  ( Font(..), FKind(..)
+  ( Font(..), WFont, FKind(..)
   , FontSizeRequest(..)
   , FamilyName, FaceName
   , LayoutHeightLimit(..)
@@ -20,19 +20,19 @@ module HoloFont
   , fontQuerySize
 
   -- * Main API
-  , validateFont, chooseFont, bindFont
+  , bindFont, bindWFontLayout
 
-  -- * Ancillary
-  , fdSetSize
-
-  -- * Text
-  , makeTextLayout, laySetWidth, laySetHeight, laySetSize, layGetSize, laySetHeightLimit
+  -- * Layout
+  , laySetWidth, laySetHeight, laySetSize, layGetSize, laySetHeightLimit
   , layPrintLimits , layRunTextForSize
   , layDrawText
 
   -- * FontMap
   , FontKey(..), FontAlias(..), FontPreferences(..), FontMap(..)
   , makeFontMap, lookupFont, lookupFont'
+  , errorMissingFontkey
+  , lookupFontsBySize
+  , makeFontLayout
   )
 where
 
@@ -206,6 +206,11 @@ data Font (k ∷ FKind) u where
     } → Font Bound u
 deriving instance Eq   (FontSizeRequest u)
 
+data WFont (k ∷ FKind) where
+  WFont ∷ FromUnit u ⇒
+    { fromWFont ∷ Font k u
+    } → WFont k
+
 instance Show (Font Spec u) where
   show FontSpec{..} =
     printf "FontSpec { family = %s, face = %s, size = %s }"
@@ -268,9 +273,9 @@ validateFont fFontMap (FontSpec
         Right  fSize → do
           fdSetSize fDesc fSize
           fDetachedContext ← GIP.fontMapCreateContext fFontMap
-          GIP.contextSetFontDescription    fDetachedContext fDesc
-          GIPC.contextSetResolution        fDetachedContext (fromDΠ fDΠ)
-          fDetachedLayout ← makeTextLayout fDetachedContext
+          GIP.contextSetFontDescription   fDetachedContext fDesc
+          GIPC.contextSetResolution       fDetachedContext (fromDΠ fDΠ)
+          fDetachedLayout ← makeLayout    fDetachedContext
           fMaxHeight ← fontQueryMaxHeight fDetachedLayout
           pure $ Right $ Font{..}
 
@@ -284,12 +289,19 @@ chooseFont fMap freqs = loop freqs []
                                     Right font → pure (Just font, fs)
                                     Left  fail → loop rest $ fail:fs)
 
-bindFont ∷ (MonadIO m) ⇒ Font Found u → GIC.Context → m (Font Bound u)
+bindFont ∷ (MonadIO m, FromUnit u) ⇒ Font Found u → GIC.Context → m (Font Bound u)
 bindFont fbFont@Font{..} gic = do
   fbContext ← GIPC.createContext gic
   GIP.contextSetFontDescription fbContext fDesc
   GIPC.contextSetResolution     fbContext (fromDΠ fDΠ)
-  pure FontBinding{..}
+  pure $ FontBinding{..}
+
+bindWFontLayout ∷ (MonadIO m, FromUnit u, FromUnit v) ⇒
+  DΠ → GIC.Context → Font Found u → Di (Unit v) → TextSizeSpec v → m (WFont Bound, GIP.Layout)
+bindWFontLayout dπ gic font dim sizeSpec = do
+  fbound ← bindFont font gic
+  layout ← makeFontLayout dπ fbound dim (sizeSpec^.tssHeight)
+  pure (WFont fbound, layout)
 
 -- | 'LayoutHeightLimit', quoting Pango documentation:
 --
@@ -337,6 +349,10 @@ tssWidth  f (TextSizeSpec w h) = flip TextSizeSpec h <$> f w
 tssHeight ∷ Lens' (TextSizeSpec u) LayoutHeightLimit
 tssHeight f (TextSizeSpec w h) =      TextSizeSpec w <$> f h
 
+instance StandardUnit TextSizeSpec where
+  convert dπ (TextSizeSpec mwi he) =
+    flip TextSizeSpec he $ mwi & _Just.wi'val %~ fromUnit dπ
+
 fontQuerySize ∷ (HasCallStack, MonadIO m, FromUnit u) ⇒ Font Found u → TextSizeSpec u → Maybe T.Text → m (Either T.Text (Di (Unit u)))
 fontQuerySize _ TextSizeSpec{_tssWidth=Nothing} Nothing = pure $ Left "Invariant failed: text size underconstrained."
 fontQuerySize Font{..} TextSizeSpec{_tssWidth=Just wi} Nothing =
@@ -347,12 +363,20 @@ fontQuerySize Font{..} TextSizeSpec{..} (Just text) = do
 
 
 -- * Text
-makeTextLayout ∷ (MonadIO m) ⇒ GIP.Context → m (GIP.Layout)
-makeTextLayout gipc = do
+makeLayout ∷ (MonadIO m) ⇒ GIP.Context → m (GIP.Layout)
+makeLayout gipc = do
   gip ← GIP.layoutNew gipc
   GIP.layoutSetWrap      gip GIP.WrapModeWord
   GIP.layoutSetEllipsize gip GIP.EllipsizeModeEnd
   pure gip
+
+makeFontLayout ∷ (MonadIO m, FromUnit u, FromUnit v) ⇒
+  DΠ → Font Bound u → Di (Unit v) → LayoutHeightLimit → m GIP.Layout
+makeFontLayout dπ FontBinding{..} dim heightLimit = do
+  layout ← makeLayout fbContext
+  laySetSize        layout dπ dim
+  laySetHeightLimit layout heightLimit
+  pure layout
 
 laySetWidth ∷ (MonadIO m) ⇒ FromUnit s ⇒ GIP.Layout → DΠ → Wi (Unit s) → m ()
 laySetWidth lay dπ (Wi sz) = do
@@ -412,11 +436,11 @@ layDrawText cairo dGIC lay (Po (V2 cvx cvy)) tColor text =
 -- | Fontmap: give fonts semantic names.
 
 newtype FontKey
-  =          FK { fromFK ∷ T.Text }
+  =     FK { fromFK ∷ T.Text }
   deriving (Eq, Ord, Show, IsString)
 
 newtype FontAlias
-  =          Alias { fromAlias ∷ FontKey }
+  =     Alias { fromAlias ∷ FontKey }
   deriving (Eq, Ord, Show, IsString)
 
 newtype FontPreferences u
@@ -425,15 +449,20 @@ newtype FontPreferences u
 
 data FontMap u where
   FontMap ∷
-    { fmDΠ    ∷ DΠ
-    , fmFonts ∷ (Map FontKey (Font Found u))
+    { fmDΠ     ∷ DΠ
+    , fmFonts  ∷ Map FontKey  (Font Found u)
+    , fmBySize ∷ Map (Unit u) [Font Found u]
     } → FontMap u
 deriving instance Show (FontMap u)
 
-makeFontMap ∷ (MonadIO m) ⇒ FromUnit u ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → m (FontMap u)
-makeFontMap dπ gipcFM (FontPreferences prefsAndAliases) =
-                         foldM resolvePrefs Map.empty ((id *** fromRight (⊥)) <$> prefs)
-  <&> FontMap dπ ∘ flip (foldl resolveAlias)          ((id *** fromLeft  (⊥)) <$> aliases)
+makeFontMap ∷ (MonadIO m, FromUnit u) ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → m (FontMap u)
+makeFontMap dπ gipcFM (FontPreferences prefsAndAliases) = do
+  pass1 ← foldM resolvePrefs Map.empty  ((id *** fromRight (⊥)) <$> prefs)
+  let pass2  = foldl resolveAlias pass1 ((id *** fromLeft  (⊥)) <$> aliases)
+      bySize = [ (,) fSize [f]
+               | f@Font{..} ← Map.elems pass2 ]
+               & Map.fromListWith (<>)
+  pure $ FontMap dπ pass2 bySize
   where resolvePrefs acc (fkey, freqs) = do
           (mFont, errs) ← chooseFont gipcFM freqs
           let font = mFont &
@@ -447,9 +476,20 @@ makeFontMap dπ gipcFM (FontPreferences prefsAndAliases) =
         (aliases, prefs) = flip partition prefsAndAliases
                            (\(_, aEp) → isLeft aEp)
 
-lookupFont ∷ FontMap u → FontKey → Maybe (Font Found u)
-lookupFont (FontMap _ fm) fk = Map.lookup fk fm
+lookupFontsBySize ∷ (Ord (Unit u)) ⇒ FontMap u → Ordering → Unit u → [Font Found u]
+lookupFontsBySize FontMap{..} ord val =
+  case (Map.splitLookup val fmBySize, ord) of
+    ((_, Just xs, _), _)  → xs
+    ((l, _,       _), LT) → fromMaybe [] $ fst <$> Map.maxView l
+    ((_, _,       r), GT) → fromMaybe [] $ fst <$> Map.minView r
+    (_,               EQ) → []
 
-lookupFont' ∷ FontMap u → FontKey → Font Found u
+lookupFont ∷ FromUnit u ⇒ FontMap u → FontKey → Maybe (Font Found u)
+lookupFont FontMap{..} = flip Map.lookup fmFonts
+
+lookupFont' ∷ FromUnit u ⇒ FontMap u → FontKey → Font Found u
 lookupFont' fm fk = lookupFont fm fk
-                    & fromMaybe (error $ printf "ERROR: unexpected missing fontkey '%s'." (show fk))
+  & fromMaybe (errorMissingFontkey fk)
+
+errorMissingFontkey ∷ FontKey → a
+errorMissingFontkey = error ∘ printf "ERROR: unexpected missing fontkey '%s'." ∘ show
