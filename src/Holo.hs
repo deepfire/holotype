@@ -140,28 +140,24 @@ holoLeaf port sty holo = flip (mkItem defaultGeo mempty) [] ∘ Visual holo Fals
 
 
 -- * Leaves
+-- * This is a complicated story:
+--
+-- Actors:
+--  1. u-free text style
+--  2. PU-wired Fontmap from the Port 
 mkText ∷ (MonadIO m, FromUnit u) ⇒ Port → TextStyle u → Maybe T.Text → m (VisualOf u T.Text)
 mkText port@Port{..} tStyle@TextStyle{..} mText = do
-  let Settings{..}  = portSettings
-      font@Font{..} = lookupFont' portFontmap _tsFontKey
-  tDim ← either errorT id <$> fontQuerySize font _tsSizeSpec mText
+  let Settings{..} = portSettings
+      font         = lookupFont' portFontmap _tsFontKey
+  tDim ← (fromUnit sttsDΠ <$>) ∘ either errorT id <$> fontQuerySize font (convert sttsDΠ _tsSizeSpec) mText
  
-  let pixelSize = fromPU ∘ fromUnit sttsDΠ <$> tDim
-
-  tDrawable             ← makeDrawable port pixelSize
-  tFont@FontBinding{..} ← bindFont font $ dGIC tDrawable
-  tLayout               ← makeTextLayout fbContext
-  -- XXX: here we meet the need for layout for the first time..
-  laySetSize        tLayout sttsDΠ tDim
-  laySetHeightLimit tLayout (_tsSizeSpec^.tssHeight)
-  pure Text{..}
+  tDrawable         ← makeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> tDim
+  (,) tFont tLayout ← drawableBindFontLayout sttsDΠ tDrawable font tDim _tsSizeSpec
+  pure $ Text{..}
 
 drawText ∷ (MonadIO m) ⇒ VisualOf u T.Text → T.Text → m ()
-drawText Text{..} text = do
-  let TextStyle{..}                  = tStyle
-      FontBinding{fbFont = Font{..}} = tFont
-      Drawable{..}                   = tDrawable
-  layDrawText dCairo dGIC tLayout (po 0 0) _tsColor text
+drawText Text{..} text =
+  drawableDrawText tDrawable tLayout (_tsColor tStyle) text
 
 instance (FromUnit u) ⇒ Monoid (TextStyle u) where
   mempty = TextStyle
@@ -188,7 +184,7 @@ instance FromUnit u ⇒ Holo u T.Text where
     Text ∷
       { tStyle         ∷ TextStyle u
       , tDrawable      ∷ Drawable
-      , tFont          ∷ Font Bound u
+      , tFont          ∷ WFont Bound
       , tLayout        ∷ GIP.Layout
       , tDim           ∷ Di (Unit u)
       } → TextVisual u
