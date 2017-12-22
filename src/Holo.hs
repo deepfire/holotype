@@ -8,18 +8,19 @@ module Holo
   -- * Define this:
     Holo(..)
   -- * Get that:
-  , HoloStyle(..)
-  , hsPlacement, hsPlace, hsStyle
-  , WHolo(..)
-  , showWHoloAt
+  , StyleOf(..), VisualOf(..)
   , KNode(..), Node(..)
-  , defaultNodeStyle
+  , holoNode
   , holoVBox, holoHBox
   , holoLeaf
+  , Ghola(..), GState(..)
+  , drawGholaAt
   , HoloItem
-  , showHoloItem
+  , queryHoloItem
+  , visualiseHoloItem
+  , drawHoloItem
   -- * Holo instances
-  , StyleOf(..), VisualOf(..)
+  , Rect(..), RectStyle, RectVisual
   , TextStyle, TextVisual
   , TextZipperStyle, TextZipperVisual
   , tsFontKey, tsSizeSpec, tsColor, tesTSStyle
@@ -39,8 +40,8 @@ import qualified GI.Pango                          as GIP
 import           Elsewhere
 import           Flatland
 import           Flex                              as Flex
-import           HoloFont
 import           HoloCube                                 (Frame)
+import           HoloFont
 import           HoloPort
 
 
@@ -53,52 +54,74 @@ class (FromUnit u, Monoid (StyleOf u a)) ⇒ Holo (u ∷ UnitK) a where
   --   2. geometry-enriched style
   --   3. datum
   --   Produce an initial visualisation.
-  visualise       ∷ (MonadIO m, FromUnit u) ⇒ Port → HoloStyle (StyleOf u a) → a → m (VisualOf u a)
+  query           ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a →               a → m (Di (Maybe Double))
+  visualise       ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a → Area Double → a → m (VisualOf u a)
   -- * Question: what do we change, to allow animation of style?
   --
   -- The current model doesn't allow for it.
   updateVisual    ∷ (MonadIO m) ⇒ Port →            VisualOf u a → a → m ()           -- ^ Update a visualisation of 'a'.
   drawableOf      ∷ VisualOf u a → Drawable
 
-data HoloStyle a where
-  HoloStyle ∷
-    { _hsPlacement ∷ Flex.Geo
-    , _hsPlace     ∷ Flex.Place
-    , _hsStyle     ∷ a
-    } → HoloStyle a
-makeLenses ''HoloStyle
-
-instance Monoid a ⇒ Monoid (HoloStyle a) where
-  mempty = HoloStyle mempty mempty mempty
-  HoloStyle lpt lpl lst `mappend` HoloStyle rpt rpl rst =
-    HoloStyle (lpt <> rpt) (lpl <> rpl) (lst <> rst)
-
 
--- | 'WHolo': (Wrap Holo) raison d'etre: type-free payload of Flex's item tree.
-type HoloItem = Item WHolo
+-- | 'HoloItem' / 'Ghola': raison d'etre: type-free payload of Flex's item tree.
+--
+-- | Designate two passes over the tree:
+--   1. Post-'query', pre-layout
+--   2. Post-layout, with drawables allocated.
+data GState
+  = Blank
+  | Sized
+  | Visual
 
-data WHolo where
-  Box    ∷ (Holo u a, Monoid (StyleOf u a)) ⇒
+type family GholaVisualOf u a (s ∷ GState) where
+  GholaVisualOf u a Blank  = ()
+  GholaVisualOf u a Sized  = ()
+  GholaVisualOf u a Visual = VisualOf u a
+
+data Ghola (k ∷ GState) where
+  Ghola ∷ (Holo u a, Monoid (StyleOf u a)) ⇒
     { _holo     ∷ a
     , _uptodate ∷ Bool
-    , _style    ∷ HoloStyle (StyleOf u a)
-    } → WHolo
-  Visual ∷ (Holo u a, Monoid (StyleOf u a)) ⇒
-    { _holo     ∷ a
-    , _uptodate ∷ Bool
-    , _style    ∷ HoloStyle (StyleOf u a)
-    , _visual   ∷ VisualOf u a
-    } → WHolo
+    , _style    ∷ StyleOf u a
+    , _visual   ∷ GholaVisualOf u a k
+    } → Ghola k
 
-showWHoloAt ∷ (MonadIO m) ⇒ Frame → WHolo → LU Double → m ()
-showWHoloAt _      Box{..}    _   = pure ()
-showWHoloAt frame  Visual{..} pos = do
+drawGholaAt ∷ (MonadIO m) ⇒ Frame → Ghola Visual → LU Double → m ()
+drawGholaAt frame  Ghola{..} pos = do
+  --liftIO $ printf "sWHA %s | " (show $ pos^.lu'po.po'v)
   drawableContentToGPU   (drawableOf _visual)
   framePutDrawable frame (drawableOf _visual) (doubleToFloat <$> pos^.lu'po)
 
-showHoloItem ∷ (MonadIO m) ⇒ Frame → HoloItem → m ()
-showHoloItem frame item =
-  showWHoloAt frame (item^.this) (luOf $ item^.area)
+
+type family HoloItemContent (s ∷ GState) ∷ Type where
+  HoloItemContent Blank  = Ghola Blank
+  HoloItemContent Sized  = (Di Double, Ghola Sized)
+  HoloItemContent Visual = (Di Double, Ghola Visual)
+
+type HoloItem (s ∷ GState) = Item (HoloItemContent s)
+
+queryHoloItem ∷ (MonadIO m) ⇒ Port → HoloItem Blank → m (HoloItem Sized)
+queryHoloItem port hoi =
+  case hoi^.this of
+    Ghola{..} → do
+      dim ← query port _style _holo
+      pure $ hoi & place.size .~ dim
+
+visualiseHoloItem ∷ (MonadIO m) ⇒ Port → HoloItem Sized → m (HoloItem Visual)
+visualiseHoloItem port hoi =
+  case hoi^.this of
+    Ghola{..} → do
+      _visual ← visualise port _style (hoi^.area) _holo
+      pure $ Item
+        { _geo      = hoi^.geo
+        , _place    = hoi^.place
+        , _this     = Ghola{..} ∷ Ghola Visual
+        , _children = []        -- XXX: landmine
+        , _area     = hoi^.area }
+
+drawHoloItem ∷ (MonadIO m) ⇒ Frame → HoloItem Visual → m ()
+drawHoloItem frame item =
+  drawGholaAt frame (item^.this) (luOf $ item^.area)
 
 
 -- * Internal nodes
@@ -106,41 +129,72 @@ data KNode
   = VBox
   | HBox
 
-data Node (u ∷ UnitK) (t ∷ KNode) where
+data Node (u ∷ UnitK) (k ∷ KNode) where
   HBoxN ∷ Node u HBox
   VBoxN ∷ Node u VBox
-
-defaultNodeStyle ∷ Node u k → HoloStyle (StyleOf u (Node u k))
-defaultNodeStyle HBoxN = HoloStyle sty mempty NodeStyle
-  where sty = mempty & direction .~ DirColumn
-defaultNodeStyle VBoxN = HoloStyle sty mempty NodeStyle
-  where sty = mempty & direction .~ DirRow
 
 instance FromUnit u ⇒ Holo   u (Node u (k ∷ KNode)) where
   data StyleOf  u (Node u k) = NodeStyle
   data VisualOf u (Node u k) = NodeVisual
-  drawableOf         = (⊥)
-  visualise    _ _ _ = pure NodeVisual
-  updateVisual _ _ _ = pure ()
+  drawableOf           = (⊥)
+  query        _ _ _   = pure $ Di $ V2 Nothing Nothing
+  visualise    _ _ _ _ = pure NodeVisual
+  updateVisual _ _ _   = pure ()
 
 instance Monoid (StyleOf u (Node u k)) where
   mempty      = NodeStyle
   mappend _ _ = NodeStyle
 
+nodeGeo ∷ Node u k → Geo
+nodeGeo HBoxN = mempty & direction .~ DirColumn
+nodeGeo VBoxN = mempty & direction .~ DirRow
+
+
+-- * Layout tree Item constructors
+--
 -- XXX: this FromUnit constraint is a genuine pain.
-holoBox  ∷ FromUnit u ⇒ Node u k → [HoloItem] → HoloItem
-holoBox boxSelector chi = flip (mkItem defaultGeo mempty) chi (Box boxSelector False (defaultNodeStyle boxSelector))
+holoNode  ∷ FromUnit u ⇒ Node u k → [HoloItem Query] → HoloItem Query
+holoNode selector chi =
+  flip (mkItem (nodeGeo selector) mempty) chi $ Ghola selector False NodeStyle ()
 
-holoVBox, holoHBox ∷ [HoloItem] → HoloItem
-holoHBox = holoBox (HBoxN ∷ Node PU HBox)
-holoVBox = holoBox (VBoxN ∷ Node PU VBox)
+holoLeaf ∷ Holo u a ⇒ Port → a → StyleOf u a → HoloItem Query
+holoLeaf _port holo sty = do
+  flip (mkItem defaultGeo         mempty) []  $ Ghola holo     False sty       ()
 
-holoLeaf ∷ (MonadIO m, Holo u a, FromUnit u) ⇒ Port → HoloStyle (StyleOf u a) → a → m HoloItem
-holoLeaf port sty holo = flip (mkItem defaultGeo mempty) [] ∘ Visual holo False sty <$> visualise port sty holo
+
+-- * Pre-package tree constructors
+--
+holoVBox, holoHBox ∷ [HoloItem Query] → HoloItem Query
+holoHBox = holoNode (HBoxN ∷ Node PU HBox)
+holoVBox = holoNode (VBoxN ∷ Node PU VBox)
 
 
 -- * Leaves
---
+
+data Rect u where
+  Rect ∷
+    { _rectDim   ∷ Di (Unit u)
+    , _rectColor ∷ Co Double
+    } → Rect u
+-- makeLenses ''Rect
+
+instance (FromUnit u) ⇒ Monoid (RectStyle u) where
+  mempty      = RectStyle
+  mappend _ _ = RectStyle
+
+type RectStyle  u = StyleOf  u (Rect u)
+type RectVisual u = VisualOf u (Rect u)
+instance FromUnit u ⇒ Holo   u (Rect u) where
+  data StyleOf  u (Rect u) where RectStyle  ∷ RectStyle u
+  data VisualOf u (Rect u) where RectVisual ∷ { rectDrawable ∷ Drawable } → RectVisual u
+  drawableOf = rectDrawable
+  query     port _       Rect{..} = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$>_rectDim
+  visualise port _ _area Rect{..} =
+    RectVisual <$> mkRectDrawable port _rectDim _rectColor
+  updateVisual port v@RectVisual{rectDrawable=Drawable{..}} Rect{..} = do
+    redrawRectDrawable port (rectDrawable v) _rectColor _rectDim
+
+
 -- * This is a complicated story:
 --
 -- Actors:
@@ -190,11 +244,15 @@ instance FromUnit u ⇒ Holo u T.Text where
       , tDim           ∷ Di (Unit u)
       } → TextVisual u
   drawableOf = tDrawable
-  visualise port (HoloStyle _ place' sty) content = do
-    case (place'^.size.di'v._x, sty^.tsSizeSpec.tssWidth) of
-      (Just _geostyw, Just (Wi _textstyle)) → pure () --flip assert (pure ()) $ (geostyw ≡ fromPU ∘ fromUnit textstyle)
-      _ → error "Geometry and font style sizes completely out of sync."
-    mkText port sty $ partial (≢ "") content
+  query port@Port{..} TextStyle{..} content = do
+    let font = portFont' port _tsFontKey -- XXX: non-total
+    (Just ∘ fromPU <$>) ∘ either errorT id <$> fontQuerySize font (convert (portDΠ port) _tsSizeSpec) (partial (≢ "") content)
+  visualise port tStyle@TextStyle{..} area content = do
+    let font = portFont' port _tsFontKey -- XXX: non-total
+        tDim = fromUnit (portDΠ port) ∘ PUs <$> dimOf area
+    tDrawable         ← makeDrawable port (dimOf area)
+    (,) tFont tLayout ← drawableBindFontLayout (portDΠ port) tDrawable font tDim _tsSizeSpec
+    pure Text{..}
   updateVisual _ = drawText
 
 tsFontKey   ∷ Lens' (TextStyle u) FontKey
@@ -222,8 +280,10 @@ instance FromUnit u ⇒ Holo  u  (T.TextZipper T.Text) where
       { teText ∷ VisualOf u T.Text
       } → TextZipperVisual u
   drawableOf = tDrawable ∘ teText
-  visualise port hsty content = do
-    TextZipper <$> visualise port (hsty & hsStyle %~ fromTextZipperStyle) (zipperText content)
+  query port TextZipperStyle{..} tz =
+    query port fromTextZipperStyle (zipperText tz)
+  visualise port hsty area content = do
+    TextZipper <$> visualise port (hsty & fromTextZipperStyle) area (zipperText content)
   updateVisual _ (TextZipper txt@Text{..}) content = do
     -- XXX: cursor position
     drawText txt (zipperText content)

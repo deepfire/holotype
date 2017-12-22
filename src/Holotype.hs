@@ -35,7 +35,7 @@ import           Linear
 -- import qualified Data.IORef                        as IO
 
 -- Reflex
-import           Reflex
+import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW
 import           Reflex.Random
 
@@ -126,27 +126,29 @@ wordInterpStyle x = mempty
                    WLens   _ → co 0.710 0.537 0.000 1
                    WError  _ → co 0.863 0.196 0.184 1
 
-composeScene ∷ ∀ m u. (MonadIO m, FromUnit u, u ~ PU) ⇒ Port → T.Text → m HoloItem
-composeScene port@Port{..} queryText = do
+composeScene ∷ ∀ m u. (MonadIO m, FromUnit u, u ~ PU) ⇒ Port → Di (Unit u) → T.Text → m (HoloItem Visual)
+composeScene port@Port{..} dim queryText = do
   let Settings{..} = portSettings
       words        = case parseQuery queryText of
                        Left err → [WError err]
                        Right ws → ws
-      wordItem ∷ (MonadIO m) ⇒ Word → m HoloItem
-      wordItem word = do
-        let sty = wordInterpStyle word
-        holoLeaf port (HoloStyle mempty mempty sty ∷ HoloStyle (StyleOf u T.Text)) (wText word)
-  entryItem ← flip (holoLeaf port) (textZipper [queryText]) $
-    (mempty & hsPlace.size.di'v._x .~ Just 400
-            & hsStyle.tesTSStyle.tsSizeSpec.tssWidth .~ Just (Wi $ PUs 400))
-  wordItems ← traverse wordItem words
-  pure $ layout $
-    holoVBox
-    [ entryItem
-    , holoHBox wordItems
-      & geo.wrap .~ Wrap
-    ]
--- mkText ∷ (MonadIO m, FromUnit u) ⇒ Port u → TextStyle → Di (Unit u) → m (Text u)
+      wordItem ∷ Word → HoloItem Holo.Query
+      wordItem word =
+        holoLeaf port (wText word) (wordInterpStyle word ∷ TextStyle PU)
+  let entryItem = holoLeaf port (textZipper [queryText])
+                  (mempty & tesTSStyle.tsSizeSpec.tssWidth .~ (Just $ dim^.di'w))
+                  & place.size.di'v._x                     .~ (Just ∘ fromPU $ dim^.di'v._x)
+      wordItems = wordItem <$> words
+  -- let tree = holoVBox
+  --            [ entryItem
+  --            , holoHBox wordItems
+  --              & geo.wrap   .~ Wrap
+  --            ] & place.size .~ (Just ∘ fromPU <$> dim)
+  let item = holoLeaf port (Rect (di 100 100) red ∷ Rect PU) (mempty ∷ RectStyle PU)
+  qrd ← queryHoloItem port item
+  let laid = layout qrd
+  vis ← visualiseHoloItem port laid
+  pure vis
 
 
 holotype ∷ ReflexGLFWGuest t m
@@ -160,13 +162,14 @@ holotype win _evCtl setupE windowFrameE inputE = do
   --               & tsColor    .~ co 0.710 0.537 0.000 1
   --               & tsSizeSpec .~ (mempty & tssHeight .~ ParaLines 5)
 
+  sceneV ← composeScene portV (di 400 200) "we do it for lulz"
   -- textfield0 ← mkText portV tfstyle (Left $ di 200 30)
   -- textfield1 ← mkText portV tfstyle (Left $ di 200 30)
   -- textfield2 ← mkText portV tfstyle (Left $ di 200 30)
   -- textfield3 ← mkText portV tfstyle (Left $ di 200 30)
-  px0 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) red
-  px1 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) green
-  px2 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) blue
+  px0 ← mkRectDrawable portV (di 2 2) red
+  px1 ← mkRectDrawable portV (di 2 2) green
+  px2 ← mkRectDrawable portV (di 2 2) blue
   --
   -- End of init-time IO.
   --
@@ -237,12 +240,21 @@ holotype win _evCtl setupE windowFrameE inputE = do
   -- holosomFPSD      ← foldDyn (const ∘ Just) Nothing holosomFPSE
 
   -- -- SCENE COMPOSITION
+  let sceneE        = const sceneV <$> frameE
+  sceneD           ← holdDyn sceneV sceneE
   -- let allDrawablesD = zipDyn holosomFPSD holosomD
-  --     drawReqE      = attachPromptlyDyn allDrawablesD frameE
+  let drawReqE      = attachPromptlyDyn sceneD frameE
   -- let screenArea    = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
   --     widgetLim     = Parea (di 0.2 0.2) (po 0 0)
   -- -- randomPreHoloE   ← foldRandomRs 0 ((screenArea, An 0.005)
   -- --                                   ,(widgetLim,  An 0.01)) $ () <$ driverE
+  _                ← performEvent $ drawReqE <&>
+                     \(scene, f@Frame{..}) → do
+                       scene ← composeScene portV (di 200 200) "foo"
+                       traverse (drawHoloItem f) scene
+                       framePutDrawable f px0 (doubleToFloat <$> po  0    0)
+                       framePutDrawable f px1 (doubleToFloat <$> po  0.3  0.3)
+                       framePutDrawable f px2 (doubleToFloat <$> po 30   30)
   -- _                ← performEvent $ drawReqE <&>
   --                    \((mfps, (_, cs)), f@Frame{..}) → do
   --                      case mfps of
@@ -257,12 +269,6 @@ holotype win _evCtl setupE windowFrameE inputE = do
   -- let topsomD       = ffor holosomD (\case (_,[]) → Nothing
   --                                          (_,(_,h):_) → Just h)
   --     editReqE      = attachPromptlyDyn topsomD editE
-  _                ← performEvent $ frameE <&>
-                     \case
-                       frame → do
-                         framePutDrawable  frame px0 (doubleToFloat <$> po  0    0)
-                         framePutDrawable  frame px1 (doubleToFloat <$> po  0.3  0.3)
-                         framePutDrawable  frame px2 (doubleToFloat <$> po 30   30)
                          -- update settingsV h weEdit
   -- let fpsUpdateE    = attachPromptlyDyn holosomFPSD holoFPSDataE
   -- _                ← performEvent $ fpsUpdateE <&>
