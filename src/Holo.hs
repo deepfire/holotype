@@ -53,16 +53,16 @@ class (FromUnit u, Monoid (StyleOf u a)) ⇒ Holo (u ∷ UnitK) a where
   --   2. geometry-enriched style
   --   3. datum
   --   Produce an initial visualisation.
-  visualise       ∷ (MonadIO m, FromUnit u) ⇒ Port u → HoloStyle (StyleOf u a) → a → m (VisualOf u a)
+  visualise       ∷ (MonadIO m, FromUnit u) ⇒ Port → HoloStyle (StyleOf u a) → a → m (VisualOf u a)
   -- * Question: what do we change, to allow animation of style?
   --
   -- The current model doesn't allow for it.
-  updateVisual    ∷ (MonadIO m) ⇒ Port u →            VisualOf u a → a → m ()           -- ^ Update a visualisation of 'a'.
+  updateVisual    ∷ (MonadIO m) ⇒ Port →            VisualOf u a → a → m ()           -- ^ Update a visualisation of 'a'.
   drawableOf      ∷ VisualOf u a → Drawable
 
 data HoloStyle a where
   HoloStyle ∷
-    { _hsPlacement ∷ Flex.Style
+    { _hsPlacement ∷ Flex.Geo
     , _hsPlace     ∷ Flex.Place
     , _hsStyle     ∷ a
     } → HoloStyle a
@@ -129,18 +129,18 @@ instance Monoid (StyleOf u (Node u k)) where
 
 -- XXX: this FromUnit constraint is a genuine pain.
 holoBox  ∷ FromUnit u ⇒ Node u k → [HoloItem] → HoloItem
-holoBox boxSelector chi = flip mkItem chi (Box boxSelector False (defaultNodeStyle boxSelector))
+holoBox boxSelector chi = flip (mkItem defaultGeo mempty) chi (Box boxSelector False (defaultNodeStyle boxSelector))
 
 holoVBox, holoHBox ∷ [HoloItem] → HoloItem
 holoHBox = holoBox (HBoxN ∷ Node PU HBox)
 holoVBox = holoBox (VBoxN ∷ Node PU VBox)
 
-holoLeaf ∷ (MonadIO m, Holo u a, FromUnit u) ⇒ Port u → HoloStyle (StyleOf u a) → a → m HoloItem
-holoLeaf port sty holo = flip mkItem [] ∘ Visual holo False sty <$> visualise port sty holo
+holoLeaf ∷ (MonadIO m, Holo u a, FromUnit u) ⇒ Port → HoloStyle (StyleOf u a) → a → m HoloItem
+holoLeaf port sty holo = flip (mkItem defaultGeo mempty) [] ∘ Visual holo False sty <$> visualise port sty holo
 
 
 -- * Leaves
-mkText ∷ (MonadIO m, FromUnit u) ⇒ Port u → TextStyle u → Maybe T.Text → m (VisualOf u T.Text)
+mkText ∷ (MonadIO m, FromUnit u) ⇒ Port → TextStyle u → Maybe T.Text → m (VisualOf u T.Text)
 mkText port@Port{..} tStyle@TextStyle{..} mText = do
   let Settings{..}  = portSettings
       font@Font{..} = lookupFont' portFontmap _tsFontKey
