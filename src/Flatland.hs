@@ -445,6 +445,15 @@ makeLenses ''Orig
 makeLenses ''LU
 makeLenses ''RB
 
+mkLU   ∷ d → d → LU d
+mkLU   = (LU   ∘ Po) .: V2
+mkRB   ∷ d → d → RB d
+mkRB   = (RB   ∘ Po) .: V2
+mkOrig ∷ d → d → Orig d
+mkOrig = (Orig ∘ Po) .: V2
+mkSize ∷ d → d → Size d
+mkSize = (Size ∘ Di) .: V2
+
 cstr'v ∷ Lens' (Cstr a) (V2 a)
 cstr'v f (Cstr (Di v)) = Cstr ∘ Di <$> f v
 reqt'v ∷ Lens' (Reqt a) (V2 a)
@@ -520,6 +529,12 @@ orig'beside OE o _r t = o & orig'v._x %~ ((+)(t^.reqt'v._x))
 
 -- * Geometry: rectangular Area
 --
+-- This allows different ways of specifying an area:
+--  1. Po,   Di   -- bare values for center and dimension
+--  2. Orig, Size -- same, but more precisely typed
+--  3. LU,   Size -- origin at left upper corner
+--  4. LU,   RB   -- origin at left upper corder, with size is implicit from the specified right bottom corner
+--
 type AreaDict d = (Eq d, Lin d, Pretty d, Show d)
 
 data Area' (a ∷ Type → Type) (b ∷ Type → Type) d where
@@ -532,13 +547,13 @@ makeLenses ''Area'
 deriving instance (Eq   (a d), Eq   (b d)) ⇒ Eq   (Area' a b d)
 deriving instance (Show (a d), Show (b d)) ⇒ Show (Area' a b d)
 
-pretty'Area ∷ FromArea a b Po Di d ⇒ Area' a b d → Doc
+pretty'Area ∷ FromArea a b LU Size d ⇒ Area' a b d → Doc
 pretty'Area a =
-  let Area (Po (V2 x y)) (Di d) = from'area a
-  in ((text "Area" <:>) ∘ text ∘ ppV2 $ d)
+  let Area (LU (Po (V2 x y))) (Size (Di d)) = from'area a
+  in (text ∘ ppV2 $ d)
      <> char '+' <> pretty x <> char '+' <> pretty y
 
-instance FromArea a b Po Di d ⇒ Pretty (Area' a b d) where
+instance FromArea a b LU Size d ⇒ Pretty (Area' a b d) where
   pretty = unreadable "Area" ∘ pretty'Area
 
 type Area      d = Area' Po   Di   d
