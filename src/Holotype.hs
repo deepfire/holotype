@@ -253,7 +253,7 @@ holotype win _evCtl setupE windowFrameE inputE = do
   -- --                                   ,(widgetLim,  An 0.01)) $ () <$ driverE
   _                ← performEvent $ drawReqE <&>
                      \(scene, f@Frame{..}) → do
-                       scene ← composeScene portV (di 200 200) "foo"
+                       -- scene ← composeScene portV (di 200 200) "foo"
                        -- traverse (drawHoloItem f) scene
                        framePutDrawable f px0 (doubleToFloat <$> po  0    0)
                        framePutDrawable f px1 (doubleToFloat <$> po  0.3  0.3)
