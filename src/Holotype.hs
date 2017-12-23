@@ -74,7 +74,7 @@ someFire ∷ Reflex t ⇒ Event t a → Event t b → Event t ()
 someFire a b = simpler a <> simpler b
 
 
-newPortFrame ∷ ReflexGLFWCtx t m ⇒ Event t (Port PU) → ReflexGLFW t m (Event t Frame)
+newPortFrame ∷ ReflexGLFWCtx t m ⇒ Event t Port → ReflexGLFW t m (Event t Frame)
 newPortFrame portE = performEvent $ portNextFrame <$> portE
 
 type Avg a = (Int, Int, [a])
@@ -117,18 +117,16 @@ parseQuery x = case P.parseString parserQuery mempty (T.unpack x) of
                  P.Success r       → Right r
                  P.Failure errinfo → Left $ T.pack $ show errinfo
 
-wordInterpStyle ∷ (MonadIO m, FromUnit u) ⇒ Word → m (HoloStyle (TextStyle u))
-wordInterpStyle x =
-  pure $ mempty
-    & tsFontKey .~ "defaultMono"
-    & tsColor   .~ case x of
-                     WText   _ → co 0.514 0.580 0.588 1
-                     WSource _ → co 0.149 0.545 0.824 1
-                     WLens   _ → co 0.710 0.537 0.000 1
-                     WError  _ → co 0.863 0.196 0.184 1
-    & HoloStyle mempty mempty
+wordInterpStyle ∷ (FromUnit u) ⇒ Word → TextStyle u
+wordInterpStyle x = mempty
+  & tsFontKey .~ "defaultMono"
+  & tsColor   .~ case x of
+                   WText   _ → co 0.514 0.580 0.588 1
+                   WSource _ → co 0.149 0.545 0.824 1
+                   WLens   _ → co 0.710 0.537 0.000 1
+                   WError  _ → co 0.863 0.196 0.184 1
 
-composeScene ∷ ∀ m u. (MonadIO m, FromUnit u, u ~ PU) ⇒ Port u → T.Text → m HoloItem
+composeScene ∷ ∀ m u. (MonadIO m, FromUnit u, u ~ PU) ⇒ Port → T.Text → m HoloItem
 composeScene port@Port{..} queryText = do
   let Settings{..} = portSettings
       words        = case parseQuery queryText of
@@ -136,17 +134,17 @@ composeScene port@Port{..} queryText = do
                        Right ws → ws
       wordItem ∷ (MonadIO m) ⇒ Word → m HoloItem
       wordItem word = do
-        sty ← wordInterpStyle word
-        holoLeaf port sty (wText word)
+        let sty = wordInterpStyle word
+        holoLeaf port (HoloStyle mempty mempty sty ∷ HoloStyle (StyleOf u T.Text)) (wText word)
   entryItem ← flip (holoLeaf port) (textZipper [queryText]) $
     (mempty & hsPlace.size.di'v._x .~ Just 400
-            & hsStyle.tesTSStyle.tsSizeSpec.tssWidth .~ Just 400)
+            & hsStyle.tesTSStyle.tsSizeSpec.tssWidth .~ Just (Wi $ PUs 400))
   wordItems ← traverse wordItem words
   pure $ layout $
     holoVBox
     [ entryItem
     , holoHBox wordItems
-      & style.wrap .~ Wrap
+      & geo.wrap .~ Wrap
     ]
 -- mkText ∷ (MonadIO m, FromUnit u) ⇒ Port u → TextStyle → Di (Unit u) → m (Text u)
 
@@ -166,9 +164,9 @@ holotype win _evCtl setupE windowFrameE inputE = do
   -- textfield1 ← mkText portV tfstyle (Left $ di 200 30)
   -- textfield2 ← mkText portV tfstyle (Left $ di 200 30)
   -- textfield3 ← mkText portV tfstyle (Left $ di 200 30)
-  px0 ← dPx portV red
-  px1 ← dPx portV green
-  px2 ← dPx portV blue
+  px0 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) red
+  px1 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) green
+  px2 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) blue
   --
   -- End of init-time IO.
   --
