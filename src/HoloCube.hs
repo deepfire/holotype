@@ -196,7 +196,9 @@ rendererSetupFrame r@Renderer{..} = liftIO $ do
 
 rendererDrawFrame ∷ (MonadIO m) ⇒ Renderer → m ()
 rendererDrawFrame Renderer{..} = liftIO $ do
+  liftIO $ putStrLn "about to GL.renderFrame"
   GL.renderFrame rGLRenderer
+  liftIO $ putStrLn "GL.renderFrame complete"
   GLFW.swapBuffers rWindow
 
 

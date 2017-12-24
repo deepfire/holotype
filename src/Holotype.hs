@@ -132,23 +132,26 @@ composeScene port@Port{..} dim queryText = do
       words        = case parseQuery queryText of
                        Left err → [WError err]
                        Right ws → ws
-      wordItem ∷ Word → HoloItem Holo.Query
+      wordItem ∷ Word → HoloItem Blank
       wordItem word =
         holoLeaf port (wText word) (wordInterpStyle word ∷ TextStyle PU)
   let entryItem = holoLeaf port (textZipper [queryText])
                   (mempty & tesTSStyle.tsSizeSpec.tssWidth .~ (Just $ dim^.di'w))
-                  & place.size.di'v._x                     .~ (Just ∘ fromPU $ dim^.di'v._x)
+                  -- Problem:
+                  -- 1. We have size for top entry, want to record it
+                  -- 2. The tree is type-coherent, and children need have the same type.
+                  & size.di'v._x                           .~ (Just ∘ fromPU $ dim^.di'v._x)
       wordItems = wordItem <$> words
   -- let tree = holoVBox
   --            [ entryItem
   --            , holoHBox wordItems
   --              & geo.wrap   .~ Wrap
   --            ] & place.size .~ (Just ∘ fromPU <$> dim)
-  let item = holoLeaf port (Rect (di 100 100) red ∷ Rect PU) (mempty ∷ RectStyle PU)
-  qrd ← queryHoloItem port item
-  let laid = layout qrd
-  vis ← visualiseHoloItem port laid
-  pure vis
+  let blank  = holoLeaf port (Rect (di 100 100) red ∷ Rect PU) (mempty ∷ RectStyle PU)
+  sized ← queryHolotree port blank
+  let placed = layout sized
+  visual ← visualiseHolotree port placed
+  pure visual
 
 
 holotype ∷ ReflexGLFWGuest t m
@@ -167,9 +170,9 @@ holotype win _evCtl setupE windowFrameE inputE = do
   -- textfield1 ← mkText portV tfstyle (Left $ di 200 30)
   -- textfield2 ← mkText portV tfstyle (Left $ di 200 30)
   -- textfield3 ← mkText portV tfstyle (Left $ di 200 30)
-  px0 ← mkRectDrawable portV (di 2 2) red
-  px1 ← mkRectDrawable portV (di 2 2) green
-  px2 ← mkRectDrawable portV (di 2 2) blue
+  px0 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) red
+  px1 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) green
+  px2 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) blue
   --
   -- End of init-time IO.
   --
@@ -251,7 +254,7 @@ holotype win _evCtl setupE windowFrameE inputE = do
   _                ← performEvent $ drawReqE <&>
                      \(scene, f@Frame{..}) → do
                        scene ← composeScene portV (di 200 200) "foo"
-                       traverse (drawHoloItem f) scene
+                       -- traverse (drawHoloItem f) scene
                        framePutDrawable f px0 (doubleToFloat <$> po  0    0)
                        framePutDrawable f px1 (doubleToFloat <$> po  0.3  0.3)
                        framePutDrawable f px2 (doubleToFloat <$> po 30   30)

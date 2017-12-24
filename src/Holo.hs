@@ -13,11 +13,10 @@ module Holo
   , holoNode
   , holoVBox, holoHBox
   , holoLeaf
-  , Ghola(..), GState(..)
-  , drawGholaAt
+  , Phase(..)
   , HoloItem
-  , queryHoloItem
-  , visualiseHoloItem
+  , queryHolotree
+  , visualiseHolotree
   , drawHoloItem
   -- * Holo instances
   , Rect(..), RectStyle, RectVisual
@@ -29,6 +28,7 @@ where
 
 import           HoloPrelude
 
+import           Data.Singletons
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
 import           Linear
@@ -67,43 +67,45 @@ class (FromUnit u, Monoid (StyleOf u a)) ⇒ Holo (u ∷ UnitK) a where
 --
 data Phase
   = Blank
-  | Sized
-  | Placed
+  | Layout
   | Visual
-
-type family HISize   (p ∷ Phase) ∷ Type where
-  HISize   Blank  = ()
-  HISize   Sized  = Di (Maybe Double)
-  HISize   Placed = Di (Maybe Double)
-  HISize   Visual = Di (Maybe Double)
 
 type family HIArea   (p ∷ Phase) ∷ Type where
   HIArea   Blank  = ()
-  HIArea   Sized  = ()
-  HIArea   Placed = Area Double
+  HIArea   Layout = Area Double
   HIArea   Visual = Area Double
 
-type family HIVisual (p ∷ Phase) a ∷ Type where
-  HIVisual Blank  a = ()
-  HIVisual Sized  a = ()
-  HIVisual Placed a = ()
-  HIVisual Visual a = VisualOf a
+type family HIVisual (p ∷ Phase) u a ∷ Type where
+  HIVisual Blank  u a = ()
+  HIVisual Layout u a = ()
+  HIVisual Visual u a = VisualOf u a
 
 data HoloItem (p ∷ Phase) where
-  HoloItem ∷ Holo a ⇒
+  HoloItem ∷ (FromUnit u, Holo u a) ⇒
     { holo       ∷ a
+    , hiUnit     ∷ SUnitK u
     , hiGeo      ∷ Geo
-    , hiStyle    ∷ StyleOf a
+    , hiStyle    ∷ StyleOf u a
     , hiChildren ∷ [HoloItem p]
-    , hiSize     ∷ HISize p
+    -- Problem:
+    -- 1. We have size for top entry, want to record it
+    -- 2. The tree is type-coherent, and children need have the same type.
+    , hiSize     ∷ Di (Maybe Double)
     , hiArea     ∷ HIArea p
-    , hiVisual   ∷ HIVisual p a
+    , hiVisual   ∷ HIVisual p u a
     } → HoloItem p
 
-instance Flex (HoloItem p) where
-  geo      f hi@HoloItem{..} = \x→ hi {hiGeo=x}      <$> f hiGeo
-  size     f hi@HoloItem{..} = \x→ hi {hiSize=x}     <$> f hiSize
-  children f hi@HoloItem{..} = \x→ hi {hiChildren=x} <$> f hiChildren
+instance Flex (HoloItem Blank) where
+  geo      f hi@HoloItem{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
+  size     f hi@HoloItem{..} = (\x→ hi {hiSize=x})     <$> f hiSize
+  children f hi@HoloItem{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
+  -- area     f hi@HoloItem{..} = (\x→ hi {hiArea=x})     <$> f hiArea
+
+instance Flex (HoloItem Layout) where
+  geo      f hi@HoloItem{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
+  size     f hi@HoloItem{..} = (\x→ hi {hiSize=x})     <$> f hiSize
+  children f hi@HoloItem{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
+  area     f hi@HoloItem{..} = (\x→ hi {hiArea=x})     <$> f hiArea
 
 
 -- | 'HoloItem': raison d'etre: type-free payload of Flex's item tree.
@@ -113,35 +115,28 @@ instance Flex (HoloItem p) where
 --   2. Layout
 --   2. Visualise
 
-drawHoloItemAt ∷ (MonadIO m) ⇒ Frame → HoloItem Visual → m ()
-drawHoloItemAt frame  HoloItem{..} = do
-  --liftIO $ printf "sWHA %s | " (show $ pos^.lu'po.po'v)
-  drawableContentToGPU   (drawableOf hiVisual)
-  framePutDrawable frame (drawableOf hiVisual) (doubleToFloat <$> pos^.lu'po)
-
-
-queryHoloItem ∷ (MonadIO m) ⇒ Port → HoloItem Blank → m (HoloItem Sized)
-queryHoloItem port hoi =
-  case hoi^.this of
+queryHolotree ∷ (MonadIO m) ⇒ Port → HoloItem Blank → m (HoloItem Layout)
+queryHolotree port hoi =
+  case hoi of
     HoloItem{..} → do
-      dim ← query port _style _holo
-      pure $ hoi & place.size .~ dim
+      hiSize     ← query port hiStyle holo
+      let hiArea = mempty
+      hiChildren ← sequence $ (queryHolotree port) <$> hiChildren
+      pure HoloItem{..}
 
-visualiseHoloItem ∷ (MonadIO m) ⇒ Port → HoloItem Sized → m (HoloItem Visual)
-visualiseHoloItem port hoi =
-  case hoi^.this of
+visualiseHolotree ∷ (MonadIO m) ⇒ Port → HoloItem Layout → m (HoloItem Visual)
+visualiseHolotree port hoi =
+  case hoi of
     HoloItem{..} → do
-      _visual ← visualise port _style (hoi^.area) _holo
-      pure $ Item
-        { _geo      = hoi^.geo
-        , _place    = hoi^.place
-        , _this     = Ghola{..} ∷ Ghola Visual
-        , _children = []        -- XXX: landmine
-        , _area     = hoi^.area }
+      hiVisual   ← visualise port hiStyle hiArea holo
+      hiChildren ← sequence $ (visualiseHolotree port) <$> hiChildren
+      pure $ HoloItem{..}
 
 drawHoloItem ∷ (MonadIO m) ⇒ Frame → HoloItem Visual → m ()
-drawHoloItem frame item =
-  drawGholaAt frame (item^.this) (luOf $ item^.area)
+drawHoloItem frame  HoloItem{..} = do
+  --liftIO $ printf "sWHA %s | " (show $ pos^.lu'po.po'v)
+  drawableContentToGPU   (drawableOf hiVisual)
+  framePutDrawable frame (drawableOf hiVisual) (doubleToFloat <$> luOf hiArea^.lu'po)
 
 
 -- * Internal nodes
@@ -173,18 +168,30 @@ nodeGeo VBoxN = mempty & direction .~ DirRow
 -- * Layout tree Item constructors
 --
 -- XXX: this FromUnit constraint is a genuine pain.
-holoNode  ∷ FromUnit u ⇒ Node u k → [HoloItem Query] → HoloItem Query
-holoNode selector chi =
-  flip (mkItem (nodeGeo selector) mempty) chi $ Ghola selector False NodeStyle ()
+holoNode  ∷ ∀ u k. (FromUnit u, Holo u (Node u k), SingI u) ⇒ Node u k → [HoloItem Blank] → HoloItem Blank
+holoNode holo hiChildren =
+  let hiUnit     = sing ∷ (SUnitK u)
+      hiGeo      = nodeGeo holo
+      hiStyle    = mempty
+      hiSize     = Di (V2 Nothing Nothing)
+      hiArea     = ()
+      hiVisual   = ()
+  in HoloItem {..}
 
-holoLeaf ∷ Holo u a ⇒ Port → a → StyleOf u a → HoloItem Query
-holoLeaf _port holo sty = do
-  flip (mkItem defaultGeo         mempty) []  $ Ghola holo     False sty       ()
+holoLeaf ∷ ∀ u a. (Holo u a, SingI u) ⇒ Port → a → StyleOf u a → HoloItem Blank
+holoLeaf _port holo hiStyle =
+  let hiUnit     = sing ∷ (SUnitK u)
+      hiGeo      = mempty
+      hiChildren = []
+      hiSize     = Di (V2 Nothing Nothing)
+      hiArea     = ()
+      hiVisual   = ()
+  in HoloItem{..}
 
 
 -- * Pre-package tree constructors
 --
-holoVBox, holoHBox ∷ [HoloItem Query] → HoloItem Query
+holoVBox, holoHBox ∷ [HoloItem Blank] → HoloItem Blank
 holoHBox = holoNode (HBoxN ∷ Node PU HBox)
 holoVBox = holoNode (VBoxN ∷ Node PU VBox)
 
