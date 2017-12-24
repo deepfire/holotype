@@ -8,12 +8,12 @@
 , monadplus, MonadRandom, mono-traversable, mtl, OpenGL, OpenGLRaw
 , parsers, pretty, pretty-show, primitive, profunctors, proteaaudio
 , QuickCheck, random, rapid, ref-tf, reflex, semigroupoids
-, semigroups, stdenv, stm, tasty, tasty-discover
+, semigroups, singletons, stdenv, stm, tasty, tasty-discover
 , tasty-expected-failure, tasty-hedgehog, tasty-hspec, tasty-hunit
-, tasty-quickcheck, tasty-smallcheck, text, text-format, text-lens
-, text-zipper, these, transformers, trifecta, tuple
-, unordered-containers, vect, vector, wl-pprint-extras
-, wl-pprint-text
+, tasty-quickcheck, tasty-smallcheck, template-haskell, text
+, text-format, text-lens, text-zipper, these, transformers
+, trifecta, tuple, unordered-containers, vect, vector
+, wl-pprint-extras, wl-pprint-text
 }:
 mkDerivation {
   pname = "holotype";
@@ -30,11 +30,11 @@ mkDerivation {
     lens linear lub metamorphic MissingH monadplus MonadRandom
     mono-traversable mtl OpenGL OpenGLRaw parsers pretty pretty-show
     primitive profunctors proteaaudio QuickCheck random rapid ref-tf
-    reflex semigroupoids semigroups stm tasty tasty-expected-failure
-    tasty-hedgehog tasty-hspec tasty-hunit tasty-quickcheck
-    tasty-smallcheck text text-format text-lens text-zipper these
-    transformers trifecta tuple unordered-containers vect vector
-    wl-pprint-extras wl-pprint-text
+    reflex semigroupoids semigroups singletons stm tasty
+    tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
+    tasty-quickcheck tasty-smallcheck template-haskell text text-format
+    text-lens text-zipper these transformers trifecta tuple
+    unordered-containers vect vector wl-pprint-extras wl-pprint-text
   ];
   executableHaskellDepends = [
     aeson base base-unicode-symbols bytestring cairo clock containers

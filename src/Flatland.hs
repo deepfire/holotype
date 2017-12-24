@@ -25,6 +25,9 @@ import           Data.Complex
 import           Data.Lub
 import           Data.Glb
 import           Data.MonoTraversable
+import           Data.Singletons
+import           Data.Singletons.Prelude
+import           Data.Singletons.TH                hiding ((%~))
 import           Data.Text.Format
 import qualified Data.Text.Format                  as T
 import qualified Data.Text.Lazy                    as TL
@@ -77,6 +80,7 @@ newtype DΠ = DΠ { fromDΠ ∷ Double } deriving (Eq, Num, Show)
 -- * Universal, multi-density linear size.
 
 data UnitK = PU | PUI | Pt
+$(genSingletons [''UnitK])
 
 type instance Element (Unit PU)   = Double
 type instance Element (Unit PUI)  = F.Int32

@@ -69,6 +69,8 @@ library
                      , ref-tf
                      , semigroupoids >= 5.0.0.3
                      , semigroups >= 0.16.2.2
+                     , singletons
+                     , template-haskell
                      , text
                      , text-format
                      , these
