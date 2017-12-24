@@ -37,7 +37,6 @@ module Flex
   , basis
   -- * Item
   , Item(..), mkItem, mkItem'
-  , AItem
   , size
   , absolute
   , style
