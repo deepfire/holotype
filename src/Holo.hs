@@ -98,7 +98,7 @@ showWHoloAt frame  Visual{..} pos = do
 
 showHoloItem ∷ (MonadIO m) ⇒ Frame → HoloItem → m ()
 showHoloItem frame item =
-  showWHoloAt frame (item^.this) (lu $ item^.area)
+  showWHoloAt frame (item^.this) (luOf $ item^.area)
 
 
 -- * Internal nodes

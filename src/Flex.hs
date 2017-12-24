@@ -36,7 +36,7 @@ module Flex
   , order
   , basis
   -- * Item
-  , Item(..), mkItem, mkItem'
+  , Item(..), mkItem
   --
   , Place(..)
   , size
