@@ -349,8 +349,8 @@ layout_items item children l@Layout{..} =
       layout'children pos (c@((^.geo.positioning) → Absolute):rest) acc = layout'children pos rest (c:acc) -- Already positioned.
       layout'children pos (c:rest) acc =
         -- Grow or shrink the major axis item size if needed.
-        let flex'size   = if | l'^.la'flex'dim > 0 ∧ _grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral _grow   / fromIntegral (l'^.la'flex'grows)
-                             | l'^.la'flex'dim < 0 ∧ _shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral _shrink / fromIntegral (l'^.la'flex'shrinks)
+        let flex'size   = if | l'^.la'flex'dim > 0 ∧ c^.geo.grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (c^.geo.grow)   / fromIntegral (l'^.la'flex'grows)
+                             | l'^.la'flex'dim < 0 ∧ c^.geo.shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (c^.geo.shrink) / fromIntegral (l'^.la'flex'shrinks)
                              | otherwise → 0
             c1          = c & item'size  _la'major +~ flex'size
             -- Set the minor axis position (and stretch the minor axis size if needed).
