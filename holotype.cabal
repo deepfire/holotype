@@ -23,18 +23,18 @@ library
                   FlatDraw
                   Flex
 
-                  -- Holo
-                  -- HoloCairo
-                  -- HoloCube
-                  -- HoloFont
-                  -- HoloOS
-                  -- HoloPort
+                  Holo
+                  HoloCairo
+                  HoloCube
+                  HoloFont
+                  HoloOS
+                  HoloPort
                   HoloPrelude
 
                   Reflex.GLFW
                   Reflex.Random
 
-                  -- Holotype
+                  Holotype
 
   build-depends:       aeson
                      , base >=4.8
