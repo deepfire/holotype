@@ -63,54 +63,74 @@ class (FromUnit u, Monoid (StyleOf u a)) ⇒ Holo (u ∷ UnitK) a where
   drawableOf      ∷ VisualOf u a → Drawable
 
 
--- | 'HoloItem' / 'Ghola': raison d'etre: type-free payload of Flex's item tree.
+-- * HoloItem
 --
--- | Designate two passes over the tree:
---   1. Post-'query', pre-layout
---   2. Post-layout, with drawables allocated.
-data GState
+data Phase
   = Blank
   | Sized
+  | Placed
   | Visual
 
-type family GholaVisualOf u a (s ∷ GState) where
-  GholaVisualOf u a Blank  = ()
-  GholaVisualOf u a Sized  = ()
-  GholaVisualOf u a Visual = VisualOf u a
+type family HISize   (p ∷ Phase) ∷ Type where
+  HISize   Blank  = ()
+  HISize   Sized  = Di (Maybe Double)
+  HISize   Placed = Di (Maybe Double)
+  HISize   Visual = Di (Maybe Double)
 
-data Ghola (k ∷ GState) where
-  Ghola ∷ (Holo u a, Monoid (StyleOf u a)) ⇒
-    { _holo     ∷ a
-    , _uptodate ∷ Bool
-    , _style    ∷ StyleOf u a
-    , _visual   ∷ GholaVisualOf u a k
-    } → Ghola k
+type family HIArea   (p ∷ Phase) ∷ Type where
+  HIArea   Blank  = ()
+  HIArea   Sized  = ()
+  HIArea   Placed = Area Double
+  HIArea   Visual = Area Double
 
-drawGholaAt ∷ (MonadIO m) ⇒ Frame → Ghola Visual → LU Double → m ()
-drawGholaAt frame  Ghola{..} pos = do
-  --liftIO $ printf "sWHA %s | " (show $ pos^.lu'po.po'v)
-  drawableContentToGPU   (drawableOf _visual)
-  framePutDrawable frame (drawableOf _visual) (doubleToFloat <$> pos^.lu'po)
+type family HIVisual (p ∷ Phase) a ∷ Type where
+  HIVisual Blank  a = ()
+  HIVisual Sized  a = ()
+  HIVisual Placed a = ()
+  HIVisual Visual a = VisualOf a
+
+data HoloItem (p ∷ Phase) where
+  HoloItem ∷ Holo a ⇒
+    { holo       ∷ a
+    , hiGeo      ∷ Geo
+    , hiStyle    ∷ StyleOf a
+    , hiChildren ∷ [HoloItem p]
+    , hiSize     ∷ HISize p
+    , hiArea     ∷ HIArea p
+    , hiVisual   ∷ HIVisual p a
+    } → HoloItem p
+
+instance Flex (HoloItem p) where
+  geo      f hi@HoloItem{..} = \x→ hi {hiGeo=x}      <$> f hiGeo
+  size     f hi@HoloItem{..} = \x→ hi {hiSize=x}     <$> f hiSize
+  children f hi@HoloItem{..} = \x→ hi {hiChildren=x} <$> f hiChildren
 
 
-type family HoloItemContent (s ∷ GState) ∷ Type where
-  HoloItemContent Blank  = Ghola Blank
-  HoloItemContent Sized  = (Di Double, Ghola Sized)
-  HoloItemContent Visual = (Di Double, Ghola Visual)
+-- | 'HoloItem': raison d'etre: type-free payload of Flex's item tree.
+--
+-- | Designate three passes over the tree:
+--   1. Query
+--   2. Layout
+--   2. Visualise
 
-type HoloItem (s ∷ GState) = Item (HoloItemContent s)
+drawHoloItemAt ∷ (MonadIO m) ⇒ Frame → HoloItem Visual → m ()
+drawHoloItemAt frame  HoloItem{..} = do
+  --liftIO $ printf "sWHA %s | " (show $ pos^.lu'po.po'v)
+  drawableContentToGPU   (drawableOf hiVisual)
+  framePutDrawable frame (drawableOf hiVisual) (doubleToFloat <$> pos^.lu'po)
 
+
 queryHoloItem ∷ (MonadIO m) ⇒ Port → HoloItem Blank → m (HoloItem Sized)
 queryHoloItem port hoi =
   case hoi^.this of
-    Ghola{..} → do
+    HoloItem{..} → do
       dim ← query port _style _holo
       pure $ hoi & place.size .~ dim
 
 visualiseHoloItem ∷ (MonadIO m) ⇒ Port → HoloItem Sized → m (HoloItem Visual)
 visualiseHoloItem port hoi =
   case hoi^.this of
-    Ghola{..} → do
+    HoloItem{..} → do
       _visual ← visualise port _style (hoi^.area) _holo
       pure $ Item
         { _geo      = hoi^.geo
