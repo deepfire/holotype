@@ -28,9 +28,9 @@ import Flex
 test_grow1 ∷ TestTree
 test_grow1 =
   let r = _mkItem 60 240 ()
-          [ _mkItem 60 30 () [] & style.grow .~ 0
-          , _mkItem 60  0 () [] & style.grow .~ 1
-          , _mkItem 60  0 () [] & style.grow .~ 2
+          [ _mkItem 60 30 () [] & geo.grow .~ 0
+          , _mkItem 60  0 () [] & geo.grow .~ 1
+          , _mkItem 60  0 () [] & geo.grow .~ 2
           ] & layout
   in testGroup "grow1: three children grow proportionally to property"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 60  30)
@@ -41,8 +41,8 @@ test_grow1 =
 test_grow2 ∷ TestTree
 test_grow2 =
   let r = _mkItem 100 100 ()
-          [ _mkItem 100 20 () [] & style.grow .~ 1
-          , _mkItem 100 20 () [] & style.grow .~ 0
+          [ _mkItem 100 20 () [] & geo.grow .~ 1
+          , _mkItem 100 20 () [] & geo.grow .~ 0
           , _mkItem 100 20 () []
           ] & layout
   in testGroup "grow2: only grow if property set to 1"
@@ -54,8 +54,8 @@ test_grow2 =
 test_grow3 ∷ TestTree
 test_grow3 =
   let r = _mkItem 100 100 ()
-          [ _mkItem 100 50 () [] & style.grow .~ 2
-          , _mkItem 100 50 () [] & style.grow .~ 3
+          [ _mkItem 100 50 () [] & geo.grow .~ 2
+          , _mkItem 100 50 () [] & geo.grow .~ 3
           ] & layout
   in testGroup "grow3: growth has no effect if parent already full"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100  50)
@@ -67,7 +67,7 @@ test_grow4 =
   let r = _mkItem 100 100 ()
           [ _mkItem 100 25 () []
           , _mkItem 100 25 () []
-          ] & style.grow .~ 2
+          ] & geo.grow .~ 2
             & layout
   in testGroup "grow4: parent growth property has no effect on children"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100  25)
@@ -77,7 +77,7 @@ test_grow4 =
 test_grow5 ∷ TestTree
 test_grow5 =
   let r = _mkItem 100 100 ()
-          [ _mkItem 100 25 () [] & style.grow .~ 1
+          [ _mkItem 100 25 () [] & geo.grow .~ 1
           ] & layout
   in testGroup "grow5: single child fills parent"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100  100)
@@ -86,8 +86,8 @@ test_grow5 =
 test_grow6 ∷ TestTree
 test_grow6 =
   let r = _mkItem 100 100 ()
-          [ _mkItem 100 45 () [] & style.grow .~ 1
-          , _mkItem 100 45 () [] & style.grow .~ 1
+          [ _mkItem 100 45 () [] & geo.grow .~ 1
+          , _mkItem 100 45 () [] & geo.grow .~ 1
           ] & layout
   in testGroup "grow6: two undersized children fill at equal rate"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100   50)
@@ -105,7 +105,7 @@ test_wrap1 =
           , _mkItem 100 150 () []
           , _mkItem 100 150 () []
           , _mkItem 100 150 () []
-          ] & style.wrap .~ NoWrap
+          ] & geo.wrap .~ NoWrap
             & layout
   in testGroup "wrap1: NoWrap doesn't enable wrapping"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100  75)
@@ -121,8 +121,8 @@ test_wrap2 =
           , _mkItem 50 150 () []
           , _mkItem 50 150 () []
           , _mkItem 50 150 () []
-          ] & style.wrap          .~ Wrap
-            & style.align'content .~ AlignStart
+          ] & geo.wrap          .~ Wrap
+            & geo.align'content .~ AlignStart
             & layout
   in testGroup "wrap2: four non-stretching children wrap across two rows"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50 150)
@@ -137,8 +137,8 @@ test_wrap3 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.wrap          .~ Wrap
-            & style.align'content .~ AlignStart
+          ] & geo.wrap          .~ Wrap
+            & geo.align'content .~ AlignStart
             & layout
   in testGroup "wrap3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  50)
@@ -155,8 +155,8 @@ test_wrap4 =
           , _mkItem 25 50 () []
           , _mkItem 25 50 () []
           , _mkItem 25 50 () []
-          ] & style.wrap          .~ Wrap
-            & style.align'content .~ AlignStart
+          ] & geo.wrap          .~ Wrap
+            & geo.align'content .~ AlignStart
             & layout
   in testGroup "wrap4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  25  50)
@@ -173,9 +173,9 @@ test_wrap5 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.wrap            .~ Wrap
-            & style.justify'content .~ AlignEnd
-            & style.align'content   .~ AlignStart
+          ] & geo.wrap            .~ Wrap
+            & geo.justify'content .~ AlignEnd
+            & geo.align'content   .~ AlignStart
             & layout
   in testGroup "wrap5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0  20) (di  50  50)
@@ -189,9 +189,9 @@ test_wrap6 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.wrap            .~ Wrap
-            & style.justify'content .~ AlignCenter
-            & style.align'content   .~ AlignStart
+          ] & geo.wrap            .~ Wrap
+            & geo.justify'content .~ AlignCenter
+            & geo.align'content   .~ AlignStart
             & layout
   in testGroup "wrap6: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0  10) (di  50  50)
@@ -205,9 +205,9 @@ test_wrap7 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.wrap            .~ Wrap
-            & style.justify'content .~ AlignSpaceAround
-            & style.align'content   .~ AlignStart
+          ] & geo.wrap            .~ Wrap
+            & geo.justify'content .~ AlignSpaceAround
+            & geo.align'content   .~ AlignStart
             & layout
   in testGroup "wrap7: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   5) (di  50  50)
@@ -221,9 +221,9 @@ test_wrap8 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.wrap            .~ Wrap
-            & style.justify'content .~ AlignSpaceBetween
-            & style.align'content   .~ AlignStart
+          ] & geo.wrap            .~ Wrap
+            & geo.justify'content .~ AlignSpaceBetween
+            & geo.align'content   .~ AlignStart
             & layout
   in testGroup "wrap8: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  50)
@@ -235,11 +235,11 @@ test_wrap9 ∷ TestTree
 test_wrap9 =
   let r = _mkItem 120 120 ()
           [ _mkItem 50 50 () []
-          , _mkItem 50 50 () [] & style.grow .~ 1
-          , _mkItem 50 50 () [] & style.grow .~ 1
+          , _mkItem 50 50 () [] & geo.grow .~ 1
+          , _mkItem 50 50 () [] & geo.grow .~ 1
           , _mkItem 50 50 () []
-          ] & style.wrap            .~ Wrap
-            & style.align'content   .~ AlignStart
+          ] & geo.wrap            .~ Wrap
+            & geo.align'content   .~ AlignStart
             & layout
   in testGroup "wrap9: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  50)
@@ -256,8 +256,8 @@ test_wrap10 =
           , _mkItem 60 40 () []
           , _mkItem 40 50 () []
           , _mkItem 50 60 () []
-          ] & style.wrap            .~ Wrap
-            & style.align'items     .~ AlignStart
+          ] & geo.wrap            .~ Wrap
+            & geo.align'items     .~ AlignStart
             & layout
   in testGroup "wrap10: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  40)
@@ -276,8 +276,8 @@ test_wrap11 =
           , _mkItem 60 40 () []
           , _mkItem 40 50 () []
           , _mkItem 50 60 () []
-          ] & style.wrap            .~ Wrap
-            & style.align'items     .~ AlignCenter
+          ] & geo.wrap            .~ Wrap
+            & geo.align'items     .~ AlignCenter
             & layout
   in testGroup "wrap11: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  10   0) (di  50  40)
@@ -295,8 +295,8 @@ test_wrap12 =
           , _mkItem 60 40 () []
           , _mkItem 40 50 () []
           , _mkItem 50 60 () []
-          ] & style.wrap            .~ Wrap
-            & style.align'items     .~ AlignEnd
+          ] & geo.wrap            .~ Wrap
+            & geo.align'items     .~ AlignEnd
             & layout
   in testGroup "wrap12: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  20   0) (di  50  40)
@@ -309,13 +309,13 @@ test_wrap12 =
 test_wrap13 ∷ TestTree
 test_wrap13 =
   let r = _mkItem 120 120 ()
-          [ _mkItem 50 40 () [] & style.align'self .~ AlignEnd
+          [ _mkItem 50 40 () [] & geo.align'self .~ AlignEnd
           , _mkItem 70 30 () []
-          , _mkItem 60 40 () [] & style.align'self .~ AlignCenter
-          , _mkItem 40 50 () [] & style.align'self .~ AlignStart
+          , _mkItem 60 40 () [] & geo.align'self .~ AlignCenter
+          , _mkItem 40 50 () [] & geo.align'self .~ AlignStart
           , _mkItem 50 60 () []
-          , _mkItem 10 10 () [] & style.align'self .~ AlignEnd
-          ] & style.wrap .~ Wrap
+          , _mkItem 10 10 () [] & geo.align'self .~ AlignEnd
+          ] & geo.wrap .~ Wrap
             & layout
   in testGroup "wrap13: potpourri"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  20   0) (di  50  40)
@@ -332,8 +332,8 @@ test_wrap14 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.wrap            .~ ReverseWrap
-            & style.align'content   .~ AlignStart
+          ] & geo.wrap            .~ ReverseWrap
+            & geo.align'content   .~ AlignStart
             & layout
   in testGroup "wrap14: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  70   0) (di  50  50)
@@ -350,8 +350,8 @@ test_wrap15 =
           , _mkItem 25 50 () []
           , _mkItem 25 50 () []
           , _mkItem 25 50 () []
-          ] & style.wrap          .~ ReverseWrap
-            & style.align'content .~ AlignStart
+          ] & geo.wrap          .~ ReverseWrap
+            & geo.align'content .~ AlignStart
             & layout
   in testGroup "wrap15: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  95   0) (di  25  50)
@@ -368,9 +368,9 @@ test_wrap16 =
           [ _mkItem 20 50 () []
           , _mkItem 20 50 () []
           , _mkItem 20 50 () []
-          ] & style.direction       .~ DirColumn
-            & style.wrap            .~ Wrap
-            & style.align'content   .~ AlignStretch
+          ] & geo.direction       .~ DirColumn
+            & geo.wrap            .~ Wrap
+            & geo.align'content   .~ AlignStretch
             & layout
   in testGroup "wrap16: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  20  50)
@@ -386,9 +386,9 @@ test_wrap17 =
           , _mkItem 20 50 () []
           , _mkItem 20 50 () []
           , _mkItem 20 50 () []
-          ] & style.direction       .~ DirColumn
-            & style.wrap            .~ Wrap
-            & style.align'content   .~ AlignStretch
+          ] & geo.direction       .~ DirColumn
+            & geo.wrap            .~ Wrap
+            & geo.align'content   .~ AlignStretch
             & layout
   in testGroup "wrap17: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  20  50)
@@ -405,7 +405,7 @@ test_wrap17 =
 test_basis1 ∷ TestTree
 test_basis1 =
   let r = _mkItem 100 100 ()
-          [ _mkItem' (Just 100) Nothing () [] & style.basis .~ 60
+          [ _mkItem' (Just 100) Nothing () [] & geo.basis .~ 60
           , _mkItem        100  40      () []
           ] & layout
   in testGroup "basis1: "
@@ -416,7 +416,7 @@ test_basis1 =
 test_basis2 ∷ TestTree
 test_basis2 =
   let r = _mkItem 100 100 ()
-          [ _mkItem 100 40 () [] & style.basis .~ 60
+          [ _mkItem 100 40 () [] & geo.basis .~ 60
           , _mkItem 100 40 () []
           ] & layout
   in testGroup "basis2: the basis attribute has priority over width/height"
@@ -427,7 +427,7 @@ test_basis2 =
 test_basis3 ∷ TestTree
 test_basis3 =
   let r = _mkItem 100 100 ()
-          [ _mkItem' (Just 100) Nothing () [] & style.basis .~ (-60)
+          [ _mkItem' (Just 100) Nothing () [] & geo.basis .~ (-60)
           , _mkItem        100  40      () []
           ] & layout
   in testGroup "basis3: the basis attribute is ignored if negative"
@@ -438,7 +438,7 @@ test_basis3 =
 test_basis4 ∷ TestTree
 test_basis4 =
   let r = _mkItem 100 100 ()
-          [ _mkItem 100 40 () [] & style.basis .~ (-60)
+          [ _mkItem 100 40 () [] & geo.basis .~ (-60)
           , _mkItem 100 40 () []
           ] & layout
   in testGroup "basis4: the basis attribute is ignored if negative"
@@ -449,7 +449,7 @@ test_basis4 =
 test_basis5 ∷ TestTree
 test_basis5 =
   let r = _mkItem 100 100 ()
-          [ _mkItem 100 40 () [] & style.basis .~ 0
+          [ _mkItem 100 40 () [] & geo.basis .~ 0
           , _mkItem 100 40 () []
           ] & layout
   in testGroup "basis5: the basis attribute is ignored if 0"
@@ -464,9 +464,9 @@ test_basis5 =
 test_order1 ∷ TestTree
 test_order1 =
   let r = _mkItem 200 200 ()
-          [ _mkItem 50 50 () [] & style.order .~ Just 1
-          , _mkItem 50 50 () [] & style.order .~ Just 3
-          , _mkItem 50 50 () [] & style.order .~ Just 2
+          [ _mkItem 50 50 () [] & geo.order .~ Just 1
+          , _mkItem 50 50 () [] & geo.order .~ Just 3
+          , _mkItem 50 50 () [] & geo.order .~ Just 2
           ] & layout
   in testGroup "order1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  50)
@@ -479,10 +479,10 @@ test_order1 =
 test_order2 ∷ TestTree
 test_order2 =
   let r = _mkItem 200 200 ()
-          [ _mkItem 50 50 () [] & style.order .~ Just 2
-          , _mkItem 50 50 () [] & style.order .~ Just 3
-          , _mkItem 50 50 () [] & style.order .~ Just 1
-          ] & style.direction .~ DirColumnReverse
+          [ _mkItem 50 50 () [] & geo.order .~ Just 2
+          , _mkItem 50 50 () [] & geo.order .~ Just 3
+          , _mkItem 50 50 () [] & geo.order .~ Just 1
+          ] & geo.direction .~ DirColumnReverse
             & layout
   in testGroup "order2: "
      [ expectFail $
@@ -497,9 +497,9 @@ test_order3 ∷ TestTree
 test_order3 =
   let r = _mkItem 200 200 ()
           [ _mkItem 50 50 () []
-          , _mkItem 50 50 () [] & style.order .~ Just (-1)
+          , _mkItem 50 50 () [] & geo.order .~ Just (-1)
           , _mkItem 50 50 () []
-          ] & style.direction .~ DirColumnReverse
+          ] & geo.direction .~ DirColumnReverse
             & layout
   in testGroup "order3: "
      [ expectFail $
@@ -521,10 +521,10 @@ test_margin1 ∷ TestTree
 test_margin1 =
   let r = _mkItem 100 100 ()
           [ _mkItem  25 25 () []
-          , _mkItem  25 25 () [] & style.margin .~ LRTB 15 15 10 10
+          , _mkItem  25 25 () [] & geo.margin .~ LRTB 15 15 10 10
           , _mkItem  25 25 () []
-          ] & style.align'items     .~ AlignStart
-            & style.justify'content .~ AlignStart
+          ] & geo.align'items     .~ AlignStart
+            & geo.justify'content .~ AlignStart
             & layout
   in testGroup "margin1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  25  25)
@@ -536,10 +536,10 @@ test_margin2 ∷ TestTree
 test_margin2 =
   let r = _mkItem 100 100 ()
           [ _mkItem  25 25 () []
-          , _mkItem  25 25 () [] & style.margin .~ LRTB 15 15 10 10
+          , _mkItem  25 25 () [] & geo.margin .~ LRTB 15 15 10 10
           , _mkItem  25 25 () []
-          ] & style.align'items     .~ AlignEnd
-            & style.justify'content .~ AlignStart
+          ] & geo.align'items     .~ AlignEnd
+            & geo.justify'content .~ AlignStart
             & layout
   in testGroup "margin2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  75   0) (di  25  25)
@@ -551,10 +551,10 @@ test_margin3 ∷ TestTree
 test_margin3 =
   let r = _mkItem 100 100 ()
           [ _mkItem  25 25 () []
-          , _mkItem  25 25 () [] & style.margin .~ LRTB 15 15 10 10
+          , _mkItem  25 25 () [] & geo.margin .~ LRTB 15 15 10 10
           , _mkItem  25 25 () []
-          ] & style.align'items     .~ AlignStart
-            & style.justify'content .~ AlignEnd
+          ] & geo.align'items     .~ AlignStart
+            & geo.justify'content .~ AlignEnd
             & layout
   in testGroup "margin3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   5) (di  25  25)
@@ -566,10 +566,10 @@ test_margin4 ∷ TestTree
 test_margin4 =
   let r = _mkItem 100 100 ()
           [ _mkItem  25 25 () []
-          , _mkItem  25 25 () [] & style.margin .~ LRTB 15 15 10 10
+          , _mkItem  25 25 () [] & geo.margin .~ LRTB 15 15 10 10
           , _mkItem  25 25 () []
-          ] & style.align'items     .~ AlignEnd
-            & style.justify'content .~ AlignEnd
+          ] & geo.align'items     .~ AlignEnd
+            & geo.justify'content .~ AlignEnd
             & layout
   in testGroup "margin4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  75   5) (di  25  25)
@@ -581,10 +581,10 @@ test_margin5 ∷ TestTree
 test_margin5 =
   let r = _mkItem 100 100 ()
           [ _mkItem  10 10 () []
-          , _mkItem  10 10 () [] & style.margin .~ LRTB 15 10 0 0
+          , _mkItem  10 10 () [] & geo.margin .~ LRTB 15 10 0 0
           , _mkItem  10 10 () []
-          ] & style.align'items     .~ AlignCenter
-            & style.justify'content .~ AlignStart
+          ] & geo.align'items     .~ AlignCenter
+            & geo.justify'content .~ AlignStart
             & layout
   in testGroup "margin5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  45   0) (di  10  10)
@@ -596,8 +596,8 @@ test_margin6 ∷ TestTree
 test_margin6 =
   let r = _mkItem 100 100 ()
           [ _mkItem  10 10 () []
-          , _mkItem   0 10 () [] & style.margin     .~ LRTB 15 10 0 0
-                                 & style.align'self .~ AlignStretch
+          , _mkItem   0 10 () [] & geo.margin     .~ LRTB 15 10 0 0
+                                 & geo.align'self .~ AlignStretch
           , _mkItem  10 10 () []
           ] & layout
   in testGroup "margin6 "
@@ -610,8 +610,8 @@ test_margin7 ∷ TestTree
 test_margin7 =
   let r = _mkItem 100 100 ()
           [ _mkItem  10 10 () []
-          , _mkItem  10 10 () [] & style.margin     .~ LRTB 15 10 0 0
-                                 & style.align'self .~ AlignStretch
+          , _mkItem  10 10 () [] & geo.margin     .~ LRTB 15 10 0 0
+                                 & geo.align'self .~ AlignStretch
           , _mkItem  10 10 () []
           ] & layout
   in testGroup "margin7 "
@@ -623,10 +623,10 @@ test_margin7 =
 test_margin8 ∷ TestTree
 test_margin8 =
   let r = _mkItem 100 100 ()
-          [ _mkItem' Nothing (Just 10) () [] & style.margin .~ LRTB 10  0 0 0
-          , _mkItem' Nothing (Just 10) () [] & style.margin .~ LRTB  0 10 0 0
-          , _mkItem' Nothing (Just 10) () [] & style.margin .~ LRTB 10 20 0 0
-          ] & style.direction .~ DirColumn
+          [ _mkItem' Nothing (Just 10) () [] & geo.margin .~ LRTB 10  0 0 0
+          , _mkItem' Nothing (Just 10) () [] & geo.margin .~ LRTB  0 10 0 0
+          , _mkItem' Nothing (Just 10) () [] & geo.margin .~ LRTB 10 20 0 0
+          ] & geo.direction .~ DirColumn
             & layout
   in testGroup "margin8 "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  10   0) (di  90  10)
@@ -637,10 +637,10 @@ test_margin8 =
 test_margin9 ∷ TestTree
 test_margin9 =
   let r = _mkItem 100 100 ()
-          [ _mkItem' (Just 10) Nothing () [] & style.margin .~ LRTB 0 0 10  0
-          , _mkItem' (Just 10) Nothing () [] & style.margin .~ LRTB 0 0  0 10
-          , _mkItem' (Just 10) Nothing () [] & style.margin .~ LRTB 0 0 10 20
-          ] & style.direction .~ DirRow
+          [ _mkItem' (Just 10) Nothing () [] & geo.margin .~ LRTB 0 0 10  0
+          , _mkItem' (Just 10) Nothing () [] & geo.margin .~ LRTB 0 0  0 10
+          , _mkItem' (Just 10) Nothing () [] & geo.margin .~ LRTB 0 0 10 20
+          ] & geo.direction .~ DirRow
             & layout
   in testGroup "margin9 "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0  10) (di  10  90)
@@ -655,8 +655,8 @@ test_margin9 =
 test_shrink1 ∷ TestTree
 test_shrink1 =
   let r = _mkItem 100 100 ()
-          [ _mkItem 100 100 () [] & style.shrink .~ 2
-          , _mkItem 100 100 () [] & style.shrink .~ 3
+          [ _mkItem 100 100 () [] & geo.shrink .~ 2
+          , _mkItem 100 100 () [] & geo.shrink .~ 3
           ] & layout
   in testGroup "shrink1"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100  60)
@@ -667,7 +667,7 @@ test_shrink2 ∷ TestTree
 test_shrink2 =
   let r = _mkItem 100 100 ()
           [ _mkItem 100 100 () []
-          , _mkItem 100 100 () [] & style.shrink .~ 4
+          , _mkItem 100 100 () [] & geo.shrink .~ 4
           ] & layout
   in testGroup "shrink2"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100  80)
@@ -677,8 +677,8 @@ test_shrink2 =
 test_shrink3 ∷ TestTree
 test_shrink3 =
   let r = _mkItem 100 100 ()
-          [ _mkItem 100 40 () [] & style.shrink .~ 2
-          , _mkItem 100 40 () [] & style.shrink .~ 3
+          [ _mkItem 100 40 () [] & geo.shrink .~ 2
+          , _mkItem 100 40 () [] & geo.shrink .~ 3
           ] & layout
   in testGroup "shrink3: the shrink attributes are not taken into account when there is enough flexible space available"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100  40)
@@ -690,7 +690,7 @@ test_shrink4 =
   let r = _mkItem 100 100 ()
           [ _mkItem 100 25 () []
           , _mkItem 100 25 () []
-          ] & style.shrink .~ 2
+          ] & geo.shrink .~ 2
             & layout
   in testGroup "shrink4: the shrink attribute is not inherited from children"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100  25)
@@ -700,7 +700,7 @@ test_shrink4 =
 test_shrink5 ∷ TestTree
 test_shrink5 =
   let r = _mkItem 100 100 ()
-          [ _mkItem 100 550 () [] & style.shrink .~ 1
+          [ _mkItem 100 550 () [] & geo.shrink .~ 1
           ] & layout
   in testGroup "shrink5: all the container space is used when there is only one item with a positive value for the shrink attribute"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100 100)
@@ -709,8 +709,8 @@ test_shrink5 =
 test_shrink6 ∷ TestTree
 test_shrink6 =
   let r = _mkItem 100 100 ()
-          [ _mkItem 100 75 () [] & style.shrink .~ 1
-          , _mkItem 100 75 () [] & style.shrink .~ 1
+          [ _mkItem 100 75 () [] & geo.shrink .~ 1
+          , _mkItem 100 75 () [] & geo.shrink .~ 1
           ] & layout
   in testGroup "shrink6: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100  50)
@@ -725,10 +725,10 @@ test_padding1 ∷ TestTree
 test_padding1 =
   let r = _mkItem 100 100 ()
           [ _mkItem  25 25 () []
-          ] & style.direction       .~ DirColumn
-            & style.justify'content .~ AlignStart
-            & style.align'items     .~ AlignStart
-            & style.padding         .~ LRTB 10 15 15 10
+          ] & geo.direction       .~ DirColumn
+            & geo.justify'content .~ AlignStart
+            & geo.align'items     .~ AlignStart
+            & geo.padding         .~ LRTB 10 15 15 10
             & layout
   in testGroup "padding1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  10  15) (di  25  25)
@@ -738,10 +738,10 @@ test_padding2 ∷ TestTree
 test_padding2 =
   let r = _mkItem 100 100 ()
           [ _mkItem  25 25 () []
-          ] & style.direction       .~ DirColumn
-            & style.justify'content .~ AlignEnd
-            & style.align'items     .~ AlignStart
-            & style.padding         .~ LRTB 10 15 15 10
+          ] & geo.direction       .~ DirColumn
+            & geo.justify'content .~ AlignEnd
+            & geo.align'items     .~ AlignStart
+            & geo.padding         .~ LRTB 10 15 15 10
             & layout
   in testGroup "padding2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  10  65) (di  25  25)
@@ -751,10 +751,10 @@ test_padding3 ∷ TestTree
 test_padding3 =
   let r = _mkItem 100 100 ()
           [ _mkItem  25 25 () []
-          ] & style.direction       .~ DirColumn
-            & style.justify'content .~ AlignEnd
-            & style.align'items     .~ AlignEnd
-            & style.padding         .~ LRTB 10 15 15 10
+          ] & geo.direction       .~ DirColumn
+            & geo.justify'content .~ AlignEnd
+            & geo.align'items     .~ AlignEnd
+            & geo.padding         .~ LRTB 10 15 15 10
             & layout
   in testGroup "padding3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  60  65) (di  25  25)
@@ -764,10 +764,10 @@ test_padding4 ∷ TestTree
 test_padding4 =
   let r = _mkItem 100 100 ()
           [ _mkItem  25 25 () []
-          ] & style.direction       .~ DirColumn
-            & style.justify'content .~ AlignStart
-            & style.align'items     .~ AlignEnd
-            & style.padding         .~ LRTB 10 15 15 10
+          ] & geo.direction       .~ DirColumn
+            & geo.justify'content .~ AlignStart
+            & geo.align'items     .~ AlignEnd
+            & geo.padding         .~ LRTB 10 15 15 10
             & layout
   in testGroup "padding4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  60  15) (di  25  25)
@@ -776,11 +776,11 @@ test_padding4 =
 test_padding5 ∷ TestTree
 test_padding5 =
   let r = _mkItem 100 100 ()
-          [ _mkItem  0 25 () [] & style.align'self .~ AlignStretch
-          ] & style.direction       .~ DirColumn
-            & style.justify'content .~ AlignStart
-            & style.align'items     .~ AlignStart
-            & style.padding         .~ LRTB 10 15 15 10
+          [ _mkItem  0 25 () [] & geo.align'self .~ AlignStretch
+          ] & geo.direction       .~ DirColumn
+            & geo.justify'content .~ AlignStart
+            & geo.align'items     .~ AlignStart
+            & geo.padding         .~ LRTB 10 15 15 10
             & layout
   in testGroup "padding5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  10  15) (di  75  25)
@@ -802,18 +802,18 @@ test_children4 =
               [ _mkItem  70  70 ()
                 [ _mkItem  60  60 ()
                   [ _mkItem  50  50 ()
-                    [] & style.align'items     .~ AlignCenter
-                       & style.justify'content .~ AlignCenter
-                  ] & style.align'items     .~ AlignCenter
-                    & style.justify'content .~ AlignCenter
-                ] & style.align'items     .~ AlignCenter
-                  & style.justify'content .~ AlignCenter
-              ] & style.align'items     .~ AlignCenter
-                & style.justify'content .~ AlignCenter
-            ] & style.align'items     .~ AlignCenter
-              & style.justify'content .~ AlignCenter
-          ] & style.align'items     .~ AlignCenter
-            & style.justify'content .~ AlignCenter
+                    [] & geo.align'items     .~ AlignCenter
+                       & geo.justify'content .~ AlignCenter
+                  ] & geo.align'items     .~ AlignCenter
+                    & geo.justify'content .~ AlignCenter
+                ] & geo.align'items     .~ AlignCenter
+                  & geo.justify'content .~ AlignCenter
+              ] & geo.align'items     .~ AlignCenter
+                & geo.justify'content .~ AlignCenter
+            ] & geo.align'items     .~ AlignCenter
+              & geo.justify'content .~ AlignCenter
+          ] & geo.align'items     .~ AlignCenter
+            & geo.justify'content .~ AlignCenter
             & layout
   in testGroup "children4: "
      [ testCase "child 0"         $ r^.child 0.area                                 @?= Area (po   5   5) (di  90  90)
@@ -830,7 +830,7 @@ test_children4 =
 test_position1 ∷ TestTree
 test_position1 =
   let r = _mkItem 100 100 ()
-          [ _mkItem  10 10 () [] & style.positioning .~ Absolute
+          [ _mkItem  10 10 () [] & geo.positioning .~ Absolute
           ] & layout
   in testGroup "position1: items with an absolute position default to the left/top corner"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  10  10)
@@ -839,16 +839,16 @@ test_position1 =
 test_position2 ∷ TestTree
 test_position2 =
   let r = _mkItem 100 100 ()
-          [ _mkItem  10 10 () [] & style.positioning .~ Absolute
+          [ _mkItem  10 10 () [] & geo.positioning .~ Absolute
                                  & place.absolute    .~ LRTB (Just 10) Nothing  (Just 10) Nothing
-          , _mkItem  10 10 () [] & style.positioning .~ Absolute
+          , _mkItem  10 10 () [] & geo.positioning .~ Absolute
                                  & place.absolute    .~ LRTB  Nothing (Just 10) (Just 10) Nothing
-          , _mkItem  10 10 () [] & style.positioning .~ Absolute
+          , _mkItem  10 10 () [] & geo.positioning .~ Absolute
                                  & place.absolute    .~ LRTB  Nothing (Just 10)  Nothing (Just 10)
-          , _mkItem  10 10 () [] & style.positioning .~ Absolute
+          , _mkItem  10 10 () [] & geo.positioning .~ Absolute
                                  & place.absolute    .~ LRTB (Just 10) Nothing   Nothing (Just 10)
-          ] & style.align'items     .~ AlignCenter
-            & style.justify'content .~ AlignStart
+          ] & geo.align'items     .~ AlignCenter
+            & geo.justify'content .~ AlignStart
             & layout
   in testGroup "position2 "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  10  10) (di  10  10)
@@ -860,9 +860,9 @@ test_position2 =
 test_position3 ∷ TestTree
 test_position3 =
   let r = _mkItem 100 100 ()
-          [ _mkItem  10 10 () [] & style.positioning .~ Absolute
+          [ _mkItem  10 10 () [] & geo.positioning .~ Absolute
                                  & place.absolute    .~ LRTB (Just 10) (Just 10) Nothing   Nothing
-          , _mkItem  10 10 () [] & style.positioning .~ Absolute
+          , _mkItem  10 10 () [] & geo.positioning .~ Absolute
                                  & place.absolute    .~ LRTB  Nothing   Nothing (Just 10) (Just 10)
           ] & layout
   in testGroup "position3: if both left/right or top/bottom are given, left/top get the priority if the item has the appropriate size dimension set"
@@ -873,9 +873,9 @@ test_position3 =
 test_position4 ∷ TestTree
 test_position4 =
   let r = _mkItem 100 100 ()
-          [ _mkItem' Nothing (Just 20) () [] & style.positioning .~ Absolute
+          [ _mkItem' Nothing (Just 20) () [] & geo.positioning .~ Absolute
                                              & place.absolute    .~ LRTB (Just 10) (Just 10) Nothing   Nothing
-          , _mkItem' (Just 20) Nothing () [] & style.positioning .~ Absolute
+          , _mkItem' (Just 20) Nothing () [] & geo.positioning .~ Absolute
                                              & place.absolute    .~ LRTB  Nothing   Nothing (Just 10) (Just 10)
           ] & layout
   in testGroup "position4: if both left/right or top/bottom are given, the item is properly resized if the appropriate size dimension hasn't been set"
@@ -886,8 +886,8 @@ test_position4 =
 test_position5 ∷ TestTree
 test_position5 =
   let r = _mkItem 100 100 ()
-          [ _mkItem  10 10 () [] & style.positioning .~ Absolute
-                                 & style.basis       .~ 20
+          [ _mkItem  10 10 () [] & geo.positioning .~ Absolute
+                                 & geo.basis       .~ 20
                                  & place.absolute    .~ LRTB (Just 10) Nothing Nothing (Just 10)
           ] & layout
   in testGroup "position5: the `basis' property is ignored for items with an absolute position"
@@ -898,10 +898,10 @@ test_position6 ∷ TestTree
 test_position6 =
   let r = _mkItem 200 200 ()
           [ _mkItem  50 50 () []
-          , _mkItem  50 50 () [] & style.positioning .~ Absolute
+          , _mkItem  50 50 () [] & geo.positioning .~ Absolute
                                  & place.absolute    .~ LRTB Nothing (Just 0) Nothing (Just 0)
           , _mkItem  50 50 () []
-          ] & style.direction .~ DirRow
+          ] & geo.direction .~ DirRow
             & layout
   in testGroup "position6: items with an absolute position are separated from the other items during the layout"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  50)
@@ -914,12 +914,12 @@ test_position7 =
   let r = _mkItem 120 120 ()
           [ _mkItem  50 50 () []
           , _mkItem  50 50 () []
-          , _mkItem  50 50 () [] & style.positioning .~ Absolute
+          , _mkItem  50 50 () [] & geo.positioning .~ Absolute
                                  & place.absolute    .~ LRTB Nothing (Just 0) (Just 0) Nothing
           , _mkItem  50 50 () []
-          ] & style.wrap            .~ Wrap
-            & style.justify'content .~ AlignSpaceAround
-            & style.align'content   .~ AlignStart
+          ] & geo.wrap            .~ Wrap
+            & geo.justify'content .~ AlignSpaceAround
+            & geo.align'content   .~ AlignStart
             & layout
   in testGroup "position7: items with an absolute position are separated from the other items during the layout and are not taken into account when calculating spacing"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   5) (di  50  50)
@@ -933,13 +933,13 @@ test_position8 =
   let r = _mkItem 100 100 ()
           [ _mkItem' Nothing Nothing ()
             [ _mkItem  60 60 ()
-              [ _mkItem  40 40 () [] & style.positioning .~ Absolute
+              [ _mkItem  40 40 () [] & geo.positioning .~ Absolute
                                      & place.absolute    .~ LRTB (Just 10)  Nothing   Nothing (Just 10)
-              ] & style.positioning .~ Absolute
+              ] & geo.positioning .~ Absolute
                 & place.absolute    .~ LRTB  Nothing  (Just 10) (Just 10) Nothing
-            ] & style.positioning .~ Absolute
+            ] & geo.positioning .~ Absolute
               & place.absolute    .~ LRTB (Just 10) (Just 10) (Just 10) (Just 10)
-          ] & style.direction .~ DirRow
+          ] & geo.direction .~ DirRow
             & layout
   in testGroup "position8: items with an absolute position can be nested"
      [ testCase "child 0" $ r^.child 0.area                 @?= Area (po  10  10) (di  80  80)
@@ -957,7 +957,7 @@ test_direction1 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.direction .~ DirRow
+          ] & geo.direction .~ DirRow
             & layout
   in testGroup "direction1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  50)
@@ -971,7 +971,7 @@ test_direction2 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.direction .~ DirColumn
+          ] & geo.direction .~ DirColumn
             & layout
   in testGroup "direction2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  50)
@@ -985,7 +985,7 @@ test_direction3 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.direction .~ DirRowReverse
+          ] & geo.direction .~ DirRowReverse
             & layout
   in testGroup "direction3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po 150   0) (di  50  50)
@@ -999,7 +999,7 @@ test_direction4 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.direction .~ DirColumnReverse
+          ] & geo.direction .~ DirColumnReverse
             & layout
   in testGroup "direction4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0 150) (di  50  50)
@@ -1014,9 +1014,9 @@ test_direction4 =
 test_align_self1 ∷ TestTree
 test_align_self1 =
   let r = _mkItem 100 100 ()
-          [ _mkItem  50  25 () [] & style.align'self .~ AlignStart
-          , _mkItem  50  25 () [] & style.align'self .~ AlignStart
-          , _mkItem  50  25 () [] & style.align'self .~ AlignStart
+          [ _mkItem  50  25 () [] & geo.align'self .~ AlignStart
+          , _mkItem  50  25 () [] & geo.align'self .~ AlignStart
+          , _mkItem  50  25 () [] & geo.align'self .~ AlignStart
           ] & layout
   in testGroup "align_self1"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  25)
@@ -1027,9 +1027,9 @@ test_align_self1 =
 test_align_self2 ∷ TestTree
 test_align_self2 =
   let r = _mkItem 100 100 ()
-          [ _mkItem  50  25 () [] & style.align'self .~ AlignEnd
-          , _mkItem  50  25 () [] & style.align'self .~ AlignEnd
-          , _mkItem  50  25 () [] & style.align'self .~ AlignEnd
+          [ _mkItem  50  25 () [] & geo.align'self .~ AlignEnd
+          , _mkItem  50  25 () [] & geo.align'self .~ AlignEnd
+          , _mkItem  50  25 () [] & geo.align'self .~ AlignEnd
           ] & layout
   in testGroup "align_self2"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  50   0) (di  50  25)
@@ -1040,9 +1040,9 @@ test_align_self2 =
 test_align_self3 ∷ TestTree
 test_align_self3 =
   let r = _mkItem 100 100 ()
-          [ _mkItem  50  25 () [] & style.align'self .~ AlignCenter
-          , _mkItem  50  25 () [] & style.align'self .~ AlignCenter
-          , _mkItem  50  25 () [] & style.align'self .~ AlignCenter
+          [ _mkItem  50  25 () [] & geo.align'self .~ AlignCenter
+          , _mkItem  50  25 () [] & geo.align'self .~ AlignCenter
+          , _mkItem  50  25 () [] & geo.align'self .~ AlignCenter
           ] & layout
   in testGroup "align_self3"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  25   0) (di  50  25)
@@ -1053,9 +1053,9 @@ test_align_self3 =
 test_align_self4 ∷ TestTree
 test_align_self4 =
   let r = _mkItem 100 100 ()
-          [ _mkItem' Nothing (Just 25) () [] & style.align'self .~ AlignStretch
-          , _mkItem        0       25  () [] & style.align'self .~ AlignStretch
-          , _mkItem' Nothing (Just 25) () [] & style.align'self .~ AlignStretch
+          [ _mkItem' Nothing (Just 25) () [] & geo.align'self .~ AlignStretch
+          , _mkItem        0       25  () [] & geo.align'self .~ AlignStretch
+          , _mkItem' Nothing (Just 25) () [] & geo.align'self .~ AlignStretch
           ] & layout
   in testGroup "align_self4: stretch works if the align dimension is not set or is 0"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di 100  25)
@@ -1066,9 +1066,9 @@ test_align_self4 =
 test_align_self5 ∷ TestTree
 test_align_self5 =
   let r = _mkItem 100 100 ()
-          [ _mkItem  50  25 () [] & style.align'self .~ AlignStretch
-          , _mkItem  50  50 () [] & style.align'self .~ AlignStretch
-          , _mkItem  50  25 () [] & style.align'self .~ AlignStretch
+          [ _mkItem  50  25 () [] & geo.align'self .~ AlignStretch
+          , _mkItem  50  50 () [] & geo.align'self .~ AlignStretch
+          , _mkItem  50  25 () [] & geo.align'self .~ AlignStretch
           ] & layout
   in testGroup "align_self5: stretch does not work if the align dimension is set"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  25)
@@ -1079,10 +1079,10 @@ test_align_self5 =
 test_align_self6 ∷ TestTree
 test_align_self6 =
   let r = _mkItem 100 100 ()
-          [ _mkItem  50  25 () [] & style.align'self .~ AlignStart
-          , _mkItem  50  25 () [] & style.align'self .~ AlignCenter
-          , _mkItem   0  25 () [] & style.align'self .~ AlignStretch
-          , _mkItem  50  25 () [] & style.align'self .~ AlignEnd
+          [ _mkItem  50  25 () [] & geo.align'self .~ AlignStart
+          , _mkItem  50  25 () [] & geo.align'self .~ AlignCenter
+          , _mkItem   0  25 () [] & geo.align'self .~ AlignStretch
+          , _mkItem  50  25 () [] & geo.align'self .~ AlignEnd
           ] & layout
   in testGroup "align_self6: potpourri"
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  25)
@@ -1101,7 +1101,7 @@ test_align_items1 =
           [ _mkItem  50  25      () []
           , _mkItem  50  25      () []
           , _mkItem  50  25      () []
-          ] & style.align'items .~ AlignStart
+          ] & geo.align'items .~ AlignStart
             & layout
   in testGroup "align_items1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  25)
@@ -1115,7 +1115,7 @@ test_align_items2 =
           [ _mkItem  50  25      () []
           , _mkItem  50  25      () []
           , _mkItem  50  25      () []
-          ] & style.align'items .~ AlignEnd
+          ] & geo.align'items .~ AlignEnd
             & layout
   in testGroup "align_items2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  50   0) (di  50  25)
@@ -1129,7 +1129,7 @@ test_align_items3 =
           [ _mkItem  50  25      () []
           , _mkItem  50  25      () []
           , _mkItem  50  25      () []
-          ] & style.align'items .~ AlignCenter
+          ] & geo.align'items .~ AlignCenter
             & layout
   in testGroup "align_items3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  25   0) (di  50  25)
@@ -1143,7 +1143,7 @@ test_align_items4 =
           [ _mkItem       50        25  () []
           , _mkItem        0        25  () []
           , _mkItem' Nothing  (Just 25) () []
-          ] & style.align'items .~ AlignStretch
+          ] & geo.align'items .~ AlignStretch
             & layout
   in testGroup "align_items4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  25)
@@ -1155,10 +1155,10 @@ test_align_items5 ∷ TestTree
 test_align_items5 =
   let r = _mkItem 100 100 ()
           [ _mkItem 50 25 () []
-          , _mkItem 50 25 () [] & style.align'self .~ AlignStart
-          , _mkItem 50 25 () [] & style.align'self .~ AlignAuto
-          , _mkItem 50 25 () [] & style.align'self .~ AlignEnd
-          ] & style.align'items .~ AlignCenter
+          , _mkItem 50 25 () [] & geo.align'self .~ AlignStart
+          , _mkItem 50 25 () [] & geo.align'self .~ AlignAuto
+          , _mkItem 50 25 () [] & geo.align'self .~ AlignEnd
+          ] & geo.align'items .~ AlignCenter
             & layout
   in testGroup "align_items5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  25   0) (di  50  25)
@@ -1177,8 +1177,8 @@ test_align_content1 =
           [ _mkItem  50  50      () []
           , _mkItem  60  50      () []
           , _mkItem  40  50      () []
-          ] & style.wrap          .~ Wrap
-            & style.align'content .~ AlignStart
+          ] & geo.wrap          .~ Wrap
+            & geo.align'content .~ AlignStart
             & layout
   in testGroup "align_content1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  50)
@@ -1192,8 +1192,8 @@ test_align_content2 =
           [ _mkItem  50  50      () []
           , _mkItem  60  50      () []
           , _mkItem  40  50      () []
-          ] & style.wrap          .~ Wrap
-            & style.align'content .~ AlignCenter
+          ] & geo.wrap          .~ Wrap
+            & geo.align'content .~ AlignCenter
             & layout
   in testGroup "align_content2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  50   0) (di  50  50)
@@ -1207,8 +1207,8 @@ test_align_content3 =
           [ _mkItem  50  50      () []
           , _mkItem  60  50      () []
           , _mkItem  40  50      () []
-          ] & style.wrap          .~ Wrap
-            & style.align'content .~ AlignEnd
+          ] & geo.wrap          .~ Wrap
+            & geo.align'content .~ AlignEnd
             & layout
   in testGroup "align_content3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po 100   0) (di  50  50)
@@ -1222,8 +1222,8 @@ test_align_content4 =
           [ _mkItem  50  50      () []
           , _mkItem  60  50      () []
           , _mkItem  40  50      () []
-          ] & style.wrap          .~ Wrap
-            & style.align'content .~ AlignSpaceBetween
+          ] & geo.wrap          .~ Wrap
+            & geo.align'content .~ AlignSpaceBetween
             & layout
   in testGroup "align_content4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50  50)
@@ -1237,8 +1237,8 @@ test_align_content5 =
           [ _mkItem  50  50      () []
           , _mkItem  60  50      () []
           , _mkItem  40  50      () []
-          ] & style.wrap          .~ Wrap
-            & style.align'content .~ AlignSpaceAround
+          ] & geo.wrap          .~ Wrap
+            & geo.align'content .~ AlignSpaceAround
             & layout
   in testGroup "align_content5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  25   0) (di  50  50)
@@ -1252,8 +1252,8 @@ test_align_content6 =
           [ _mkItem  50  50      () []
           , _mkItem  60  50      () []
           , _mkItem  40  50      () []
-          ] & style.wrap          .~ Wrap
-            & style.align'content .~ AlignSpaceEvenly
+          ] & geo.wrap          .~ Wrap
+            & geo.align'content .~ AlignSpaceEvenly
             & layout
   in testGroup "align_content6: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po  50   0) (di  50  50)
@@ -1273,7 +1273,7 @@ test_default_values2 =
           [ _mkItem' (Just 100) Nothing   () []
           , _mkItem' Nothing   (Just 100) () []
           , _mkItem' Nothing    Nothing   () []
-          ] & style.direction .~ DirColumn
+          ] & geo.direction .~ DirColumn
             & layout
   in testGroup "default_values2: if the width/height property isn't set on a child, it's frame size defaults to 0 for the main axis and the parent's size for the minor axis"
      [ testCase "child 0" $ r^.child 0.area.area'b @?= di 100   0
@@ -1287,7 +1287,7 @@ test_default_values3 =
           [ _mkItem' (Just 100) Nothing   () []
           , _mkItem' Nothing   (Just 100) () []
           , _mkItem' Nothing    Nothing   () []
-          ] & style.direction .~ DirRow
+          ] & geo.direction .~ DirRow
             & layout
   in testGroup "default_values3: "
      [ testCase "child 0" $ r^.child 0.area.area'b @?= di 100 200
@@ -1304,7 +1304,7 @@ test_justify_content1 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 100 () []
           , _mkItem 50 100 () []
-          ] & style.justify'content .~ AlignCenter
+          ] & geo.justify'content .~ AlignCenter
             & layout
   in testGroup "justify_content1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0  50) (di  50 100)
@@ -1316,7 +1316,7 @@ test_justify_content2 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 100 () []
           , _mkItem 50 100 () []
-          ] & style.justify'content .~ AlignStart
+          ] & geo.justify'content .~ AlignStart
             & layout
   in testGroup "justify_content2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50 100)
@@ -1328,7 +1328,7 @@ test_justify_content3 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 100 () []
           , _mkItem 50 100 () []
-          ] & style.justify'content .~ AlignEnd
+          ] & geo.justify'content .~ AlignEnd
             & layout
   in testGroup "justify_content3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0 100) (di  50 100)
@@ -1340,7 +1340,7 @@ test_justify_content4 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 100 () []
           , _mkItem 50 100 () []
-          ] & style.justify'content .~ AlignSpaceBetween
+          ] & geo.justify'content .~ AlignSpaceBetween
             & layout
   in testGroup "justify_content4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50 100)
@@ -1353,7 +1353,7 @@ test_justify_content5 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.justify'content .~ AlignSpaceBetween
+          ] & geo.justify'content .~ AlignSpaceBetween
             & layout
   in testGroup "justify_content5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0   0) (di  50 50)
@@ -1366,7 +1366,7 @@ test_justify_content6 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 100 () []
           , _mkItem 50 100 () []
-          ] & style.justify'content .~ AlignSpaceAround
+          ] & geo.justify'content .~ AlignSpaceAround
             & layout
   in testGroup "justify_content6: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0  25) (di  50 100)
@@ -1379,7 +1379,7 @@ test_justify_content7 =
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.justify'content .~ AlignSpaceAround
+          ] & geo.justify'content .~ AlignSpaceAround
             & layout
   in testGroup "justify_content7: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0  25) (di  50 50)
@@ -1392,7 +1392,7 @@ test_justify_content8 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 105 () []
           , _mkItem 50 105 () []
-          ] & style.justify'content .~ AlignSpaceEvenly
+          ] & geo.justify'content .~ AlignSpaceEvenly
             & layout
   in testGroup "justify_content8: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0  30) (di  50 105)
@@ -1405,7 +1405,7 @@ test_justify_content9 =
           [ _mkItem 50 40 () []
           , _mkItem 50 40 () []
           , _mkItem 50 40 () []
-          ] & style.justify'content .~ AlignSpaceEvenly
+          ] & geo.justify'content .~ AlignSpaceEvenly
             & layout
   in testGroup "justify_content9: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0  45) (di  50 40)
@@ -1418,8 +1418,8 @@ test_justify_content10 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 100 () []
           , _mkItem 50 100 () []
-          ] & style.direction       .~ DirColumnReverse
-            & style.justify'content .~ AlignCenter
+          ] & geo.direction       .~ DirColumnReverse
+            & geo.justify'content .~ AlignCenter
             & layout
   in testGroup "justify_content10: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0 150) (di  50 100)
@@ -1431,8 +1431,8 @@ test_justify_content11 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 100 () []
           , _mkItem 50 100 () []
-          ] & style.direction       .~ DirColumnReverse
-            & style.justify'content .~ AlignStart
+          ] & geo.direction       .~ DirColumnReverse
+            & geo.justify'content .~ AlignStart
             & layout
   in testGroup "justify_content11: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0 200) (di  50 100)
@@ -1444,8 +1444,8 @@ test_justify_content12 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 100 () []
           , _mkItem 50 100 () []
-          ] & style.direction       .~ DirColumnReverse
-            & style.justify'content .~ AlignEnd
+          ] & geo.direction       .~ DirColumnReverse
+            & geo.justify'content .~ AlignEnd
             & layout
   in testGroup "justify_content12: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0 100) (di  50 100)
@@ -1457,8 +1457,8 @@ test_justify_content13 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 100 () []
           , _mkItem 50 100 () []
-          ] & style.direction       .~ DirColumnReverse
-            & style.justify'content .~ AlignSpaceBetween
+          ] & geo.direction       .~ DirColumnReverse
+            & geo.justify'content .~ AlignSpaceBetween
             & layout
   in testGroup "justify_content13: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0 200) (di  50 100)
@@ -1470,8 +1470,8 @@ test_justify_content14 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 100 () []
           , _mkItem 50 100 () []
-          ] & style.direction       .~ DirColumnReverse
-            & style.justify'content .~ AlignSpaceAround
+          ] & geo.direction       .~ DirColumnReverse
+            & geo.justify'content .~ AlignSpaceAround
             & layout
   in testGroup "justify_content14: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0 175) (di  50 100)
@@ -1483,8 +1483,8 @@ test_justify_content15 =
   let r = _mkItem 100 300 ()
           [ _mkItem 50 105 () []
           , _mkItem 50 105 () []
-          ] & style.direction       .~ DirColumnReverse
-            & style.justify'content .~ AlignSpaceEvenly
+          ] & geo.direction       .~ DirColumnReverse
+            & geo.justify'content .~ AlignSpaceEvenly
             & layout
   in testGroup "justify_content15: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (po   0 165) (di  50 105)
@@ -1498,7 +1498,7 @@ test_justify_content16 =
         = _mkItem 100 100 ()
           [ _mkItem 50 50 () []
           , _mkItem 50 50 () []
-          ] & style.justify'content .~ mode
+          ] & geo.justify'content .~ mode
             & layout
   in testGroup "justify_content16: the `justify_content' property is ignored when the children fill up all the space" $
      flip concatMap modes
@@ -1516,7 +1516,7 @@ test_justify_content17 =
           , _mkItem 50 100 () []
           , _mkItem 50 100 () []
           , _mkItem 50 100 () []
-          ] & style.justify'content .~ mode
+          ] & geo.justify'content .~ mode
             & layout
   in testGroup "justify_content17: the `justify_content' property is ignored when the children fill up all the space" $
      flip concatMap modes
@@ -1533,9 +1533,9 @@ test_justify_content18 =
       r mode
         = _mkItem 100 100 ()
           [ _mkItem 50 20 () []
-          , _mkItem 50 20 () [] & style.grow .~ 1
+          , _mkItem 50 20 () [] & geo.grow .~ 1
           , _mkItem 50 20 () []
-          ] & style.justify'content .~ mode
+          ] & geo.justify'content .~ mode
             & layout
   in testGroup "justify_content18: the `justify_content' property is ignored when there are flexible children" $
      flip concatMap modes
