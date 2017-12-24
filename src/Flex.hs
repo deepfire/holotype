@@ -37,20 +37,9 @@ module Flex
   , shrink
   , order
   , basis
-  --  * Item
-  , Item(..), mkItem
   --
   -- * Flex class
-  -- , Flex(..)
-  , size
-  , absolute
-  -- * Item
-  , Item(..), mkItem, _mkItem, _mkItem'
-  , geo
-  , size
-  , area
-  , child, children
-  , this
+  , Flex(..)
   -- * Layout API
   , layout
   )
@@ -158,44 +147,17 @@ instance Monoid Geo where
 
 -- * API
 --
--- class Flex a where
---   geo      ∷ Lens' a Geo
---   size     ∷ Lens' a (Di (Maybe Double))
---   children ∷ Lens' a [a]
---   area     ∷ Lens' a (Area Double)
-
-    -- = Place { _size     = (Di $ V2 Nothing Nothing)
-    --         , _absolute = LRTB Nothing Nothing Nothing Nothing
+class Flex a where
+  geo      ∷ Lens' a Geo
+  size     ∷ Lens' a (Di (Maybe Double))
+  children ∷ Lens' a [a]
+  area     ∷ Lens' a (Area Double)
 
 
 -- * The Item
 --
-data Item a where
-  Item ∷
-    { _geo          ∷ Geo
-    , _size         ∷ Di (Maybe Double)
-    , _this         ∷ a
-    , _children     ∷ [Item a]
-    , _area         ∷ Area Double
-    } → Item a
-    deriving (Functor, Foldable, Traversable)
-deriving instance Show a ⇒ Show (Item a)
-makeLenses ''Item
-
-child  ∷ Int → Traversal' (Item a) (Item a)
+child ∷ Flex a ⇒ Int → Traversal' a a
 child n = children ∘ ix n
-
-mkItem ∷ Geo → (Di (Maybe Double)) → a → [Item a] → Item a
-mkItem _geo _size _this _children =
-  let _area = mempty
-  in Item{..}
-
-_mkItem' ∷ Maybe Double → Maybe Double → a → [Item a] → Item a
-_mkItem' width height _item _children =
-  mkItem defaultGeo (Di $ V2 width height) _item _children
-
-_mkItem ∷ Double → Double → a → [Item a] → Item a
-_mkItem width height = _mkItem' (Just width) (Just height)
 
 
 -- * Instances
@@ -215,30 +177,30 @@ pretty'mdouble (Just x) = WL.double x
 pretty'mdi ∷ Di (Maybe Double) → Doc
 pretty'mdi (Di (V2 ma mb)) = pretty'mdouble ma <:> pretty'mdouble mb
 
-pretty'item ∷ Item a → Doc
-pretty'item Item{..} = WL.text "Item size:"
-  <>  pretty'mdi  _size
-  <+> pretty'Area _area
+pretty'item ∷ Flex a ⇒ a → Doc
+pretty'item item = WL.text "Item size:"
+  <>  pretty'mdi  (item^.size)
+  <+> pretty'Area (item^.area)
 
 
-item'marginLT, item'marginRB ∷ Item a → Vertical → Reverse → Double
-item'marginLT Item{..} Vertical   Forward = _geo & _margin & _left
-item'marginLT Item{..} Vertical   Reverse = _geo & _margin & _top
-item'marginLT Item{..} Horisontal Forward = _geo & _margin & _top
-item'marginLT Item{..} Horisontal Reverse = _geo & _margin & _left
-item'marginRB Item{..} Vertical   Forward = _geo & _margin & _right
-item'marginRB Item{..} Vertical   Reverse = _geo & _margin & _bottom
-item'marginRB Item{..} Horisontal Forward = _geo & _margin & _bottom
-item'marginRB Item{..} Horisontal Reverse = _geo & _margin & _right
+item'marginLT, item'marginRB ∷ Flex a ⇒ a → Vertical → Reverse → Double
+item'marginLT item Vertical   Forward = item^.geo.margin.left
+item'marginLT item Vertical   Reverse = item^.geo.margin.top
+item'marginLT item Horisontal Forward = item^.geo.margin.top
+item'marginLT item Horisontal Reverse = item^.geo.margin.left
+item'marginRB item Vertical   Forward = item^.geo.margin.right
+item'marginRB item Vertical   Reverse = item^.geo.margin.bottom
+item'marginRB item Horisontal Forward = item^.geo.margin.bottom
+item'marginRB item Horisontal Reverse = item^.geo.margin.right
 
-item'size  ∷ Major → Lens' (Item a) Double
+item'size  ∷ Flex a ⇒ Major → Lens' a Double
 item'size   (Major axis) = area ∘ area'b ∘ di'd axis
-item'size2 ∷ Minor → Lens' (Item a) Double
+item'size2 ∷ Flex a ⇒ Minor → Lens' a Double
 item'size2  (Minor axis) = area ∘ area'b ∘ di'd axis
 
-item'pos   ∷ Major → Lens' (Item a) Double
+item'pos   ∷ Flex a ⇒ Major → Lens' a Double
 item'pos    (Major axis) = area ∘ area'a ∘ po'd axis
-item'pos2  ∷ Minor → Lens' (Item a) Double
+item'pos2  ∷ Flex a ⇒ Minor → Lens' a Double
 item'pos2   (Minor axis) = area ∘ area'a ∘ po'd axis
 
 
@@ -291,10 +253,10 @@ instance Pretty Layout where
   pretty = unreadable "" ∘ pretty'layout
 
 
-mkLayout ∷ Item a → Layout
-mkLayout Item{..} =
-  let V2 width' height'  = _area^.area'b.di'v
-      Geo{..}            = _geo
+mkLayout ∷ Flex a ⇒ a → Layout
+mkLayout item =
+  let V2 width' height'  = item^.area.area'b.di'v
+      Geo{..}            = item^.geo
       width              = width'  - (_padding^.left + _padding^.right)
       height             = height' - (_padding^.top  + _padding^.bottom)
       (,,,,,)
@@ -358,14 +320,14 @@ layout'align' align flex'dim nchilds stretch'allowed
                                 else Just (0, flex'dim / fromIntegral nchilds)
   | AlignAuto         ← align = Nothing
 
-count'relatives ∷ [Item a] → Int
+count'relatives ∷ Flex a ⇒ [a] → Int
 count'relatives = length ∘ filter ((≡Relative) ∘ (^.geo.positioning))
 
-layout_items ∷ Item a → [Item a] → Layout → (Layout, [Item a])
+layout_items ∷ Flex a ⇒ a → [a] → Layout → (Layout, [a])
 layout_items _             []       l            = (,) l []
-layout_items item@Item{..} children l@Layout{..} =
+layout_items item children l@Layout{..} =
   -- Determine the major axis initial position and optional spacing.
-  let Geo{..}      = _geo
+  let Geo{..}      = item^.geo
       (pos1, spacing1)  = if _la'flex'grows ≡ 0 ∧
                              _la'flex'dim > 0
                           then let may'aligned = layout'align _justify'content _la'flex'dim (count'relatives children) False
@@ -382,13 +344,13 @@ layout_items item@Item{..} children l@Layout{..} =
       l'                = if _la'wrap ∧ _la'reverse2 ≡ Reverse       -- line 454: l→wrap implied by l→reverse2
                           then l & la'pos2 -~ _la'line'dim
                           else l
-      layout'children ∷ Double → [Item a] → [Item a] → (Double, [Item a])
+      layout'children ∷ Flex a ⇒ Double → [a] → [a] → (Double, [a])
       layout'children pos  []                                      acc = (,) pos (reverse acc)
       layout'children pos (c@((^.geo.positioning) → Absolute):rest) acc = layout'children pos rest (c:acc) -- Already positioned.
-      layout'children pos (c@Item{..}:rest) acc =
+      layout'children pos (c:rest) acc =
         -- Grow or shrink the major axis item size if needed.
-        let flex'size   = if | l'^.la'flex'dim > 0 ∧ _geo^.grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_geo^.grow)   / fromIntegral (l'^.la'flex'grows)
-                             | l'^.la'flex'dim < 0 ∧ _geo^.shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (_geo^.shrink) / fromIntegral (l'^.la'flex'shrinks)
+        let flex'size   = if | l'^.la'flex'dim > 0 ∧ _grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral _grow   / fromIntegral (l'^.la'flex'grows)
+                             | l'^.la'flex'dim < 0 ∧ _shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral _shrink / fromIntegral (l'^.la'flex'shrinks)
                              | otherwise → 0
             c1          = c & item'size  _la'major +~ flex'size
             -- Set the minor axis position (and stretch the minor axis size if needed).
@@ -427,11 +389,11 @@ layout_items item@Item{..} children l@Layout{..} =
                                    & la'lines'sizes +~ l''^.la'line'dim
   in (,) l''' children'
 
-layout_item ∷ ∀ a. Item a → Item a
-layout_item p@(_children → []) = p
-layout_item p@Item{..} =
+layout_item ∷ ∀ a. Flex a ⇒ a → a
+layout_item p@((^.children) → []) = p
+layout_item p =
   let cstr   = p^.area.area'b
-      assign'sizes ∷ [Item a] → Layout → [Item a] → [Item a] → (Layout, [Item a], [Item a])
+      assign'sizes ∷ [a] → Layout → [a] → [a] → (Layout, [a], [a])
       assign'sizes []                                       l            sized positioned = (,,) l (reverse sized) positioned
       assign'sizes (c@((^.geo.positioning) → Absolute):rest) l@Layout{..} sized positioned =
         let abs'size (Just val)  _           _          _   = val
@@ -469,22 +431,22 @@ layout_item p@Item{..} =
                    & item'size2 _la'minor .~ c'size2
         in assign'sizes rest l'' (c':sized') positioned'
       -- 1. Assign sizes (and some of positions, if wrapping):
-      (,,) lay       sized positioned  = assign'sizes _children (layout'reset $ mkLayout p) [] []
+      (,,) lay       sized positioned  = assign'sizes (p^.children) (layout'reset $ mkLayout p) [] [] ∷ (Layout, [a], [a])
       -- 2. Assign remainder of positions:
       (,)  lay'@Layout{..} positioned' = layout_items p sized lay
       -- 3. Merge wrap-generated positionals & the results of remainder processing:
       children'  = positioned <> positioned'
       -- 4. In wrap mode if the 'align_content' property changed from its default
       --    value, we need to tweak the position of each line accordingly.
-      align'children ∷ Layout → [Item a] → [Item a]
+      align'children ∷ Layout → [a] → [a]
       align'children Layout{..} cs =
         let flex'dim          = _la'align'dim - _la'lines'sizes
-            may'aligned       = layout'align (_geo^.align'content) flex'dim (length _la'lines) True
+            may'aligned       = layout'align (p^.geo.align'content) flex'dim (length _la'lines) True
             (,) pos' spacing' = if flex'dim ≤ 0 then (,) 0 0
                                 else flip fromMaybe may'aligned $ error "incorrect align_content"
             (,) pos'' old'pos = if _la'reverse2 ≢ Reverse then (,) pos' 0
                                 else (,) (_la'align'dim - pos') _la'align'dim
-            line'step ∷ [LayoutLine] → [Item a] → [[Item a]] → Double → Double → ([Item a], Double, Double)
+            line'step ∷ [LayoutLine] → [a] → [[a]] → Double → Double → ([a], Double, Double)
             line'step [] []     acc pos old'pos = (,,) (concat $ reverse acc) pos old'pos
             line'step [] (u:us) _   _   _       = error $ printf "Invariant failed: %d children left unaccounted for." (length us + 1)
             line'step (LayoutLine{..}:ls) cs acc pos old'pos =
@@ -498,13 +460,13 @@ layout_item p@Item{..} =
                                         else (,) (pos + _li'size + spacing') (old'pos + _li'size)
               in line'step ls rest (line':acc) pos'' old'pos''
         in (^._1) $ line'step (reverse _la'lines) cs [] pos'' old'pos
-  in p & children .~ if _la'wrap ∧ _geo^.align'content ≢ AlignStart
+  in p & children .~ if _la'wrap ∧ p^.geo.align'content ≢ AlignStart
                      then align'children lay' children'
                      else children'
 
 
 -- | Lay out children according to their and item's properties.
 --   Size is taken from the 'item', origin is fixed to 0:0.
-layout ∷ Item a → Item a
+layout ∷ Flex a ⇒ a → a
 layout x = layout_item $
   x & area.area'b .~ (fromMaybe (error "Root missing size.") <$> x^.size)
