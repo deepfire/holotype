@@ -173,8 +173,8 @@ instance Monoid (StyleOf u (Node u k)) where
   mappend _ _ = NodeStyle
 
 nodeGeo ∷ Node u k → Geo
-nodeGeo HBoxN = mempty & direction .~ DirColumn
-nodeGeo VBoxN = mempty & direction .~ DirRow
+nodeGeo HBoxN = mempty & grow .~ 1 & direction .~ DirRow
+nodeGeo VBoxN = mempty & grow .~ 1 & direction .~ DirColumn
 
 
 -- * Layout tree Item constructors
