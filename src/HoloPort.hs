@@ -174,7 +174,7 @@ drawableContentToGPU Drawable{..} = liftIO $ do
 
 framePutDrawable ∷ (MonadIO m) ⇒ Frame → Drawable → Po Float → m ()
 framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = do
-  let cvpos     = Vec3 x y 0
+  let cvpos     = Vec3 x (-y) 0
       toScreen  = screenM screenW screenH
   liftIO $ GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
     Q3.mat4ToM44F $! (Vc.fromProjective $! Vc.translation cvpos) Vc..*. toScreen
@@ -209,12 +209,12 @@ orthoLB w h = HoloPort.ortho 0 w 0 h 1 (-1)
 
 -- | To screen space conversion matrix.
 screenM :: Int → Int → Mat4
-screenM w h =
-  Vc.Mat4 (Vc.Vec4 (1/fw)  0     0 0)
-          (Vc.Vec4  0     (1/fh) 0 0)
-          (Vc.Vec4  0      0     1 0)
-          (Vc.Vec4  0      0     0 0.5) -- where does that 0.5 factor COMEFROM?
+screenM w h = scaleM -- Vc..*. flipM
   where (fw, fh) = (fromIntegral w, fromIntegral h)
+        scaleM = Vc.Mat4 (Vc.Vec4 (1/fw)  0     0 0)
+                         (Vc.Vec4  0     (1/fh) 0 0)
+                         (Vc.Vec4  0      0     1 0)
+                         (Vc.Vec4  0      0     0 0.5) -- where does that 0.5 factor COMEFROM?
 
 
 -- * Render debug utils
