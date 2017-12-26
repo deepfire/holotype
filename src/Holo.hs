@@ -17,7 +17,7 @@ module Holo
   , HoloItem
   , queryHolotree
   , visualiseHolotree
-  , drawHoloItem
+  , drawHolotree
   -- * Holo instances
   , Rect(..), RectStyle, RectVisual
   , TextStyle, TextVisual
@@ -30,6 +30,7 @@ import           HoloPrelude
 
 import           Data.Singletons
 import qualified Data.Text                         as T
+import qualified Data.Text.Lazy                    as TL
 import qualified Data.Text.Zipper                  as T
 import           Linear
 import           Prelude                           hiding ((.), id)
@@ -107,6 +108,12 @@ instance Flex (HoloItem Layout) where
   children f hi@HoloItem{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
   area     f hi@HoloItem{..} = (\x→ hi {hiArea=x})     <$> f hiArea
 
+instance Flex (HoloItem Visual) where
+  geo      f hi@HoloItem{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
+  size     f hi@HoloItem{..} = (\x→ hi {hiSize=x})     <$> f hiSize
+  children f hi@HoloItem{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
+  area     f hi@HoloItem{..} = (\x→ hi {hiArea=x})     <$> f hiArea
+
 
 -- | 'HoloItem': raison d'etre: type-free payload of Flex's item tree.
 --
@@ -132,11 +139,16 @@ visualiseHolotree port hoi =
       hiChildren ← sequence $ (visualiseHolotree port) <$> hiChildren
       pure $ HoloItem{..}
 
-drawHoloItem ∷ (MonadIO m) ⇒ Frame → HoloItem Visual → m ()
-drawHoloItem frame  HoloItem{..} = do
-  --liftIO $ printf "sWHA %s | " (show $ pos^.lu'po.po'v)
-  drawableContentToGPU   (drawableOf hiVisual)
-  framePutDrawable frame (drawableOf hiVisual) (doubleToFloat <$> luOf hiArea^.lu'po)
+drawHolotree ∷ (MonadIO m) ⇒ Frame → HoloItem Visual → m ()
+drawHolotree frame  HoloItem{..} = do
+  if null hiChildren
+  then do
+    drawableContentToGPU   (drawableOf hiVisual)
+    framePutDrawable frame (drawableOf hiVisual) (doubleToFloat <$> luOf hiArea^.lu'po)
+    -- liftIO $ putStrLn $ "draw -- " <> (show $ luOf hiArea^.lu'po) <> " " <> (TL.unpack $ rendCompact $ pretty'Area hiArea) <> " " <> (TL.unpack $ rendCompact $ pretty'Area (area'LU hiArea))
+  else do
+    sequence $ drawHolotree frame <$> hiChildren
+    pure ()
 
 
 -- * Internal nodes
