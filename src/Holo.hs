@@ -54,8 +54,8 @@ class (FromUnit u, Monoid (StyleOf u a)) ⇒ Holo (u ∷ UnitK) a where
   --   2. geometry-enriched style
   --   3. datum
   --   Produce an initial visualisation.
-  query           ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a →               a → m (Di (Maybe Double))
-  visualise       ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a → Area Double → a → m (VisualOf u a)
+  query           ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a →                  a → m (Di (Maybe Double))
+  visualise       ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a → Area'LU Double → a → m (VisualOf u a)
   -- * Question: what do we change, to allow animation of style?
   --
   -- The current model doesn't allow for it.
@@ -72,8 +72,8 @@ data Phase
 
 type family HIArea   (p ∷ Phase) ∷ Type where
   HIArea   Blank  = ()
-  HIArea   Layout = Area Double
-  HIArea   Visual = Area Double
+  HIArea   Layout = Area'LU Double
+  HIArea   Visual = Area'LU Double
 
 type family HIVisual (p ∷ Phase) u a ∷ Type where
   HIVisual Blank  u a = ()
@@ -217,7 +217,7 @@ instance FromUnit u ⇒ Holo   u (Rect u) where
   drawableOf = rectDrawable
   query     port _       Rect{..} = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$>_rectDim
   visualise port _ _area Rect{..} =
-    RectVisual <$> mkRectDrawable port _rectDim _rectColor
+    RectVisual <$> mkRectDrawable port (PUs <$> _area^.area'b.size'di) _rectColor
   updateVisual port v@RectVisual{rectDrawable=Drawable{..}} Rect{..} = do
     redrawRectDrawable port (rectDrawable v) _rectColor _rectDim
 

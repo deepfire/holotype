@@ -153,11 +153,8 @@ class Flex a where
   geo      ∷ Lens' a Geo
   size     ∷ Lens' a (Di (Maybe Double))
   children ∷ Lens' a [a]
-  area     ∷ Lens' a (Area Double)
+  area     ∷ Lens' a (Area'LU Double)
 
-
--- * The Item
---
 child ∷ Flex a ⇒ Int → Traversal' a a
 child n = children ∘ ix n
 
@@ -219,14 +216,14 @@ item'marginRB item Horisontal Forward = item^.geo.margin.bottom
 item'marginRB item Horisontal Reverse = item^.geo.margin.right
 
 item'size  ∷ Flex a ⇒ Major → Lens' a Double
-item'size   (Major axis) = area ∘ area'b ∘ di'd axis
+item'size   (Major axis) = area ∘ area'b ∘ size'di ∘ di'd axis
 item'size2 ∷ Flex a ⇒ Minor → Lens' a Double
-item'size2  (Minor axis) = area ∘ area'b ∘ di'd axis
+item'size2  (Minor axis) = area ∘ area'b ∘ size'di ∘ di'd axis
 
 item'pos   ∷ Flex a ⇒ Major → Lens' a Double
-item'pos    (Major axis) = area ∘ area'a ∘ po'd axis
+item'pos    (Major axis) = area ∘ area'a ∘ lu'po ∘ po'd axis
 item'pos2  ∷ Flex a ⇒ Minor → Lens' a Double
-item'pos2   (Minor axis) = area ∘ area'a ∘ po'd axis
+item'pos2   (Minor axis) = area ∘ area'a ∘ lu'po ∘ po'd axis
 
 
 data Vertical = Horisontal | Vertical    deriving (Eq, Show)
@@ -280,7 +277,7 @@ instance Pretty Layout where
 
 mkLayout ∷ Flex a ⇒ a → Layout
 mkLayout item =
-  let V2 width' height'  = item^.area.area'b.di'v
+  let V2 width' height'  = item^.area.area'b.size'di.di'v
       Geo{..}            = item^.geo
       width              = width'  - (_padding^.left + _padding^.right)
       height             = height' - (_padding^.top  + _padding^.bottom)
@@ -428,17 +425,17 @@ layout_item p =
             abs'pos   Nothing   (Just pos2) (Just size) dim = dim - size - pos2
             abs'pos   _          _           _          _   = 0
             (pos, dim) = (c^.geo.absolute, c^.size)
-            c' = c & area .~ Area (Po $ V2 (abs'pos  (pos^.left) (pos^.right) (dim^.di'd X) (cstr^.di'd X))
-                                           (abs'pos  (pos^.top)  (pos^.bottom) (dim^.di'd Y) (cstr^.di'd Y)))
-                                  (Di $ V2 (abs'size (dim^.di'd X) (pos^.left) (pos^.right) (cstr^.di'd X))
-                                           (abs'size (dim^.di'd Y) (pos^.top) (pos^.bottom) (cstr^.di'd Y)))
+            c' = c & area .~ Area (LU   $ Po $ V2 (abs'pos  (pos^.left) (pos^.right) (dim^.di'd X) (cstr^.size'di.di'd X))
+                                                  (abs'pos  (pos^.top)  (pos^.bottom) (dim^.di'd Y) (cstr^.size'di.di'd Y)))
+                                  (Size $ Di $ V2 (abs'size (dim^.di'd X) (pos^.left) (pos^.right) (cstr^.size'di.di'd X))
+                                                  (abs'size (dim^.di'd Y) (pos^.top) (pos^.bottom) (cstr^.size'di.di'd Y)))
                    & layout_item
         in assign'sizes rest l (c':sized) positioned
       assign'sizes (c:rest) l@Layout{..} sized positioned =
         let c'size  = fromMaybe 0 $ partial (>0) (c^.geo.basis) <|>
                                                  (c^.size.di'd (fromMajor _la'major))
             c'size2 = flip fromMaybe (c^.size.di'd (fromMinor _la'minor))
-                                     (cstr^.di'd (if _la'vertical ≡ Vertical then X else Y) -
+                                     (cstr^.size'di.di'd (if _la'vertical ≡ Vertical then X else Y) -
                                       item'marginLT c _la'vertical Forward -
                                       item'marginRB c _la'vertical Forward)
             -- NB: self_sizing callback implementation ignored
@@ -494,4 +491,4 @@ layout_item p =
 --   Size is taken from the 'item', origin is fixed to 0:0.
 layout ∷ Flex a ⇒ a → a
 layout x = layout_item $
-  x & area.area'b .~ (fromMaybe (error "Root missing size.") <$> x^.size)
+  x & area.area'b .~ (fromMaybe (error "Root missing size.") <$> Size (x^.size))
