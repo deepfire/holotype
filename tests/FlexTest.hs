@@ -56,6 +56,32 @@ node' w h cs = FF mempty (Di $ V2 w h) cs mempty
 
 -- *
 --
+test_scene ∷ TestTree
+test_scene =
+  let r = node 400 200
+          [ leaf 50  50
+          , node' Nothing Nothing
+            [ leaf 50  100
+            , leaf 100  50
+            ] & geo.direction       .~ DirRow
+              & geo.align'content   .~ AlignStart
+              & geo.grow            .~ 1
+          , leaf 200  50
+          ] & geo.direction       .~ DirColumn
+            & geo.align'content   .~ AlignStart
+            & geo.grow            .~ 1
+            & layout
+  in testGroup "scene"
+     [ testCase "child 0"   $ r^.child 0.area         @?= Area (mkLU   0   0) (mkSize  50  50)
+     , testCase "child 1"   $ r^.child 1.area         @?= Area (mkLU   0  50) (mkSize 400 100)
+     , testCase "child 1.0" $ r^.child 1.child 0.area @?= Area (mkLU   0   0) (mkSize  50 100)
+     , testCase "child 1.1" $ r^.child 1.child 1.area @?= Area (mkLU  50   0) (mkSize 100  50)
+     , testCase "child 2"   $ r^.child 2.area         @?= Area (mkLU   0 150) (mkSize 200  50)
+     ]
+
+
+-- *
+--
 test_grow1 ∷ TestTree
 test_grow1 =
   let r = node 60 240

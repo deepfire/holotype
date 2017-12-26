@@ -140,15 +140,16 @@ visualiseHolotree port hoi =
       pure $ HoloItem{..}
 
 drawHolotree ∷ (MonadIO m) ⇒ Frame → HoloItem Visual → m ()
-drawHolotree frame  HoloItem{..} = do
-  if null hiChildren
-  then do
-    drawableContentToGPU   (drawableOf hiVisual)
-    framePutDrawable frame (drawableOf hiVisual) (doubleToFloat <$> luOf hiArea^.lu'po)
-    -- liftIO $ putStrLn $ "draw -- " <> (show $ luOf hiArea^.lu'po) <> " " <> (TL.unpack $ rendCompact $ pretty'Area hiArea) <> " " <> (TL.unpack $ rendCompact $ pretty'Area (area'LU hiArea))
-  else do
-    sequence $ drawHolotree frame <$> hiChildren
-    pure ()
+drawHolotree frame root = loop (luOf (hiArea root)^.lu'po) root
+  where loop offset HoloItem{..} = do
+          if null hiChildren
+          then do
+            drawableContentToGPU   (drawableOf hiVisual)
+            framePutDrawable frame (drawableOf hiVisual) (doubleToFloat <$> (offset + luOf hiArea^.lu'po))
+            -- liftIO $ putStrLn $ "draw -- " <> (show $ luOf hiArea^.lu'po) <> " " <> (TL.unpack $ rendCompact $ pretty'Area hiArea) <> " " <> (TL.unpack $ rendCompact $ pretty'Area (area'LU hiArea))
+          else do
+            sequence $ loop (luOf hiArea^.lu'po) <$> hiChildren
+            pure ()
 
 
 -- * Internal nodes
