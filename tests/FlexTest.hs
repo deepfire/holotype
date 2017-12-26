@@ -124,6 +124,24 @@ test_grow6 =
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100   50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize 100   50)
      ]
+
+test_grow7 ∷ TestTree
+test_grow7 =
+  let r = node 500 600
+          [ leaf 250  0 & geo.grow .~ 1
+          , leaf 250 50 & geo.grow .~ 1
+          , leaf 250  0
+          , leaf 250  0 & geo.grow .~ 1
+          , leaf 250  0
+          ] & layout
+  in testGroup "grow7: sizes of flexible items should be ignored when growing"
+     [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 250 200)
+     , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 200) (mkSize 250 200)
+     , testCase "child 2" $ r^.child 2.area @?= Area (mkLU   0 400) (mkSize 250   0)
+     , testCase "child 3" $ r^.child 3.area @?= Area (mkLU   0 400) (mkSize 250 200)
+     , testCase "child 4" $ r^.child 4.area @?= Area (mkLU   0 600) (mkSize 250   0)
+     ]
+
 -- COMPLETE
 
 

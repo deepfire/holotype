@@ -249,6 +249,7 @@ data Layout where
     , _la'align'dim    ∷ Double    -- minor axis parent size
     , _la'line'dim     ∷ Double    -- minor axis size
     , _la'flex'dim     ∷ Double    -- flexible part of the major axis size
+    , _la'extra'flex'dim ∷ Double  -- sizes of flexible items
     , _la'flex'grows   ∷ Int
     , _la'flex'shrinks ∷ Int
     , _la'pos2         ∷ Double    -- minor axis position
@@ -268,6 +269,7 @@ pretty'layout Layout{..} =
   in WL.text "Layout " <> wrap <+> axes <+> dir <+> revMj <+> revMi
      <+> WL.text ("par:" <> ppV2 (V2 _la'size'dim _la'align'dim))
      <+> WL.text ("chi:" <> ppV2 (V2 _la'flex'dim _la'line'dim))
+     <+> WL.text ("efd:" <> showTL _la'extra'flex'dim)
      <+> WL.text ("g/s:"  <> ppV2 (V2 _la'flex'grows _la'flex'shrinks))
      <+> WL.text ("pos2:") <> WL.double _la'pos2
 
@@ -293,11 +295,12 @@ mkLayout item =
                              DirColumn        → (Major Y, Minor X, Vertical,   Forward, height, width)
                              DirColumnReverse → (Major Y, Minor X, Vertical,   Reverse, height, width)
       -- NB: child order property implementation has been skipped.
-      (,,,)
+      (,,,,)
         _la'flex'grows
         _la'flex'shrinks
         _la'flex'dim
-        _la'line'dim     = (,,,) 0 0 0
+        _la'extra'flex'dim
+        _la'line'dim     = (,,,,) 0 0 0 0
                            (if _la'wrap then 0 else _la'align'dim) -- XXX: ⊥ in original code
       _la'wrap           = _wrap ≢ NoWrap
       reverse'wrapping   = _wrap ≡ ReverseWrap
@@ -317,6 +320,7 @@ layout'reset ∷ Layout → Layout
 layout'reset l@Layout{..} = l
   & la'line'dim     .~ (if _la'wrap then 0 else _la'align'dim)
   & la'flex'dim     .~ _la'size'dim
+  & la'extra'flex'dim .~ 0
   & la'flex'grows   .~ 0
   & la'flex'shrinks .~ 0
 
@@ -350,9 +354,14 @@ layout_items _             []       l            = (,) l []
 layout_items item children l@Layout{..} =
   -- Determine the major axis initial position and optional spacing.
   let Geo{..}      = item^.geo
+      flex'dim1         = _la'flex'dim + if _la'flex'dim > 0 ∧
+                                            _la'extra'flex'dim > 0
+                                         -- If the container has a positive flexible space, let's add to it the sizes of all flexible children.
+                                         then _la'extra'flex'dim
+                                         else 0
       (pos1, spacing1)  = if _la'flex'grows ≡ 0 ∧
-                             _la'flex'dim > 0
-                          then let may'aligned = layout'align _justify'content _la'flex'dim (count'relatives children) False
+                             flex'dim1 > 0
+                          then let may'aligned = layout'align _justify'content flex'dim1 (count'relatives children) False
                                    (pos', spacing') = flip fromMaybe may'aligned $ error "incorrect justify_content"
                                in (, spacing') $
                                   if _la'reverse ≡ Reverse
@@ -363,9 +372,10 @@ layout_items item children l@Layout{..} =
                           then pos1 - if _la'vertical ≡ Vertical then _padding^.bottom else _padding^.right
                           else pos1 + if _la'vertical ≡ Vertical then _padding^.top    else _padding^.left
       -- This is suspicious: line 455 in flex.c
-      l'                = if _la'wrap ∧ _la'reverse2 ≡ Reverse       -- line 454: l→wrap implied by l→reverse2
-                          then l & la'pos2 -~ _la'line'dim
-                          else l
+      l'                = (if _la'wrap ∧ _la'reverse2 ≡ Reverse -- line 454: l→wrap implied by l→reverse2
+                           then l & la'pos2 -~ _la'line'dim
+                           else l)
+                          & la'flex'dim .~ flex'dim1
       layout'children ∷ Flex a ⇒ Double → [a] → [a] → (Double, [a])
       layout'children pos  []                                      acc = (,) pos (reverse acc)
       layout'children pos (c@((^.geo.positioning) → Absolute):rest) acc = layout'children pos rest (c:acc) -- Already positioned.
@@ -374,7 +384,9 @@ layout_items item children l@Layout{..} =
         let flex'size   = if | l'^.la'flex'dim > 0 ∧ c^.geo.grow   ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (c^.geo.grow)   / fromIntegral (l'^.la'flex'grows)
                              | l'^.la'flex'dim < 0 ∧ c^.geo.shrink ≢ 0 → (l'^.la'flex'dim) ⋅ fromIntegral (c^.geo.shrink) / fromIntegral (l'^.la'flex'shrinks)
                              | otherwise → 0
-            c1          = c & item'size  _la'major +~ flex'size
+            child'size0 = if | l'^.la'flex'dim > 0 ∧ c^.geo.grow   ≢ 0 → 0
+                             | otherwise → c ^. item'size _la'major
+            c1          = c & item'size _la'major .~ child'size0 + flex'size
             -- Set the minor axis position (and stretch the minor axis size if needed).
             align'size  = c1 ^. item'size2 _la'minor
             c'align     = if c1^.geo.align'self ≡ AlignAuto
@@ -449,6 +461,9 @@ layout_item p =
                      & la'flex'shrinks +~ c'^.geo.shrink
                      & la'flex'dim     -~ c'size + item'marginLT c' _la'vertical Reverse
                                                  + item'marginRB c' _la'vertical Reverse
+                     & la'extra'flex'dim +~ if c'size > 0 ∧ c'^.geo.grow > 0
+                                            then c'size
+                                            else 0
             c' = c & item'size  _la'major .~ c'size
                    & item'size2 _la'minor .~ c'size2
         in assign'sizes rest l'' (c':sized') positioned'
