@@ -147,9 +147,17 @@ composeScene port@Port{..} dim queryText = do
   --            , holoHBox wordItems
   --              & geo.wrap   .~ Wrap
   --            ] & place.size .~ (Just ∘ fromPU <$> dim)
-  let blank  = holoLeaf port (Rect (di 100 100) red ∷ Rect PU) (mempty ∷ RectStyle PU)
-  sized ← queryHolotree port blank
-  let placed = layout sized
+  let box color sz = holoLeaf port (Rect sz color ∷ Rect PU) (mempty ∷ RectStyle PU)
+      -- scene = box red (di 100 100)
+      scene = holoVBox
+              [ box blue          (di 50 50)
+              , holoHBox
+                [ box (gray 0.6 0.5) (di 50 100)
+                , box green          (di 100 50) ]
+              , box (gray 0.5 0.5)   (di 200 50)
+              ] & size .~ (Just ∘ fromPU <$> dim)
+  sized ∷ HoloItem Layout ← queryHolotree port scene
+  let placed = layout (sized & size .~ (Just ∘ fromPU <$> dim))
   visual ← visualiseHolotree port placed
   pure visual
 
@@ -253,8 +261,7 @@ holotype win _evCtl setupE windowFrameE inputE = do
   -- --                                   ,(widgetLim,  An 0.01)) $ () <$ driverE
   _                ← performEvent $ drawReqE <&>
                      \(scene, f@Frame{..}) → do
-                       -- scene ← composeScene portV (di 200 200) "foo"
-                       -- traverse (drawHoloItem f) scene
+                       drawHolotree f scene
                        framePutDrawable f px0 (doubleToFloat <$> po  0    0)
                        framePutDrawable f px1 (doubleToFloat <$> po  0.3  0.3)
                        framePutDrawable f px2 (doubleToFloat <$> po 30   30)
