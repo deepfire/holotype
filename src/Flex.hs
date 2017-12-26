@@ -6,7 +6,8 @@
 -- Development-only muffles.
 {-# OPTIONS_GHC -Wno-unused-binds -Wno-unused-matches #-}
 --
--- Flex:  a flexbox layout implementation, based on github.com/xamarin/flex.
+-- Flex:  a flexbox layout implementation, based on github.com/xamarin/flex,
+--        and https://www.w3.org/TR/css-flexbox-1/
 --
 -- Two caveats:
 --
