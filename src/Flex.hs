@@ -21,6 +21,8 @@ module Flex
   , Positioning(..)
   , Wrapping(..)
   , child
+  , walk
+  , dump, ppItemArea, showItemArea, ppItemSize
   --
   , Geo(..), defaultGeo
   , padding
@@ -158,6 +160,29 @@ class Flex a where
 --
 child ∷ Flex a ⇒ Int → Traversal' a a
 child n = children ∘ ix n
+
+walk ∷ ∀ a m. (Flex a, Monad m) ⇒ ([Int] → a → m ()) → a → m ()
+walk action f = loop [0] f
+  where loop trace f = do
+          action trace f
+          sequence $ zip (f^.children) [0..] <&>
+            \(f', n) → loop (n:trace) f'
+          pure ()
+
+ppItemSize ∷ Flex a ⇒ a → String
+ppItemSize x = TL.unpack $ rendCompact $ pretty'mdi  $ x^.size
+
+ppItemArea ∷ Flex a ⇒ a → String
+ppItemArea x = TL.unpack $ rendCompact $ pretty'Area $ x^.area
+
+showItemArea ∷ Flex a ⇒ a → String
+showItemArea x = show $ x^.area
+
+dump ∷ (Flex a, MonadIO m) ⇒ (Flex a ⇒ a → String) → a → m ()
+dump ppf = walk
+  (liftIO .: (\trace f' →
+                 putStrLn $ (concat $ take (length trace - 1) (repeat "  "))
+                 <> (show $ head trace) <> " " <> ppf f'))
 
 
 -- * Instances
