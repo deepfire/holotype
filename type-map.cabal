@@ -17,6 +17,7 @@ description:
     exports some operations on type lists.
 
 homepage:            https://github.com/Lysxia/type-map
+bug-reports:         https://github.com/Lysxia/type-map/issues
 license:             MIT
 license-file:        LICENSE
 author:              Li-yao Xia
