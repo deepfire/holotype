@@ -5,6 +5,7 @@
 module Data.TypeMap.Dynamic.Alt
   ( TypeMap()
   , Item
+  , empty
   , null
   , insert
   , lookup
@@ -16,6 +17,7 @@ module Data.TypeMap.Dynamic.Alt
 import Data.TypeMap.Internal.Dynamic
   ( TypeMap
   , Item
+  , empty
   , null
   , OfType
   )

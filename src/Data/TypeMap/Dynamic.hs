@@ -3,6 +3,7 @@
 module Data.TypeMap.Dynamic
   ( TypeMap()
   , Item
+  , empty
   , null
   , insert
   , lookup
