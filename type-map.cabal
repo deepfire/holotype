@@ -24,6 +24,7 @@ author:              Li-yao Xia
 maintainer:          lysxia@gmail.com
 copyright:           2017 Li-yao Xia
 category:            Data
+stability:           Experimental
 build-type:          Simple
 extra-source-files:  CHANGELOG.md
 cabal-version:       >=1.10
