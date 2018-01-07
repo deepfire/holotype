@@ -98,8 +98,6 @@ data ItemKleisli (f :: * -> *) x y
 type instance Typed (ItemKleisli f x y) t = Item x t -> f (Item y t)
 type instance UnTyped (ItemKleisli f x y) = Any -> f Any
 
-type family X
-
 withTypeRep
   :: forall x proxy
   .  (forall t. Typeable t => Proxy t -> Typed x t)
