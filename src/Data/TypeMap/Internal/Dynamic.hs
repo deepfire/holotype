@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MagicHash #-}
@@ -11,7 +12,12 @@ module Data.TypeMap.Internal.Dynamic where
 import Data.Map (Map)
 import Data.Proxy (Proxy(..))
 import Data.Typeable
+#if MIN_VERSION_base(4,10,0)
+import GHC.Exts (Any)
+import qualified Type.Reflection as T
+#else
 import GHC.Prim (Any, Proxy#)
+#endif
 import Unsafe.Coerce
 
 import qualified Data.Map as Map
@@ -89,16 +95,30 @@ data ItemKleisli (f :: * -> *) x y
 type instance Typed (ItemKleisli f x y) t = Item x t -> f (Item y t)
 type instance UnTyped (ItemKleisli f x y) = Any -> f Any
 
-newtype WithTypeable x
-  = WithTypeable (forall t. Typeable t => Proxy t -> Typed x t)
-
-withTypeable :: WithTypeable x -> (Proxy# a -> TypeRep) -> Proxy () -> UnTyped x
-withTypeable = unsafeCoerce
+type family X
 
 withTypeRep
   :: forall x proxy
   .  (forall t. Typeable t => Proxy t -> Typed x t)
   -> proxy x
   -> TypeRep -> UnTyped x
+#if MIN_VERSION_base(4,10,0)
+withTypeRep f _ rep =
+  case rep of
+    T.SomeTypeRep (rep :: T.TypeRep t) ->
+      -- We still need to unsafely coerce the kind of t to Type
+      -- and Typed to UnTyped
+      (unsafeCoerce
+        ((\rep -> T.withTypeable rep (f (Proxy :: Proxy a)))
+          :: forall a. T.TypeRep a -> Typed x a)
+        :: T.TypeRep t -> UnTyped x) rep
+#else
 withTypeRep f _ rep =
   withTypeable (WithTypeable f :: WithTypeable x) (\_ -> rep) Proxy
+
+newtype WithTypeable x
+  = WithTypeable (forall t. Typeable t => Proxy t -> Typed x t)
+
+withTypeable :: WithTypeable x -> (Proxy# () -> TypeRep) -> Proxy () -> UnTyped x
+withTypeable = unsafeCoerce
+#endif

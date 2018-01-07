@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PolyKinds #-}
@@ -16,7 +17,11 @@ module Data.TypeMap.Internal.Unsafe
 
 import Data.Coerce
 import Data.Proxy as Unsafe (Proxy(..))
+#if MIN_VERSION_base(4,10,0)
+import GHC.Exts as Unsafe (Any)
+#else
 import GHC.Prim as Unsafe (Any)
+#endif
 import GHC.TypeLits as Unsafe (KnownNat)
 import GHC.TypeLits (type (+), natVal)
 import Unsafe.Coerce as Unsafe

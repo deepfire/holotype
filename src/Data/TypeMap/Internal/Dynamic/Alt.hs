@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE RankNTypes #-}
@@ -9,7 +10,12 @@
 module Data.TypeMap.Internal.Dynamic.Alt where
 
 import Data.Typeable
+#if MIN_VERSION_base(4,10,0)
+import GHC.Exts (Any)
+import qualified Type.Reflection as T
+#else
 import GHC.Prim (Any, Proxy#)
+#endif
 import Unsafe.Coerce
 import qualified Data.Map as Map
 
@@ -56,16 +62,27 @@ traverse f (TypeMap m) = TypeMap <$> Map.traverseWithKey f' m
 
 newtype Typed_ x t = Typed_ (Typed x t)
 
-newtype WithTypeable x
-  = WithTypeable (forall t. Typeable t => Typed_ x t)
-
-withTypeable
-  :: WithTypeable x -> (Proxy# t -> TypeRep) -> UnTyped x
-withTypeable = unsafeCoerce
-
 withTypeRep
   :: forall x
   .  (forall t. Typeable t => Typed_ x t)
   -> TypeRep -> UnTyped x
+#if MIN_VERSION_base(4,10,0)
+withTypeRep f rep =
+  case rep of
+    T.SomeTypeRep (rep :: T.TypeRep t) ->
+      -- We still need to unsafely coerce the kind of t to Type
+      -- and Typed to UnTyped
+      (unsafeCoerce
+        ((\rep -> T.withTypeable rep f) :: forall a. T.TypeRep a -> Typed_ x a)
+        :: T.TypeRep t -> UnTyped x) rep
+#else
 withTypeRep f rep =
   withTypeable (WithTypeable f :: WithTypeable x) (\_ -> rep)
+
+newtype WithTypeable x
+  = WithTypeable (forall t. Typeable t => Typed_ x t)
+
+withTypeable
+  :: WithTypeable x -> (Proxy# () -> TypeRep) -> UnTyped x
+withTypeable = unsafeCoerce
+#endif
