@@ -9,6 +9,9 @@
 
 module Data.TypeMap.Internal.Dynamic.Alt where
 
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative (Applicative, (<$>))
+#endif
 import Data.Typeable
 #if MIN_VERSION_base(4,10,0)
 import GHC.Exts (Any)

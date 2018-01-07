@@ -9,6 +9,9 @@
 
 module Data.TypeMap.Internal.Dynamic where
 
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative (Applicative, (<$>))
+#endif
 import Data.Map (Map)
 import Data.Proxy (Proxy(..))
 import Data.Typeable
