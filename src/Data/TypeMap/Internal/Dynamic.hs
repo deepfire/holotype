@@ -43,6 +43,10 @@ type instance Item (OfType a) t = a
 null :: TypeMap x -> Bool
 null (TypeMap m) = Map.null m
 
+-- | The number of elements in the map.
+size :: TypeMap x -> Int
+size (TypeMap m) = Map.size m
+
 -- | Empty type map.
 empty :: TypeMap x
 empty = TypeMap Map.empty
@@ -64,6 +68,28 @@ lookup t (TypeMap m) = coerce (Map.lookup (typeRep t) m)
   where
     coerce :: Maybe Any -> Maybe (Item x t)
     coerce = unsafeCoerce
+
+-- | Delete a key and its value from the map.
+-- Does nothing if the key does not exist.
+delete
+  :: forall t x proxy
+  .  Typeable t => proxy t -> TypeMap x -> TypeMap x
+delete t (TypeMap m) = TypeMap (Map.delete (typeRep t) m)
+
+-- | Left-biased union of two maps; it keeps the first key if duplicates are found.
+union
+  :: forall x. TypeMap x -> TypeMap x -> TypeMap x
+union (TypeMap m) (TypeMap n) = TypeMap (Map.union m n)
+
+-- | Difference of two maps; keep elements of the first map which are not in the second.
+difference
+  :: forall x. TypeMap x -> TypeMap x -> TypeMap x
+difference (TypeMap m) (TypeMap n) = TypeMap (Map.difference m n)
+
+-- | Intersection of two maps; keep elements of the first map which are also in the second.
+intersection
+  :: forall x y. TypeMap x -> TypeMap y -> TypeMap x
+intersection (TypeMap m) (TypeMap n) = TypeMap (Map.intersection m n)
 
 -- | Map a function on all elements.
 map

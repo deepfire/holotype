@@ -43,6 +43,13 @@ lookup (TypeMap m) = coerce (Map.lookup (typeRep (Proxy @t)) m)
     coerce :: Maybe Any -> Maybe (Item x t)
     coerce = unsafeCoerce
 
+-- | Delete a key and its value from the map.
+-- Does nothing if the key does not exist.
+delete
+  :: forall t x proxy
+  .  Typeable t => TypeMap x -> TypeMap x
+delete (TypeMap m) = TypeMap (Map.delete (typeRep (Proxy @t)) m)
+
 map
   :: forall x y. (forall t. Typeable t => Item x t -> Item y t)
   -> TypeMap x -> TypeMap y

@@ -5,8 +5,13 @@ module Data.TypeMap.Dynamic
   , Item
   , empty
   , null
+  , size
   , insert
   , lookup
+  , delete
+  , union
+  , difference
+  , intersection
   , map
   , traverse
   , OfType

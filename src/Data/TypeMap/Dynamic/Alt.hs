@@ -7,8 +7,13 @@ module Data.TypeMap.Dynamic.Alt
   , Item
   , empty
   , null
+  , size
   , insert
   , lookup
+  , delete
+  , union
+  , difference
+  , intersection
   , map
   , traverse
   , OfType
@@ -19,6 +24,10 @@ import Data.TypeMap.Internal.Dynamic
   , Item
   , empty
   , null
+  , size
+  , union
+  , difference
+  , intersection
   , OfType
   )
 

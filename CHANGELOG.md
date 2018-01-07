@@ -1,6 +1,8 @@
 # 0.1.2.0
 
-- Export `empty`
+- Update `Dynamic`
+  + Export `empty`
+  + Add `size`, `delete`, `union`, `difference`, `intersection`
 
 # 0.1.1.0
 
