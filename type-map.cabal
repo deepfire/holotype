@@ -48,8 +48,6 @@ library
       Data.TypeMap.Internal.Dynamic.Alt
     build-depends:
       vector
-  other-modules:
-    Data.TypeMap.Check
   build-depends:
     containers,
     ghc-prim,
