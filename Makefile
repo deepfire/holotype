@@ -22,6 +22,7 @@ dist/build/holotype/holotype: $(SRCS)
 #
 clean:
 	cabal clean
+	rm -f {,src/}*.{o,hi,dyn_hi,dyn_o,hs~}
 
 #
 #
