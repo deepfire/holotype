@@ -504,7 +504,7 @@ layout_item p =
 
 
 -- | Lay out children according to their and item's properties.
---   Size is taken from the 'item', origin is fixed to 0:0.
-layout ∷ Flex a ⇒ a → a
-layout x = layout_item $
-  x & area.area'b .~ (fromMaybe (error "Root missing size.") <$> Size (x^.size))
+--   Origin is fixed to 0:0.
+layout ∷ Flex a ⇒ Size Double → a → a
+layout dim x = layout_item $
+  x & area.area'b .~ dim

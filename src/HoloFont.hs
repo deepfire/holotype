@@ -53,13 +53,14 @@ import           Data.Maybe                               (fromMaybe)
 import           Data.Text                         as T   (Text, unpack)
 
 -- Algebra
-import           Linear
+import           Linear                            hiding (trace)
 
 -- Misc
+import           Debug.Trace                              (trace)
 import           Text.Printf                              (printf)
 
 -- Manually-bound Cairo
-import qualified Graphics.Rendering.Cairo          as GRC (moveTo)
+import qualified Graphics.Rendering.Cairo          as GRC
 
 -- glib-introspection -based Cairo and Pango
 import qualified GI.Cairo                          as GIC
@@ -252,7 +253,7 @@ validateFont fFontMap (FontSpec
                  | otherwise      → Left  $ printf "Bitmap font family '%s' does not provide for size %s." ffamname (show fs)
             (FSRBitmap   _      _, Nothing) → Left $ printf "Outline font family '%s' does not provide for bitmaps." ffamname
             (FSRBitmap  fs policy, Just fPISizes) →
-              case (policy, fPI ∈ fPISizes) of
+              case trace (printf "policy: %s, fPI: %s, sizes: %s" (show policy) (show fPI) (show fPISizes)) (policy, fPI ∈ fPISizes) of
                 (_,  True)  → Right fs
                 (EQ, False) → Left failure
                 (_,  False) → -- an exact match was unavailable, so let's use the
@@ -272,6 +273,7 @@ validateFont fFontMap (FontSpec
         Left failure → pure $ Left failure
         Right  fSize → do
           fdSetSize fDesc fSize
+          -- liftIO $ putStrLn $ printf "---------------\n  fdesc: %s" (show fDesc)
           fDetachedContext ← GIP.fontMapCreateContext fFontMap
           GIP.contextSetFontDescription   fDetachedContext fDesc
           GIPC.contextSetResolution       fDetachedContext (fromDΠ fDΠ)
@@ -429,8 +431,24 @@ layDrawText cairo dGIC lay (Po (V2 cvx cvy)) tColor text =
   runCairo cairo $ do
     GRC.moveTo cvx cvy
     coSetSourceColor tColor
+
+    -- GRC.selectFontFace ("Terminus" ∷ T.Text) GRC.FontSlantNormal GRC.FontWeightNormal
+    -- GRC.setFontSize 15
+
+    -- GRC.textPath text
+    -- GRC.fillPreserve
+    -- GRC.setLineWidth 1.0
+    -- GRC.stroke
+
+    -- GRC.restore
+
     GIP.layoutSetText lay text (-1)
     GIPC.showLayout dGIC lay
+    -- * Gadget to test scaling and alpha issues
+    --
+    -- crColor (co 0 1 0 0.1) >> GRC.rectangle 0 0 6 6 >> GRC.fill
+    -- crColor (co 1 0 0 0.5) >> GRC.rectangle 1 1 4 4 >> GRC.fill
+    -- crColor (co 0 0 1 1) >> GRC.rectangle 2 2 2 2 >> GRC.fill
 
 
 -- | Fontmap: give fonts semantic names.

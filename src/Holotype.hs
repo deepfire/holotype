@@ -10,6 +10,7 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -57,6 +58,7 @@ import           Flatland
 import           Flex
 import           Holo
 import           HoloCube
+import           HoloFont
 import           HoloPort
 import qualified HoloOS                            as HOS
 
@@ -163,27 +165,23 @@ holotype win _evCtl _setupE windowFrameE inputE = do
   frameE           ← newPortFrame $ portV <$ windowFrameE
 
   -- WIDGETS
-  let setSceneSize ∷ Di (Unit PU) → HoloItem Layout → HoloItem Layout
-      setSceneSize sz = (& size .~ (Just ∘ fromPU <$> sz))
-      textFieldD ∷ T.Text → Event t WorldEvent → ReflexGLFW t m (Dynamic t T.Text)
-      textFieldD initial edit =
-        (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initial]) edit
-      textHLE ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ T.Text → Event t WorldEvent → ReflexGLFW t m (Event t (HoloItem Layout))
-      textHLE initial edit = do
+  let textWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ T.Text → Event t WorldEvent → Behavior t (StyleOf u T.Text) → ReflexGLFW t m (Dynamic t (T.Text, HoloItem Layout))
+      textWidgetD initial editE styleB = do
         token ← newId
         setup ← getPostBuild
-        val   ← textFieldD initial edit
+        val   ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initial]) editE
+        style ← sample styleB
         let sty        ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Dynamic t (a, StyleOf u a)
-            sty        = val <&> (,mempty { _tsFontKey = "defaultSans" })
+            sty        = val <&> (,style)
             holo       = uncurry (holoLeaf token) <$> sty
             holo'initE = tagPromptlyDyn holo setup
-        performEvent $ (flip $ queryHoloitem portV) [] <$> leftmost [updated holo, holo'initE]
-
+        e ← (performEvent $ (flip $ queryHoloitem portV) [] <$> leftmost [updated holo, holo'initE])
+        holdDyn (initial, emptyLayoutHolo) $ attachPromptlyDyn val e
+  rec
   -- ELEMENTS
-  text1HoloQE      ← textHLE "English 012" editE
-  text2HoloQE      ← textHLE "woo hoo" editE
-
-  text1HoloQD       ← holdDyn emptyLayoutHolo text1HoloQE
+    fontName ← sample $ current $ HoloFont.FK ∘ fst <$> text1HoloQD -- GHC bug
+    text1HoloQD      ← textWidgetD "defaultSans" editE $ constant mempty { _tsFontKey = fontName }
+    text2HoloQD      ← textWidgetD "woo hoo"     editE $ constant mempty { _tsFontKey = "defaultMono" }
 
   -- * Thoughts
   --
@@ -191,37 +189,37 @@ holotype win _evCtl _setupE windowFrameE inputE = do
   -- 2. font lookup fails: defaultMono → Terminus, yet not Terminus…
 
   -- SCENE
-  let sceneE        = attachPromptlyDyn text1HoloQD text2HoloQE <&>
-        \(x, y)→
-          mkHoloNode blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (VBoxN ∷ Node PU VBox) [x, y]
-      scenePlacedE  = layout ∘ setSceneSize (di 400 200) <$> sceneE
+    let sceneE        = attachPromptlyDyn text1HoloQD (updated text2HoloQD) <&>
+          \((_, x), (_, y))→
+            mkHoloNode blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (VBoxN ∷ Node PU VBox) [x, y]
+        scenePlacedE  = layout (Size $ di 400 200) <$> sceneE
 
-  sceneVisualE     ← performEvent $ scenePlacedE <&>
-    \(tree ∷ HoloItem Layout) → liftIO $ do
-      let Port{..} = portV
-      drwMap ← liftIO $ STM.readTVarIO (iomap $ fromDT portDrawableTracker)
+    sceneVisualE     ← performEvent $ scenePlacedE <&>
+      \(tree ∷ HoloItem Layout) → liftIO $ do
+        let Port{..} = portV
+        drwMap ← liftIO $ STM.readTVarIO (iomap $ fromDT portDrawableTracker)
 
-      let leaves     = holotreeLeaves tree
-          unusedDrws = M.filterWithKey (flip $ const (not ∘ flip M.member leaves)) drwMap
-      forM_ (M.elems unusedDrws) $
-        disposeDrawable portObjectStream
+        let leaves     = holotreeLeaves tree
+            unusedDrws = M.filterWithKey (flip $ const (not ∘ flip M.member leaves)) drwMap
+        forM_ (M.elems unusedDrws) $
+          disposeDrawable portObjectStream
 
-      tree' ← visualiseHolotree portV tree
-      renderHolotreeVisuals portV tree'
-      pure tree'
-  sceneVisualD     ← holdDyn emptyVisualHolo sceneVisualE
+        tree' ← visualiseHolotree portV tree
+        renderHolotreeVisuals portV tree'
+        pure tree'
+    sceneVisualD     ← holdDyn emptyVisualHolo sceneVisualE
 
-  let drawE         = attachPromptlyDyn sceneVisualD frameE
-  _                ← performEvent $ drawE <&>
-                     \(tree, f@Frame{..}) → do
-                       drawHolotreeVisuals portV f tree
+    let drawE         = attachPromptlyDyn sceneVisualD frameE
+    _                ← performEvent $ drawE <&>
+                       \(tree, f@Frame{..}) → do
+                         drawHolotreeVisuals portV f tree
 
-                       framePutDrawable f px0 (doubleToFloat <$> po  0    0)   -- red
-                       framePutDrawable f px1 (doubleToFloat <$> po  0.3  0.3) -- green
-                       framePutDrawable f px2 (doubleToFloat <$> po 30   30)   -- blue
+                         framePutDrawable f px0 (doubleToFloat <$> po  0    0)   -- red
+                         framePutDrawable f px1 (doubleToFloat <$> po  0.3  0.3) -- green
+                         framePutDrawable f px2 (doubleToFloat <$> po 30   30)   -- blue
 
   hold False ((\case Shutdown → True; _ → False)
-              <$> worldE)
+               <$> worldE)
 
 
 data WorldEvent where
