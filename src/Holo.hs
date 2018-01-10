@@ -1,6 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes, ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
 {-# LANGUAGE DataKinds, GADTs, NoMonomorphismRestriction, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
-{-# LANGUAGE LambdaCase, OverloadedLists, OverloadedStrings, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, TypeOperators #-}
+{-# LANGUAGE LambdaCase, OverloadedLists, OverloadedStrings, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, TypeOperators, ViewPatterns #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors #-}
 module Holo
@@ -10,14 +10,24 @@ module Holo
   -- * Get that:
   , StyleOf(..), VisualOf(..)
   , KNode(..), Node(..)
-  , holoNode
+  , mkHoloitem
+  , mkHoloNode
   , holoVBox, holoHBox
   , holoLeaf
   , Phase(..)
-  , HoloItem
+  , HoloItem, hiToken, hiArea, holoitemDrawable
+  , holotreeLeaves
+  , queryHoloitem
+  , renderHoloitem
+  --
   , queryHolotree
   , visualiseHolotree
-  , drawHolotree
+  , renderHolotreeVisuals
+  , drawHolotreeVisuals
+  -- * Dirty parts
+  , emptyLayoutHolo
+  , emptyVisualHolo
+  , blankIdToken
   -- * Holo instances
   , Rect(..), RectStyle, RectVisual
   , TextStyle, TextVisual
@@ -28,10 +38,13 @@ where
 
 import           HoloPrelude
 
+import           Control.Monad
+import qualified Data.Map.Strict                   as Map
+import qualified Data.Set                          as Set
 import           Data.Singletons
 import qualified Data.Text                         as T
-import qualified Data.Text.Lazy                    as TL
 import qualified Data.Text.Zipper                  as T
+import qualified Data.Unique                       as U
 import           Linear
 import           Prelude                           hiding ((.), id)
 
@@ -55,13 +68,14 @@ class (FromUnit u, Monoid (StyleOf u a)) ⇒ Holo (u ∷ UnitK) a where
   --   2. geometry-enriched style
   --   3. datum
   --   Produce an initial visualisation.
-  query           ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a →                  a → m (Di (Maybe Double))
-  visualise       ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a → Area'LU Double → a → m (VisualOf u a)
+  query           ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a →                  a →            m (Di (Maybe Double))
+  createVisual    ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a → Area'LU Double → a → Drawable → m (VisualOf u a)
   -- * Question: what do we change, to allow animation of style?
   --
   -- The current model doesn't allow for it.
-  updateVisual    ∷ (MonadIO m) ⇒ Port →            VisualOf u a → a → m ()           -- ^ Update a visualisation of 'a'.
-  drawableOf      ∷ VisualOf u a → Drawable
+  renderVisual    ∷ (MonadIO m) ⇒ Port →            VisualOf u a → a → m ()           -- ^ Update a visualisation of 'a'.
+  -- For: drawHolotree
+  drawableOf      ∷ Port → VisualOf u a → Drawable
 
 
 -- * HoloItem
@@ -84,6 +98,7 @@ type family HIVisual (p ∷ Phase) u a ∷ Type where
 data HoloItem (p ∷ Phase) where
   HoloItem ∷ (FromUnit u, Holo u a) ⇒
     { holo       ∷ a
+    , hiToken    ∷ IdToken
     , hiUnit     ∷ SUnitK u
     , hiGeo      ∷ Geo
     , hiStyle    ∷ StyleOf u a
@@ -96,6 +111,53 @@ data HoloItem (p ∷ Phase) where
     , hiVisual   ∷ HIVisual p u a
     } → HoloItem p
 
+instance Eq (HoloItem a) where
+  (==) a b = (≡) (hiToken a) (hiToken b)
+
+instance Ord (HoloItem a) where
+  compare a b = compare (hiToken a) (hiToken b)
+
+holotreeLeaves ∷ HoloItem a → Map.Map IdToken (HoloItem a)
+holotreeLeaves root = Map.fromList $ walk root
+  where walk x@(hiChildren → []) = [(hiToken x, x)]
+        walk HoloItem{..}        = concat $ walk <$> hiChildren
+
+holoitemDrawable ∷ Port → HoloItem Visual → Drawable
+holoitemDrawable port HoloItem{..} = drawableOf port hiVisual
+
+
+-- * Minimal
+instance FromUnit u ⇒ Holo u () where
+  data StyleOf  u ()     = UnitStyle
+  data VisualOf u ()     = UnitVisual
+  drawableOf Port{..} _  = portEmptyDrawable
+  query        _ _ _     = pure $ Di $ V2 Nothing Nothing
+  createVisual _ _ _ _ _ = pure UnitVisual
+  renderVisual _ _ _     = pure ()
+
+instance Monoid (StyleOf u ()) where
+  mappend _ _ = mempty
+  mempty      = UnitStyle
+
+instance Monoid (HoloItem Blank) where
+  mappend l r = holoVBox [l, r]
+  mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
+-- instance Monoid (HoloItem Layout) where
+--   mappend l r = holoVBox [l, r]
+--   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
+-- instance Monoid (HoloItem Visual) where
+--   mappend l r = holoVBox [l, r]
+--   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty UnitVisual
+
+emptyLayoutHolo ∷ HoloItem Layout
+emptyLayoutHolo =
+  HoloItem () blankIdToken SPU mempty mempty [] (Di $ V2 Nothing Nothing) mempty ()
+
+emptyVisualHolo ∷ HoloItem Visual
+emptyVisualHolo =
+  HoloItem () blankIdToken SPU mempty mempty [] (Di $ V2 Nothing Nothing) mempty UnitVisual
+
+
 instance Flex (HoloItem Blank) where
   geo      f hi@HoloItem{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
   size     f hi@HoloItem{..} = (\x→ hi {hiSize=x})     <$> f hiSize
@@ -120,36 +182,55 @@ instance Flex (HoloItem Visual) where
 -- | Designate three passes over the tree:
 --   1. Query
 --   2. Layout
---   2. Visualise
+--   2. CreateVisual
 
-queryHolotree ∷ (MonadIO m) ⇒ Port → HoloItem Blank → m (HoloItem Layout)
-queryHolotree port hoi =
+queryHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem Blank → [HoloItem Layout] → m (HoloItem Layout)
+queryHoloitem port hoi children =
   case hoi of
     HoloItem{..} → do
       hiSize     ← query port hiStyle holo
-      let hiArea = mempty
-      hiChildren ← sequence $ (queryHolotree port) <$> hiChildren
+      let hiArea     = mempty
+          hiChildren = children
       pure HoloItem{..}
 
-visualiseHolotree ∷ (MonadIO m) ⇒ Port → HoloItem Layout → m (HoloItem Visual)
-visualiseHolotree port hoi =
-  case hoi of
-    HoloItem{..} → do
-      hiVisual   ← visualise port hiStyle hiArea holo
-      hiChildren ← sequence $ (visualiseHolotree port) <$> hiChildren
-      pure $ HoloItem{..}
+visualiseHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem Layout → [HoloItem Visual] → m (HoloItem Visual)
+visualiseHoloitem port HoloItem{..} hiChildren' = do
+  drw      ← establishSizedDrawableForId port hiToken (hiArea^.area'b.size'di)
+  hiVisual ← createVisual port hiStyle hiArea holo drw
+  let hiChildren = hiChildren'
+  pure HoloItem{..}
 
-drawHolotree ∷ (MonadIO m) ⇒ Frame → HoloItem Visual → m ()
-drawHolotree frame root = loop (luOf (hiArea root)^.lu'po) root
-  where loop offset HoloItem{..} = do
-          if null hiChildren
-          then do
-            drawableContentToGPU   (drawableOf hiVisual)
-            framePutDrawable frame (drawableOf hiVisual) (doubleToFloat <$> (offset + luOf hiArea^.lu'po))
-            -- liftIO $ putStrLn $ "draw -- " <> (show $ luOf hiArea^.lu'po) <> " " <> (TL.unpack $ rendCompact $ pretty'Area hiArea) <> " " <> (TL.unpack $ rendCompact $ pretty'Area (area'LU hiArea))
-          else do
-            sequence $ loop (luOf hiArea^.lu'po) <$> hiChildren
-            pure ()
+renderHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem Visual → m ()
+renderHoloitem port HoloItem{..} = do
+  let drw = drawableOf port hiVisual
+  clearDrawable drw
+  renderVisual port hiVisual holo
+  drawableContentToGPU drw
+
+
+queryHolotree ∷ (MonadIO m) ⇒ Port → HoloItem Blank → m (HoloItem Layout)
+queryHolotree port hoi@HoloItem{..} =
+  queryHoloitem     port hoi =<< (sequence $ queryHolotree     port <$> hiChildren)
+
+visualiseHolotree ∷ (MonadIO m) ⇒ Port → HoloItem Layout → m (HoloItem Visual)
+visualiseHolotree port hoi@HoloItem{..} = do
+  visualiseHoloitem port hoi =<< (sequence $ visualiseHolotree port <$> hiChildren)
+
+renderHolotreeVisuals ∷ (MonadIO m) ⇒ Port → HoloItem Visual → m ()
+renderHolotreeVisuals port hoi@HoloItem{..} = do
+  renderHoloitem port hoi
+  forM_ hiChildren (renderHolotreeVisuals port)
+
+drawHolotreeVisuals ∷ (MonadIO m) ⇒ Port → Frame → HoloItem Visual → m ()
+drawHolotreeVisuals port frame root = loop (luOf (hiArea root)^.lu'po) root
+  where
+    loop offset HoloItem{..} = do
+      if null hiChildren
+      then do
+        framePutDrawable frame (drawableOf port hiVisual) (doubleToFloat <$> (offset + luOf hiArea^.lu'po))
+        -- liftIO $ putStrLn $ "draw -- " <> (show $ luOf hiArea^.lu'po) <> " " <> (TL.unpack $ rendCompact $ pretty'Area hiArea) <> " " <> (TL.unpack $ rendCompact $ pretty'Area (area'LU hiArea))
+      else do
+        forM_ hiChildren $ loop (luOf hiArea^.lu'po)
 
 
 -- * Internal nodes
@@ -164,10 +245,10 @@ data Node (u ∷ UnitK) (k ∷ KNode) where
 instance FromUnit u ⇒ Holo   u (Node u (k ∷ KNode)) where
   data StyleOf  u (Node u k) = NodeStyle
   data VisualOf u (Node u k) = NodeVisual
-  drawableOf           = (⊥)
-  query        _ _ _   = pure $ Di $ V2 Nothing Nothing
-  visualise    _ _ _ _ = pure NodeVisual
-  updateVisual _ _ _   = pure ()
+  drawableOf Port{..} _  = portEmptyDrawable
+  query        _ _ _     = pure $ Di $ V2 Nothing Nothing
+  createVisual _ _ _ _ _ = pure NodeVisual
+  renderVisual _ _ _     = pure ()
 
 instance Monoid (StyleOf u (Node u k)) where
   mempty      = NodeStyle
@@ -181,32 +262,26 @@ nodeGeo VBoxN = mempty & grow .~ 1 & direction .~ DirColumn
 -- * Layout tree Item constructors
 --
 -- XXX: this FromUnit constraint is a genuine pain.
-holoNode  ∷ ∀ u k. (FromUnit u, Holo u (Node u k), SingI u) ⇒ Node u k → [HoloItem Blank] → HoloItem Blank
-holoNode holo hiChildren =
-  let hiUnit     = sing ∷ (SUnitK u)
-      hiGeo      = nodeGeo holo
-      hiStyle    = mempty
-      hiSize     = Di (V2 Nothing Nothing)
-      hiArea     = ()
-      hiVisual   = ()
-  in HoloItem {..}
 
-holoLeaf ∷ ∀ u a. (Holo u a, SingI u) ⇒ Port → a → StyleOf u a → HoloItem Blank
-holoLeaf _port holo hiStyle =
-  let hiUnit     = sing ∷ (SUnitK u)
-      hiGeo      = mempty
-      hiChildren = []
-      hiSize     = Di (V2 Nothing Nothing)
-      hiArea     = ()
-      hiVisual   = ()
+mkHoloitem ∷ ∀ p u a. (FromUnit u, Holo u a, SingI u) ⇒ SUnitK u → HIVisual p u a → StyleOf u a → HIArea p → Geo → IdToken → a → [HoloItem p] → HoloItem p
+mkHoloitem hiUnit hiVisual hiStyle hiArea hiGeo hiToken holo hiChildren =
+  let hiSize = Di (V2 Nothing Nothing)
   in HoloItem{..}
+
+mkHoloNode ∷ ∀ p u k. (FromUnit u, Holo u (Node u k), SingI u) ⇒ IdToken → HIVisual p u (Node u k) → HIArea p → Node u k → [HoloItem p] → HoloItem p
+mkHoloNode idToken visual area holo =
+  mkHoloitem (sing ∷ SUnitK u) visual mempty area (nodeGeo holo) idToken holo
+
+holoLeaf ∷ ∀ u a. (Holo u a, SingI u) ⇒ IdToken → a → StyleOf u a → HoloItem Blank
+holoLeaf idToken holo hiStyle =
+  mkHoloitem (sing ∷ SUnitK u) () hiStyle () mempty         idToken holo []
 
 
 -- * Pre-package tree constructors
 --
 holoVBox, holoHBox ∷ [HoloItem Blank] → HoloItem Blank
-holoHBox = holoNode (HBoxN ∷ Node PU HBox)
-holoVBox = holoNode (VBoxN ∷ Node PU VBox)
+holoHBox = mkHoloNode blankIdToken () () (HBoxN ∷ Node PU HBox)
+holoVBox = mkHoloNode blankIdToken () () (VBoxN ∷ Node PU VBox)
 
 
 -- * Leaves
@@ -227,33 +302,23 @@ type RectVisual u = VisualOf u (Rect u)
 instance FromUnit u ⇒ Holo   u (Rect u) where
   data StyleOf  u (Rect u) where RectStyle  ∷ RectStyle u
   data VisualOf u (Rect u) where RectVisual ∷ { rectDrawable ∷ Drawable } → RectVisual u
-  drawableOf = rectDrawable
+  drawableOf _ = rectDrawable
   query     port _       Rect{..} = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$>_rectDim
-  visualise port _ _area Rect{..} =
-    RectVisual <$> mkRectDrawable port (PUs <$> _area^.area'b.size'di) _rectColor
-  updateVisual port v@RectVisual{rectDrawable=Drawable{..}} Rect{..} = do
-    redrawRectDrawable port (rectDrawable v) _rectColor _rectDim
+  createVisual port@Port{..} _ _area Rect{..} _drw = do
+    let dim = PUs <$> _area^.area'b.size'di
+    d@Drawable{..} ← portMakeDrawable port $ fromPU ∘ fromUnit (sttsDΠ portSettings) <$> dim
+    drawableDrawRect port d _rectColor dim
+    pure $ RectVisual d
+  renderVisual port v@RectVisual{rectDrawable=Drawable{..}} Rect{..} =
+    drawableDrawRect port (rectDrawable v) _rectColor _rectDim
 
 
 -- * This is a complicated story:
 --
 -- Actors:
 --  1. u-free text style
---  2. PU-wired Fontmap from the Port 
-mkText ∷ ∀ m u. (MonadIO m, FromUnit u) ⇒ Port → TextStyle u → Maybe T.Text → m (VisualOf u T.Text)
-mkText port@Port{..} tStyle@TextStyle{..} mText = do
-  let Settings{..} = portSettings
-      font         = lookupFont' portFontmap _tsFontKey
-  tDim ← (fromUnit sttsDΠ <$>) ∘ either errorT id <$> fontQuerySize font (convert sttsDΠ _tsSizeSpec) mText
- 
-  tDrawable         ← makeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> tDim
-  (,) tFont tLayout ← drawableBindFontLayout sttsDΠ tDrawable font tDim _tsSizeSpec
-  pure $ Text{..}
-
-drawText ∷ (MonadIO m) ⇒ VisualOf u T.Text → T.Text → m ()
-drawText Text{..} text =
-  drawableDrawText tDrawable tLayout (_tsColor tStyle) text
-
+--  2. PU-wired Fontmap from the Port
+--
 instance (FromUnit u) ⇒ Monoid (TextStyle u) where
   mempty = TextStyle
     { _tsFontKey     = "default"
@@ -283,17 +348,18 @@ instance FromUnit u ⇒ Holo u T.Text where
       , tLayout        ∷ GIP.Layout
       , tDim           ∷ Di (Unit u)
       } → TextVisual u
-  drawableOf = tDrawable
+  drawableOf _ = tDrawable
   query port@Port{..} TextStyle{..} content = do
     let font = portFont' port _tsFontKey -- XXX: non-total
     (Just ∘ fromPU <$>) ∘ either errorT id <$> fontQuerySize font (convert (portDΠ port) _tsSizeSpec) (partial (≢ "") content)
-  visualise port tStyle@TextStyle{..} area content = do
+  createVisual port tStyle@TextStyle{..} area' _content tDrawable = do
     let font = portFont' port _tsFontKey -- XXX: non-total
-        tDim = fromUnit (portDΠ port) ∘ PUs <$> dimOf area
-    tDrawable         ← makeDrawable port (dimOf area)
+        tDim = fromUnit (portDΠ port) ∘ PUs <$> dimOf area'
+    liftIO $ putStrLn $ printf "%s → %s" (show _tsFontKey) (show font)
     (,) tFont tLayout ← drawableBindFontLayout (portDΠ port) tDrawable font tDim _tsSizeSpec
     pure Text{..}
-  updateVisual _ = drawText
+  renderVisual _ Text{..} text =
+    drawableDrawText tDrawable tLayout (_tsColor tStyle) text
 
 tsFontKey   ∷ Lens' (TextStyle u) FontKey
 tsFontKey  f ts@(TextStyle x _ _) = (\xx→ts{_tsFontKey=xx})  <$> f x
@@ -319,14 +385,14 @@ instance FromUnit u ⇒ Holo  u  (T.TextZipper T.Text) where
     TextZipper ∷
       { teText ∷ VisualOf u T.Text
       } → TextZipperVisual u
-  drawableOf = tDrawable ∘ teText
+  drawableOf _ = tDrawable ∘ teText
   query port TextZipperStyle{..} tz =
     query port fromTextZipperStyle (zipperText tz)
-  visualise port hsty area content = do
-    TextZipper <$> visualise port (hsty & fromTextZipperStyle) area (zipperText content)
-  updateVisual _ (TextZipper txt@Text{..}) content = do
+  createVisual port hsty area' content drw = do
+    TextZipper <$> createVisual port (hsty & fromTextZipperStyle) area' (zipperText content) drw
+  renderVisual _ (TextZipper Text{..}) content = do
     -- XXX: cursor position
-    drawText txt (zipperText content)
+    drawableDrawText tDrawable tLayout (_tsColor tStyle) (zipperText content)
 
 tesTSStyle  ∷ Lens' (TextZipperStyle u) (TextStyle u)
 tesTSStyle f (TextZipperStyle x) = TextZipperStyle <$> f x
@@ -336,7 +402,7 @@ tesTSStyle f (TextZipperStyle x) = TextZipperStyle <$> f x
 -- visual stts holoStream holoStyle holoE =
 --   performEvent (holoE <&> ((\(holo, x) → liftIO $ do
 --                                -- XXX/expressivity:  this threading of 'x' is..
---                                holoVisual ← visualise stts holoStream holoStyle holo
+--                                holoVisual ← createVisual stts holoStream holoStyle holo
 --                                holoRef    ← IO.newIORef holo
 --                                -- holoPosRef ← IO.newIORef pos
 --                                pure (Holosome{..}, x))
@@ -347,4 +413,4 @@ tesTSStyle f (TextZipperStyle x) = TextZipperStyle <$> f x
 --   old ← liftIO $ IO.readIORef holoRef
 --   let new = f old
 --   liftIO $ IO.writeIORef holoRef new
---   updateVisual stts holoStream holoVisual new
+--   renderVisual stts holoStream holoVisual new
