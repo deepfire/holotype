@@ -15,7 +15,8 @@ module HoloPort where
 import           HoloPrelude
 
 -- Types
-import qualified Data.Map                          as Map
+import qualified Data.Map.Strict                   as Map
+import qualified Data.Set                          as Set
 import qualified Data.Text                         as T
 import qualified Data.Vector                       as V
 import qualified Data.Vect                         as Vc
@@ -33,8 +34,11 @@ import qualified GI.Cairo                          as GIC
 import qualified GI.Pango                          as GIP
 
 -- Dirty stuff
+import qualified Control.Concurrent.STM            as STM
+import qualified Data.Unique                       as U
 import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
+import qualified System.IO.Unsafe                  as IO
 import qualified System.Mem.Weak                   as SMem
 
 -- …
@@ -57,15 +61,57 @@ import           HoloCube
 import           HoloFont
 
 
+-- * Drawable state support
+--
+newtype IdToken = IdToken { fromIdToken ∷ U.Unique } deriving (Eq, Ord)
+
+newId ∷ (MonadIO m) ⇒ m IdToken
+newId = liftIO $
+  IdToken <$> U.newUnique
+
+blankIdToken ∷ IdToken
+blankIdToken = IO.unsafePerformIO newId
+
+
+-- * Impure IO-stateful map
+data IOMap k v where
+  IOMap ∷ Ord k ⇒
+    { iomap ∷ STM.TVar (Map.Map k v)
+    } → IOMap k v
+
+newtype DrawableTracker = DrawableTracker { fromDT ∷ IOMap IdToken Drawable }
+
+mkIOMap ∷ (MonadIO m, Ord k) ⇒ m (IOMap k v)
+mkIOMap = IOMap
+  <$> (liftIO $ STM.newTVarIO $ Map.empty)
+
+iomapAccess ∷ (MonadIO m) ⇒ IOMap k v → m (Map.Map k v)
+iomapAccess IOMap{..} = liftIO $ STM.readTVarIO iomap
+
+iomapAdd ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → v → m ()
+iomapAdd IOMap{..} k v = liftIO $ do
+  STM.atomically $ STM.modifyTVar' iomap (Map.insert k v)
+  pure ()
+
+iomapDrop ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → m ()
+iomapDrop IOMap{..} x = liftIO $
+  STM.atomically $ STM.modifyTVar' iomap (Map.delete x)
+
+iomapHas ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → m Bool
+iomapHas iomap x = Map.member x <$> iomapAccess iomap
+
+
 -- | Usher Cairo + Pango -enabled surfaces onto a GL Window,
 --   according to user-controlled Settings.
 data Port where
   Port ∷
-    { portSettings     ∷ Settings
-    , portFontmap      ∷ FontMap PU
-    , portWindow       ∷ GL.Window
-    , portObjectStream ∷ ObjectStream
-    , portRenderer     ∷ Renderer
+    { portSettings        ∷ Settings
+    , portFontmap         ∷ FontMap PU
+    , portWindow          ∷ GL.Window
+    , portObjectStream    ∷ ObjectStream
+    , portRenderer        ∷ Renderer
+    , portEmptyDrawable   ∷ Drawable
+    , portDrawableTracker ∷ DrawableTracker
     } → Port
 
 portDΠ ∷ Port → DΠ
@@ -74,8 +120,12 @@ portDΠ = sttsDΠ ∘ portSettings
 portCreate  ∷ (MonadIO m) ⇒ GL.Window → Settings → m (Port)
 portCreate portWindow portSettings@Settings{..} = do
   portFontmap                      ← makeFontMap sttsDΠ fmDefault sttsFontPreferences
+  liftIO $ putStrLn $ printf "%s" (show portFontmap)
   (portRenderer, portObjectStream) ← makeSimpleRenderedStream portWindow (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))
   rendererDrawFrame portRenderer
+  portEmptyDrawable ← makeDrawable portObjectStream (di 1 1)
+  portDrawableTracker@(DrawableTracker dt) ← DrawableTracker <$> mkIOMap
+  iomapAdd dt blankIdToken portEmptyDrawable
   pure Port{..}
 
 portUpdateSettings ∷ (MonadIO m) ⇒ Port → Settings → m (Port)
@@ -108,7 +158,7 @@ defaultSettings = do
       sttsFontPreferences = FontPreferences
         [ ("default",     Left $ Alias "defaultMono" )
         , ("defaultSans", Right $ [ FontSpec "Aurulent Sans" "Regular" $ FSROutline (PUs 16) ])
-        , ("defaultMono", Right $ [ FontSpec "Terminus"      "Regular" $ FSRBitmap  (PUs 16) LT ])
+        , ("defaultMono", Right $ [ FontSpec "Terminus"      "Regular" $ FSRBitmap  (PUs 15) LT ])
         ]
   pure Settings{..}
 
@@ -118,6 +168,7 @@ data Drawable where
   Drawable ∷
     { dObjectStream ∷ ObjectStream
     , dDi           ∷ Di Int
+    , dSurface      ∷ GRCI.Surface
     , dSurfaceData  ∷ (F.Ptr F.CUChar, (Int, Int))
     , dCairo        ∷ Cairo
     , dGIC          ∷ GIC.Context
@@ -137,8 +188,11 @@ imageSurfaceGetPixels' pb = do
   r ← GRC.imageSurfaceGetStride pb
   return (pixPtr, (r, h))
 
-makeDrawable ∷ (MonadIO m) ⇒ Port → Di Double → m Drawable
-makeDrawable Port {portObjectStream = dObjectStream@ObjectStream{..}} dDi' = liftIO $ do
+portMakeDrawable ∷ (MonadIO m) ⇒ Port → Di Double → m Drawable
+portMakeDrawable Port{..} = makeDrawable portObjectStream
+
+makeDrawable ∷ (MonadIO m) ⇒ ObjectStream → Di Double → m Drawable
+makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
   dCairo        ← cairoCreate  dSurface
@@ -162,6 +216,15 @@ makeDrawable Port {portObjectStream = dObjectStream@ObjectStream{..}} dDi' = lif
   -- dTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi dStridePixels, h, GL_BGRA, pixels)
   pure Drawable{..}
 
+disposeDrawable ∷ (MonadIO m) ⇒ ObjectStream → Drawable → m ()
+disposeDrawable ObjectStream{..} Drawable{..} = liftIO $ do
+  -- see experiment in LCstress
+  F.withArray [dTexId] $ glDeleteTextures 1 -- release tex id
+  GL.removeObject osStorage dGLObject
+  GL.disposeMesh  dGPUMesh
+  -- cairoCreate is auto-managed
+  GRCI.surfaceFinish dSurface -- undo createImageSurface
+
 drawableContentToGPU ∷ (MonadIO m) ⇒ Drawable → m ()
 drawableContentToGPU Drawable{..} = liftIO $ do
   let ObjectStream{..} = dObjectStream
@@ -179,16 +242,26 @@ framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = 
   liftIO $ GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
     Q3.mat4ToM44F $! (Vc.fromProjective $! Vc.translation cvpos) Vc..*. toScreen
 
-
--- * Drawables and fonts
---
-drawableBindFontLayout ∷ (MonadIO m, FromUnit u, FromUnit v) ⇒
-  DΠ → Drawable → Font Found u → Di (Unit v) → TextSizeSpec v → m (WFont Bound, GIP.Layout)
-drawableBindFontLayout dπ Drawable{..} = bindWFontLayout dπ dGIC
-
-drawableDrawText ∷ (MonadIO m) ⇒ Drawable → GIP.Layout → Co Double → T.Text → m ()
-drawableDrawText Drawable{..} layout color text = do
-  layDrawText dCairo dGIC layout (po 0 0) color text
+establishSizedDrawableForId ∷ (MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
+establishSizedDrawableForId Port{..} idt dim = do
+  drwMap ← iomapAccess (fromDT portDrawableTracker)
+  case Map.lookup idt drwMap of
+    Nothing → do
+      liftIO $ putStrLn $ printf "--> releasing drawable %d" (U.hashUnique $ fromIdToken idt)
+      d ← makeDrawable portObjectStream dim
+      iomapAdd (fromDT portDrawableTracker) idt d
+      pure d
+    Just d@Drawable{..} →
+      if False -- (dDi ≡ (ceiling <$> dim))
+      then do
+        liftIO $ putStrLn $ printf "--> reusing drawable %d" (U.hashUnique $ fromIdToken idt)
+        pure d
+      else do
+        liftIO $ putStrLn $ printf "--> resizing drawable %d" (U.hashUnique $ fromIdToken idt)
+        disposeDrawable portObjectStream d
+        d' ← makeDrawable portObjectStream dim
+        iomapAdd (fromDT portDrawableTracker) idt d'
+        pure d'
 
 
 -- * Matrix works
@@ -217,15 +290,24 @@ screenM w h = scaleM -- Vc..*. flipM
                          (Vc.Vec4  0      0     0 0.5) -- where does that 0.5 factor COMEFROM?
 
 
--- * Render debug utils
+-- * Actual drawing
 --
 dpx ∷ Po Double → Co Double → GRCI.Render ()
 dpx (Po (V2 x y)) color = crColor color >>
                           -- GRC.rectangle (x) (y) 1 1 >> GRC.fill
                           GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
 
-redrawRectDrawable ∷ (MonadIO m, FromUnit u) ⇒ Port → Drawable → Co Double → Di (Unit u) → m ()
-redrawRectDrawable Port{portSettings=Settings{..}} d@Drawable{..} color dim' = do
+clearDrawable ∷ (MonadIO m) ⇒ Drawable → m ()
+clearDrawable Drawable{..} = do
+  runCairo dCairo $ do
+    GRC.save
+    GRC.setOperator GRCI.OperatorSource
+    crColor (co 0 0 0 0)
+    GRC.paint
+    GRC.restore
+
+drawableDrawRect ∷ (MonadIO m, FromUnit u) ⇒ Port → Drawable → Co Double → Di (Unit u) → m ()
+drawableDrawRect Port{portSettings=Settings{..}} d@Drawable{..} color dim' = do
   let dim = fromUnit sttsDΠ <$> dim'
   runCairo dCairo $ do
     crColor color
@@ -237,6 +319,14 @@ redrawRectDrawable Port{portSettings=Settings{..}} d@Drawable{..} color dim' = d
 -- Render with: framePutDrawable frame px0 (doubleToFloat <$> po 0 0)
 mkRectDrawable ∷ (MonadIO m, FromUnit u) ⇒ Port → Di (Unit u) → Co Double → m Drawable
 mkRectDrawable port@Port{portSettings=Settings{..}} dim color = do
-  d@Drawable{..} ← makeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> dim
-  redrawRectDrawable port d color dim
+  d@Drawable{..} ← portMakeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> dim
+  drawableDrawRect port d color dim
   pure d
+
+drawableBindFontLayout ∷ (MonadIO m, FromUnit u, FromUnit v) ⇒
+  DΠ → Drawable → Font Found u → Di (Unit v) → TextSizeSpec v → m (WFont Bound, GIP.Layout)
+drawableBindFontLayout dπ Drawable{..} = bindWFontLayout dπ dGIC
+
+drawableDrawText ∷ (MonadIO m) ⇒ Drawable → GIP.Layout → Co Double → T.Text → m ()
+drawableDrawText Drawable{..} layout color text = do
+  layDrawText dCairo dGIC layout (po 0 0) color text
