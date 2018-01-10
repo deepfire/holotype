@@ -23,7 +23,6 @@ module Holotype where
 -- Basis
 import           HoloPrelude                       hiding ((<>))
 import           Prelude                           hiding (id, Word)
-import           Control.Concurrent                       (forkIO, threadDelay)
 
 -- Generic
 import           Data.Semigroup
@@ -53,16 +52,11 @@ import           Elsewhere
 import           Flatland
 import           Flex
 import           Holo
-import           HoloFont
 import           HoloCube
 import           HoloPort
 import qualified HoloOS                            as HOS
-import           Types
 
 -- TEMPORARY
-import qualified GI.Pango                          as GIP
-import           Numeric.Extra                            (doubleToFloat)
-import qualified System.FSNotify                   as FS
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 
@@ -126,40 +120,6 @@ wordInterpStyle x = mempty
                    WLens   _ → co 0.710 0.537 0.000 1
                    WError  _ → co 0.863 0.196 0.184 1
 
-composeScene ∷ ∀ m u. (MonadIO m, FromUnit u, u ~ PU) ⇒ Port → Di (Unit u) → T.Text → m (HoloItem Visual)
-composeScene port@Port{..} dim queryText = do
-  let Settings{..} = portSettings
-      words        = case parseQuery queryText of
-                       Left err → [WError err]
-                       Right ws → ws
-      wordItem ∷ Word → HoloItem Blank
-      wordItem word =
-        holoLeaf port (wText word) (wordInterpStyle word ∷ TextStyle PU)
-  let entryItem = holoLeaf port (textZipper [queryText])
-                  (mempty & tesTSStyle.tsSizeSpec.tssWidth .~ (Just $ dim^.di'w))
-                  -- Problem:
-                  -- 1. We have size for top entry, want to record it
-                  -- 2. The tree is type-coherent, and children need have the same type.
-                  & size.di'v._x                           .~ (Just ∘ fromPU $ dim^.di'v._x)
-      wordItems = wordItem <$> words
-  -- let tree = holoVBox
-  --            [ entryItem
-  --            , holoHBox wordItems
-  --              & geo.wrap   .~ Wrap
-  --            ] & place.size .~ (Just ∘ fromPU <$> dim)
-  let box color sz = holoLeaf port (Rect sz color ∷ Rect PU) (mempty ∷ RectStyle PU)
-      -- scene = box red (di 100 100)
-      scene = holoVBox
-              [ box blue          (di 50 50)
-              , holoHBox
-                [ box (gray 0.6 0.5) (di 50 100)
-                , box green          (di 100 50) ]
-              , box (gray 0.5 0.5)   (di 200 50)
-              ] & size .~ (Just ∘ fromPU <$> dim)
-  sized ∷ HoloItem Layout ← queryHolotree port scene
-  let placed = layout (sized & size .~ (Just ∘ fromPU <$> dim))
-  visual ← visualiseHolotree port placed
-  pure visual
 
 
 holotype ∷ ReflexGLFWGuest t m
@@ -169,15 +129,6 @@ holotype win _evCtl setupE windowFrameE inputE = do
   settingsV@Settings{..} ← defaultSettings
   portV@Port{..}         ← portCreate win settingsV
 
-  -- let tfstyle = mempty
-  --               & tsColor    .~ co 0.710 0.537 0.000 1
-  --               & tsSizeSpec .~ (mempty & tssHeight .~ ParaLines 5)
-
-  sceneV ← composeScene portV (di 400 200) "we do it for lulz"
-  -- textfield0 ← mkText portV tfstyle (Left $ di 200 30)
-  -- textfield1 ← mkText portV tfstyle (Left $ di 200 30)
-  -- textfield2 ← mkText portV tfstyle (Left $ di 200 30)
-  -- textfield3 ← mkText portV tfstyle (Left $ di 200 30)
   px0 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) red
   px1 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) green
   px2 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) blue
@@ -289,17 +240,7 @@ holotype win _evCtl setupE windowFrameE inputE = do
   hold False ((\case Shutdown → True; _ → False)
               <$> worldE)
 
--- instance Holo (T.TextZipper T.Text) where
---   type Visual (T.TextZipper T.Text) = Canvas (RRect H.Text)
---   visualise stts strea sty tzip = do
---     vis ← assemble stts strea sty $ zipperText tzip
---     render vis
---     pure vis
---   updateVisual _ _ vis tzip = do
---     let H.Text{..} = (innerOf ∘ innerOf) vis
---     liftIO $ IO.writeIORef tTextRef $ zipperText tzip -- this will go away
---     render vis
-
+
 data WorldEvent where
   Move ∷
     { weΔ ∷ Po Double
@@ -339,34 +280,3 @@ translateEvent (U (EventKey  _ GLFW.Key'F2        _ GLFW.KeyState'Pressed   _)) 
 translateEvent (U (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = Spawn
 translateEvent (U (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = Shutdown
 translateEvent _                                                                = NonEvent
-
-
-data World where
-  Void ∷ World
-  Singleton ∷
-    { posn   ∷ Po Double
-    , tz     ∷ T.TextZipper T.Text
-    } → World
-instance Monoid World where
-  mempty = Void
-  mappend Void x = x
-  mappend x Void = x
-  mappend x _    = x -- XXX: a violation, indeed
-
-
--- Time & math
--- Average of the given event's payload over the last given number of
--- occurrences.
--- averageEWE ∷ (Fractional a, Monad m) ⇒ Int → Event t a → m (Event t a)
--- averageEWE n = lmap (fmap go) (unfoldE Seq.empty)
---     where
---     go x xs' =
---         let xs = Seq.take n (x Seq.<| xs')
---         in (foldl' (+) 0 xs / fromIntegral (Seq.length xs),
---             xs)
-
-
--- GLFW tips & tricks:
---
--- getClipboardString :: Window -> IO (Maybe String)
--- GLFW.windowShouldClose win
