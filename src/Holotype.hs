@@ -25,20 +25,24 @@ import           HoloPrelude                       hiding ((<>))
 import           Prelude                           hiding (id, Word)
 
 -- Generic
+import           Control.Monad
 import           Data.Semigroup
 
 -- Algebra
 import           Linear
 
 -- Dirty stuff
--- import qualified Data.IORef                        as IO
+import qualified Control.Concurrent.STM            as STM
+import qualified Data.Unique                       as U
 
 -- Reflex
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW
-import           Reflex.Random
 
 -- Text parsing & editing
+import qualified Data.Map.Strict                   as M
+import           Data.Singletons
+import qualified Data.Set                          as S
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
 import qualified Text.Parser.Char                  as P
@@ -113,129 +117,108 @@ parseQuery x = case P.parseString parserQuery mempty (T.unpack x) of
 
 wordInterpStyle ∷ (FromUnit u) ⇒ Word → TextStyle u
 wordInterpStyle x = mempty
-  & tsFontKey .~ "defaultMono"
+  & tsFontKey .~ "defaultSans"
   & tsColor   .~ case x of
                    WText   _ → co 0.514 0.580 0.588 1
                    WSource _ → co 0.149 0.545 0.824 1
                    WLens   _ → co 0.710 0.537 0.000 1
                    WError  _ → co 0.863 0.196 0.184 1
 
+data QueryParseState =
+  QueryParseState
+  { qpsLastGoodParse ∷ [Word]
+  , qpsError         ∷ Maybe Word
+  }
+
+updateQueryParseState ∷ T.Text → Maybe QueryParseState → QueryParseState
+updateQueryParseState text qps =
+  case parseQuery text of
+    Left err → QueryParseState (fromMaybe [] $ qpsLastGoodParse <$> qps) (Just $ WError err)
+    Right ws → QueryParseState ws Nothing
 
 
-holotype ∷ ReflexGLFWGuest t m
-holotype win _evCtl setupE windowFrameE inputE = do
+-- * Top level network
+--
+holotype ∷ ∀ t m. ReflexGLFWGuest t m
+holotype win _evCtl _setupE windowFrameE inputE = do
   HOS.unbufferStdout
 
   settingsV@Settings{..} ← defaultSettings
   portV@Port{..}         ← portCreate win settingsV
 
-  px0 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) red
-  px1 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) green
-  px2 ← mkRectDrawable portV (di (Wi $ PUs 2) 2) blue
+  px0 ← mkRectDrawable portV (di (Wi $ PUs 2) 1) red
+  px1 ← mkRectDrawable portV (di (Wi $ PUs 1) 2) green
+  px2 ← mkRectDrawable portV (di (Wi $ PUs 1) 1) blue
+
   --
   -- End of init-time IO.
   --
   -- Constructing the FRP network:
   --
 
-  -- INPUT
-  let worldE        = translateEvent <$> inputE
-      gcTogE        = ffilter (\case GCing     → True; _ → False) worldE
-      objsTogE      = ffilter (\case ObjStream → True; _ → False) worldE
-      spawnReqE     = ffilter (\case Spawn     → True; _ → False) worldE
+  -- EXTERNAL INPUTS
+  let worldE        ∷ Event t WorldEvent
+      worldE        = translateEvent <$> inputE
       editE         = ffilter (\case Edit{..}  → True; _ → False) worldE
   frameE           ← newPortFrame $ portV <$ windowFrameE
 
-  (fileE ∷ Event t FS.Event) ← performEventAsync $
-    let -- foo ∷ Event t ((FS.Event → IO ()) → Performable m ())
-        -- foo ∷ ??? (FS.Event -> IO ()) -> Reflex.Host.Class.HostFrame t ()
-        foo cb = do
-            _ ← liftIO $ forkIO $
-                FS.withManager $ \mgr → do
-                  _ ← FS.watchDir
-                    mgr          -- manager
-                    "/tmp"          -- directory to watch
-                    (const True) -- predicate
-                    cb        -- action
-                  forever $ threadDelay 1000000
-            pure ()
-    in foo <$ setupE
+  -- WIDGETS
+  let setSceneSize ∷ Di (Unit PU) → HoloItem Layout → HoloItem Layout
+      setSceneSize sz = (& size .~ (Just ∘ fromPU <$> sz))
+      textFieldD ∷ T.Text → Event t WorldEvent → ReflexGLFW t m (Dynamic t T.Text)
+      textFieldD initial edit =
+        (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initial]) edit
+      textHLE ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ T.Text → Event t WorldEvent → ReflexGLFW t m (Event t (HoloItem Layout))
+      textHLE initial edit = do
+        token ← newId
+        setup ← getPostBuild
+        val   ← textFieldD initial edit
+        let sty        ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Dynamic t (a, StyleOf u a)
+            sty        = val <&> (,mempty { _tsFontKey = "defaultSans" })
+            holo       = uncurry (holoLeaf token) <$> sty
+            holo'initE = tagPromptlyDyn holo setup
+        performEvent $ (flip $ queryHoloitem portV) [] <$> leftmost [updated holo, holo'initE]
 
-  _                ← performEvent $ fileE <&>
-                     \f→ liftIO $ do
-                       putStrLn ("file: " <> show f)
+  -- ELEMENTS
+  text1HoloQE      ← textHLE "English 012" editE
+  text2HoloQE      ← textHLE "woo hoo" editE
 
-  -- Data ∷ Dynamic t (Integer, [(Integer, (Holosome (T.TextZipper T.Text), (S 'Area 'True Double, An Double)))])
-  frameGateD       ← toggle False objsTogE
-  gcingD           ← toggle False gcTogE
-  let driverE       = simpler spawnReqE <> simpler (gate (current $ frameGateD) frameE)
-      text n        = [ printf "Object #%d:" n
-                      , "  Esc:           quit"
-                      , "  F1:            toggle per-frame object stream"
-                      , "  F2:            toggle per-frame GC"
-                      , "  Editing keys:  edit"
-                      , ""
-                      , "Yay!"]
-  -- holosomCountD    ← count driverE
-  -- let preHoloE      = attachPromptlyDyn holosomCountD driverE <&>
-  --                      (\(n, pre') → (,pre') ∘ textZipper $ T.pack <$> text n)
-  -- holosomE         ← visual settingsV streamV dasStyle preHoloE
-  -- holosomD         ← foldDyn (\x (n, xs)→ (n+1, (n,x):xs)) (0, []) $ holosomE
+  text1HoloQD       ← holdDyn emptyLayoutHolo text1HoloQE
 
-  -- Port ∷ IO FPS → Dynamic t (Maybe (Holosome (T.TextZipper T.Text), S 'Area 'True Double))
-  kilobytesE       ← performEvent $ frameE <&>
-                       (const $ do
-                           -- when (sample gcingD) $ HS.gc
-                           HOS.gcKBytesUsed)
-  kilobytesD       ← holdDyn 0 kilobytesE
+  -- * Thoughts
+  --
+  -- 1. flicker
+  -- 2. font lookup fails: defaultMono → Terminus, yet not Terminus…
 
-  frameMomentE     ← performEvent $ fmap (\_ → HOS.getTime) frameE
-  frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
-  avgFrameΔD       ← average 20 $ updated frameΔD
-  -- let fpsD          = (floor ∘ recip) <$> avgFrameΔD
-  --     fpsArea       = Parea (di 256 256) (po (-1) (1))
-  -- let holoFPSDataE  = attachPromptlyDyn (zipDyn (zipDyn fpsD holosomCountD) kilobytesD) frameE <&>
-  --                     \(((fps ∷ Int, objects ∷ Int), kilobytes ∷ Integer),_) →
-  --                       textZipper [T.pack $ printf "%3d fps, %5d objects, %8d KB used" fps objects kilobytes]
-  -- holosomFPSE      ← visual settingsV streamV dasStyle
-  --                    (setupE <&> const (textZipper ["1000 fps, 10000 objects, 10000000 KB used"], fpsArea))
-  -- holosomFPSD      ← foldDyn (const ∘ Just) Nothing holosomFPSE
+  -- SCENE
+  let sceneE        = attachPromptlyDyn text1HoloQD text2HoloQE <&>
+        \(x, y)→
+          mkHoloNode blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (VBoxN ∷ Node PU VBox) [x, y]
+      scenePlacedE  = layout ∘ setSceneSize (di 400 200) <$> sceneE
 
-  -- -- SCENE COMPOSITION
-  let sceneE        = const sceneV <$> frameE
-  sceneD           ← holdDyn sceneV sceneE
-  -- let allDrawablesD = zipDyn holosomFPSD holosomD
-  let drawReqE      = attachPromptlyDyn sceneD frameE
-  -- let screenArea    = Parea (di 1.5 1.5) (po (-0.85) (-0.5))
-  --     widgetLim     = Parea (di 0.2 0.2) (po 0 0)
-  -- -- randomPreHoloE   ← foldRandomRs 0 ((screenArea, An 0.005)
-  -- --                                   ,(widgetLim,  An 0.01)) $ () <$ driverE
-  _                ← performEvent $ drawReqE <&>
-                     \(scene, f@Frame{..}) → do
-                       drawHolotree f scene
-                       framePutDrawable f px0 (doubleToFloat <$> po  0    0)
-                       framePutDrawable f px1 (doubleToFloat <$> po  0.3  0.3)
-                       framePutDrawable f px2 (doubleToFloat <$> po 30   30)
-  -- _                ← performEvent $ drawReqE <&>
-  --                    \((mfps, (_, cs)), f@Frame{..}) → do
-  --                      case mfps of
-  --                        Nothing  → pure ()
-  --                        Just (Holosome{..}, Parea{..}) → placeCanvas holoVisual f _paNWp
-  --                      forM_ cs $ \(n, (Holosome{..}
-  --                                      ,(Parea{..}  ∷ S Area True Double
-  --                                       ,_angVel    ∷ An Double))) → do
-  --                        placeCanvas holoVisual f _paNWp
+  sceneVisualE     ← performEvent $ scenePlacedE <&>
+    \(tree ∷ HoloItem Layout) → liftIO $ do
+      let Port{..} = portV
+      drwMap ← liftIO $ STM.readTVarIO (iomap $ fromDT portDrawableTracker)
 
-  -- UI & DATA MUTATION
-  -- let topsomD       = ffor holosomD (\case (_,[]) → Nothing
-  --                                          (_,(_,h):_) → Just h)
-  --     editReqE      = attachPromptlyDyn topsomD editE
-                         -- update settingsV h weEdit
-  -- let fpsUpdateE    = attachPromptlyDyn holosomFPSD holoFPSDataE
-  -- _                ← performEvent $ fpsUpdateE <&>
-  --                    \case (Nothing, _)→ pure ()
-  --                          (Just (h, _), fps)→
-  --                            update settingsV h (const fps)
+      let leaves     = holotreeLeaves tree
+          unusedDrws = M.filterWithKey (flip $ const (not ∘ flip M.member leaves)) drwMap
+      forM_ (M.elems unusedDrws) $
+        disposeDrawable portObjectStream
+
+      tree' ← visualiseHolotree portV tree
+      renderHolotreeVisuals portV tree'
+      pure tree'
+  sceneVisualD     ← holdDyn emptyVisualHolo sceneVisualE
+
+  let drawE         = attachPromptlyDyn sceneVisualD frameE
+  _                ← performEvent $ drawE <&>
+                     \(tree, f@Frame{..}) → do
+                       drawHolotreeVisuals portV f tree
+
+                       framePutDrawable f px0 (doubleToFloat <$> po  0    0)   -- red
+                       framePutDrawable f px1 (doubleToFloat <$> po  0.3  0.3) -- green
+                       framePutDrawable f px2 (doubleToFloat <$> po 30   30)   -- blue
 
   hold False ((\case Shutdown → True; _ → False)
               <$> worldE)
