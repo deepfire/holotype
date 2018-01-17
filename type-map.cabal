@@ -1,5 +1,5 @@
 name:                type-map
-version:             0.1.1.0
+version:             0.1.2.0
 synopsis:            Type-indexed maps
 description:
   Maps where keys are types and values can have types depending on their keys.
