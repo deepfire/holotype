@@ -12,8 +12,8 @@
 , tasty-expected-failure, tasty-hedgehog, tasty-hspec, tasty-hunit
 , tasty-quickcheck, tasty-smallcheck, template-haskell, text
 , text-format, text-lens, text-zipper, these, transformers
-, trifecta, tuple, unordered-containers, vect, vector
-, wl-pprint-extras, wl-pprint-text
+, trifecta, unordered-containers, vect, vector, wl-pprint-extras
+, wl-pprint-text
 }:
 mkDerivation {
   pname = "holotype";
@@ -33,7 +33,7 @@ mkDerivation {
     reflex semigroupoids semigroups singletons stm tasty
     tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
     tasty-quickcheck tasty-smallcheck template-haskell text text-format
-    text-lens text-zipper these transformers trifecta tuple
+    text-lens text-zipper these transformers trifecta
     unordered-containers vect vector wl-pprint-extras wl-pprint-text
   ];
   executableHaskellDepends = [

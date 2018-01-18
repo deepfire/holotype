@@ -76,7 +76,6 @@ library
                      , these
                      , transformers
                      , trifecta
-                     , tuple
                      , unordered-containers
                      , vect
                      , vector

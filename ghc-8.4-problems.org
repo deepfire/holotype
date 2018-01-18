@@ -1,0 +1,1485 @@
+* Disabled
+*** OneTuple
+    - not on github ::
+
+  #+BEGIN_QUOTE
+  Data/Tuple/OneTuple.hs:71:10: error:
+      • Could not deduce (Semigroup (OneTuple a))
+          arising from the superclasses of an instance declaration
+        from the context: Monoid a
+          bound by the instance declaration
+          at Data/Tuple/OneTuple.hs:71:10-42
+      • In the instance declaration for ‘Monoid (OneTuple a)’
+     |
+  71 | instance (Monoid a) => Monoid (OneTuple a) where
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  note: keeping build directory ‘/tmp/nix-build-OneTuple-0.2.1.drv-1’
+  builder for ‘/nix/store/d2yaivk921ffr0s07lvcdrzss4dxj901-OneTuple-0.2.1.drv’ failed with exit code 1
+  #+END_QUOTE
+
+* Fixed
+*** SMP
+***** microlens
+      - github :: https://github.com/aelve/microlens/commits
+      - commit :: 2fc1eb667a34571b5ec1013012ba6fb71b0fa2dc
+    #+BEGIN_QUOTE
+    [3 of 4] Compiling Lens.Micro       ( src/Lens/Micro.hs, dist/build/Lens/Micro.o )
+
+    src/Lens/Micro.hs:1273:10: error:
+        • Could not deduce (Semigroup (Traversed a f))
+            arising from the superclasses of an instance declaration
+          from the context: Applicative f
+            bound by the instance declaration at src/Lens/Micro.hs:1273:10-48
+        • In the instance declaration for ‘Monoid (Traversed a f)’
+         |
+    1273 | instance Applicative f => Monoid (Traversed a f) where
+         |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    builder for ‘/nix/store/c34cygf4sr0xq6si42knlavgr9zqnjpz-microlens-0.4.8.1.drv’ failed with exit code 1
+    #+END_QUOTE
+***** monadplus
+      - github :: https://github.com/hanshoglund/monadplus/commits
+      - commit :: aa09f2473e2c906f2707b8a3fdb0a087405fd6fb
+    #+BEGIN_QUOTE
+    [2 of 2] Compiling Control.Monad.Plus ( src/Control/Monad/Plus.hs, dist/build/Control/Monad/Plus.o )
+
+    src/Control/Monad/Plus.hs:256:10: error:
+        • No instance for (Semigroup (Partial a b))
+            arising from the superclasses of an instance declaration
+        • In the instance declaration for ‘Monoid (Partial a b)’
+        |
+    256 | instance Monoid (Partial a b) where
+        |          ^^^^^^^^^^^^^^^^^^^^
+    builder for ‘/nix/store/n13jfw2r5yk55wymw9ghhm4kqddmi4yi-monadplus-1.4.2.drv’ failed with exit code 1
+    #+END_QUOTE
+***** nanospec
+      - github :: https://github.com/hspec/nanospec/commits
+      - commit :: e0767f89b513b91146ff292354f5f6ddf3e2ad12
+    #+BEGIN_QUOTE
+    [1 of 1] Compiling Test.Hspec       ( src/Test/Hspec.hs, dist/build/Test/Hspec.o )
+
+    src/Test/Hspec.hs:78:10: error:
+        • No instance for (Semigroup Summary)
+            arising from the superclasses of an instance declaration
+        • In the instance declaration for ‘Monoid Summary’
+       |
+    78 | instance Monoid Summary where
+       |          ^^^^^^^^^^^^^^
+    builder for ‘/nix/store/jlya6nfz6wilghc15kzh1lkwn2yffds6-nanospec-0.2.1.drv’ failed with exit code 1
+    #+END_QUOTE
+***** primitive
+      - github :: https://github.com/haskell/primitive/commits
+      - commit :: 1090cbd159f23e4d5867348b61badae32bc9ec6c
+    #+BEGIN_QUOTE
+    [ 3 of 12] Compiling Data.Primitive.Array ( Data/Primitive/Array.hs, dist/build/Data/Primitive/Array.o )
+
+    Data/Primitive/Array.hs:531:10: error:
+        • No instance for (Semigroup (Array a))
+            arising from the superclasses of an instance declaration
+        • In the instance declaration for ‘Monoid (Array a)’
+        |
+    531 | instance Monoid (Array a) where
+        |          ^^^^^^^^^^^^^^^^
+    builder for ‘/nix/store/11d60xn2hhy157wmhf7c28plg7bwxf57-primitive-0.6.2.0.drv’ failed with exit code 1
+    #+END_QUOTE
+***** reflection
+      - github :: https://github.com/ekmett/reflection/commits
+      - commit :: 6508a04342256cab34bd6aee06ec61a166ce56fb
+    #+BEGIN_QUOTE
+    [1 of 1] Compiling Data.Reflection  ( fast/Data/Reflection.hs, dist/build/Data/Reflection.o )
+
+    fast/Data/Reflection.hs:556:10: error:
+        • Could not deduce (Semigroup (ReflectedMonoid a s))
+            arising from the superclasses of an instance declaration
+          from the context: Reifies s (ReifiedMonoid a)
+            bound by the instance declaration
+            at fast/Data/Reflection.hs:556:10-68
+        • In the instance declaration for ‘Monoid (ReflectedMonoid a s)’
+        |
+    556 | instance Reifies s (ReifiedMonoid a) => Monoid (ReflectedMonoid a s) where
+        |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    builder for ‘/nix/store/r8zv0159a9dv0qpn3hbmrd8l9bbzzj0z-reflection-2.1.2.drv’ failed with exit code 1
+    #+END_QUOTE
+***** simple-reflect
+      - github :: https://github.com/twanvl/simple-reflect/commits
+      - commit :: c357e55da9a712dc5dbbfe6e36394e4ada2db310
+    #+BEGIN_QUOTE
+    [1 of 3] Compiling Debug.SimpleReflect.Expr ( Debug/SimpleReflect/Expr.hs, dist/build/Debug/SimpleReflect/Expr.o )
+
+    Debug/SimpleReflect/Expr.hs:223:10: error:
+        • No instance for (Semigroup Expr)
+            arising from the superclasses of an instance declaration
+        • In the instance declaration for ‘Monoid Expr’
+        |
+    223 | instance Monoid Expr where
+        |          ^^^^^^^^^^^
+    builder for ‘/nix/store/0vyfk4plafwklhbb45qdq13kb42r0g64-simple-reflect-0.3.2.drv’ failed with exit code 1
+    #+END_QUOTE
+***** text
+      - github :: https://github.com/haskell/text/commits
+      - commit :: ab90c65cdb7cd5bcbd739843b98bb5da515c8bce
+    #+BEGIN_QUOTE
+    [41 of 44] Compiling Data.Text.Lazy.Builder.Int ( Data/Text/Lazy/Builder/Int.hs, dist/build/Data/Text/Lazy/Builder/Int.o )
+
+    Data/Text/Lazy/Builder/Int.hs:180:41: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at Data/Text/Lazy/Builder/Int.hs:17:8-33
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘Data.Text.Internal.Builder.Functions.<>’,
+                                 imported from ‘Data.Text.Internal.Builder.Functions’ at Data/Text/Lazy/Builder/Int.hs:26:46-49
+                                 (and originally defined
+                                    at Data/Text/Internal/Builder/Functions.hs:37:1-4)
+        |
+    180 |          | otherwise = go (n `quot` 16) <> hexDigit (n `rem` 16)
+        |                                         ^^
+
+    Data/Text/Lazy/Builder/Int.hs:205:33: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at Data/Text/Lazy/Builder/Int.hs:17:8-33
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘Data.Text.Internal.Builder.Functions.<>’,
+                                 imported from ‘Data.Text.Internal.Builder.Functions’ at Data/Text/Lazy/Builder/Int.hs:26:46-49
+                                 (and originally defined
+                                    at Data/Text/Internal/Builder/Functions.hs:37:1-4)
+        |
+    205 |     | i < 0     = singleton '-' <> go (-i)
+        |                                 ^^
+
+    Data/Text/Lazy/Builder/Int.hs:240:46: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at Data/Text/Lazy/Builder/Int.hs:17:8-33
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘Data.Text.Internal.Builder.Functions.<>’,
+                                 imported from ‘Data.Text.Internal.Builder.Functions’ at Data/Text/Lazy/Builder/Int.hs:26:46-49
+                                 (and originally defined
+                                    at Data/Text/Internal/Builder/Functions.hs:37:1-4)
+        |
+    240 |                         | q > 0     -> int q <> pblock r <> putB ns
+        |                                              ^^
+
+    Data/Text/Lazy/Builder/Int.hs:240:58: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at Data/Text/Lazy/Builder/Int.hs:17:8-33
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘Data.Text.Internal.Builder.Functions.<>’,
+                                 imported from ‘Data.Text.Internal.Builder.Functions’ at Data/Text/Lazy/Builder/Int.hs:26:46-49
+                                 (and originally defined
+                                    at Data/Text/Internal/Builder/Functions.hs:37:1-4)
+        |
+    240 |                         | q > 0     -> int q <> pblock r <> putB ns
+        |                                                          ^^
+
+    Data/Text/Lazy/Builder/Int.hs:241:46: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at Data/Text/Lazy/Builder/Int.hs:17:8-33
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘Data.Text.Internal.Builder.Functions.<>’,
+                                 imported from ‘Data.Text.Internal.Builder.Functions’ at Data/Text/Lazy/Builder/Int.hs:26:46-49
+                                 (and originally defined
+                                    at Data/Text/Internal/Builder/Functions.hs:37:1-4)
+        |
+    241 |                         | otherwise -> int r <> putB ns
+        |                                              ^^
+
+    Data/Text/Lazy/Builder/Int.hs:247:43: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at Data/Text/Lazy/Builder/Int.hs:17:8-33
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘Data.Text.Internal.Builder.Functions.<>’,
+                                 imported from ‘Data.Text.Internal.Builder.Functions’ at Data/Text/Lazy/Builder/Int.hs:26:46-49
+                                 (and originally defined
+                                    at Data/Text/Internal/Builder/Functions.hs:37:1-4)
+        |
+    247 |                     PAIR(x,y) -> pblock q <> pblock r <> putB ns
+        |                                           ^^
+
+    Data/Text/Lazy/Builder/Int.hs:247:55: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at Data/Text/Lazy/Builder/Int.hs:17:8-33
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘Data.Text.Internal.Builder.Functions.<>’,
+                                 imported from ‘Data.Text.Internal.Builder.Functions’ at Data/Text/Lazy/Builder/Int.hs:26:46-49
+                                 (and originally defined
+                                    at Data/Text/Internal/Builder/Functions.hs:37:1-4)
+        |
+    247 |                     PAIR(x,y) -> pblock q <> pblock r <> putB ns
+        |                                                       ^^
+
+    Data/Text/Lazy/Builder/Int.hs:260:40: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at Data/Text/Lazy/Builder/Int.hs:17:8-33
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘Data.Text.Internal.Builder.Functions.<>’,
+                                 imported from ‘Data.Text.Internal.Builder.Functions’ at Data/Text/Lazy/Builder/Int.hs:26:46-49
+                                 (and originally defined
+                                    at Data/Text/Internal/Builder/Functions.hs:37:1-4)
+        |
+    260 |             | otherwise = loop (d-1) q <> hexDigit r
+        |                                        ^^
+    builder for ‘/nix/store/shr7fgmy4l8pl6zp4p4pv9rjbq8pf0n4-text-1.2.2.2.drv’ failed with exit code 1
+    #+END_QUOTE
+***** test-framework
+      - github :: https://github.com/haskell/test-framework/commits
+      - extras :: 7757a74d39e57907d61f5844d2486cf7a9457776, cd 'core'
+    #+BEGIN_QUOTE
+[12 of 24] Compiling Test.Framework.Options ( Test/Framework/Options.hs, dist/build/Test/Framework/Options.o )
+
+Test/Framework/Options.hs:26:10: error:
+    • No instance for (Semigroup (TestOptions' Maybe))
+        arising from the superclasses of an instance declaration
+    • In the instance declaration for ‘Monoid (TestOptions' Maybe)’
+   |
+26 | instance Monoid (TestOptions' Maybe) where
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+builder for ‘/nix/store/ysh8j123ha978r2d3wm080iliyb66lkk-test-framework-0.8.1.1.drv’ failed with exit code 1
+    #+END_QUOTE
+***** stringbuilder
+      - github :: https://github.com/sol/stringbuilder/commits
+      - commit :: 73cedfb37156aa249f86d807223fcb10ce206f56, dontCheck
+    #+BEGIN_QUOTE
+    [1 of 1] Compiling Data.String.Builder ( src/Data/String/Builder.hs, dist/build/Data/String/Builder.o )
+
+    src/Data/String/Builder.hs:44:10: error:
+        • No instance for (Semigroup Builder)
+            arising from the superclasses of an instance declaration
+        • In the instance declaration for ‘Monoid Builder’
+       |
+    44 | instance Monoid Builder where
+       |          ^^^^^^^^^^^^^^
+    builder for ‘/nix/store/idknvpwa8q6mrdm69p6pj3ck1mxk535m-stringbuilder-0.5.0.drv’ failed with exit code 1
+    #+END_QUOTE
+
+***** bytestring-trie
+    - github :: https://github.com/wrengr/bytestring-trie/commits
+    - commit :: e0ae0cb1ad40dedd560090d69cc36f9760797e29
+    - extras :: dontCheck
+    #+BEGIN_QUOTE
+    src/Data/Trie/Internal.hs:306:10: error:
+        • Could not deduce (Semigroup (Trie a))
+            arising from the superclasses of an instance declaration
+          from the context: Monoid a
+            bound by the instance declaration
+            at src/Data/Trie/Internal.hs:306:10-38
+        • In the instance declaration for ‘Monoid (Trie a)’
+        |
+    306 | instance (Monoid a) => Monoid (Trie a) where
+        |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    unpacking sources
+    note: keeping build directory ‘/tmp/nix-build-bytestring-trie-0.2.4.1.drv-0’
+    builder for ‘/nix/store/r39agqc0g2hc1c79qx7k44w2r8k8yiss-bytestring-trie-0.2.4.1.drv’ failed with exit code 1
+    #+END_QUOTE
+
+    after bump:
+    #+BEGIN_QUOTE
+    Configuring bytestring-trie-0.3.0.3...
+    CallStack (from HasCallStack):
+      die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+      confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+      configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMain, called at Setup.hs:7:9 in main:Main
+    Setup: Encountered missing dependencies:
+    HUnit -any,
+    QuickCheck -any,
+    data-or -any,
+    lazysmallcheck -any,
+    smallcheck -any
+
+    builder for ‘/nix/store/acdh9x5iyplh31hx3xh8yrvc9hnlsrmq-bytestring-trie-0.2.4.1.drv’ failed with exit code 1
+    #+END_QUOTE
+***** regex-tdfa
+  #+BEGIN_QUOTE
+  Building library for regex-tdfa-1.2.2..
+  [ 1 of 23] Compiling Data.IntMap.CharMap2 ( Data/IntMap/CharMap2.hs, dist/build/Data/IntMap/CharMap2.o )
+
+  Data/IntMap/CharMap2.hs:21:10: error:
+      • No instance for (Semigroup (CharMap a))
+          arising from the superclasses of an instance declaration
+      • In the instance declaration for ‘Monoid (CharMap a)’
+     |
+  21 | instance Monoid (CharMap a) where
+     |          ^^^^^^^^^^^^^^^^^^
+  builder for ‘/nix/store/c55dcfv51748pbxhhfi3glwm66hlmzcw-regex-tdfa-1.2.2.drv’ failed with exit code 1
+  #+END_QUOTE
+***** text-format
+      - github :: https://github.com/bos/text-format/commits
+      - commit :: 77436797c62067d5af5c56e115002a920d6dc6ab
+  #+BEGIN_QUOTE
+  [1 of 7] Compiling Data.Text.Format.Functions ( Data/Text/Format/Functions.hs, dist/build/Data/Text/Format/Functions.o )
+
+  Data/Text/Format/Functions.hs:16:7: error:
+      Ambiguous occurrence ‘<>’
+      It could refer to either ‘GHC.Base.<>’,
+                               imported from ‘GHC.Base’ at Data/Text/Format/Functions.hs:22:1-15
+                            or ‘Data.Text.Format.Functions.<>’,
+                               defined at Data/Text/Format/Functions.hs:32:1
+     |
+  16 |       (<>)
+     |       ^^^^
+  builder for ‘/nix/store/03bi1bhwck6mx2chabwqm2axwp3k6g1y-text-format-0.3.1.1.drv’ failed with exit code 1
+  #+END_QUOTE
+***** JuicyPixels
+  #+BEGIN_QUOTE
+  [ 3 of 30] Compiling Codec.Picture.Metadata ( src/Codec/Picture/Metadata.hs, dist/build/Codec/Picture/Metadata.o )
+
+  src/Codec/Picture/Metadata.hs:172:10: error:
+      • No instance for (Semigroup Metadatas)
+          arising from the superclasses of an instance declaration
+      • In the instance declaration for ‘Monoid Metadatas’
+      |
+  172 | instance Monoid Metadatas where
+      |          ^^^^^^^^^^^^^^^^
+  builder for ‘/nix/store/gqjih589yd4cpizisldlb66brkx4k643-JuicyPixels-3.2.9.3.drv’ failed with exit code 1
+  #+END_QUOTE
+***** blaze-builder
+  #+BEGIN_QUOTE
+  [ 1 of 10] Compiling Blaze.ByteString.Builder.Internal.Write ( Blaze/ByteString/Builder/Internal/Write.hs, dist/build/Blaze/ByteString/Builder/Internal/Write.o )
+
+  Blaze/ByteString/Builder/Internal/Write.hs:122:10: error:
+      • No instance for (Semigroup Poke)
+          arising from the superclasses of an instance declaration
+      • In the instance declaration for ‘Monoid Poke’
+      |
+  122 | instance Monoid Poke where
+      |          ^^^^^^^^^^^
+
+  Blaze/ByteString/Builder/Internal/Write.hs:132:10: error:
+      • No instance for (Semigroup Write)
+          arising from the superclasses of an instance declaration
+      • In the instance declaration for ‘Monoid Write’
+      |
+  132 | instance Monoid Write where
+      |          ^^^^^^^^^^^^
+  builder for ‘/nix/store/hc7bh6jda9wyiiyd5h3f01ljbs9krz8r-blaze-builder-0.4.0.2.drv’ failed with exit code 1
+  #+END_QUOTE
+***** cereal
+  #+BEGIN_QUOTE
+  Building library for cereal-0.5.4.0..
+  [1 of 4] Compiling Data.Serialize.Get ( src/Data/Serialize/Get.hs, dist/build/Data/Serialize/Get.o )
+  [2 of 4] Compiling Data.Serialize.Put ( src/Data/Serialize/Put.hs, dist/build/Data/Serialize/Put.o )
+
+  src/Data/Serialize/Put.hs:178:10: error:
+      • No instance for (Semigroup (PutM ()))
+          arising from the superclasses of an instance declaration
+      • In the instance declaration for ‘Monoid (PutM ())’
+      |
+  178 | instance Monoid (PutM ()) where
+      |          ^^^^^^^^^^^^^^^^
+  builder for ‘/nix/store/w4200h8qqkw30j5xa3hm5pxy57q7q1ga-cereal-0.5.4.0.drv’ failed with exit code 1
+  #+END_QUOTE
+***** constraints
+  #+BEGIN_QUOTE
+  [1 of 7] Compiling Data.Constraint  ( src/Data/Constraint.hs, dist/build/Data/Constraint.o )
+
+  src/Data/Constraint.hs:704:10: error:
+      • Could not deduce (Semigroup (Dict a))
+          arising from the superclasses of an instance declaration
+        from the context: a
+          bound by the instance declaration
+          at src/Data/Constraint.hs:704:10-29
+      • In the instance declaration for ‘Monoid (Dict a)’
+      |
+  704 | instance a => Monoid (Dict a) where
+      |          ^^^^^^^^^^^^^^^^^^^^
+  builder for ‘/nix/store/gzb0vi613p3r5g7dwsj5yjpzj4hdj8lc-constraints-0.9.1.drv’ failed with exit code 1
+  #+END_QUOTE
+***** microlens-mtl
+  #+BEGIN_QUOTE
+  [1 of 2] Compiling Lens.Micro.Mtl.Internal ( src/Lens/Micro/Mtl/Internal.hs, dist/build/Lens/Micro/Mtl/Internal.o )
+
+  src/Lens/Micro/Mtl/Internal.hs:182:10: error:
+      • Could not deduce (Semigroup (May a))
+          arising from the superclasses of an instance declaration
+        from the context: Monoid a
+          bound by the instance declaration
+          at src/Lens/Micro/Mtl/Internal.hs:182:10-35
+      • In the instance declaration for ‘Monoid (May a)’
+      |
+  182 | instance Monoid a => Monoid (May a) where
+      |          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  src/Lens/Micro/Mtl/Internal.hs:214:10: error:
+      • Could not deduce (Semigroup (Err e a))
+          arising from the superclasses of an instance declaration
+        from the context: Monoid a
+          bound by the instance declaration
+          at src/Lens/Micro/Mtl/Internal.hs:214:10-37
+      • In the instance declaration for ‘Monoid (Err e a)’
+      |
+  214 | instance Monoid a => Monoid (Err e a) where
+      |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  src/Lens/Micro/Mtl/Internal.hs:503:10: error:
+      • Could not deduce (Semigroup (Effect m r a))
+          arising from the superclasses of an instance declaration
+        from the context: (Monad m, Monoid r)
+          bound by the instance declaration
+          at src/Lens/Micro/Mtl/Internal.hs:503:10-53
+      • In the instance declaration for ‘Monoid (Effect m r a)’
+      |
+  503 | instance (Monad m, Monoid r) => Monoid (Effect m r a) where
+      |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  builder for ‘/nix/store/f57h8ydqy8mn9z3p2b6mhwjmd0xwipqc-microlens-mtl-0.1.11.0.drv’ failed with exit code 1
+  #+END_QUOTE
+***** unordered-containers
+  #+BEGIN_QUOTE
+  [8 of 8] Compiling Data.HashSet     ( Data/HashSet.hs, dist/build/Data/HashSet.o )
+
+  Data/HashSet.hs:80:39: error:
+      Module ‘Data.Semigroup’ does not export ‘Monoid(..)’
+     |
+  80 | import Data.Semigroup (Semigroup(..), Monoid(..))
+     |                                       ^^^^^^^^^^
+  builder for ‘/nix/store/pck09rm3ibh9kfrhqn90q596hs2rmb6k-unordered-containers-0.2.8.0.drv’ failed with exit code 1
+  #+END_QUOTE
+***** hspec-meta
+  #+BEGIN_QUOTE
+  [23 of 30] Compiling Test.Hspec.Core.Runner ( hspec-core/src/Test/Hspec/Core/Runner.hs, dist/build/Test/Hspec/Core/Runner.o )
+
+  hspec-core/src/Test/Hspec/Core/Runner.hs:229:10: error:
+      • No instance for (Semigroup Summary)
+          arising from the superclasses of an instance declaration
+      • In the instance declaration for ‘Monoid Summary’
+      |
+  229 | instance Monoid Summary where
+      |          ^^^^^^^^^^^^^^
+  builder for ‘/nix/store/804bsmyyrgkmd2xbs26pmcg7gp2miyfx-hspec-meta-2.4.4.drv’ failed with exit code 1
+  #+END_QUOTE
+***** generic-deriving
+***** hspec, hspec-*
+***** hashtables
+***** blaze-markup
+***** wl-pprint-text
+***** conduit
+***** conduit-extra
+***** MemoTrie
+***** tasty
+***** tasty-ant-xml
+***** th-desugar
+#+BEGIN_QUOTE
+[1 of 8] Compiling Language.Haskell.TH.Desugar.Util ( Language/Haskell/TH/Desugar/Util.hs, dist/build/Language/Haskell/TH/Desugar/Util.o )
+
+Language/Haskell/TH/Desugar/Util.hs:37:1: warning: [-Wunused-imports]
+    The import of ‘Data.Monoid’ is redundant
+      except perhaps to import instances from ‘Data.Monoid’
+    To import instances alone, use: import Data.Monoid()
+   |
+37 | import Data.Monoid
+   | ^^^^^^^^^^^^^^^^^^
+[2 of 8] Compiling Language.Haskell.TH.Desugar.Reify ( Language/Haskell/TH/Desugar/Reify.hs, dist/build/Language/Haskell/TH/Desugar/Reify.o )
+
+Language/Haskell/TH/Desugar/Reify.hs:166:55: error:
+    • Could not deduce (MonadIO (DsM q))
+        arising from the 'deriving' clause of a data type declaration
+      from the context: Quasi q
+        bound by the deriving clause for ‘Quasi (DsM q)’
+        at Language/Haskell/TH/Desugar/Reify.hs:166:55-59
+      Possible fix:
+        use a standalone 'deriving instance' declaration,
+          so you can specify the instance context yourself
+    • When deriving the instance for (Quasi (DsM q))
+    |
+166 |   deriving ( Functor, Applicative, Monad, MonadTrans, Quasi
+    |                                                       ^^^^^
+builder for ‘/nix/store/w9whd5vk5ksvpzss89q547vz0anw8nx8-th-desugar-1.7.drv’ failed with exit code 1
+#+END_QUOTE
+***** singletons
+***** lambdacube-ir
+***** free
+***** yaml
+***** semigroupoids
+***** websockets
+*** Bounds
+***** cabal-doctest
+      - github :: https://github.com/phadej/cabal-doctest/commits
+      - extras :: jailbreak
+    #+BEGIN_QUOTE
+    Configuring cabal-doctest-1.0.4...
+    CallStack (from HasCallStack):
+      die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+      confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+      configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMain, called at Setup.hs:2:8 in main:Main
+    Setup: Encountered missing dependencies:
+    Cabal >=1.10 && <2.1, base >=4.3 && <4.11
+
+    builder for ‘/nix/store/nadxl8vr3v4zifvdqy1h50xqqv6jn2h7-cabal-doctest-1.0.4.drv’ failed with exit code 1
+    #+END_QUOTE
+***** integer-logarithms
+      - github :: https://github.com/Bodigrim/integer-logarithms/commits
+      - commit :: jailbreak
+    #+BEGIN_QUOTE
+    Configuring integer-logarithms-1.0.2...
+    CallStack (from HasCallStack):
+      die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+      confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+      configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMain, called at Setup.hs:5:8 in main:Main
+    Setup: Encountered missing dependencies:
+    base >=4.3 && <4.11
+
+    builder for ‘/nix/store/sqf4wgf0bykf03jj91cmzr8hpj2s4xyp-integer-logarithms-1.0.2.drv’ failed with exit code 1
+    #+END_QUOTE
+***** parallel
+      - github :: https://github.com/haskell/parallel/commits
+      - commit :: jailbreak
+    #+BEGIN_QUOTE
+    Configuring parallel-3.2.1.1...
+    CallStack (from HasCallStack):
+      die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+      confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+      configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMain, called at Setup.hs:6:8 in main:Main
+    Setup: Encountered missing dependencies:
+    base >=4.3 && <4.11
+
+    builder for ‘/nix/store/k7v28rrw4pbswln6laahb0lrrvrcrw1b-parallel-3.2.1.1.drv’ failed with exit code 1
+    #+END_QUOTE
+***** split
+      - github :: https://github.com/byorgey/split/commits
+      - commit :: jailbreak
+    #+BEGIN_QUOTE
+    Configuring split-0.2.3.2...
+    CallStack (from HasCallStack):
+      die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+      confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+      configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMain, called at Setup.lhs:3:10 in main:Main
+    Setup: Encountered missing dependencies:
+    base <4.11
+
+    builder for ‘/nix/store/l2y0ay2xyf83gsvrg5v05rmbbqr4jm1v-split-0.2.3.2.drv’ failed with exit code 1
+    #+END_QUOTE
+***** unliftio-core
+      - github :: https://github.com/fpco/unliftio/commits
+      - extras :: jailbreak
+    #+BEGIN_QUOTE
+    Configuring unliftio-core-0.1.1.0...
+    CallStack (from HasCallStack):
+      die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+      confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+      configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMain, called at Setup.hs:2:8 in main:Main
+    Setup: Encountered missing dependencies:
+    base >=4.5 && <4.11
+
+    builder for ‘/nix/store/4ikp2i3x4js3clxpjrny3rzdb6i94hl9-unliftio-core-0.1.1.0.drv’ failed with exit code 1
+    #+END_QUOTE
+***** th-abstraction
+      - github :: https://github.com/glguy/th-abstraction/commits
+      - extras :: jailbreak
+    #+BEGIN_QUOTE
+    Configuring th-abstraction-0.2.6.0...
+    CallStack (from HasCallStack):
+      die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+      confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+      configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMain, called at Setup.hs:2:8 in main:Main
+    Setup: Encountered missing dependencies:
+    template-haskell >=2.5 && <2.13
+
+    builder for ‘/nix/store/fsxmwa820p0g172ljma7vb3p7zp71wdn-th-abstraction-0.2.6.0.drv’ failed with exit code 1
+    #+END_QUOTE
+***** bindings-GLFW
+      - github :: https://github.com/bsl/bindings-GLFW/commits
+      - extras :: jailbreak
+    #+BEGIN_QUOTE
+    Configuring bindings-GLFW-3.1.2.3...
+    CallStack (from HasCallStack):
+      die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+      confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+      configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMain, called at Setup.hs:2:8 in main:Main
+    Setup: Encountered missing dependencies:
+    template-haskell >=2.10 && <2.13
+    #+END_QUOTE
+***** microlens-th
+      - broken jailbreaking, due to chdir
+
+  #+BEGIN_QUOTE
+  Configuring microlens-th-0.4.1.1...
+  CallStack (from HasCallStack):
+    die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+    configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+    configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+    confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+    configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+    defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+    defaultMain, called at Setup.hs:2:8 in main:Main
+  Setup: Encountered missing dependencies:
+  template-haskell >=2.7 && <2.13
+
+  builder for ‘/nix/store/ghiixil1m6r9m2f61624ybszg11vgqsx-microlens-th-0.4.1.1.drv’ failed with exit code 1
+  #+END_QUOTE
+***** async
+      - github :: https://github.com/simonmar/async/commits
+      - commit :: jailbreak
+        #+BEGIN_QUOTE
+onfiguring async-2.1.1.1...
+CallStack (from HasCallStack):
+  die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+  configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+  configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+  confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+  configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+  defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+  defaultMain, called at Setup.hs:2:8 in main:Main
+Setup: Encountered missing dependencies:
+base >=4.3 && <4.11
+
+builder for ‘/nix/store/ldk6f4z9ifhvn2x0j5yzbw1qsin2pbvk-async-2.1.1.1.drv’ failed with exit code 1
+#+END_QUOTE
+***** exceptions
+      - github :: https://github.com/ekmett/exceptions/commits
+      - commit :: jailbreak
+        #+BEGIN_QUOTE
+Configuring exceptions-0.8.3...
+CallStack (from HasCallStack):
+  die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+  configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+  configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+  confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+  configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+  defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+  defaultMain, called at Setup.lhs:7:10 in main:Main
+Setup: Encountered missing dependencies:
+template-haskell >=2.2 && <2.13
+
+builder for ‘/nix/store/jkf045915182kbk5c24vsm6s1bwa7aqn-exceptions-0.8.3.drv’ failed with exit code 1
+#+END_QUOTE
+***** vector
+  #+BEGIN_QUOTE
+  Configuring vector-0.12.0.1...
+  CallStack (from HasCallStack):
+    die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+    configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+    configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+    confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+    configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+    defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+    defaultMain, called at Setup.hs:2:8 in main:Main
+  Setup: Encountered missing dependencies:
+  base >=4.5 && <4.11
+
+  builder for ‘/nix/store/0pbcaahrq168n02zkyvzfrlvxh4l5fr3-vector-0.12.0.1.drv’ failed with exit code 1
+  #+END_QUOTE
+***** ChasingBottoms
+        - jailbreak ::
+  #+BEGIN_QUOTE
+  Configuring ChasingBottoms-1.3.1.3...
+  CallStack (from HasCallStack):
+    die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+    configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+    configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+    confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+    configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+    defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+    defaultMain, called at Setup.hs:3:8 in main:Main
+  Setup: Encountered missing dependencies:
+  base >=4.2 && <4.11
+
+  builder for ‘/nix/store/xn5znv1ws4gxf387nf344qsy6v6i94f3-ChasingBottoms-1.3.1.3.drv’ failed with exit code 1
+  #+END_QUOTE
+***** tagged
+      - github :: https://github.com/ekmett/tagged/commits
+      - commit :: 8087adb22d3b1ff1dcd4d960aa8778d77c9e3538
+    #+BEGIN_QUOTE
+    Configuring tagged-0.8.5...
+    CallStack (from HasCallStack):
+      die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+      confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+      configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMain, called at Setup.lhs:7:10 in main:Main
+    Setup: Encountered missing dependencies:
+    template-haskell >=2.8 && <2.13
+
+    builder for ‘/nix/store/b9nkfkip0g2bmlc43ms5k8as1vgp6gjv-tagged-0.8.5.drv’ failed with exit code 1
+    #+END_QUOTE
+***** th-lift
+      - github :: https://github.com/mboes/th-lift/commits
+      - commit :: 8087adb22d3b1ff1dcd4d960aa8778d77c9e3538
+    #+BEGIN_QUOTE
+    Configuring th-lift-0.7.7...
+    CallStack (from HasCallStack):
+      die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+      configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+      confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+      configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+      defaultMain, called at Setup.hs:7:8 in main:Main
+    Setup: Encountered missing dependencies:
+    template-haskell >=2.4 && <2.13
+
+    builder for ‘/nix/store/cplsp5b1qrghpyyij8x1wayf1rv4w9c8-th-lift-0.7.7.drv’ failed with exit code 1
+    #+END_QUOTE
+***** exception-transformers
+      - jailbreak ::
+  #+BEGIN_QUOTE
+    configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+    configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+    confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+    configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+    defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+    defaultMain, called at Setup.hs:3:8 in main:Main
+  Setup: Encountered missing dependencies:
+  HUnit >=1.2 && <1.6
+
+  builder for ‘/nix/store/4m2zm5byyj9r5mqb7p6kh6sjj2xw2j0h-exception-transformers-0.4.0.5.drv’ failed with exit code 1
+  #+END_QUOTE
+***** hashable-time
+#+BEGIN_QUOTE
+Configuring hashable-time-0.2.0.1...
+CallStack (from HasCallStack):
+  die', called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:937:20 in Cabal-2.1.0.0:Distribution.Simple.Configure
+  configureFinalizedPackage, called at libraries/Cabal/Cabal/Distribution/Simple/Configure.hs:458:12 in Cabal-2.1.0.0:Distribution.Simple.Configure
+  configure, called at libraries/Cabal/Cabal/Distribution/Simple.hs:571:20 in Cabal-2.1.0.0:Distribution.Simple
+  confHook, called at libraries/Cabal/Cabal/Distribution/Simple/UserHooks.hs:67:5 in Cabal-2.1.0.0:Distribution.Simple.UserHooks
+  configureAction, called at libraries/Cabal/Cabal/Distribution/Simple.hs:177:19 in Cabal-2.1.0.0:Distribution.Simple
+  defaultMainHelper, called at libraries/Cabal/Cabal/Distribution/Simple.hs:114:27 in Cabal-2.1.0.0:Distribution.Simple
+  defaultMain, called at Setup.hs:2:8 in main:Main
+Setup: Encountered missing dependencies:
+base >=4.7 && <4.11
+
+builder for ‘/nix/store/y10i4rj5xvrhflyjggs9j1yc9bfmrd4l-hashable-time-0.2.0.1.drv’ failed with exit code 1
+#+END_QUOTE
+***** tasty
+#+BEGIN_QUOTE
+Building library for tasty-0.11.3..
+
+Test/Tasty/Options.hs:3:14: warning:
+    -XOverlappingInstances is deprecated: instead use per-instance pragmas OVERLAPPING/OVERLAPPABLE/OVERLAPS
+  |
+3 |              OverlappingInstances, FlexibleInstances, UndecidableInstances,
+  |              ^^^^^^^^^^^^^^^^^^^^
+[ 1 of 18] Compiling Test.Tasty.Options ( Test/Tasty/Options.hs, dist/build/Test/Tasty/Options.o )
+
+Test/Tasty/Options.hs:81:10: error:
+    • No instance for (Semigroup OptionSet)
+        arising from the superclasses of an instance declaration
+    • In the instance declaration for ‘Monoid OptionSet’
+   |
+81 | instance Monoid OptionSet where
+   |          ^^^^^^^^^^^^^^^^
+builder for ‘/nix/store/76vncwbx1qjv01kcg6bbyj754badbmkf-tasty-0.11.3.drv’ failed with exit code 1
+#+END_QUOTE
+***** newtype-generics
+***** tasty-hspec
+***** tasty-expected-failure
+***** scientific
+***** bifunctors
+***** lens
+***** lambdacube-gl
+*** Other GHC compat
+***** vector-algorithms
+      - dontcheck ::
+  #+BEGIN_QUOTE
+  [4 of 4] Compiling Main             ( tests/properties/Tests.hs, dist/build/properties/properties-tmp/Main.dyn_o )
+
+  tests/properties/Tests.hs:120:43: error:
+      • Ambiguous type variable ‘mv0’
+        prevents the constraint ‘(MVector mv0 Int)’ from being solved.
+        Probable fix: use a type annotation to specify what ‘mv0’ should be.
+        These potential instances exist:
+          instance MVector V.MVector a -- Defined in ‘Data.Vector.Mutable’
+          ...plus one instance involving out-of-scope types
+          (use -fprint-potential-instances to see them all)
+      • In the first argument of ‘prop_sized’, namely
+          ‘(const . prop_permutation)’
+        In the second argument of ‘(.)’, namely
+          ‘prop_sized
+             (const . prop_permutation) (INT.partialSort :: SizeAlgo Int ())’
+        In the second argument of ‘($)’, namely
+          ‘label "intropartial"
+             . prop_sized
+                 (const . prop_permutation) (INT.partialSort :: SizeAlgo Int ())’
+      |
+  120 |   qc $ label "intropartial" . prop_sized (const . prop_permutation)
+      |                                           ^^^^^^^^^^^^^^^^^^^^^^^^
+
+  tests/properties/Tests.hs:120:51: error:
+      • Couldn't match type ‘s0’ with ‘s’
+          because type variable ‘s’ would escape its scope
+        This (rigid, skolem) type variable is bound by
+          a type expected by the context:
+            forall s (mv :: * -> * -> *). MVector mv Int => mv s Int -> ST s ()
+          at tests/properties/Tests.hs:120:51-66
+        Expected type: (mv0 s0 Int -> ST s0 ()) -> Vector Int -> Property
+          Actual type: (forall s (mv :: * -> * -> *).
+                        MVector mv Int =>
+                        mv s Int -> ST s ())
+                       -> Vector Int -> Property
+      • In the second argument of ‘(.)’, namely ‘prop_permutation’
+        In the first argument of ‘prop_sized’, namely
+          ‘(const . prop_permutation)’
+        In the second argument of ‘(.)’, namely
+          ‘prop_sized
+             (const . prop_permutation) (INT.partialSort :: SizeAlgo Int ())’
+      |
+  120 |   qc $ label "intropartial" . prop_sized (const . prop_permutation)
+      |                                                   ^^^^^^^^^^^^^^^^
+
+  tests/properties/Tests.hs:122:43: error:
+      • Ambiguous type variable ‘mv1’
+        prevents the constraint ‘(MVector mv1 Int)’ from being solved.
+        Probable fix: use a type annotation to specify what ‘mv1’ should be.
+        These potential instances exist:
+          instance MVector V.MVector a -- Defined in ‘Data.Vector.Mutable’
+          ...plus one instance involving out-of-scope types
+          (use -fprint-potential-instances to see them all)
+      • In the first argument of ‘prop_sized’, namely
+          ‘(const . prop_permutation)’
+        In the second argument of ‘(.)’, namely
+          ‘prop_sized
+             (const . prop_permutation) (INT.select :: SizeAlgo Int ())’
+        In the second argument of ‘($)’, namely
+          ‘label "introselect"
+             . prop_sized
+                 (const . prop_permutation) (INT.select :: SizeAlgo Int ())’
+      |
+  122 |   qc $ label "introselect"  . prop_sized (const . prop_permutation)
+      |                                           ^^^^^^^^^^^^^^^^^^^^^^^^
+
+  tests/properties/Tests.hs:122:51: error:
+      • Couldn't match type ‘s1’ with ‘s’
+          because type variable ‘s’ would escape its scope
+        This (rigid, skolem) type variable is bound by
+          a type expected by the context:
+            forall s (mv :: * -> * -> *). MVector mv Int => mv s Int -> ST s ()
+          at tests/properties/Tests.hs:122:51-66
+        Expected type: (mv1 s1 Int -> ST s1 ()) -> Vector Int -> Property
+          Actual type: (forall s (mv :: * -> * -> *).
+                        MVector mv Int =>
+                        mv s Int -> ST s ())
+                       -> Vector Int -> Property
+      • In the second argument of ‘(.)’, namely ‘prop_permutation’
+        In the first argument of ‘prop_sized’, namely
+          ‘(const . prop_permutation)’
+        In the second argument of ‘(.)’, namely
+          ‘prop_sized
+             (const . prop_permutation) (INT.select :: SizeAlgo Int ())’
+      |
+  122 |   qc $ label "introselect"  . prop_sized (const . prop_permutation)
+      |                                                   ^^^^^^^^^^^^^^^^
+
+  tests/properties/Tests.hs:125:43: error:
+      • Ambiguous type variable ‘mv2’
+        prevents the constraint ‘(MVector mv2 Int)’ from being solved.
+        Probable fix: use a type annotation to specify what ‘mv2’ should be.
+        These potential instances exist:
+          instance MVector V.MVector a -- Defined in ‘Data.Vector.Mutable’
+          ...plus one instance involving out-of-scope types
+          (use -fprint-potential-instances to see them all)
+      • In the first argument of ‘prop_sized’, namely
+          ‘(const . prop_permutation)’
+        In the second argument of ‘(.)’, namely
+          ‘prop_sized
+             (const . prop_permutation) (H.partialSort :: SizeAlgo Int ())’
+        In the second argument of ‘($)’, namely
+          ‘label "heappartial"
+             . prop_sized
+                 (const . prop_permutation) (H.partialSort :: SizeAlgo Int ())’
+      |
+  125 |   qc $ label "heappartial"  . prop_sized (const . prop_permutation)
+      |                                           ^^^^^^^^^^^^^^^^^^^^^^^^
+
+  tests/properties/Tests.hs:125:51: error:
+      • Couldn't match type ‘s2’ with ‘s’
+          because type variable ‘s’ would escape its scope
+        This (rigid, skolem) type variable is bound by
+          a type expected by the context:
+            forall s (mv :: * -> * -> *). MVector mv Int => mv s Int -> ST s ()
+          at tests/properties/Tests.hs:125:51-66
+        Expected type: (mv2 s2 Int -> ST s2 ()) -> Vector Int -> Property
+          Actual type: (forall s (mv :: * -> * -> *).
+                        MVector mv Int =>
+                        mv s Int -> ST s ())
+                       -> Vector Int -> Property
+      • In the second argument of ‘(.)’, namely ‘prop_permutation’
+        In the first argument of ‘prop_sized’, namely
+          ‘(const . prop_permutation)’
+        In the second argument of ‘(.)’, namely
+          ‘prop_sized
+             (const . prop_permutation) (H.partialSort :: SizeAlgo Int ())’
+      |
+  125 |   qc $ label "heappartial"  . prop_sized (const . prop_permutation)
+      |                                                   ^^^^^^^^^^^^^^^^
+
+  tests/properties/Tests.hs:127:43: error:
+      • Ambiguous type variable ‘mv3’
+        prevents the constraint ‘(MVector mv3 Int)’ from being solved.
+        Probable fix: use a type annotation to specify what ‘mv3’ should be.
+        These potential instances exist:
+          instance MVector V.MVector a -- Defined in ‘Data.Vector.Mutable’
+          ...plus one instance involving out-of-scope types
+          (use -fprint-potential-instances to see them all)
+      • In the first argument of ‘prop_sized’, namely
+          ‘(const . prop_permutation)’
+        In the second argument of ‘(.)’, namely
+          ‘prop_sized
+             (const . prop_permutation) (H.select :: SizeAlgo Int ())’
+        In the second argument of ‘($)’, namely
+          ‘label "heapselect"
+             . prop_sized
+                 (const . prop_permutation) (H.select :: SizeAlgo Int ())’
+      |
+  127 |   qc $ label "heapselect"   . prop_sized (const . prop_permutation)
+      |                                           ^^^^^^^^^^^^^^^^^^^^^^^^
+
+  tests/properties/Tests.hs:127:51: error:
+      • Couldn't match type ‘s3’ with ‘s’
+          because type variable ‘s’ would escape its scope
+        This (rigid, skolem) type variable is bound by
+          a type expected by the context:
+            forall s (mv :: * -> * -> *). MVector mv Int => mv s Int -> ST s ()
+          at tests/properties/Tests.hs:127:51-66
+        Expected type: (mv3 s3 Int -> ST s3 ()) -> Vector Int -> Property
+          Actual type: (forall s (mv :: * -> * -> *).
+                        MVector mv Int =>
+                        mv s Int -> ST s ())
+                       -> Vector Int -> Property
+      • In the second argument of ‘(.)’, namely ‘prop_permutation’
+        In the first argument of ‘prop_sized’, namely
+          ‘(const . prop_permutation)’
+        In the second argument of ‘(.)’, namely
+          ‘prop_sized
+             (const . prop_permutation) (H.select :: SizeAlgo Int ())’
+      |
+  127 |   qc $ label "heapselect"   . prop_sized (const . prop_permutation)
+      |                                                   ^^^^^^^^^^^^^^^^
+  builder for ‘/nix/store/7ymh6dy84rg6s831wr1lf4rx3pz1nnj9-vector-algorithms-0.7.0.1.drv’ failed with exit code 1
+  #+END_QUOTE
+* ???
+*** Cabal release needed
+***** happy bootstrapping from git checkout
+      - github :: https://github.com/simonmar/happy/commits
+      - commit :: 5ee44aece03591cb757ccf15bebd4266c0e9b259
+    #+BEGIN_QUOTE
+    [15 of 19] Compiling PrettyGrammar    ( src/PrettyGrammar.hs, dist/build/happy/happy-tmp/PrettyGrammar.dyn_o )
+
+    src/PrettyGrammar.hs:34:28: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at src/PrettyGrammar.hs:1:8-20
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘PrettyGrammar.<>’, defined at src/PrettyGrammar.hs:68:9
+       |
+    34 | ppTerm (App x ts) = text x <> ppTuple (map ppTerm ts)
+       |                            ^^
+
+    src/PrettyGrammar.hs:51:29: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at src/PrettyGrammar.hs:1:8-20
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘PrettyGrammar.<>’, defined at src/PrettyGrammar.hs:68:9
+       |
+    51 | punctuate sep (x : xs) = (x <> sep) : punctuate sep xs
+       |                             ^^
+
+    src/PrettyGrammar.hs:65:23: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at src/PrettyGrammar.hs:1:8-20
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘PrettyGrammar.<>’, defined at src/PrettyGrammar.hs:68:9
+       |
+    65 | x <+> y           = x <> char ' ' <> y
+       |                       ^^
+
+    src/PrettyGrammar.hs:65:35: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at src/PrettyGrammar.hs:1:8-20
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘PrettyGrammar.<>’, defined at src/PrettyGrammar.hs:68:9
+       |
+    65 | x <+> y           = x <> char ' ' <> y
+       |                                   ^^
+
+    src/PrettyGrammar.hs:75:18: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at src/PrettyGrammar.hs:1:8-20
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘PrettyGrammar.<>’, defined at src/PrettyGrammar.hs:68:9
+       |
+    75 | x $$ y       = x <> char '\n' <> y
+       |                  ^^
+
+    src/PrettyGrammar.hs:75:31: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at src/PrettyGrammar.hs:1:8-20
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘PrettyGrammar.<>’, defined at src/PrettyGrammar.hs:68:9
+       |
+    75 | x $$ y       = x <> char '\n' <> y
+       |                               ^^
+
+    src/PrettyGrammar.hs:87:21: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at src/PrettyGrammar.hs:1:8-20
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘PrettyGrammar.<>’, defined at src/PrettyGrammar.hs:68:9
+       |
+    87 | parens x = char '(' <> x <> char ')'
+       |                     ^^
+
+    src/PrettyGrammar.hs:87:26: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at src/PrettyGrammar.hs:1:8-20
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘PrettyGrammar.<>’, defined at src/PrettyGrammar.hs:68:9
+       |
+    87 | parens x = char '(' <> x <> char ')'
+       |                          ^^
+
+    src/PrettyGrammar.hs:90:14: error:
+        Ambiguous occurrence ‘<>’
+        It could refer to either ‘Prelude.<>’,
+                                 imported from ‘Prelude’ at src/PrettyGrammar.hs:1:8-20
+                                 (and originally defined in ‘GHC.Base’)
+                              or ‘PrettyGrammar.<>’, defined at src/PrettyGrammar.hs:68:9
+       |
+    90 | hcat = foldr (<>) empty
+       |              ^^^^
+    builder for ‘/nix/store/y81pgdrkkz9q0symchn77v86xzc5cbv9-happy-1.19.8.drv’ failed with exit code 1
+    #+END_QUOTE
+
+    then:
+    #+BEGIN_QUOTE
+    reprocessing executable 'happy' for happy-1.19.8..
+    Setup: The program 'happy' is required but it could not be found
+    #+END_QUOTE
+*** TH & static flags changes in GHC API
+***** doctest 0.13.0
+  #+BEGIN_QUOTE
+  [10 of 16] Compiling Extract          ( src/Extract.hs, dist/build/Extract.o )
+
+  src/Extract.hs:89:15: error:
+      • Variable not in scope:
+          needsTemplateHaskell :: ModuleGraph -> Bool
+      • Perhaps you meant ‘needsTemplateHaskellOrQQ’ (imported from GHC)
+     |
+  89 |   mods' <- if needsTemplateHaskell mods then enableCompilation mods else return mods
+     |               ^^^^^^^^^^^^^^^^^^^^
+
+  src/Extract.hs:106:31: error:
+      • Couldn't match expected type ‘[ModSummary]’
+                    with actual type ‘ModuleGraph’
+      • In the second argument of ‘map’, namely ‘modGraph’
+        In the expression: map upd modGraph
+        In an equation for ‘modGraph'’: modGraph' = map upd modGraph
+      |
+  106 |       let modGraph' = map upd modGraph
+      |                               ^^^^^^^^
+
+  src/Extract.hs:107:7: error:
+      • Couldn't match type ‘[ModSummary]’ with ‘ModuleGraph’
+        Expected type: Ghc ModuleGraph
+          Actual type: Ghc [ModSummary]
+      • In a stmt of a 'do' block: return modGraph'
+        In the expression:
+          do let enableComp d = ...
+             modifySessionDynFlags enableComp
+             let upd m = ...
+             let modGraph' = map upd modGraph
+             ....
+        In an equation for ‘enableCompilation’:
+            enableCompilation modGraph
+              = do let enableComp d = ...
+                   modifySessionDynFlags enableComp
+                   let upd m = ...
+                   ....
+      |
+  107 |       return modGraph'
+      |       ^^^^^^^^^^^^^^^^
+  builder for ‘/nix/store/3v8hvh51p21wxcnz3qbwby1918gg946b-doctest-0.13.0.drv’ failed with exit code 1
+  #+END_QUOTE
+*** Conflicting dependency versions supplied by nixpkgs
+***** hxt-regex-xmlschema
+#+BEGIN_QUOTE
+Configuring hxt-regex-xmlschema-9.2.0.3...
+Flags chosen: profile=False
+Dependency HUnit -any: using HUnit-1.6.0.0
+Dependency base ==4.*: using base-4.11.0.0
+Dependency bytestring >=0.10: using bytestring-0.10.8.2
+Dependency hxt-charproperties ==9.*: using hxt-charproperties-9.2.0.1
+Dependency hxt-regex-xmlschema -any: using hxt-regex-xmlschema-9.2.0.3
+Dependency parsec >=2.1 && <4: using parsec-3.1.12
+Dependency text >=0.10: using text-1.2.3.0
+Source component graph:
+    component lib
+    component test:Date dependency lib
+    component test:SimpleMatch dependency lib
+Configured component graph:
+    component hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es
+        include base-4.11.0.0
+        include bytestring-0.10.8.2
+        include hxt-charproperties-9.2.0.1-DdQIJY95mjt700stR9K80F
+        include parsec-3.1.12
+        include text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+    component hxt-regex-xmlschema-9.2.0.3-7Fwu3YI8ksP5pL1UPduvBN-Date
+        include base-4.11.0.0
+        include bytestring-0.10.8.2
+        include hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es
+        include parsec-3.1.12
+        include text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+        include HUnit-1.6.0.0-3JMdyaTcPZ3LRpZPbvppVb
+    component hxt-regex-xmlschema-9.2.0.3-JN54txt7Cxh281xOUTRbNq-SimpleMatch
+        include base-4.11.0.0
+        include bytestring-0.10.8.2
+        include hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es
+        include text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+        include HUnit-1.6.0.0-3JMdyaTcPZ3LRpZPbvppVb
+Linked component graph:
+    unit hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es
+        include base-4.11.0.0
+        include bytestring-0.10.8.2
+        include hxt-charproperties-9.2.0.1-DdQIJY95mjt700stR9K80F
+        include parsec-3.1.12
+        include text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+        Text.Regex.Glob.Generic=hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es:Text.Regex.Glob.Generic,Text.Regex.Glob.Generic.RegexParser=hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es:Text.Regex.Glob.Generic.RegexParser,Text.Regex.Glob.String=hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es:Text.Regex.Glob.String,Text.Regex.XMLSchema.Generic=hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es:Text.Regex.XMLSchema.Generic,Text.Regex.XMLSchema.Generic.Matching=hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es:Text.Regex.XMLSchema.Generic.Matching,Text.Regex.XMLSchema.Generic.Regex=hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es:Text.Regex.XMLSchema.Generic.Regex,Text.Regex.XMLSchema.Generic.RegexParser=hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es:Text.Regex.XMLSchema.Generic.RegexParser,Text.Regex.XMLSchema.Generic.StringLike=hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es:Text.Regex.XMLSchema.Generic.StringLike,Text.Regex.XMLSchema.String=hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es:Text.Regex.XMLSchema.String
+    unit hxt-regex-xmlschema-9.2.0.3-7Fwu3YI8ksP5pL1UPduvBN-Date
+        include base-4.11.0.0
+        include bytestring-0.10.8.2
+        include hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es
+        include parsec-3.1.12
+        include text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+        include HUnit-1.6.0.0-3JMdyaTcPZ3LRpZPbvppVb
+    unit hxt-regex-xmlschema-9.2.0.3-JN54txt7Cxh281xOUTRbNq-SimpleMatch
+        include base-4.11.0.0
+        include bytestring-0.10.8.2
+        include hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es
+        include text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+        include HUnit-1.6.0.0-3JMdyaTcPZ3LRpZPbvppVb
+Ready component graph:
+    definite hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es
+        depends base-4.11.0.0
+        depends bytestring-0.10.8.2
+        depends hxt-charproperties-9.2.0.1-DdQIJY95mjt700stR9K80F
+        depends parsec-3.1.12
+        depends text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+    definite hxt-regex-xmlschema-9.2.0.3-JN54txt7Cxh281xOUTRbNq-SimpleMatch
+        depends base-4.11.0.0
+        depends bytestring-0.10.8.2
+        depends hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es
+        depends text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+        depends HUnit-1.6.0.0-3JMdyaTcPZ3LRpZPbvppVb
+    definite hxt-regex-xmlschema-9.2.0.3-7Fwu3YI8ksP5pL1UPduvBN-Date
+        depends base-4.11.0.0
+        depends bytestring-0.10.8.2
+        depends hxt-regex-xmlschema-9.2.0.3-7WQrI6pdqsT9Tamts2S7Es
+        depends parsec-3.1.12
+        depends text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+        depends HUnit-1.6.0.0-3JMdyaTcPZ3LRpZPbvppVb
+Warning:
+    This package indirectly depends on multiple versions of the same package. This is very likely to cause a compile failure.
+      package parsec (parsec-3.1.12) requires text-1.2.3.0
+      package hxt-regex-xmlschema (hxt-regex-xmlschema-9.2.0.3) requires text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+#+END_QUOTE
+***** intero
+#+BEGIN_QUOTE
+Configuring intero-0.1.24...
+Dependency array -any: using array-0.5.2.0
+Dependency base -any: using base-4.11.0.0
+Dependency bytestring -any: using bytestring-0.10.8.2
+Dependency containers -any: using containers-0.5.10.2
+Dependency directory -any: using directory-1.3.1.5
+Dependency filepath -any: using filepath-1.4.1.2
+Dependency ghc -any: using ghc-8.4
+Dependency ghc-boot-th -any: using ghc-boot-th-8.4
+Dependency ghc-paths -any: using ghc-paths-0.1.0.9
+Dependency ghci -any: using ghci-8.4
+Dependency haskeline -any: using haskeline-0.7.4.0
+Dependency hspec -any: using hspec-2.4.7
+Dependency process -any: using process-1.6.1.0
+Dependency regex-compat -any: using regex-compat-0.95.1
+Dependency syb -any: using syb-0.7
+Dependency temporary -any: using temporary-1.2.1.1
+Dependency time -any: using time-1.8.0.2
+Dependency transformers -any: using transformers-0.5.4.0
+Dependency unix -any: using unix-2.7.2.2
+Source component graph:
+    component test:intero-test
+    component exe:intero
+Configured component graph:
+    component intero-0.1.24-3u4Spn7c6udLqs4Yj3OL6c-intero-test
+        include base-4.11.0.0
+        include hspec-2.4.7-8jULUghCzZWHzuPgTLTFo4
+        include temporary-1.2.1.1-6yRyhBaSWIc3K82wRIfuFX
+        include process-1.6.1.0
+        include transformers-0.5.4.0
+        include directory-1.3.1.5
+        include regex-compat-0.95.1-oKLwb8zV5p1ALGhAPZZ7V
+        include filepath-1.4.1.2
+    component intero-0.1.24-CoGca893ulULWyTXt2njMS-intero
+        include base-4.11.0.0
+        include array-0.5.2.0
+        include bytestring-0.10.8.2
+        include directory-1.3.1.5
+        include filepath-1.4.1.2
+        include ghc-8.4
+        include ghc-paths-0.1.0.9-5YgF2pF08DcEX9UCDf44YO
+        include haskeline-0.7.4.0
+        include process-1.6.1.0
+        include transformers-0.5.4.0
+        include syb-0.7-8tlvdJovQx364qvaimRDW
+        include containers-0.5.10.2
+        include time-1.8.0.2
+        include ghci-8.4
+        include ghc-boot-th-8.4
+        include unix-2.7.2.2
+Linked component graph:
+    unit intero-0.1.24-3u4Spn7c6udLqs4Yj3OL6c-intero-test
+        include base-4.11.0.0
+        include hspec-2.4.7-8jULUghCzZWHzuPgTLTFo4
+        include temporary-1.2.1.1-6yRyhBaSWIc3K82wRIfuFX
+        include process-1.6.1.0
+        include transformers-0.5.4.0
+        include directory-1.3.1.5
+        include regex-compat-0.95.1-oKLwb8zV5p1ALGhAPZZ7V
+        include filepath-1.4.1.2
+    unit intero-0.1.24-CoGca893ulULWyTXt2njMS-intero
+        include base-4.11.0.0
+        include array-0.5.2.0
+        include bytestring-0.10.8.2
+        include directory-1.3.1.5
+        include filepath-1.4.1.2
+        include ghc-8.4
+        include ghc-paths-0.1.0.9-5YgF2pF08DcEX9UCDf44YO
+        include haskeline-0.7.4.0
+        include process-1.6.1.0
+        include transformers-0.5.4.0
+        include syb-0.7-8tlvdJovQx364qvaimRDW
+        include containers-0.5.10.2
+        include time-1.8.0.2
+        include ghci-8.4
+        include ghc-boot-th-8.4
+        include unix-2.7.2.2
+Ready component graph:
+    definite intero-0.1.24-CoGca893ulULWyTXt2njMS-intero
+        depends base-4.11.0.0
+        depends array-0.5.2.0
+        depends bytestring-0.10.8.2
+        depends directory-1.3.1.5
+        depends filepath-1.4.1.2
+        depends ghc-8.4
+        depends ghc-paths-0.1.0.9-5YgF2pF08DcEX9UCDf44YO
+        depends haskeline-0.7.4.0
+        depends process-1.6.1.0
+        depends transformers-0.5.4.0
+        depends syb-0.7-8tlvdJovQx364qvaimRDW
+        depends containers-0.5.10.2
+        depends time-1.8.0.2
+        depends ghci-8.4
+        depends ghc-boot-th-8.4
+        depends unix-2.7.2.2
+    definite intero-0.1.24-3u4Spn7c6udLqs4Yj3OL6c-intero-test
+        depends base-4.11.0.0
+        depends hspec-2.4.7-8jULUghCzZWHzuPgTLTFo4
+        depends temporary-1.2.1.1-6yRyhBaSWIc3K82wRIfuFX
+        depends process-1.6.1.0
+        depends transformers-0.5.4.0
+        depends directory-1.3.1.5
+        depends regex-compat-0.95.1-oKLwb8zV5p1ALGhAPZZ7V
+        depends filepath-1.4.1.2
+Warning:
+    This package indirectly depends on multiple versions of the same package. This is very likely to cause a compile failure.
+      package haskeline (haskeline-0.7.4.0) requires stm-2.4.4.1
+      package exceptions (exceptions-0.8.3-4utnSoZKYSD8vJ4yUtblwt) requires stm-2.4.4.1-2NXbCfakYJgAI8UB2CKmlr
+      package async (async-2.1.1.1-FunOnvcWLXwBB0N4sJ8Of1) requires stm-2.4.4.1-2NXbCfakYJgAI8UB2CKmlr
+#+END_QUOTE
+***** network-uri
+  #+BEGIN_QUOTE
+Configuring network-uri-2.6.1.0...
+Dependency HUnit -any: using HUnit-1.6.0.0
+Dependency base >=3 && <5: using base-4.11.0.0
+Dependency deepseq >=1.1 && <1.5: using deepseq-1.4.3.0
+Dependency network-uri -any: using network-uri-2.6.1.0
+Dependency parsec >=3.0 && <3.2: using parsec-3.1.12
+Dependency test-framework -any: using test-framework-0.8.2.0
+Dependency test-framework-hunit -any: using test-framework-hunit-0.3.0.2
+Dependency test-framework-quickcheck2 -any: using
+test-framework-quickcheck2-0.3.0.4
+Source component graph:
+    component lib
+    component test:uri dependency lib
+Configured component graph:
+    component network-uri-2.6.1.0-6iSucnfVnIC6zyCUz6dTlz
+        include base-4.11.0.0
+        include deepseq-1.4.3.0
+        include parsec-3.1.12
+    component network-uri-2.6.1.0-4dc54ss77z67lQY1izvTPz-uri
+        include base-4.11.0.0
+        include HUnit-1.6.0.0-3JMdyaTcPZ3LRpZPbvppVb
+        include network-uri-2.6.1.0-6iSucnfVnIC6zyCUz6dTlz
+        include test-framework-0.8.2.0-6jcKcw40dzr47nEGlbGQI2
+        include test-framework-hunit-0.3.0.2-KBOBML8ydsWIkEvyO1WgRF
+        include test-framework-quickcheck2-0.3.0.4-IWZmOkjcpAy3LaWwOBQar6
+Linked component graph:
+    unit network-uri-2.6.1.0-6iSucnfVnIC6zyCUz6dTlz
+        include base-4.11.0.0
+        include deepseq-1.4.3.0
+        include parsec-3.1.12
+        Network.URI=network-uri-2.6.1.0-6iSucnfVnIC6zyCUz6dTlz:Network.URI
+    unit network-uri-2.6.1.0-4dc54ss77z67lQY1izvTPz-uri
+        include base-4.11.0.0
+        include HUnit-1.6.0.0-3JMdyaTcPZ3LRpZPbvppVb
+        include network-uri-2.6.1.0-6iSucnfVnIC6zyCUz6dTlz
+        include test-framework-0.8.2.0-6jcKcw40dzr47nEGlbGQI2
+        include test-framework-hunit-0.3.0.2-KBOBML8ydsWIkEvyO1WgRF
+        include test-framework-quickcheck2-0.3.0.4-IWZmOkjcpAy3LaWwOBQar6
+Ready component graph:
+    definite network-uri-2.6.1.0-6iSucnfVnIC6zyCUz6dTlz
+        depends base-4.11.0.0
+        depends deepseq-1.4.3.0
+        depends parsec-3.1.12
+    definite network-uri-2.6.1.0-4dc54ss77z67lQY1izvTPz-uri
+        depends base-4.11.0.0
+        depends HUnit-1.6.0.0-3JMdyaTcPZ3LRpZPbvppVb
+        depends network-uri-2.6.1.0-6iSucnfVnIC6zyCUz6dTlz
+        depends test-framework-0.8.2.0-6jcKcw40dzr47nEGlbGQI2
+        depends test-framework-hunit-0.3.0.2-KBOBML8ydsWIkEvyO1WgRF
+        depends test-framework-quickcheck2-0.3.0.4-IWZmOkjcpAy3LaWwOBQar6
+Warning:
+    This package indirectly depends on multiple versions of the same package. This is very likely to cause a compile failure.
+      package parsec (parsec-3.1.12) requires text-1.2.3.0
+      package xml (xml-1.3.14-HfFmQjYdzUtAo6QWor7XWS) requires text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+  #+END_QUOTE
+***** parsers
+#+BEGIN_QUOTE
+Configuring parsers-0.12.8...
+Dependency QuickCheck -any: using QuickCheck-2.10.1
+Dependency attoparsec >=0.12.1.4 && <0.14: using attoparsec-0.13.2.0
+Dependency base >=4.3 && <5: using base-4.11.0.0
+Dependency base-orphans >=0.3 && <1: using base-orphans-0.6
+Dependency bytestring -any: using bytestring-0.10.8.2
+Dependency charset >=0.3 && <1: using charset-0.3.7.1
+Dependency containers >=0.4 && <0.6: using containers-0.5.10.2
+Dependency mtl >=2.0.1 && <2.3: using mtl-2.2.2
+Dependency parsec ==3.1.*: using parsec-3.1.12
+Dependency parsers -any: using parsers-0.12.8
+Dependency quickcheck-instances -any: using quickcheck-instances-0.3.16
+Dependency scientific ==0.3.*: using scientific-0.3.5.2
+Dependency semigroups >=0.12 && <1: using semigroups-0.18.3
+Dependency text >=0.10 && <1.3: using text-1.2.3.0
+Dependency transformers >=0.2 && <0.6: using transformers-0.5.4.0
+Dependency unordered-containers ==0.2.*: using unordered-containers-0.2.8.0
+Source component graph:
+    component lib
+    component test:quickcheck dependency lib
+Configured component graph:
+    component parsers-0.12.8-8CofPVufTlH5oagpr90DKh
+        include base-4.11.0.0
+        include base-orphans-0.6-osOpgedNLtEXw7GMhg0wO
+        include charset-0.3.7.1-4Y5Vjv8SePG8JhoXqIW8An
+        include containers-0.5.10.2
+        include semigroups-0.18.3-K5bQU8I3MdwIAIdM0DUvut
+        include parsec-3.1.12
+        include attoparsec-0.13.2.0-KAtv5ah1vTgFEyNTUXrnMm
+        include text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+        include transformers-0.5.4.0
+        include mtl-2.2.2
+        include scientific-0.3.5.2-joBDehAesiDlHnSX3d1kR
+        include unordered-containers-0.2.8.0-GQtoS6nqsAZZnTJjlnQ4E
+    component parsers-0.12.8-6vTGIRSao6T1kSsOaZ8PQW-quickcheck
+        include attoparsec-0.13.2.0-KAtv5ah1vTgFEyNTUXrnMm
+        include base-4.11.0.0
+        include bytestring-0.10.8.2
+        include parsec-3.1.12
+        include parsers-0.12.8-8CofPVufTlH5oagpr90DKh
+        include QuickCheck-2.10.1-EepjevOAdNHACE5Vo5BMcI
+        include quickcheck-instances-0.3.16-3frOz9XduqfJkwTG6gnntN
+Linked component graph:
+    unit parsers-0.12.8-8CofPVufTlH5oagpr90DKh
+        include base-4.11.0.0
+        include base-orphans-0.6-osOpgedNLtEXw7GMhg0wO
+        include charset-0.3.7.1-4Y5Vjv8SePG8JhoXqIW8An
+        include containers-0.5.10.2
+        include semigroups-0.18.3-K5bQU8I3MdwIAIdM0DUvut
+        include parsec-3.1.12
+        include attoparsec-0.13.2.0-KAtv5ah1vTgFEyNTUXrnMm
+        include text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+        include transformers-0.5.4.0
+        include mtl-2.2.2
+        include scientific-0.3.5.2-joBDehAesiDlHnSX3d1kR
+        include unordered-containers-0.2.8.0-GQtoS6nqsAZZnTJjlnQ4E
+        Text.Parser.Char=parsers-0.12.8-8CofPVufTlH5oagpr90DKh:Text.Parser.Char,Text.Parser.Combinators=parsers-0.12.8-8CofPVufTlH5oagpr90DKh:Text.Parser.Combinators,Text.Parser.Expression=parsers-0.12.8-8CofPVufTlH5oagpr90DKh:Text.Parser.Expression,Text.Parser.LookAhead=parsers-0.12.8-8CofPVufTlH5oagpr90DKh:Text.Parser.LookAhead,Text.Parser.Permutation=parsers-0.12.8-8CofPVufTlH5oagpr90DKh:Text.Parser.Permutation,Text.Parser.Token=parsers-0.12.8-8CofPVufTlH5oagpr90DKh:Text.Parser.Token,Text.Parser.Token.Highlight=parsers-0.12.8-8CofPVufTlH5oagpr90DKh:Text.Parser.Token.Highlight,Text.Parser.Token.Style=parsers-0.12.8-8CofPVufTlH5oagpr90DKh:Text.Parser.Token.Style
+    unit parsers-0.12.8-6vTGIRSao6T1kSsOaZ8PQW-quickcheck
+        include attoparsec-0.13.2.0-KAtv5ah1vTgFEyNTUXrnMm
+        include base-4.11.0.0
+        include bytestring-0.10.8.2
+        include parsec-3.1.12
+        include parsers-0.12.8-8CofPVufTlH5oagpr90DKh
+        include QuickCheck-2.10.1-EepjevOAdNHACE5Vo5BMcI
+        include quickcheck-instances-0.3.16-3frOz9XduqfJkwTG6gnntN
+Ready component graph:
+    definite parsers-0.12.8-8CofPVufTlH5oagpr90DKh
+        depends base-4.11.0.0
+        depends base-orphans-0.6-osOpgedNLtEXw7GMhg0wO
+        depends charset-0.3.7.1-4Y5Vjv8SePG8JhoXqIW8An
+        depends containers-0.5.10.2
+        depends semigroups-0.18.3-K5bQU8I3MdwIAIdM0DUvut
+        depends parsec-3.1.12
+        depends attoparsec-0.13.2.0-KAtv5ah1vTgFEyNTUXrnMm
+        depends text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+        depends transformers-0.5.4.0
+        depends mtl-2.2.2
+        depends scientific-0.3.5.2-joBDehAesiDlHnSX3d1kR
+        depends unordered-containers-0.2.8.0-GQtoS6nqsAZZnTJjlnQ4E
+    definite parsers-0.12.8-6vTGIRSao6T1kSsOaZ8PQW-quickcheck
+        depends attoparsec-0.13.2.0-KAtv5ah1vTgFEyNTUXrnMm
+        depends base-4.11.0.0
+        depends bytestring-0.10.8.2
+        depends parsec-3.1.12
+        depends parsers-0.12.8-8CofPVufTlH5oagpr90DKh
+        depends QuickCheck-2.10.1-EepjevOAdNHACE5Vo5BMcI
+        depends quickcheck-instances-0.3.16-3frOz9XduqfJkwTG6gnntN
+Warning:
+    This package indirectly depends on multiple versions of the same package. This is very likely to cause a compile failure.
+      package parsec (parsec-3.1.12) requires text-1.2.3.0
+      package uuid-types (uuid-types-1.0.3-AZRQ24hVUb32SuzlrMj6Wg) requires text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+      package scientific (scientific-0.3.5.2-joBDehAesiDlHnSX3d1kR) requires text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+      package quickcheck-instances (quickcheck-instances-0.3.16-3frOz9XduqfJkwTG6gnntN) requires text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+      package parsers (parsers-0.12.8) requires text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+      package hashable (hashable-1.2.6.1-AU785flrMjv6Vywym6onD5) requires text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+      package case-insensitive (case-insensitive-1.2.0.10-Jh9LIzHz5jlBu4ZEiiACu7) requires text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+      package attoparsec (attoparsec-0.13.2.0-KAtv5ah1vTgFEyNTUXrnMm) requires text-1.2.3.0-4XrvrhmWbNr8VH2ra9oQcy
+#+END_QUOTE
