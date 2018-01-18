@@ -1,0 +1,1 @@
+rm -f src/AttrGrammarParser.ly src/Parser.ly tests/ParGF.yg

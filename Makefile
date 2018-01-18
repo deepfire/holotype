@@ -72,3 +72,16 @@ toollog   := $(and $(leakcheck), 2>&1 | ts -s | tee leakcheck.$(shell date +%s).
              $(and $(pprof),     2>&1 | ts -s | tee     pprof.$(shell date +%s).report)
 holotype: dist/build/holotype/holotype
 	$(tool) $< +RTS -T $(toollog)
+
+#
+#
+package:             GHC ?= 841
+package:
+	nix-build packages.nix -A ${NAME} --argstr compiler ghc${GHC} --show-trace --cores 0 --no-out-link
+list-shell-failures: GHC ?= 841
+list-shell-failures:
+	nix-shell shell.nix               --argstr compiler ghc${GHC} --show-trace --cores 1 --max-jobs 1 --keep-going
+
+.PHONY: overrides.nix
+overrides.nix:
+	npgenoverrides > $@
