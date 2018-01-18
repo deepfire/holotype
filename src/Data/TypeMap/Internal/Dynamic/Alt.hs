@@ -27,7 +27,7 @@ import Data.TypeMap.Internal.Dynamic
 
 -- | Insert an element indexed by type @t@.
 insert
-  :: forall t x proxy
+  :: forall t x
   .  Typeable t => Item x t -> TypeMap x -> TypeMap x
 insert v (TypeMap m) = TypeMap (Map.insert (typeRep (Proxy @t)) (coerce v) m)
   where
@@ -36,7 +36,7 @@ insert v (TypeMap m) = TypeMap (Map.insert (typeRep (Proxy @t)) (coerce v) m)
 
 -- | Lookup an element indexed by type @t@.
 lookup
-  :: forall t x proxy
+  :: forall t x
   .  Typeable t => TypeMap x -> Maybe (Item x t)
 lookup (TypeMap m) = coerce (Map.lookup (typeRep (Proxy @t)) m)
   where
@@ -46,7 +46,7 @@ lookup (TypeMap m) = coerce (Map.lookup (typeRep (Proxy @t)) m)
 -- | Delete a key and its value from the map.
 -- Does nothing if the key does not exist.
 delete
-  :: forall t x proxy
+  :: forall t x
   .  Typeable t => TypeMap x -> TypeMap x
 delete (TypeMap m) = TypeMap (Map.delete (typeRep (Proxy @t)) m)
 
