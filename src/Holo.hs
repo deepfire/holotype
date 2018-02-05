@@ -140,11 +140,11 @@ instance Monoid (StyleOf u ()) where
   mempty      = UnitStyle
 
 instance Monoid (HoloItem Blank) where
+  mappend l r = mempty
+  mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
+instance Monoid (HoloItem Layout) where
   mappend l r = holoVBox [l, r]
   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
--- instance Monoid (HoloItem Layout) where
---   mappend l r = holoVBox [l, r]
---   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
 -- instance Monoid (HoloItem Visual) where
 --   mappend l r = holoVBox [l, r]
 --   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty UnitVisual
@@ -279,9 +279,9 @@ holoLeaf idToken holo hiStyle =
 
 -- * Pre-package tree constructors
 --
-holoVBox, holoHBox ∷ [HoloItem Blank] → HoloItem Blank
-holoHBox = mkHoloNode blankIdToken () () (HBoxN ∷ Node PU HBox)
-holoVBox = mkHoloNode blankIdToken () () (VBoxN ∷ Node PU VBox)
+holoVBox, holoHBox ∷ [HoloItem Layout] → HoloItem Layout
+holoHBox = mkHoloNode blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (HBoxN ∷ Node PU HBox)
+holoVBox = mkHoloNode blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (VBoxN ∷ Node PU VBox)
 
 
 -- * Leaves

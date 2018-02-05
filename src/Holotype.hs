@@ -147,16 +147,9 @@ holotype win _evCtl _setupE windowFrameE inputE = do
 
   settingsV@Settings{..} ← defaultSettings
   portV@Port{..}         ← portCreate win settingsV
-
-  px0 ← mkRectDrawable portV (di (Wi $ PUs 2) 1) red
-  px1 ← mkRectDrawable portV (di (Wi $ PUs 1) 2) green
-  px2 ← mkRectDrawable portV (di (Wi $ PUs 1) 1) blue
-
-  --
   -- End of init-time IO.
   --
   -- Constructing the FRP network:
-  --
 
   -- EXTERNAL INPUTS
   let worldE        ∷ Event t WorldEvent
@@ -177,46 +170,44 @@ holotype win _evCtl _setupE windowFrameE inputE = do
             holo'initE = tagPromptlyDyn holo setup
         e ← (performEvent $ (flip $ queryHoloitem portV) [] <$> leftmost [updated holo, holo'initE])
         holdDyn (initial, emptyLayoutHolo) $ attachPromptlyDyn val e
-  rec
+
+  -- rec → GHC panic
   -- ELEMENTS
-    fontName ← sample $ current $ HoloFont.FK ∘ fst <$> text1HoloQD -- GHC bug
-    text1HoloQD      ← textWidgetD "defaultSans" editE $ constant mempty { _tsFontKey = fontName }
-    text2HoloQD      ← textWidgetD "woo hoo"     editE $ constant mempty { _tsFontKey = "defaultMono" }
+  text1HoloQD      ← textWidgetD "defaultMono" editE $ constant mempty { _tsFontKey = "defaultSans" }
+  text2HoloQD      ← textWidgetD "woo hoo"     editE $ constant mempty { _tsFontKey = "defaultMono" }
 
   -- * Thoughts
   --
   -- 1. flicker
   -- 2. font lookup fails: defaultMono → Terminus, yet not Terminus…
 
-  -- SCENE
-    let sceneE        = attachPromptlyDyn text1HoloQD (updated text2HoloQD) <&>
-          \((_, x), (_, y))→
-            mkHoloNode blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (VBoxN ∷ Node PU VBox) [x, y]
-        scenePlacedE  = layout (Size $ di 400 200) <$> sceneE
+  -- * SCENE
+  let sceneE        = attachPromptlyDyn text1HoloQD (updated text2HoloQD) <&>
+        \((_, x), (_, y))→
+          holoVBox [x, y]
+      scenePlacedE  = layout (Size $ di 400 200) <$> sceneE
 
-    sceneVisualE     ← performEvent $ scenePlacedE <&>
-      \(tree ∷ HoloItem Layout) → liftIO $ do
-        let Port{..} = portV
-        drwMap ← liftIO $ STM.readTVarIO (iomap $ fromDT portDrawableTracker)
+  -- * At every scene update
+  sceneVisualE     ← performEvent $ scenePlacedE <&>
+    \(tree ∷ HoloItem Layout) → liftIO $ do
+      let Port{..} = portV
+      drwMap ← liftIO $ STM.readTVarIO (iomap $ fromDT portDrawableTracker)
 
-        let leaves     = holotreeLeaves tree
-            unusedDrws = M.filterWithKey (flip $ const (not ∘ flip M.member leaves)) drwMap
-        forM_ (M.elems unusedDrws) $
-          disposeDrawable portObjectStream
+      let leaves     = holotreeLeaves tree
+          unusedDrws = M.filterWithKey (flip $ const (not ∘ flip M.member leaves)) drwMap
+      forM_ (M.elems unusedDrws) $
+        disposeDrawable portObjectStream
 
-        tree' ← visualiseHolotree portV tree
-        renderHolotreeVisuals portV tree'
-        pure tree'
-    sceneVisualD     ← holdDyn emptyVisualHolo sceneVisualE
+      tree' ← visualiseHolotree portV tree
+      renderHolotreeVisuals portV tree'
+      pure tree'
+  sceneVisualD     ← holdDyn emptyVisualHolo sceneVisualE
 
-    let drawE         = attachPromptlyDyn sceneVisualD frameE
-    _                ← performEvent $ drawE <&>
-                       \(tree, f@Frame{..}) → do
-                         drawHolotreeVisuals portV f tree
-
-                         framePutDrawable f px0 (doubleToFloat <$> po  0    0)   -- red
-                         framePutDrawable f px1 (doubleToFloat <$> po  0.3  0.3) -- green
-                         framePutDrawable f px2 (doubleToFloat <$> po 30   30)   -- blue
+  -- * At every frame
+  let drawE         = attachPromptlyDyn sceneVisualD frameE
+  _                ← performEvent $ drawE <&>
+                     \(tree, f@Frame{..}) → do
+                       drawHolotreeVisuals portV f tree
 
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
