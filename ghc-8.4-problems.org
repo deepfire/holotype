@@ -1,3 +1,18 @@
+* Plan
+  - [X] ensure inherited + current base builds
+  - [X] compose a pure-DB set: replicate inherited overrides via DB
+  - [X] ensure pure-DB set builds
+  - [X] 'src' attroverride: drop the attr meta mode/state ambiguity
+  - [X] implement intermediate cacher, ensure it doesn't introduce changes
+  - [ ] prototype the paredowning
+    - [ ] populate cache
+    - [ ] forall packages overriden
+      - [ ] try no override at all
+      - [ ] try just src override
+      - [ ] try dropping attribute overrides, one by one
+      - [ ] record all failures
+* GHC prefetch
+   nix-prefetch-git git://git.haskell.org/ghc.git --fetch-submodules --rev 61db0b8941cfb7ed8941ed29bdb04bd8ef3b71a5
 * Disabled
 *** OneTuple
     - not on github ::
