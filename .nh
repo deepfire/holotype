@@ -1,0 +1,5 @@
+PKGDB=/home/deepfire/configuration-ghc84x
+GHC=841
+NIXPKGS=/home/deepfire/nixpkgs
+NIX_GHC_OVERRIDES=overrides.nix
+NIX_GHC_PACKAGE_SET=packages.nix

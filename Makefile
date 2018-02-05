@@ -84,4 +84,4 @@ list-shell-failures:
 
 .PHONY: overrides.nix
 overrides.nix:
-	npgenoverrides > $@
+	nh overrides-descs > $@
