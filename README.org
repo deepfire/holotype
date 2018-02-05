@@ -57,6 +57,12 @@
 
 * Inspiration
 
+  - ECS ::
+    - conceptual intro ::
+      - https://slide-rs.github.io/specs/
+      - https://github.com/jonascarpay/apecs/blob/master/tutorials/RTS.md
+    - apecs   :: https://github.com/jonascarpay/apecs
+    - ecstasy :: http://reasonablypolymorphic.com/blog/why-take-ecstasy
   - http://graphdrawing.org/
     - 2010 ::
       - doi:10.1007/978-3-642-18469-7
@@ -76,7 +82,7 @@
         - 2017-10-24 17:35:55
         - "update document to follow recent changes"
     - https://github.com/randrew/layout/blob/master/layout.h
-  - 
+  -
     #+BEGIN_QUOTE
     Ivan Sutherland's Sketchpad demo - Object oriented graphics using a constraint
     based system (https://www.youtube.com/watch?v=6orsmFndx_o)
