@@ -16,8 +16,8 @@ ghcOrig.override (oldArgs: {
               src = pkgs.fetchFromGitHub {
                 owner = "deepfire";
                 repo = "lambdacube-quake3";
-                rev = "161fe1cef15224c7ed2e9916b335eac9f483e612";
-                sha256 = "1qh4092bfdz1cr0n5jf34xgxmy3l4j4jqprmddkhvpw492qlcczp";
+                rev = "734b141eeca2722af7dff886318606c3f8ad54be";
+                sha256 = "1l7q866mxl9lcj7nryjs08vfgy26a8d4lpazi3x74nkw7i21zigh";
               };
               isLibrary = true;
               isExecutable = true;
