@@ -1,675 +1,867 @@
 { pkgs, haskellLib, super, self }:
 
 with haskellLib; with self; {
-# Released
 
-  blaze-markup = overrideCabal super.blaze-markup (drv: {
-    version         = "0.8.2.0";
-    sha256          = "0m3h3ryxj5r74mv5g5dnfq5jbbwmvkl7ray18vi20d5vd93sydj4";
+  ## Shadowed:
+
+  ## Needs bump to a versioned attribute
+  ## 
+  ##     • Could not deduce (Semigroup (Dict a))
+  ##         arising from the superclasses of an instance declaration
+  ##       from the context: a
+  constraints = super.constraints_0_10;
+
+  hspec-core = overrideCabal super.hspec-core_2_4_7 (drv: {
+    ## Needs bump to a versioned attribute
+    ## 
+    ##     • No instance for (Semigroup Summary)
+    ##         arising from the superclasses of an instance declaration
+    ##     • In the instance declaration for ‘Monoid Summary’
     doCheck         = false;
-    jailbreak       = true;
   });
 
-  conduit = overrideCabal super.conduit (drv: {
-    version         = "1.2.13";
-    sha256          = "1b0i6zbmp9j0km150nghmq77rz3iahkib3dd2m9hihabc6n1p793";
+  ## Needs bump to a versioned attribute
+  ## 
+  ## breaks hspec:
+  ## Setup: Encountered missing dependencies:
+  ## hspec-discover ==2.4.7
+  hspec-discover = super.hspec-discover_2_4_7;
+
+  ## Needs bump to a versioned attribute
+  ## 
+  ##     • No instance for (Semigroup Metadatas)
+  ##         arising from the superclasses of an instance declaration
+  ##     • In the instance declaration for ‘Monoid Metadatas’
+  JuicyPixels = super.JuicyPixels_3_2_9_4;
+
+  ## Needs bump to a versioned attribute
+  ## 
+  ##     • Could not deduce (Semigroup (a :->: b))
+  ##         arising from the superclasses of an instance declaration
+  ##       from the context: (HasTrie a, Monoid b)
+  MemoTrie = super.MemoTrie_0_6_9;
+
+  semigroupoids = overrideCabal super.semigroupoids_5_2_2 (drv: {
+    ## Needs bump to a versioned attribute
+    ## 
+    ##     • Variable not in scope: mappend :: Seq a -> Seq a -> Seq a
+    ## CABAL-MISSING-DEPS
+    ## Setup: Encountered missing dependencies:
+    ## ghc >=7.0 && <8.4
+    ## builder for ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed
     doCheck         = false;
-    jailbreak       = true;
   });
 
-  generic-deriving = overrideCabal super.generic-deriving (drv: {
-    version         = "1.12.1";
-    sha256          = "0wwl29f5mlxmrigh0kp35q7aj10ymknnjabmdrdfxpi079rkzzgm";
-    doCheck         = false;
-    jailbreak       = true;
-  });
+  ## Needs bump to a versioned attribute
+  ## 
+  ##     • Could not deduce (Semigroup (Traversal f))
+  ##         arising from the superclasses of an instance declaration
+  ##       from the context: Applicative f
+  tasty = super.tasty_1_0_0_1;
 
-  haskell-src-exts-util = overrideCabal super.haskell-src-exts-util (drv: {
-    version         = "0.2.2";
-    sha256          = "14rhwcrdz3kfb69c64qn8kybl7wnpajrjlfz5p95ca4bva4mwclg";
+  ## Needs bump to a versioned attribute
+  ## 
+  ## Setup: Encountered missing dependencies:
+  ## template-haskell >=2.4 && <2.13
+  ## builder for ‘/nix/store/sq6cc33h4zk1wns2fsyv8cj6clcf6hwi-th-lift-0.7.7.drv’ failed with exit code 1
+  ## error: build of ‘/nix/store/sq6cc33h4zk1wns2fsyv8cj6clcf6hwi-th-lift-0.7.7.drv’ failed
+  th-lift = super.th-lift_0_7_8;
 
-  });
 
-  hspec = overrideCabal super.hspec (drv: {
-    version         = "2.4.7";
-    sha256          = "1jvf7x43gkch4b8nxqdascqlh4rh2d1qvl44skwqkz0gw154ldan";
-    doHaddock       = false;
-  });
+  ## On Hackage:
 
-  hspec-core = overrideCabal super.hspec-core (drv: {
-    version         = "2.4.7";
-    sha256          = "0syjbx3s62shwddp75qj0nfwmfjn0yflja4bh23x161xpx1g0igx";
-    doHaddock       = false;
-  });
-
-  hspec-discover = overrideCabal super.hspec-discover (drv: {
-    version         = "2.4.7";
-    sha256          = "1cgj6c6f5vpn36jg2j7v80nr87x1dsf7qyvxvjw8qimjdxrcx0ba";
-    doHaddock       = false;
-  });
-
-  hspec-meta = overrideCabal super.hspec-meta (drv: {
-    version         = "2.4.6";
-    sha256          = "0qmvk01n79j6skn79r6zalg2pd0x0nqqn9qn8mhg0pgyzcdnfc9b";
-    doHaddock       = false;
-  });
-
-  microlens = overrideCabal super.microlens (drv: {
-    version         = "0.4.8.3";
-    sha256          = "17qx2mbqdrlnkc3gxq8njbp7qw8nh51drmz6fc8khgj9bls5ni2k";
-
-  });
-
-  microlens-mtl = overrideCabal super.microlens-mtl (drv: {
-    version         = "0.1.11.1";
-    sha256          = "0l6z1gkzwcpv89bxf5vgfrjb6gq2pj7sjjc53nvi5b9alx34zryk";
-    doHaddock       = false;
-  });
-
-  microlens-th = overrideCabal super.microlens-th (drv: {
-    version         = "0.4.1.3";
-    sha256          = "15a12cqxlgbcn1n73zwrxnp2vfm8b0ma0a0sdd8zmjbs8zy3np4f";
-    doHaddock       = false;
-  });
-
-  nanospec = overrideCabal super.nanospec (drv: {
-    version         = "0.2.2";
-    sha256          = "1rcmhl9bhyfvanalnf1r86wkx6rq6wdvagnw1h011jcnnb1cq56g";
-    jailbreak       = true;
-  });
-
-  pretty-show = overrideCabal super.pretty-show (drv: {
-    version         = "1.6.16";
-    sha256          = "0l03mhbdnf0sj6kw2s3cf2xhfbl0809jr9fhj7cmpkhjpxv89vnv";
-
-  });
-
-  singletons = overrideCabal super.singletons (drv: {
-    version         = "2.4.1";
-    sha256          = "1kzrl9njvkbvxylk9jg61vy3ksmxmzymci5hdp0ilpsah4620yjx";
-    doCheck         = false;
-    jailbreak       = true;
-  });
-
-  tasty = overrideCabal super.tasty (drv: {
-    version         = "1.0.0.1";
-    sha256          = "0ggqffw9kbb6nlq1pplk131qzxndqqzqyf4s2p7576nljx11a7qf";
-
-  });
-
-  test-framework = overrideCabal super.test-framework (drv: {
-    version         = "0.8.2.0";
-    sha256          = "1hhacrzam6b8f10hyldmjw8pb7frdxh04rfg3farxcxwbnhwgbpm";
-    doCheck         = false;
-    jailbreak       = true;
-    editedCabalFile = null;
-    revision        = null;
-  });
-
-  xml-conduit = overrideCabal super.xml-conduit (drv: {
-    version         = "1.7.1.0";
-    sha256          = "1c4ip76qgqjdyf77h97mf3yxdimv7m5ma5v20wchn9qjmbkr8ffa";
-
-  });
-
-  yaml = overrideCabal super.yaml (drv: {
-    version         = "0.8.28";
-    sha256          = "0swgkzkfrwj0ac7lssn8rnrdfmh3lcsdn5fbq2iwv55di6jbc0pp";
-
+  happy = overrideCabal super.happy (drv: {
+    ## On Hackage, awaiting for import
+    ## 
+    ##     Ambiguous occurrence ‘<>’
+    ##     It could refer to either ‘Prelude.<>’,
+    ##                              imported from ‘Prelude’ at src/PrettyGrammar.hs:1:8-20
+    version         = "1.19.9";
+    sha256          = "138xpxdb7x62lpmgmb6b3v3vgdqqvqn4273jaap3mjmc2gla709y";
   });
 
 
-# Upstreamed
-
-  constraints = overrideCabal super.constraints (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/ekmett/constraints";
-      rev    = "07e8ace4d4a842cf450b346ccc75829bd310f4a5";
-      sha256 = "11l1hvnvnmzd3zxwddz5di4h5iql47gbwjz73x2kdy21avr85i4v";
-    };
-    libraryHaskellDepends = drv.libraryHaskellDepends ++ [ self.semigroups self.hspec ];
-  });
-
-  doctest = overrideCabal super.doctest (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/sol/doctest";
-      rev    = "438ec5a5e551e3f02581fd13064aef9f7d5e0bdc";
-      sha256 = "01jkmn37875zn2wlrnipdqk0vqv3amxgaa07w8q3ks2av39sv3wy";
-    };
-    jailbreak       = true;
-  });
+  ## Upstreamed
 
   free = overrideCabal super.free (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/ekmett/free";
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ##     • Could not deduce (Semigroup (IterT m a))
+    ##         arising from the superclasses of an instance declaration
+    ##       from the context: (Monad m, Monoid a)
+    src = pkgs.fetchFromGitHub {
+      owner  = "ekmett";
+      repo   = "free";
       rev    = "fcefc71ed302f2eaf60f020046bad392338b3109";
       sha256 = "0mfrd7y97pgqmb2i66jn5xwjpcrgnfcqq8dzkxqgx1b5wjdydq70";
     };
-    jailbreak       = true;
+    ## Setup: Encountered missing dependencies:
+    ## transformers-base <0.5
+    ## builder for ‘/nix/store/3yvaqx5qcg1fb3nnyc273fkhgfh73pgv-free-4.12.4.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/3yvaqx5qcg1fb3nnyc273fkhgfh73pgv-free-4.12.4.drv’ failed
     libraryHaskellDepends = drv.libraryHaskellDepends ++ [ self.transformers-base ];
   });
 
-  gtk2hs-buildtools = overrideCabal super.gtk2hs-buildtools (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/gtk2hs/gtk2hs";
-      rev    = "1a4065e61e6bef674791bd0463efe3bc27d31816";
-      sha256 = "15zj6zgshmpf6dzja3npxjbg56dr0hdyg1qvx5ssg7i56dc1kdxf";
-    };
-    jailbreak       = true;
-    prePatch        = "cd tools; ";
-  });
-
-  happy = overrideCabal super.happy (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/simonmar/happy";
-      rev    = "8e4dc4318a8e03bbb746ffa0ded1933b1da9e361";
-      sha256 = "1vvsc955ms2wfy8n4yjwcgywx679yb5c11iaw1yqy7qb9zfx8zhb";
-    };
-    doHaddock       = false;
-    postPatch       = "rm -f src/AttrGrammarParser.ly src/Parser.ly tests/ParGF.yg";
-  });
-
   haskell-gi = overrideCabal super.haskell-gi (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/haskell-gi/haskell-gi";
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ## Setup: Encountered missing dependencies:
+    ## haskell-gi-base ==0.20.*
+    ## builder for ‘/nix/store/q0qkq2gzmdnkvdz6xl7svv5305chbr4b-haskell-gi-0.20.3.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/q0qkq2gzmdnkvdz6xl7svv5305chbr4b-haskell-gi-0.20.3.drv’ failed
+    src = pkgs.fetchFromGitHub {
+      owner  = "haskell-gi";
+      repo   = "haskell-gi";
       rev    = "30d2e6415c5b57760f8754cd3003eb07483d60e6";
       sha256 = "1l3qm97gcjih695hhj80rbpnd72prnc81lg5y373yj8jk9f6ypbr";
     };
+    ## CABAL-MISSING-DEPS
+    ## Setup: Encountered missing dependencies:
+    ## ghc >=7.0 && <8.4
+    ## builder for ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed
     doCheck         = false;
   });
 
   haskell-gi-base = overrideCabal super.haskell-gi-base (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/haskell-gi/haskell-gi";
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ## breaks haskell-gi:
+    ## Setup: Encountered missing dependencies:
+    ## haskell-gi-base ==0.21.*
+    src = pkgs.fetchFromGitHub {
+      owner  = "haskell-gi";
+      repo   = "haskell-gi";
       rev    = "30d2e6415c5b57760f8754cd3003eb07483d60e6";
       sha256 = "1l3qm97gcjih695hhj80rbpnd72prnc81lg5y373yj8jk9f6ypbr";
     };
-    doCheck         = false;
-    jailbreak       = true;
+    ## Setup: Encountered missing dependencies:
+    ## attoparsec ==0.13.*,
+    ## doctest >=0.8,
+    ## haskell-gi-base ==0.21.*,
+    ## pretty-show -any,
+    ## regex-tdfa >=1.2,
     prePatch        = "cd base; ";
   });
 
-  haskell-src-meta = overrideCabal super.haskell-src-meta (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/bmillwood/haskell-src-meta";
-      rev    = "876a4987fbad019f1c8fdd9ca0bdcce0cc7572a2";
-      sha256 = "0qc9fmjpkhkmmm9qxiv6zd4w8p8r4015z9sf1fim1habma4bwajw";
+  haskell-src-exts = overrideCabal super.haskell-src-exts (drv: {
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ##     • Could not deduce (Semigroup (ParseResult m))
+    ##         arising from the superclasses of an instance declaration
+    ##       from the context: Monoid m
+    src = pkgs.fetchFromGitHub {
+      owner  = "haskell-suite";
+      repo   = "haskell-src-exts";
+      rev    = "935f6f0915e89c314b686bdbdc6980c72335ba3c";
+      sha256 = "1v3c1bd5q07qncqfbikvs8h3r4dr500blm5xv3b4jqqv69f0iam9";
     };
-    jailbreak       = true;
   });
 
-  JuicyPixels = overrideCabal super.JuicyPixels (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/Twinside/Juicy.Pixels";
-      rev    = "2797ace53b8c0997580ef32a515e80fe1c615921";
-      sha256 = "0cay497r0j1rjiic0nfnxwzazi2pv60isnf646hfpa25n2r8y52p";
+  hedgehog = overrideCabal super.hedgehog (drv: {
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ## /nix/store/78sxg2kvl2klplqfx22s6b42lds7qq23-stdenv/setup: line 99: cd: hedgehog: No such file or directory
+    src = pkgs.fetchFromGitHub {
+      owner  = "hedgehogqa";
+      repo   = "haskell-hedgehog";
+      rev    = "7a4fab73670bc33838f2b5f25eb824ee550079ce";
+      sha256 = "1l8maassmklf6wgairk7llxvlbwxngv0dzx0fwnqx6hsb32sms05";
     };
-    doCheck         = false;
-    jailbreak       = true;
-    libraryHaskellDepends = drv.libraryHaskellDepends ++ [ self.MonadRandom ];
+    ## jailbreak-cabal: dieVerbatim: user error (jailbreak-cabal: Error Parsing: file "hedgehog.cabal" doesn't exist. Cannot
+    prePatch        = "cd hedgehog; ";
   });
 
   lambdacube-compiler = overrideCabal super.lambdacube-compiler (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/lambdacube3d/lambdacube-compiler";
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ## Setup: Encountered missing dependencies:
+    ## aeson >=0.9 && <0.12,
+    ## base >=4.7 && <4.10,
+    ## directory ==1.2.*,
+    ## megaparsec ==5.0.*,
+    ## vector ==0.11.*
+    src = pkgs.fetchFromGitHub {
+      owner  = "lambdacube3d";
+      repo   = "lambdacube-compiler";
       rev    = "ff6e3b136eede172f20ea8a0f7017ad1ecd029b8";
       sha256 = "0srzrq5s7pdbygn7vdipxl12a3gbyb6bpa7frbh8zwhb9fz0jx5m";
     };
-    jailbreak       = true;
-  });
-
-  lambdacube-gl = overrideCabal super.lambdacube-gl (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/lambdacube3d/lambdacube-gl";
-      rev    = "297dfbf6f633a1269640b92ebc55b05ca58c102f";
-      sha256 = "13hd8cn3dpqz5mxrvf8a5rqq200icfq5lim73nzhzp8wqw6gw30h";
-    };
-    jailbreak       = true;
   });
 
   lambdacube-ir = overrideCabal super.lambdacube-ir (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/lambdacube3d/lambdacube-ir";
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ## /nix/store/78sxg2kvl2klplqfx22s6b42lds7qq23-stdenv/setup: line 99: cd: lambdacube-ir.haskell: No such file or directory
+    src = pkgs.fetchFromGitHub {
+      owner  = "lambdacube3d";
+      repo   = "lambdacube-ir";
       rev    = "b86318b510ef59606c5b7c882cad33af52ce257c";
       sha256 = "0j4r6b32lcm6jg653xzg9ijxkfjahlb4x026mv5dhs18kvgqhr8x";
     };
-    jailbreak       = true;
+    ## Setup: No cabal file found.
     prePatch        = "cd lambdacube-ir.haskell; ";
   });
 
   lens = overrideCabal super.lens (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/ekmett/lens";
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ##     • Could not deduce (Apply f)
+    ##         arising from the superclasses of an instance declaration
+    ##       from the context: (Contravariant f, Applicative f)
+    src = pkgs.fetchFromGitHub {
+      owner  = "ekmett";
+      repo   = "lens";
       rev    = "4ad49eaf2448d856f0433fe5a4232f1e8fa87eb0";
       sha256 = "0sd08v6syadplhk5d21yi7qffbjncn8z1bqlwz9nyyb0xja8s8wa";
     };
+    ## CABAL-MISSING-DEPS
+    ## Setup: Encountered missing dependencies:
+    ## ghc >=7.0 && <8.4
+    ## builder for ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed
     doCheck         = false;
+    ## Setup: Encountered missing dependencies:
+    ## template-haskell >=2.4 && <2.13
+    ## builder for ‘/nix/store/fvrc4s96ym33i74y794nap7xai9p69fa-lens-4.15.4.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/fvrc4s96ym33i74y794nap7xai9p69fa-lens-4.15.4.drv’ failed
     jailbreak       = true;
-  });
-
-  network-uri = overrideCabal super.network-uri (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/haskell/network-uri";
-      rev    = "3b388b2bf07638ae0c2077e4c752d695da303d87";
-      sha256 = "0yhkbnjmy3kasc69ydyngr4af9rg3l4g6bm4vrj4h74q08cbiapb";
-    };
-    jailbreak       = true;
-  });
-
-  primitive = overrideCabal super.primitive (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/haskell/primitive";
-      rev    = "1090cbd159f23e4d5867348b61badae32bc9ec6c";
-      sha256 = "1bssnpyfz4nh6w8gxgxi0da2cdlarr15daa9fidci67f3d81r24k";
-    };
-    jailbreak       = true;
-  });
-
-  profunctors = overrideCabal super.profunctors (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/ekmett/profunctors";
-      rev    = "f9766bcb4a97484d3a00361cd824b9d1a38386d1";
-      sha256 = "05pk7aqp81s5z7gck0nf2fvbjvaq4bjfghikm8f0vms09l59c76l";
-    };
-
-  });
-
-  reflection = overrideCabal super.reflection (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/ekmett/reflection";
-      rev    = "6508a04342256cab34bd6aee06ec61a166ce56fb";
-      sha256 = "05dkwx1p43rc45g9y6bwdxiqfcdhq0anr4djfaraj3a0nain5caf";
-    };
-    jailbreak       = true;
-  });
-
-  semigroupoids = overrideCabal super.semigroupoids (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/ekmett/semigroupoids";
-      rev    = "2ba07fd6e211a4cce981da3ea279fa1d67f69db1";
-      sha256 = "1a9dr1099lbny7fd64xp10f5fgbcrma8cw71q07388xhs3g31w42";
-    };
-    doCheck         = false;
-    editedCabalFile = null;
-    revision        = null;
-    libraryHaskellDepends = drv.libraryHaskellDepends ++ [ self.template-haskell ];
   });
 
   simple-reflect = overrideCabal super.simple-reflect (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/twanvl/simple-reflect";
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ##     • No instance for (Semigroup Expr)
+    ##         arising from the superclasses of an instance declaration
+    ##     • In the instance declaration for ‘Monoid Expr’
+    src = pkgs.fetchFromGitHub {
+      owner  = "twanvl";
+      repo   = "simple-reflect";
       rev    = "c357e55da9a712dc5dbbfe6e36394e4ada2db310";
       sha256 = "15q41b00l8y51xzhbj5zhddyh3gi7gvml033w8mm2fih458jf6yq";
     };
-    jailbreak       = true;
+  });
+
+  singletons = overrideCabal super.singletons (drv: {
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ## Setup: Encountered missing dependencies:
+    ## th-desugar ==1.7.*
+    ## builder for ‘/nix/store/g5jl22kpq8fnrg8ldphxndri759nxwzf-singletons-2.3.1.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/g5jl22kpq8fnrg8ldphxndri759nxwzf-singletons-2.3.1.drv’ failed
+    src = pkgs.fetchFromGitHub {
+      owner  = "goldfirere";
+      repo   = "singletons";
+      rev    = "23aa4bdaf05ce025a2493b35ec3c26cc94e3fdce";
+      sha256 = "0hw12v4z8jxmykc3j8z6g27swmfpxv40bgnx7nl0ialpwbz9mz27";
+    };
   });
 
   stringbuilder = overrideCabal super.stringbuilder (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/sol/stringbuilder";
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ##     • No instance for (Semigroup Builder)
+    ##         arising from the superclasses of an instance declaration
+    ##     • In the instance declaration for ‘Monoid Builder’
+    src = pkgs.fetchFromGitHub {
+      owner  = "sol";
+      repo   = "stringbuilder";
       rev    = "4a1b689d3c8a462b28e0d21224b96165f622e6f7";
       sha256 = "0h3nva4mwxkdg7hh7b7a3v561wi1bvmj0pshhd3sl7dy3lpvnrah";
     };
-    doCheck         = false;
-    jailbreak       = true;
-  });
-
-  tagged = overrideCabal super.tagged (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/ekmett/tagged";
-      rev    = "d86a2109773bd79adecf78ed49f85316ff0ae2ad";
-      sha256 = "1hfq660rc05ljqhnr65n01kmxvyfad7widwg5qn83a74v41qbhap";
-    };
-    doCheck         = false;
-    jailbreak       = true;
-    editedCabalFile = null;
-    revision        = null;
   });
 
   th-desugar = overrideCabal super.th-desugar (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/goldfirere/th-desugar";
-      rev    = "879edfa2a09fb5a829b40ccb55de960398bf8cea";
-      sha256 = "1p3aac87sfrrs9p4llb63qb891slx2mjz7vf255lvvgcfkhqrcrp";
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ##     • Could not deduce (MonadIO (DsM q))
+    ##         arising from the 'deriving' clause of a data type declaration
+    ##       from the context: Quasi q
+    src = pkgs.fetchFromGitHub {
+      owner  = "goldfirere";
+      repo   = "th-desugar";
+      rev    = "4ca98c6492015e6ad063d3ad1a2ad6c4f0a56837";
+      sha256 = "1n3myd3gia9qsgdvrwqa023d3g7wkrhyv0wc8czwzz0lj9xzh7lw";
     };
-    doCheck         = false;
-    jailbreak       = true;
   });
 
   unordered-containers = overrideCabal super.unordered-containers (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/tibbe/unordered-containers";
-      rev    = "60ced060304840ed0bf368249ed6eb4e43d4cefc";
-      sha256 = "10sa6h6cvhrsg8yqg23dg07q28liczgqwa084zyrkpifsg0j3zhq";
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ##     Module ‘Data.Semigroup’ does not export ‘Monoid(..)’
+    ##    |
+    ## 80 | import Data.Semigroup (Semigroup(..), Monoid(..))
+    src = pkgs.fetchFromGitHub {
+      owner  = "tibbe";
+      repo   = "unordered-containers";
+      rev    = "0a6b84ec103e28b73458f385ef846a7e2d3ea42f";
+      sha256 = "128q8k4py2wr1v0gmyvqvzikk6sksl9aqj0lxzf46763lis8x9my";
     };
-    doCheck         = false;
-    jailbreak       = true;
   });
 
   websockets = overrideCabal super.websockets (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/jaspervdj/websockets";
+    ## Upstreamed, awaiting a Hackage release
+    ## 
+    ##     • No instance for (Semigroup SizeLimit)
+    ##         arising from the superclasses of an instance declaration
+    ##     • In the instance declaration for ‘Monoid SizeLimit’
+    src = pkgs.fetchFromGitHub {
+      owner  = "jaspervdj";
+      repo   = "websockets";
       rev    = "11ba6d15cf47bace1936b13a58192e37908b0300";
       sha256 = "1swphhnqvs5kh0wlqpjjgx9q91yxi6lasid8akdxp3gqll5ii2hf";
     };
-
   });
 
 
-# Unmerged
+  ## Unmerged
 
   blaze-builder = overrideCabal super.blaze-builder (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/lpsmith/blaze-builder";
+    ## Unmerged.  PR: https://github.com/lpsmith/blaze-builder/pull/10
+    ## 
+    ##     • No instance for (Semigroup Poke)
+    ##         arising from the superclasses of an instance declaration
+    ##     • In the instance declaration for ‘Monoid Poke’
+    src = pkgs.fetchFromGitHub {
+      owner  = "bgamari";
+      repo   = "blaze-builder";
       rev    = "b7195f160795a081adbb9013810d843f1ba5e062";
       sha256 = "1g351fdpsvn2lbqiy9bg2s0wwrdccb8q1zh7gvpsx5nnj24b1c00";
     };
-    doCheck         = false;
-    jailbreak       = true;
   });
 
   bytestring-trie = overrideCabal super.bytestring-trie (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/wrengr/bytestring-trie";
+    ## Unmerged.  PR: https://github.com/wrengr/bytestring-trie/pull/3
+    ## 
+    ##     • Could not deduce (Semigroup (Trie a))
+    ##         arising from the superclasses of an instance declaration
+    ##       from the context: Monoid a
+    src = pkgs.fetchFromGitHub {
+      owner  = "RyanGlScott";
+      repo   = "bytestring-trie";
       rev    = "e0ae0cb1ad40dedd560090d69cc36f9760797e29";
       sha256 = "1jkdchvrca7dgpij5k4h1dy4qr1rli3fzbsqajwxmx9865rgiksl";
     };
+    ## Setup: Encountered missing dependencies:
+    ## HUnit >=1.3.1.1 && <1.7,
+    ## QuickCheck >=2.4.1 && <2.11,
+    ## lazysmallcheck ==0.6.*,
+    ## smallcheck >=1.1.1 && <1.2
     doCheck         = false;
-    jailbreak       = true;
+    ## Setup: Encountered missing dependencies:
+    ## data-or ==1.0.*
+    ## builder for ‘/nix/store/iw3xsljnygsv9q2jglcv54mqd94fig7n-bytestring-trie-0.2.4.1.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/iw3xsljnygsv9q2jglcv54mqd94fig7n-bytestring-trie-0.2.4.1.drv’ failed
     libraryHaskellDepends = drv.libraryHaskellDepends ++ [ self.data-or ];
   });
 
-  cereal = overrideCabal super.cereal (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/GaloisInc/cereal";
-      rev    = "c2f233a3dd19655edf40841f91848ea1e78978a6";
-      sha256 = "1gfj9vnrk38d3a02wz2w1x9vcdr8k50g0f8djcgcqqkdmh1qrzyh";
+  gtk2hs-buildtools = overrideCabal super.gtk2hs-buildtools (drv: {
+    ## Unmerged.  PR: https://github.com/gtk2hs/gtk2hs/pull/233
+    ## 
+    ## /nix/store/78sxg2kvl2klplqfx22s6b42lds7qq23-stdenv/setup: line 99: cd: tools: No such file or directory
+    src = pkgs.fetchFromGitHub {
+      owner  = "deepfire";
+      repo   = "gtk2hs";
+      rev    = "08c68d5afc22dd5761ec2c92ebf49c6d252e545b";
+      sha256 = "06prn5wqq8x225n9wlbyk60f50jyjj8fm2hf181dyqjpf8wq75xa";
     };
-    doCheck         = false;
-    jailbreak       = true;
-  });
-
-  conduit-extras = overrideCabal super.conduit-extras (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com//conduit-extras";
-      rev    = "";
-      sha256 = "";
-    };
-    doCheck         = false;
-    jailbreak       = true;
-    prePatch        = "cd conduit-extras; ";
+    ## Setup: No cabal file found.
+    prePatch        = "cd tools; ";
   });
 
   hashtables = overrideCabal super.hashtables (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/gregorycollins/hashtables";
+    ## Unmerged.  PR: https://github.com/gregorycollins/hashtables/pull/46
+    ## 
+    ##     • No instance for (Semigroup Slot)
+    ##         arising from the superclasses of an instance declaration
+    ##     • In the instance declaration for ‘Monoid Slot’
+    src = pkgs.fetchFromGitHub {
+      owner  = "deepfire";
+      repo   = "hashtables";
       rev    = "b9eb4b10a50bd6250330422afecc065339a32412";
       sha256 = "0l4nplpvnzzf397zyh7j2k6yiqb46k6bdy00m4zzvhlfp7p1xkaw";
     };
-    doCheck         = false;
-    jailbreak       = true;
-  });
-
-  haskell-src-exts = overrideCabal super.haskell-src-exts (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/haskell-suite/haskell-src-exts";
-      rev    = "f1ab604faf30672af3581ed1370c8d88d7ebf28f";
-      sha256 = "09v26yh1xi7gby1jn9srqq549mpxrkg5qal1ippq5b6ca1ly2grg";
-    };
-    jailbreak       = true;
-    libraryHaskellDepends = drv.libraryHaskellDepends ++ [ self.semigroups ];
-  });
-
-  hedgehog = overrideCabal super.hedgehog (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/hedgehogqa/haskell-hedgehog";
-      rev    = "070264496263d6c6e6708d58870abc9780c1531f";
-      sha256 = "02h3vlbl3lvymsq6nf9pybs752lnp5bmf6fi65iy6q3hiypgwryy";
-    };
-    jailbreak       = true;
-    prePatch        = "cd hedgehog; ";
   });
 
   language-c = overrideCabal super.language-c (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/visq/language-c";
+    ## Unmerged.  PR: https://github.com/visq/language-c/pull/45
+    ## 
+    ##     Ambiguous occurrence ‘<>’
+    ##     It could refer to either ‘Prelude.<>’,
+    ##                              imported from ‘Prelude’ at src/Language/C/Pretty.hs:15:8-24
+    src = pkgs.fetchFromGitHub {
+      owner  = "deepfire";
+      repo   = "language-c";
       rev    = "03b120c64c12946d134017f4922b55c6ab4f52f8";
       sha256 = "1mcv46fq37kkd20rhhdbn837han5knjdsgc7ckqp5r2r9m3vy89r";
     };
+    ## /bin/sh: cabal: command not found
     doCheck         = false;
-    jailbreak       = true;
   });
 
   language-c_0_7_0 = overrideCabal super.language-c_0_7_0 (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/visq/language-c";
+    ## Unmerged.  PR: https://github.com/visq/language-c/pull/45
+    ## 
+    ##     Ambiguous occurrence ‘<>’
+    ##     It could refer to either ‘Prelude.<>’,
+    ##                              imported from ‘Prelude’ at src/Language/C/Pretty.hs:15:8-24
+    src = pkgs.fetchFromGitHub {
+      owner  = "deepfire";
+      repo   = "language-c";
       rev    = "03b120c64c12946d134017f4922b55c6ab4f52f8";
       sha256 = "1mcv46fq37kkd20rhhdbn837han5knjdsgc7ckqp5r2r9m3vy89r";
     };
+    ## /bin/sh: cabal: command not found
     doCheck         = false;
-    jailbreak       = true;
-  });
-
-  MemoTrie = overrideCabal super.MemoTrie (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/conal/MemoTrie";
-      rev    = "11f8791c3b29db3351c89cc85faa2dc8068a55ce";
-      sha256 = "1r37c7ai5h794a5131yal4n519icim5gh7g9jcd13z02n736hdi2";
-    };
-    doCheck         = false;
-    jailbreak       = true;
   });
 
   monadplus = overrideCabal super.monadplus (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/hanshoglund/monadplus";
+    ## Unmerged.  PR: https://github.com/hanshoglund/monadplus/pull/3
+    ## 
+    ##     • No instance for (Semigroup (Partial a b))
+    ##         arising from the superclasses of an instance declaration
+    ##     • In the instance declaration for ‘Monoid (Partial a b)’
+    src = pkgs.fetchFromGitHub {
+      owner  = "asr";
+      repo   = "monadplus";
       rev    = "aa09f2473e2c906f2707b8a3fdb0a087405fd6fb";
       sha256 = "0g37s3rih4i3vrn4kjwj12nq5lkpckmjw33xviva9gly2vg6p3xc";
     };
-    jailbreak       = true;
   });
 
   reflex = overrideCabal super.reflex (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/reflex-frp/reflex";
+    ## Unmerged.  PR: https://github.com/reflex-frp/reflex/pull/158
+    ## 
+    ##     • Could not deduce (Semigroup (Event t a))
+    ##         arising from the superclasses of an instance declaration
+    ##       from the context: (Semigroup a, Reflex t)
+    src = pkgs.fetchFromGitHub {
+      owner  = "deepfire";
+      repo   = "reflex";
       rev    = "4fb50139db45a37493b91973eeaad9885b4c63ca";
       sha256 = "0i7pp6cw394m2vbwcqv9z5ngdarp01sabqr1jkkgchxdkkii94nx";
     };
+    ##       mergeIncrementalWithMove ::
+    ##         GCompare k =>
+    ##         Incremental t (PatchDMapWithMove k (Event t))
+    ##         -> Event t (DMap k Identity)
+    ##       currentIncremental ::
+    ##         Patch p => Incremental t p -> Behavior t (PatchTarget p)
+    ##       updatedIncremental :: Patch p => Incremental t p -> Event t p
+    ##       incrementalToDynamic ::
+    ##         Patch p => Incremental t p -> Dynamic t (PatchTarget p)
+    ##       behaviorCoercion ::
+    ##         Coercion a b -> Coercion (Behavior t a) (Behavior t b)
+    ##       eventCoercion :: Coercion a b -> Coercion (Event t a) (Event t b)
+    ##       dynamicCoercion ::
+    ##         Coercion a b -> Coercion (Dynamic t a) (Dynamic t b)
+    ##       mergeIntIncremental ::
+    ##         Incremental t (PatchIntMap (Event t a)) -> Event t (IntMap a)
+    ##       fanInt :: Event t (IntMap a) -> EventSelectorInt t a
+    ##       {-# MINIMAL never, constant, push, pushCheap, pull, merge, fan,
+    ##                   switch, coincidence, current, updated, unsafeBuildDynamic,
+    ##                   unsafeBuildIncremental, mergeIncremental, mergeIncrementalWithMove,
+    ##                   currentIncremental, updatedIncremental, incrementalToDynamic,
+    ##                   behaviorCoercion, eventCoercion, dynamicCoercion,
+    ##                   mergeIntIncremental, fanInt #-}
+    ## Matches:
+    ##     []
+    ## Call stack:
+    ##     CallStack (from HasCallStack):
+    ##       callStackDoc, called at compiler/utils/Outputable.hs:1150:37 in ghc:Outputable
+    ##       pprPanic, called at utils/haddock/haddock-api/src/Haddock/Interface/Create.hs:1013:16 in main:Haddock.Interface.Create
+    ## Please report this as a GHC bug:  http://www.haskell.org/ghc/reportabug
     doHaddock       = false;
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.7 && <4.11, bifunctors >=5.2 && <5.5
+    ## builder for ‘/nix/store/93ka24600m4mipsgn2cq8fwk124q97ca-reflex-0.4.0.1.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/93ka24600m4mipsgn2cq8fwk124q97ca-reflex-0.4.0.1.drv’ failed
     jailbreak       = true;
+    ## Setup: Encountered missing dependencies:
+    ## data-default -any,
+    ## lens -any,
+    ## monad-control -any,
+    ## prim-uniq -any,
+    ## reflection -any,
     libraryHaskellDepends = drv.libraryHaskellDepends ++ [ self.data-default self.haskell-src-exts self.lens self.monad-control self.prim-uniq self.reflection self.split self.template-haskell self.unbounded-delays ];
   });
 
   regex-tdfa = overrideCabal super.regex-tdfa (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/ChrisKuklewicz/regex-tdfa";
+    ## Unmerged.  PR: https://github.com/ChrisKuklewicz/regex-tdfa/pull/13
+    ## 
+    ##     • No instance for (Semigroup (CharMap a))
+    ##         arising from the superclasses of an instance declaration
+    ##     • In the instance declaration for ‘Monoid (CharMap a)’
+    src = pkgs.fetchFromGitHub {
+      owner  = "bgamari";
+      repo   = "regex-tdfa";
       rev    = "34f4593a520176a917b74b8c7fcbbfbd72fb8178";
       sha256 = "1aiklvf08w1hx2jn9n3sm61mfvdx4fkabszkjliapih2yjpmi3hq";
     };
-    doCheck         = false;
-    jailbreak       = true;
-  });
-
-  tasty-ant-xml = overrideCabal super.tasty-ant-xml (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/ocharles/tasty-ant-xml";
-      rev    = "4fd48e099ea635e060f9141ddd4d72ada0e6a692";
-      sha256 = "14w9c12pf0n90405vmhi9fwggbaq7pwlx7bi71r5x7w1x6x5l9za";
-    };
-    jailbreak       = true;
   });
 
   text-format = overrideCabal super.text-format (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/bos/text-format";
+    ## Unmerged.  PR: https://github.com/bos/text-format/pull/21
+    ## 
+    ##     • No instance for (Semigroup Format)
+    ##         arising from the superclasses of an instance declaration
+    ##     • In the instance declaration for ‘Monoid Format’
+    src = pkgs.fetchFromGitHub {
+      owner  = "deepfire";
+      repo   = "text-format";
       rev    = "a1cda87c222d422816f956c7272e752ea12dbe19";
       sha256 = "0lyrx4l57v15rvazrmw0nfka9iyxs4wyaasjj9y1525va9s1z4fr";
     };
-    doCheck         = false;
-    jailbreak       = true;
-  });
-
-  th-lift = overrideCabal super.th-lift (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/mboes/th-lift";
-      rev    = "8087adb22d3b1ff1dcd4d960aa8778d77c9e3538";
-      sha256 = "067lxkka8s0pnn84v4ii86psv3l33jkibh81cw2z6x56a97hbji0";
-    };
-    doCheck         = false;
-    jailbreak       = true;
   });
 
   wl-pprint-text = overrideCabal super.wl-pprint-text (drv: {
-    src = pkgs.fetchgit {
-      url    = "https://github.com/ivan-m/wl-pprint-text";
+    ## Unmerged.  PR: https://github.com/ivan-m/wl-pprint-text/pull/17
+    ## 
+    ##     Ambiguous occurrence ‘<>’
+    ##     It could refer to either ‘PP.<>’,
+    ##                              imported from ‘Prelude.Compat’ at Text/PrettyPrint/Leijen/Text/Monadic.hs:73:1-36
+    src = pkgs.fetchFromGitHub {
+      owner  = "deepfire";
+      repo   = "wl-pprint-text";
       rev    = "615b83d1e5be52d1448aa1ab2517b431a617027b";
       sha256 = "1p67v9s878br0r152h4n37smqhkg78v8zxhf4qm6d035s4rzj76i";
     };
-    doCheck         = false;
-    jailbreak       = true;
   });
 
 
-# Non-code change
+  ## Non-code, configuration-only change
 
   adjunctions = overrideCabal super.adjunctions (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## free ==4.*
+    ## builder for ‘/nix/store/64pvqslahgby4jlg9rpz29n8w4njb670-adjunctions-4.3.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/64pvqslahgby4jlg9rpz29n8w4njb670-adjunctions-4.3.drv’ failed
     jailbreak       = true;
   });
 
   async = overrideCabal super.async (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.3 && <4.11
+    ## builder for ‘/nix/store/2xf491hgsmckz2akrn765kvvy2k8crbd-async-2.1.1.1.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/2xf491hgsmckz2akrn765kvvy2k8crbd-async-2.1.1.1.drv’ failed
     jailbreak       = true;
   });
 
   bifunctors = overrideCabal super.bifunctors (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## template-haskell >=2.4 && <2.13
+    ## builder for ‘/nix/store/dy1hzdy14pz96cvx37yggbv6a88sgxq4-bifunctors-5.5.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/dy1hzdy14pz96cvx37yggbv6a88sgxq4-bifunctors-5.5.drv’ failed
     jailbreak       = true;
   });
 
   bindings-GLFW = overrideCabal super.bindings-GLFW (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## template-haskell >=2.10 && <2.13
+    ## builder for ‘/nix/store/ykc786r2bby5kkbpqjg0y10wb9jhmsa9-bindings-GLFW-3.1.2.3.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/ykc786r2bby5kkbpqjg0y10wb9jhmsa9-bindings-GLFW-3.1.2.3.drv’ failed
     jailbreak       = true;
   });
 
   bytes = overrideCabal super.bytes (drv: {
+    ## CABAL-MISSING-DEPS
+    ## Setup: Encountered missing dependencies:
+    ## ghc >=7.0 && <8.4
+    ## builder for ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed
     doCheck         = false;
   });
 
   cabal-doctest = overrideCabal super.cabal-doctest (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## Cabal >=1.10 && <2.1, base >=4.3 && <4.11
+    ## builder for ‘/nix/store/zy3l0ll0r9dq29lgxajv12rz1jzjdkrn-cabal-doctest-1.0.5.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/zy3l0ll0r9dq29lgxajv12rz1jzjdkrn-cabal-doctest-1.0.5.drv’ failed
     jailbreak       = true;
   });
 
   ChasingBottoms = overrideCabal super.ChasingBottoms (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.2 && <4.11
+    ## builder for ‘/nix/store/wsyjjf4x6pmx84kxnjaka7zwakyrca03-ChasingBottoms-1.3.1.3.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/wsyjjf4x6pmx84kxnjaka7zwakyrca03-ChasingBottoms-1.3.1.3.drv’ failed
     jailbreak       = true;
   });
 
   comonad = overrideCabal super.comonad (drv: {
+    ## CABAL-MISSING-DEPS
+    ## Setup: Encountered missing dependencies:
+    ## ghc >=7.0 && <8.4
+    ## builder for ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed
     doCheck         = false;
   });
 
   distributive = overrideCabal super.distributive (drv: {
+    ## CABAL-MISSING-DEPS
+    ## Setup: Encountered missing dependencies:
+    ## ghc >=7.0 && <8.4
+    ## builder for ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed
     doCheck         = false;
   });
 
-  exceptions = overrideCabal super.exceptions (drv: {
+  exception-transformers = overrideCabal super.exception-transformers (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## HUnit >=1.2 && <1.6
+    ## builder for ‘/nix/store/qs4g7lzq1ixcgg5rw4xb5545g7r34md8-exception-transformers-0.4.0.5.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/qs4g7lzq1ixcgg5rw4xb5545g7r34md8-exception-transformers-0.4.0.5.drv’ failed
     jailbreak       = true;
   });
 
-  exception-transformers = overrideCabal super.exception-transformers (drv: {
+  hashable = overrideCabal super.hashable (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.4 && <4.11
+    ## builder for ‘/nix/store/4qlxxypfhbwcv227cmsja1asgqnq37gf-hashable-1.2.6.1.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/4qlxxypfhbwcv227cmsja1asgqnq37gf-hashable-1.2.6.1.drv’ failed
     jailbreak       = true;
   });
 
   hashable-time = overrideCabal super.hashable-time (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.7 && <4.11
+    ## builder for ‘/nix/store/38dllcgxpmkd2fgvs6wd7ji86py0wbnh-hashable-time-0.2.0.1.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/38dllcgxpmkd2fgvs6wd7ji86py0wbnh-hashable-time-0.2.0.1.drv’ failed
     jailbreak       = true;
   });
 
-  hlint = overrideCabal super.hlint (drv: {
+  haskell-src-meta = overrideCabal super.haskell-src-meta (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.6 && <4.11, template-haskell >=2.8 && <2.13
+    ## builder for ‘/nix/store/g5wkb14sydvyv484agvaa7hxl84a0wr9-haskell-src-meta-0.8.0.2.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/g5wkb14sydvyv484agvaa7hxl84a0wr9-haskell-src-meta-0.8.0.2.drv’ failed
     jailbreak       = true;
+  });
+
+  hspec = overrideCabal super.hspec (drv: {
+    ##     Real
+    ##     Bool
+    ##     Ordering
+    ##     odd
+    ##     even
+    ##   67% (  2 /  3) in 'Test.Hspec.HUnit'
+    ##   Missing documentation for:
+    ##     Module header
+    ##   50% (  1 /  2) in 'Test.Hspec.Runner'
+    ##   Missing documentation for:
+    ##     Module header
+    ## haddock: panic! (the 'impossible' happened)
+    ##   (GHC version 8.4.20180122 for x86_64-unknown-linux):
+    ## 	extractDecl
+    ## Ambiguous decl for Arg in class:
+    ##     class Example e where
+    ##       type Arg e :: *
+    ##       {-# MINIMAL evaluateExample #-}
+    ##       evaluateExample ::
+    ##         e
+    ##         -> Params
+    ##            -> ActionWith Arg e -> IO () -> ProgressCallback -> IO Result
+    ## Matches:
+    ##     []
+    ## Call stack:
+    ##     CallStack (from HasCallStack):
+    ##       callStackDoc, called at compiler/utils/Outputable.hs:1150:37 in ghc:Outputable
+    ##       pprPanic, called at utils/haddock/haddock-api/src/Haddock/Interface/Create.hs:1013:16 in main:Haddock.Interface.Create
+    ## Please report this as a GHC bug:  http://www.haskell.org/ghc/reportabug
+    doHaddock       = false;
+  });
+
+  hspec-meta = overrideCabal super.hspec-meta (drv: {
+    ## Linking dist/build/hspec-meta-discover/hspec-meta-discover ...
+    ## running tests
+    ## Package has no test suites.
+    ## haddockPhase
+    ## Running hscolour for hspec-meta-2.4.6...
+    ## Preprocessing library for hspec-meta-2.4.6..
+    ## Preprocessing executable 'hspec-meta-discover' for hspec-meta-2.4.6..
+    ## Preprocessing library for hspec-meta-2.4.6..
+    ## Running Haddock on library for hspec-meta-2.4.6..
+    ## Haddock coverage:
+    ## haddock: panic! (the 'impossible' happened)
+    ##   (GHC version 8.4.20180122 for x86_64-unknown-linux):
+    ## 	extractDecl
+    ## Ambiguous decl for Arg in class:
+    ##     class Example e where
+    ##       type Arg e
+    ##       type Arg e = ()
+    ##       evaluateExample ::
+    ##         e
+    ##         -> Params
+    ##            -> (ActionWith (Arg e) -> IO ()) -> ProgressCallback -> IO Result
+    ##       {-# MINIMAL evaluateExample #-}
+    ## Matches:
+    ##     []
+    ## Call stack:
+    ##     CallStack (from HasCallStack):
+    ##       callStackDoc, called at compiler/utils/Outputable.hs:1150:37 in ghc:Outputable
+    ##       pprPanic, called at utils/haddock/haddock-api/src/Haddock/Interface/Create.hs:1013:16 in main:Haddock.Interface.Create
+    ## Please report this as a GHC bug:  http://www.haskell.org/ghc/reportabug
+    doHaddock       = false;
   });
 
   integer-logarithms = overrideCabal super.integer-logarithms (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.3 && <4.11
+    ## builder for ‘/nix/store/zdiicv0jmjsw6bprs8wxxaq5m0z0a75f-integer-logarithms-1.0.2.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/zdiicv0jmjsw6bprs8wxxaq5m0z0a75f-integer-logarithms-1.0.2.drv’ failed
     jailbreak       = true;
   });
 
   kan-extensions = overrideCabal super.kan-extensions (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## free ==4.*
+    ## builder for ‘/nix/store/kvnlcj6zdqi2d2yq988l784hswjwkk4c-kan-extensions-5.0.2.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/kvnlcj6zdqi2d2yq988l784hswjwkk4c-kan-extensions-5.0.2.drv’ failed
     jailbreak       = true;
   });
 
   keys = overrideCabal super.keys (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## free ==4.*
+    ## builder for ‘/nix/store/khkbn7wmjr10nyq0wwkmn888bj1l4fmh-keys-3.11.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/khkbn7wmjr10nyq0wwkmn888bj1l4fmh-keys-3.11.drv’ failed
+    jailbreak       = true;
+  });
+
+  lambdacube-gl = overrideCabal super.lambdacube-gl (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## vector ==0.11.*
+    ## builder for ‘/nix/store/a98830jm4yywfg1d6264p4yngbiyvssp-lambdacube-gl-0.5.2.4.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/a98830jm4yywfg1d6264p4yngbiyvssp-lambdacube-gl-0.5.2.4.drv’ failed
     jailbreak       = true;
   });
 
   lifted-async = overrideCabal super.lifted-async (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.5 && <4.11
+    ## builder for ‘/nix/store/l3000vil24jyq66a5kfqvxfdmy7agwic-lifted-async-0.9.3.3.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/l3000vil24jyq66a5kfqvxfdmy7agwic-lifted-async-0.9.3.3.drv’ failed
     jailbreak       = true;
   });
 
   linear = overrideCabal super.linear (drv: {
+    ## CABAL-MISSING-DEPS
+    ## Setup: Encountered missing dependencies:
+    ## ghc >=7.0 && <8.4
+    ## builder for ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed
     doCheck         = false;
   });
 
   newtype-generics = overrideCabal super.newtype-generics (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.6 && <4.11
+    ## builder for ‘/nix/store/l3rzsjbwys4rjrpv1703iv5zwbd4bwy6-newtype-generics-0.5.1.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/l3rzsjbwys4rjrpv1703iv5zwbd4bwy6-newtype-generics-0.5.1.drv’ failed
     jailbreak       = true;
   });
 
   parallel = overrideCabal super.parallel (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.3 && <4.11
+    ## builder for ‘/nix/store/c16gcgn7d7gql8bbjqngx7wbw907hnwb-parallel-3.2.1.1.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/c16gcgn7d7gql8bbjqngx7wbw907hnwb-parallel-3.2.1.1.drv’ failed
     jailbreak       = true;
-  });
-
-  parsers = overrideCabal super.parsers (drv: {
-    doCheck         = false;
   });
 
   quickcheck-instances = overrideCabal super.quickcheck-instances (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.5 && <4.11
+    ## builder for ‘/nix/store/r3fx9f7ksp41wfn6cp4id3mzgv04pwij-quickcheck-instances-0.3.16.1.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/r3fx9f7ksp41wfn6cp4id3mzgv04pwij-quickcheck-instances-0.3.16.1.drv’ failed
     jailbreak       = true;
   });
 
-  scientific = overrideCabal super.scientific (drv: {
-    jailbreak       = true;
-  });
-
-  split = overrideCabal super.split (drv: {
+  tasty-ant-xml = overrideCabal super.tasty-ant-xml (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## tasty >=0.10 && <1.0
+    ## builder for ‘/nix/store/86dlb96cdw9jpq95xbndf4axj1z542d6-tasty-ant-xml-1.1.2.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/86dlb96cdw9jpq95xbndf4axj1z542d6-tasty-ant-xml-1.1.2.drv’ failed
     jailbreak       = true;
   });
 
   tasty-expected-failure = overrideCabal super.tasty-expected-failure (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.5 && <4.11
+    ## builder for ‘/nix/store/gdm01qb8ppxgrl6dgzhlj8fzmk4x8dj3-tasty-expected-failure-0.11.0.4.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/gdm01qb8ppxgrl6dgzhlj8fzmk4x8dj3-tasty-expected-failure-0.11.0.4.drv’ failed
     jailbreak       = true;
   });
 
   tasty-hedgehog = overrideCabal super.tasty-hedgehog (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.8 && <4.11, tasty ==0.11.*
+    ## builder for ‘/nix/store/bpxyzzbmb03n88l4xz4k2rllj4227fwv-tasty-hedgehog-0.1.0.1.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/bpxyzzbmb03n88l4xz4k2rllj4227fwv-tasty-hedgehog-0.1.0.1.drv’ failed
     jailbreak       = true;
   });
 
-  tasty-hspec = overrideCabal super.tasty-hspec (drv: {
-    jailbreak       = true;
+  test-framework = overrideCabal super.test-framework (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## QuickCheck >=2.3 && <2.10
+    ## builder for ‘/nix/store/d60y5jwn5bpgk2p8ps23c129dcw7whg6-test-framework-0.8.2.0.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/d60y5jwn5bpgk2p8ps23c129dcw7whg6-test-framework-0.8.2.0.drv’ failed
+    doCheck         = false;
   });
 
   text-lens = overrideCabal super.text-lens (drv: {
-    doCheck         = false;
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.9.0.0 && <4.10,
+    ## extra >=1.4.10 && <1.5,
+    ## hspec >=2.2.4 && <2.3,
+    ## lens ==4.14.*
     jailbreak       = true;
   });
 
   th-abstraction = overrideCabal super.th-abstraction (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## template-haskell >=2.5 && <2.13
+    ## builder for ‘/nix/store/la3zdphp3nqzl590n25zyrgj62ga8cl6-th-abstraction-0.2.6.0.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/la3zdphp3nqzl590n25zyrgj62ga8cl6-th-abstraction-0.2.6.0.drv’ failed
     jailbreak       = true;
   });
 
   these = overrideCabal super.these (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.5 && <4.11
+    ## builder for ‘/nix/store/1wwqq67pinjj95fgqg13bchh0kbyrb83-these-0.7.4.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/1wwqq67pinjj95fgqg13bchh0kbyrb83-these-0.7.4.drv’ failed
     jailbreak       = true;
   });
 
   trifecta = overrideCabal super.trifecta (drv: {
+    ## CABAL-MISSING-DEPS
+    ## Setup: Encountered missing dependencies:
+    ## ghc >=7.0 && <8.4
+    ## builder for ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/yklyv4lw4d02316p31x7a2pni1z6gjgk-doctest-0.13.0.drv’ failed
     doCheck         = false;
   });
 
   unliftio-core = overrideCabal super.unliftio-core (drv: {
-    jailbreak       = true;
-  });
-
-  vector = overrideCabal super.vector (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.5 && <4.11
+    ## builder for ‘/nix/store/bn8w06wlq7zzli0858hfwlai7wbj6dmq-unliftio-core-0.1.1.0.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/bn8w06wlq7zzli0858hfwlai7wbj6dmq-unliftio-core-0.1.1.0.drv’ failed
     jailbreak       = true;
   });
 
   vector-algorithms = overrideCabal super.vector-algorithms (drv: {
+    ##     • Ambiguous type variable ‘mv0’
     doCheck         = false;
   });
 
   wavefront = overrideCabal super.wavefront (drv: {
+    ## Setup: Encountered missing dependencies:
+    ## base >=4.8 && <4.11
+    ## builder for ‘/nix/store/iy6ccxh4dvp6plalx4ww81qrnhxm7jgr-wavefront-0.7.1.1.drv’ failed with exit code 1
+    ## error: build of ‘/nix/store/iy6ccxh4dvp6plalx4ww81qrnhxm7jgr-wavefront-0.7.1.1.drv’ failed
     jailbreak       = true;
   });
 
