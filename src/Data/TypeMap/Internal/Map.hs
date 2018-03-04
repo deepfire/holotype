@@ -39,7 +39,7 @@ index
   :: forall a d
   .  KnownNat (Index a d)
   => TypeMap d -> Lookup a d
-index (TypeMap inf m _) = unsafeIndex @a @d index' m
+index (TypeMap inf m1 _) = unsafeIndex @a @d index' m1
   where
     index' :: forall c. IntMap c -> Int -> c
     index' m n = m IntMap.! (inf + n)
@@ -48,8 +48,8 @@ index (TypeMap inf m _) = unsafeIndex @a @d index' m
 cons
   :: forall a d b
   .  b -> TypeMap d -> TypeMap ('(a, b) ': d)
-cons b (TypeMap inf m sup) =
-  TypeMap (inf - 1) (unsafeCons cons' b m) sup
+cons b (TypeMap inf m1 sup) =
+  TypeMap (inf - 1) (unsafeCons cons' b m1) sup
   where
     cons' :: forall c. c -> IntMap c -> IntMap c
     cons' = IntMap.insert (inf - 1)
@@ -67,7 +67,7 @@ snoc
   :: forall a d b
   .  (Last d ~ '(a, b))
   => TypeMap (Init d) -> b -> TypeMap d
-snoc (TypeMap inf m sup) b = TypeMap inf (unsafeSnoc @a @d @b snoc' m b) (sup + 1)
+snoc (TypeMap inf m1 sup) b1 = TypeMap inf (unsafeSnoc @a @d @b snoc' m1 b1) (sup + 1)
   where
     snoc' :: forall c. IntMap c -> c -> IntMap c
     snoc' m b = IntMap.insert sup b m
