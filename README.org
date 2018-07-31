@@ -55,6 +55,10 @@
   14. be very clear about running external processes: can be very frustrating to
       not know what happens
 
+* Goals
+*** For the DE
+    1. Map the entire resident context available in a convenient way
+    2. Facilitate context switching by introducing sub-contexts
 * Inspiration
 
   - ECS ::
@@ -232,6 +236,10 @@
               - yEd graphml: find definition for https://github.com/tuura/pangraph/issues/7#issuecomment-273645083
             - vue
 
+* Storage backends
+  - should support rich semantics
+  - but in case we need stupid & reliable ACID data:
+    - https://github.com/apple/foundationdb/
 * Visualisable qualities
 
   - Exhaustivity ::

@@ -48,6 +48,7 @@ library
                      , extra
                      , filepath
                      , free
+                     , freer-simple
                      , fsnotify
                      --, generic-lens
                      , ghc-prim >=0.4
