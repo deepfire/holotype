@@ -87,7 +87,7 @@ library
                      , dependent-sum
                      , clock
                      , stm
-                     , rapid
+                     # , rapid
                      , text-lens
                      , text-zipper
                      , hspec

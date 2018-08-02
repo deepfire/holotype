@@ -7,7 +7,7 @@
 , lambdacube-quake3, lens, linear, lub, metamorphic, MissingH
 , monadplus, MonadRandom, mono-traversable, mtl, OpenGL, OpenGLRaw
 , parsers, pretty, pretty-show, primitive, profunctors, proteaaudio
-, QuickCheck, random, rapid, ref-tf, reflex, semigroupoids
+, QuickCheck, random, ref-tf, reflex, semigroupoids
 , semigroups, singletons, stdenv, stm, tasty, tasty-discover
 , tasty-expected-failure, tasty-hedgehog, tasty-hspec, tasty-hunit
 , tasty-quickcheck, tasty-smallcheck, template-haskell, text
@@ -29,7 +29,7 @@ mkDerivation {
     lambdacube-compiler lambdacube-gl lambdacube-ir lambdacube-quake3
     lens linear lub metamorphic MissingH monadplus MonadRandom
     mono-traversable mtl OpenGL OpenGLRaw parsers pretty pretty-show
-    primitive profunctors proteaaudio QuickCheck random rapid ref-tf
+    primitive profunctors proteaaudio QuickCheck random ref-tf
     reflex semigroupoids semigroups singletons stm tasty
     tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
     tasty-quickcheck tasty-smallcheck template-haskell text text-format
