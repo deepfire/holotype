@@ -1,6 +1,6 @@
 { nixpkgs     ? import <nixpkgs> {}
 , pkgs        ? nixpkgs.pkgs, haskell ? pkgs.haskell
-, compiler    ? "ghc841"
+, compiler    ? "ghc843"
 , ghcOrig     ? pkgs.haskell.packages."${compiler}"
 , tools       ? false
 , intero      ? tools
