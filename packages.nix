@@ -14,10 +14,10 @@ ghcOrig.override (oldArgs: {
               pname = "lambdacube-quake3";
               version = "0.1.0.0";
               src = pkgs.fetchFromGitHub {
-                owner = "deepfire";
-                repo = "lambdacube-quake3";
-                rev = "734b141eeca2722af7dff886318606c3f8ad54be";
-                sha256 = "1l7q866mxl9lcj7nryjs08vfgy26a8d4lpazi3x74nkw7i21zigh";
+                owner  = "deepfire";
+                repo   = "lambdacube-quake3";
+                rev    = "4931ffc0459847d3cefc8f6ab0215a6066234c06";
+                sha256 = "0ri1nf3vk2gaiwj2kbfa33lf5qammxj7d9c2x0wim8jvp94svxlv";
               };
               isLibrary = true;
               isExecutable = true;

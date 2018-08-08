@@ -1,0 +1,4 @@
+GHC=843
+GHC_CONFIG=configuration-ghc-8.4.x.nix
+PKGDB=pkgs  # The override state database.
+GITHUB_USER=deepfire
