@@ -143,9 +143,10 @@ defaultGeo = Geo
   , _basis           = 0
   }
 
+instance Semigroup Geo where
+  (<>) = error "Semigroup append not implemented for Flex.Geo."
 instance Monoid Geo where
   mempty  = defaultGeo
-  mappend = error "Monoidal append not implemented for Flex.Geo."
 
 
 -- * API

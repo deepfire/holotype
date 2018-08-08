@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
 {-# LANGUAGE LambdaCase, MultiWayIf, OverloadedStrings, RecordWildCards, ScopedTypeVariables, TupleSections #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-unused-top-binds #-}
 
 module HoloFont
   ( Font(..), WFont, FKind(..)
@@ -45,7 +45,6 @@ import           Control.Arrow                            ((***))
 import           Control.Monad                            (foldM)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import           Data.Either
-import           Data.Either.Extra
 import           Data.Map                                 (Map)
 import           Data.Ord
 import qualified Data.Map                          as Map
@@ -336,9 +335,10 @@ data LayoutHeightLimit where
   Units     ∷ Unit PUI → LayoutHeightLimit
   deriving (Eq, Show)
 
-instance Monoid LayoutHeightLimit where
-  mempty      = OneLine
-  mappend l r = choosePartially OneLine l r
+instance Semigroup LayoutHeightLimit where
+  l <> r = choosePartially OneLine l r
+instance Monoid    LayoutHeightLimit where
+  mempty = OneLine
 
 data TextSizeSpec u where
   TextSizeSpec ∷ FromUnit u ⇒

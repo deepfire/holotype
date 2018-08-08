@@ -40,7 +40,7 @@ import           Linear                            hiding (trace)
 import qualified GI.Pango                          as GIP (unitsToDouble, unitsFromDouble)
 
 -- Misc
-import           Text.PrettyPrint.Leijen.Text      hiding ((<>), (<$>), space)
+import           Text.PrettyPrint.Leijen.Text      hiding ((<$>), space)
 
 -- Dirty stuff
 import qualified Foreign                           as F
@@ -237,13 +237,15 @@ deriving instance Random a ⇒ Random (An2 a)
 
 -- XXX: -ddump-deriv this:
 -- deriving instance Monoid a ⇒ Monoid (Di a)
-instance Num a ⇒ Monoid (Di a) where
+instance Num a ⇒ Semigroup (Di a) where
+  Di l <> Di r = Di $ l + r
+instance Num a ⇒ Monoid    (Di a) where
   mempty              = Di zero
-  Di l `mappend` Di r = Di $ l + r
 
-instance (Fractional a) ⇒ Monoid (Po a) where
+instance (Fractional a) ⇒ Semigroup (Po a) where
+  Po l <> Po r = Po $ (l + r) / 2
+instance (Fractional a) ⇒ Monoid    (Po a) where
   mempty              = Po zero
-  Po l `mappend` Po r = Po $ (l + r) / 2
 
 -- instance Applicative RPo where pure x = RPo (R x, An x); RPo (R fr, An fan) <*> RPo (R r, An an) = RPo (R $ fr r, An $ fan an)
 -- instance Additive    RPo where zero = RPo (zero, zero)
@@ -308,9 +310,10 @@ di'h f (Di (V2 x y)) = Di ∘       V2 x  ∘ _he'val <$> f (He y)
 
 -- * Colors
 --
-instance Monoid (Co Double) where
+instance Semigroup (Co Double) where
+  Co l <> Co r = Co $ (l + r) / 2
+instance Monoid    (Co Double) where
   mempty              = white
-  Co l `mappend` Co r = Co $ (l + r) / 2
 
 red, green, blue, white, black ∷ Co Double
 red   = co 1 0 0 1
@@ -427,17 +430,17 @@ chord'CW o c r
 -- * Higher-semantics geometry
 --
 -- | Constraint
-newtype Cstr d = Cstr { _cstr'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype Cstr d = Cstr { _cstr'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Semigroup, Monoid, Num, Show)
 -- | Requirement
-newtype Reqt d = Reqt { _reqt'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype Reqt d = Reqt { _reqt'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Semigroup, Monoid, Num, Show)
 -- | XXX: extraneous?
-newtype Size d = Size { _size'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype Size d = Size { _size'di ∷ Di d } deriving (Additive, Applicative, Functor, Eq, Semigroup, Monoid, Num, Show)
 -- | Origin
-newtype Orig d = Orig { _orig'po ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype Orig d = Orig { _orig'po ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Semigroup, Monoid, Num, Show)
 -- | Upper-left corner
-newtype LU   d = LU   { _lu'po   ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype LU   d = LU   { _lu'po   ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Semigroup, Monoid, Num, Show)
 -- | Bottom-right corner
-newtype RB   d = RB   { _rb'po   ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Monoid, Num, Show)
+newtype RB   d = RB   { _rb'po   ∷ Po d } deriving (Additive, Applicative, Functor, Eq, Semigroup, Monoid, Num, Show)
 makeLenses ''Cstr
 makeLenses ''Reqt
 makeLenses ''Size
@@ -599,6 +602,7 @@ instance AreaDict d ⇒ HasArea (Area' Orig Size) d where area'Orig = id
 instance AreaDict d ⇒ HasArea (Area' LU   Size) d where area'LU   = id
 instance AreaDict d ⇒ HasArea (Area' LU   RB  ) d where area'LURB = id
 
-instance (AreaDict d, Monoid (po d), Monoid (di d)) ⇒ Monoid (Area' po di d) where
+instance (AreaDict d, Monoid (po d), Monoid (di d)) ⇒ Semigroup (Area' po di d) where
+  Area lpo ldi <> Area rpo' rdi = Area (lpo <> rpo') (ldi <> rdi)
+instance (AreaDict d, Monoid (po d), Monoid (di d)) ⇒ Monoid    (Area' po di d) where
   mempty = Area mempty mempty
-  mappend (Area lpo ldi) (Area rpo' rdi) = Area (lpo <> rpo') (ldi <> rdi)

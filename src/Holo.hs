@@ -135,15 +135,19 @@ instance FromUnit u ⇒ Holo u () where
   createVisual _ _ _ _ _ = pure UnitVisual
   renderVisual _ _ _     = pure ()
 
-instance Monoid (StyleOf u ()) where
-  mappend _ _ = mempty
+instance Semigroup (StyleOf u ()) where
+  _ <> _ = mempty
+instance Monoid    (StyleOf u ()) where
   mempty      = UnitStyle
 
-instance Monoid (HoloItem Blank) where
-  mappend l r = mempty
+instance Semigroup (HoloItem Blank) where
+  _ <> _ = mempty
+instance Monoid    (HoloItem Blank) where
   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
-instance Monoid (HoloItem Layout) where
-  mappend l r = holoVBox [l, r]
+
+instance Semigroup (HoloItem Layout) where
+  l <> r = holoVBox [l, r]
+instance Monoid    (HoloItem Layout) where
   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
 -- instance Monoid (HoloItem Visual) where
 --   mappend l r = holoVBox [l, r]
@@ -250,9 +254,10 @@ instance FromUnit u ⇒ Holo   u (Node u (k ∷ KNode)) where
   createVisual _ _ _ _ _ = pure NodeVisual
   renderVisual _ _ _     = pure ()
 
-instance Monoid (StyleOf u (Node u k)) where
+instance Semigroup (StyleOf u (Node u k)) where
+  _ <> _ = NodeStyle
+instance Monoid    (StyleOf u (Node u k)) where
   mempty      = NodeStyle
-  mappend _ _ = NodeStyle
 
 nodeGeo ∷ Node u k → Geo
 nodeGeo HBoxN = mempty & grow .~ 1 & direction .~ DirRow
@@ -293,9 +298,10 @@ data Rect u where
     } → Rect u
 -- makeLenses ''Rect
 
-instance (FromUnit u) ⇒ Monoid (RectStyle u) where
+instance (FromUnit u) ⇒ Semigroup (RectStyle u) where
+  _ <> _ = RectStyle
+instance (FromUnit u) ⇒ Monoid    (RectStyle u) where
   mempty      = RectStyle
-  mappend _ _ = RectStyle
 
 type RectStyle  u = StyleOf  u (Rect u)
 type RectVisual u = VisualOf u (Rect u)
@@ -319,16 +325,17 @@ instance FromUnit u ⇒ Holo   u (Rect u) where
 --  1. u-free text style
 --  2. PU-wired Fontmap from the Port
 --
-instance (FromUnit u) ⇒ Monoid (TextStyle u) where
+instance (FromUnit u) ⇒ Semigroup (TextStyle u) where
+  TextStyle lfk (TextSizeSpec lws lhl) lco <> TextStyle rfk (TextSizeSpec rws rhl) rco = TextStyle
+    { _tsFontKey     = choosePartially "default" lfk rfk
+    , _tsSizeSpec    = TextSizeSpec (lws <|> rws) (choosePartially OneLine lhl rhl)
+    , _tsColor       = lco <> rco
+    }
+instance (FromUnit u) ⇒ Monoid    (TextStyle u) where
   mempty = TextStyle
     { _tsFontKey     = "default"
     , _tsSizeSpec    = TextSizeSpec Nothing OneLine
     , _tsColor       = white
-    }
-  TextStyle lfk (TextSizeSpec lws lhl) lco `mappend` TextStyle rfk (TextSizeSpec rws rhl) rco = TextStyle
-    { _tsFontKey     = choosePartially "default" lfk rfk
-    , _tsSizeSpec    = TextSizeSpec (lws <|> rws) (choosePartially OneLine lhl rhl)
-    , _tsColor       = lco <> rco
     }
 
 type TextStyle  u = StyleOf  u T.Text
@@ -372,9 +379,10 @@ tsColor    f ts@(TextStyle _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
 type TextZipperStyle  u = StyleOf  u (T.TextZipper T.Text)
 type TextZipperVisual u = VisualOf u (T.TextZipper T.Text)
 
-instance (FromUnit u) ⇒ Monoid (TextZipperStyle u) where
+instance (FromUnit u) ⇒ Semigroup (TextZipperStyle u) where
+  TextZipperStyle l <> TextZipperStyle r = TextZipperStyle $ l <> r
+instance (FromUnit u) ⇒ Monoid    (TextZipperStyle u) where
   mempty = TextZipperStyle mempty
-  TextZipperStyle l `mappend` TextZipperStyle r = TextZipperStyle $ l <> r
 
 instance FromUnit u ⇒ Holo  u  (T.TextZipper T.Text) where
   data StyleOf u  (T.TextZipper T.Text) where

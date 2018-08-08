@@ -36,7 +36,7 @@ gc ∷ (MonadIO m) ⇒ m ()
 gc = liftIO $ Sys.performGC
 
 gcKBytesUsed ∷ (MonadIO m) ⇒ m Integer
-gcKBytesUsed = liftIO $ (`div` 1024) ∘ fromIntegral ∘ Sys.currentBytesUsed <$> Sys.getGCStats
+gcKBytesUsed = liftIO $ (`div` 1024) ∘ fromIntegral ∘ Sys.gcdetails_mem_in_use_bytes ∘ Sys.gc <$> Sys.getRTSStats 
 
 
 unbufferStdout ∷ (MonadIO m) ⇒ m ()
