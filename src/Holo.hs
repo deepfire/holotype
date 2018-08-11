@@ -96,7 +96,7 @@ type family HIVisual (p ∷ Phase) u a ∷ Type where
   HIVisual Visual u a = VisualOf u a
 
 data HoloItem (p ∷ Phase) where
-  HoloItem ∷ (FromUnit u, Holo u a) ⇒
+  HoloItem ∷ ∀ p u a. (FromUnit u, Holo u a) ⇒
     { holo       ∷ a
     , hiToken    ∷ IdToken
     , hiUnit     ∷ SUnitK u
