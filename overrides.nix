@@ -1,5 +1,13 @@
 { pkgs, haskellLib, super, self }:
 
+
+let
+  debugBuild = pkg: haskellLib.overrideCabal pkg (drv: {
+    configureFlags  = "--ghc-option=-g --ghc-option=-O1";
+    doHaddock       = false;
+    dontStrip       = true;
+  });
+in
 with haskellLib; with self; {
 
   ## Shadowed:
@@ -22,18 +30,18 @@ with haskellLib; with self; {
   });
 
   ## Upstreamed, awaiting a Hackage release
-  lambdacube-gl = overrideCabal super.lambdacube-gl (drv: {
     src = pkgs.fetchFromGitHub {
       owner  = "lambdacube3d";
       repo   = "lambdacube-gl";
       rev    = "297828bdcf105c5942ed0e43d9f28130f543f34c";
       sha256 = "1gclb1wn5rl23vsrl1zs3lhiyyddrga6kggrnkpsyi8bwgq8l5z7";
     };
+  lambdacube-gl = overrideCabal (debugBuild super.lambdacube-gl) (drv: {
     jailbreak       = true;
   });
 
   ## Upstreamed, awaiting a Hackage release
-  lambdacube-ir = overrideCabal super.lambdacube-ir (drv: {
+  lambdacube-ir = overrideCabal (debugBuild super.lambdacube-ir) (drv: {
     src = pkgs.fetchFromGitHub {
       owner  = "lambdacube3d";
       repo   = "lambdacube-ir";
@@ -45,7 +53,7 @@ with haskellLib; with self; {
   });
 
   ## Upstreamed, awaiting a Hackage release
-  reflex = overrideCabal super.reflex (drv: {
+  reflex = overrideCabal (debugBuild super.reflex) (drv: {
     src = pkgs.fetchFromGitHub {
       owner  = "reflex-frp";
       repo   = "reflex";
@@ -74,7 +82,7 @@ with haskellLib; with self; {
   ## Unmerged
 
   ## Unmerged.  PR: https://github.com/lambdacube3d/lambdacube-quake3/pull/9
-  lambdacube-quake3 = overrideCabal super.lambdacube-quake3 (drv: {
+  lambdacube-quake3 = overrideCabal (debugBuild super.lambdacube-quake3) (drv: {
     src = pkgs.fetchFromGitHub {
       owner  = "deepfire";
       repo   = "lambdacube-quake3";
@@ -107,4 +115,13 @@ with haskellLib; with self; {
 
   ## Non-code, configuration-only change
 
+  cairo         = debugBuild super.cairo;
+  gi-cairo      = debugBuild super.gi-cairo;
+  gi-pango      = debugBuild super.gi-pango;
+  gi-pangocairo = debugBuild super.gi-pangocairo;
+  GLFW-b        = debugBuild super.GLFW-b;
+  GLURaw        = debugBuild super.GLURaw;
+  OpenGL        = debugBuild super.OpenGL;
+  OpenGLRaw     = debugBuild super.OpenGLRaw;
+  proteaaudio   = debugBuild super.proteaaudio;
 }
