@@ -157,8 +157,8 @@ defaultSettings = do
   let sttsDΠ ∷ DΠ         = 96
       sttsFontPreferences = FontPreferences
         [ ("default",     Left $ Alias "defaultMono" )
-        , ("defaultSans", Right $ [ FontSpec "Aurulent Sans" "Regular" $ FSROutline (PUs 16) ])
-        , ("defaultMono", Right $ [ FontSpec "Terminus"      "Regular" $ FSRBitmap  (PUs 15) LT ])
+        , ("defaultSans", Right $ [ FontSpec "Bitstream Charter" "Regular" $ FSROutline (PUs 16) ])
+        , ("defaultMono", Right $ [ FontSpec "Terminus"          "Regular" $ FSRBitmap  (PUs 15) LT ])
         ]
   pure Settings{..}
 
