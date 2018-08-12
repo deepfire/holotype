@@ -214,7 +214,7 @@ gc ∷ IO ()
 gc = liftIO $ Sys.performGC
 
 gcKBytesUsed ∷ (MonadIO m) ⇒ m Integer
-gcKBytesUsed = liftIO $ (`div` 1024) . fromIntegral . Sys.currentBytesUsed <$> Sys.getGCStats
+gcKBytesUsed = liftIO $ (`div` 1024) . fromIntegral . Sys.gcdetails_mem_in_use_bytes . Sys.gc <$> Sys.getRTSStats
 
 type Avg a = (Int, Int, [a])
 avgStep ∷ Fractional a ⇒ a → (a, Avg a) → (a, Avg a)
