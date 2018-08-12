@@ -21,10 +21,12 @@
 /pkgs/build/
 /pkgs/cache/
 /dist/
+/dist-newstyle/
 /cabal-dev/
 /.cabal-sandbox/
 /experiments/dist/
 
+/.ghc.environment*
 .stack-work/
 nohup.out
 
