@@ -56,6 +56,7 @@ pass c@Ctx{..} (C Nothing w@CReq{..}) =
 pass c@Ctx{..} (C Nothing CFBox{..}) =
   C (Just c)
   $ CFBox { subs = runAp (liftAp ∘ pass c) <$> subs }
+pass _ _ = (⊥)
 
 hbox, vbox, fbox ∷ [CA a] → CA a
 constr      ∷  Dim → CA a → CA a

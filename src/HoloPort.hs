@@ -7,7 +7,7 @@
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude #-}
 {-# OPTIONS_GHC -Wno-monomorphism-restriction -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-unsafe #-}
+{-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists #-}
 
 module HoloPort where
 
