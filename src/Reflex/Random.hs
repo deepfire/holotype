@@ -21,7 +21,7 @@ import Control.Applicative
 import System.Random
 import Control.Monad.Random
 
-import Data.Tuple.All
+-- import Data.Tuple.All
 import Data.Bifunctor
 
 import Reflex
