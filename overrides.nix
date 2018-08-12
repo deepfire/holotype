@@ -22,6 +22,17 @@ with haskellLib; with self; {
   });
 
   ## Upstreamed, awaiting a Hackage release
+  lambdacube-gl = overrideCabal super.lambdacube-gl (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "lambdacube3d";
+      repo   = "lambdacube-gl";
+      rev    = "297828bdcf105c5942ed0e43d9f28130f543f34c";
+      sha256 = "1gclb1wn5rl23vsrl1zs3lhiyyddrga6kggrnkpsyi8bwgq8l5z7";
+    };
+    jailbreak       = true;
+  });
+
+  ## Upstreamed, awaiting a Hackage release
   lambdacube-ir = overrideCabal super.lambdacube-ir (drv: {
     src = pkgs.fetchFromGitHub {
       owner  = "lambdacube3d";
@@ -95,9 +106,5 @@ with haskellLib; with self; {
 
 
   ## Non-code, configuration-only change
-
-  lambdacube-gl = overrideCabal super.lambdacube-gl (drv: {
-    jailbreak       = true;
-  });
 
 }
