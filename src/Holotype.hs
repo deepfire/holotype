@@ -18,7 +18,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports #-}
 module Holotype where
 
 -- Basis
@@ -28,6 +28,7 @@ import           Prelude                           hiding (id, Word)
 -- Generic
 import           Control.Monad
 import           Data.Semigroup
+import           Data.Tuple
 
 -- Algebra
 import           Linear
@@ -139,10 +140,34 @@ updateQueryParseState text qps =
     Right ws → QueryParseState ws Nothing
 
 
+
+mkTextWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf u T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, HoloItem Layout))
+mkTextWidgetD portV styleD editE' initialV = do
+  -- the dynamic here is needed for state accumulation
+  valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initialV]) editE'
+  setupE       ← getPostBuild
+  tokenV       ← newId
+  --  holoE fires whenever either style is updated, or the textZipper is
+  let holoE     = attachPromptlyDyn styleD (leftmost [initialV <$ setupE, updated valD])
+                  <&> uncurry (holoLeaf tokenV) ∘ swap
+  -- XXX: why query now?
+  holoIOE      ← (performEvent $ (flip $ queryHoloitem portV) [] <$> holoE)
+  holdDyn (initialV, emptyLayoutHolo) $ attachPromptlyDyn valD holoIOE
+
+mkTextValidatedWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf u T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, HoloItem Layout))
+mkTextValidatedWidgetD portV styleD editE' initialV testF = do
+  unless (testF initialV) $
+    error $ "Initial value not accepted by test: " <> T.unpack initialV
+  textD ← mkTextWidgetD portV styleD editE' initialV
+  initial ← sample $ current textD
+  foldDyn (\(new, newHoloi) (oldValid, _)→
+              (if testF new then new else oldValid, newHoloi))
+    initial $ updated textD
+
 -- * Top level network
 --
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
-holotype win _evCtl _setupE windowFrameE inputE = do
+holotype win _evCtl _setupE windowFrameE inputE = mdo
   HOS.unbufferStdout
 
   settingsV@Settings{..} ← defaultSettings
@@ -157,24 +182,12 @@ holotype win _evCtl _setupE windowFrameE inputE = do
       editE         = ffilter (\case Edit{..}  → True; _ → False) worldE
   frameE           ← newPortFrame $ portV <$ windowFrameE
 
-  -- WIDGETS
-  let textWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ T.Text → Event t WorldEvent → Behavior t (StyleOf u T.Text) → ReflexGLFW t m (Dynamic t (T.Text, HoloItem Layout))
-      textWidgetD initial editE styleB = do
-        token ← newId
-        setup ← getPostBuild
-        val   ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initial]) editE
-        style ← sample styleB
-        let sty        ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Dynamic t (a, StyleOf u a)
-            sty        = val <&> (,style)
-            holo       = uncurry (holoLeaf token) <$> sty
-            holo'initE = tagPromptlyDyn holo setup
-        e ← (performEvent $ (flip $ queryHoloitem portV) [] <$> leftmost [updated holo, holo'initE])
-        holdDyn (initial, emptyLayoutHolo) $ attachPromptlyDyn val e
-
-  -- rec → GHC panic
-  -- ELEMENTS
-  text1HoloQD      ← textWidgetD "defaultMono" editE $ constant mempty { _tsFontKey = "defaultSans" }
-  text2HoloQD      ← textWidgetD "woo hoo"     editE $ constant mempty { _tsFontKey = "defaultMono" }
+  -- text1HoloQD ← textWidgetD "defaultSans" editE $ constant mempty { _tsFontKey = "defaultSans" }
+  -- text2HoloQD ← textWidgetD "woo hoo"     editE $ constant mempty { _tsFontKey = "defaultMono" }
+  styleEntryD      ← mkTextValidatedWidgetD portV (constDyn mempty { _tsFontKey = "defaultMono" }) editE "defaultSans" $
+                     (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
+  let styleD        = (\name→ mempty { _tsFontKey = HoloFont.FK name }) ∘ fst <$> styleEntryD 
+  text2HoloQD      ← mkTextWidgetD portV styleD editE "watch me"
 
   -- * Thoughts
   --
@@ -182,7 +195,7 @@ holotype win _evCtl _setupE windowFrameE inputE = do
   -- 2. font lookup fails: defaultMono → Terminus, yet not Terminus…
 
   -- * SCENE
-  let sceneE        = attachPromptlyDyn text1HoloQD (updated text2HoloQD) <&>
+  let sceneE        = attachPromptlyDyn styleEntryD (updated text2HoloQD) <&>
         \((_, x), (_, y))→
           holoVBox [x, y]
       scenePlacedE  = layout (Size $ di 400 200) <$> sceneE
@@ -190,7 +203,6 @@ holotype win _evCtl _setupE windowFrameE inputE = do
   -- * At every scene update
   sceneVisualE     ← performEvent $ scenePlacedE <&>
     \(tree ∷ HoloItem Layout) → liftIO $ do
-      let Port{..} = portV
       drwMap ← liftIO $ STM.readTVarIO (iomap $ fromDT portDrawableTracker)
 
       let leaves     = holotreeLeaves tree
