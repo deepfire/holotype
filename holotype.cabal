@@ -11,9 +11,19 @@ build-type:          Simple
 extra-source-files:  README.org
 cabal-version:       >=1.10
 
+executable holotype
+  hs-source-dirs:      .
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  ghc-options:         -debug -eventlog -threaded -g -static -rtsopts -fshow-warning-groups
+
+  build-depends:       holotype
+                     , base
+
 library
   hs-source-dirs:      src
   default-language:    Haskell2010
+  ghc-options:         -g -static -fshow-warning-groups
 
   exposed-modules:
 
@@ -35,6 +45,8 @@ library
                   Reflex.Random
 
                   Holotype
+
+                  Tracer
 
   build-depends:       aeson
                      , base >=4.8
@@ -147,14 +159,6 @@ test-suite test
                      , hedgehog
 
                      , holotype
-
-executable holotype
-  hs-source-dirs:      .
-  main-is:             Main.hs
-  default-language:    Haskell2010
-
-  build-depends:       holotype
-                     , base
 
 executable lcstress
   hs-source-dirs:      .
