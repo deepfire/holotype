@@ -221,7 +221,7 @@ disposeDrawable ObjectStream{..} Drawable{..} = liftIO $ do
   -- see experiment in LCstress
   F.withArray [dTexId] $ glDeleteTextures 1 -- release tex id
   GL.removeObject osStorage dGLObject
-  GL.disposeMesh  dGPUMesh
+  -- GL.disposeMesh  dGPUMesh
   -- cairoCreate is auto-managed
   GRCI.surfaceFinish dSurface -- undo createImageSurface
 
