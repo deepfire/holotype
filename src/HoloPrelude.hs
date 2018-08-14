@@ -1,9 +1,9 @@
 {-# LANGUAGE AllowAmbiguousTypes, ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
 {-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
 {-# LANGUAGE LambdaCase, OverloadedStrings, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, TypeOperators #-}
-{-# LANGUAGE UnicodeSyntax #-}
+{-# LANGUAGE ViewPatterns, UnicodeSyntax #-}
 {-# OPTIONS_GHC -Weverything #-}
-{-# OPTIONS_GHC -Wno-implicit-prelude -Wno-missing-import-lists #-}
+{-# OPTIONS_GHC -Wno-implicit-prelude -Wno-missing-import-lists -Wno-missed-specialisations #-}
 {-# OPTIONS_GHC -Wno-unsafe #-}
 
 module HoloPrelude
@@ -13,6 +13,7 @@ module HoloPrelude
   , module Data.List
   , module GHC.Types
   , module Prelude.Unicode
+  , module Tracer
   --
   , Doc
   , Generic
@@ -73,6 +74,8 @@ import           Text.PrettyPrint.Leijen.Text             (Doc, Pretty
                                                           , char, angles, text, pretty
                                                           , (<+>))
 import           Text.Printf                              (printf)
+
+import           Tracer
 
 -- * Pretty numbers
 goldenRatio ∷ Double
