@@ -2,12 +2,13 @@
 , pkgs        ? nixpkgs.pkgs, haskell ? pkgs.haskell
 , compiler    ? "ghc843"
 , ghcOrig     ? pkgs.haskell.packages."${compiler}"
+, local       ? false
 }:
 
 ghcOrig.override (oldArgs: {
     overrides = new: old:
     with new; ((oldArgs.overrides or (_: _: {})) new old)
-       // import ./overrides.nix { inherit pkgs; self = new; super = old; haskellLib = haskell.lib; }
+       // import ./overrides.nix { inherit pkgs local; self = new; super = old; haskellLib = haskell.lib; }
        // {
             lambdacube-quake3 =
             new.mkDerivation {
@@ -37,7 +38,7 @@ ghcOrig.override (oldArgs: {
               ];
               homepage = "lambdacube3d.com";
               description = "first person shooter game engine";
-              license = stdenv.lib.licenses.bsd3;
+              license = pkgs.stdenv.lib.licenses.bsd3;
             };
           };
   })

@@ -4,18 +4,17 @@
 , ghcOrig     ? pkgs.haskell.packages."${compiler}"
 , tools       ? false
 , intero      ? tools
+, local       ? false
 }:
 let
-
-  ghc     = import ./packages.nix { inherit nixpkgs pkgs haskell compiler ghcOrig; };
-  default = import ./.;
-  drv     = ghc.callPackage default {};
+  ghc     = import ./packages.nix { inherit nixpkgs pkgs haskell compiler ghcOrig local; };
+  drv     = import ./package.nix  { inherit nixpkgs pkgs haskell compiler ghcOrig local; };
   drv'    = haskell.lib.overrideCabal
             drv
             (old: {
               libraryHaskellDepends =
                 old.libraryHaskellDepends
-                ++ [ pkgs.cabal-install pkgs.stack ]
+                ++ [ pkgs.cabal-install pkgs.stack ghc.ghc-events ]
                 ++ (if intero then [ ghc.intero ] else []);
              });
 in
