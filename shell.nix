@@ -7,7 +7,7 @@
 , local       ? false
 }:
 let
-  ghc     = import ./packages.nix { inherit nixpkgs pkgs haskell compiler ghcOrig local; };
+  ghc     = import ./ghc.nix      { inherit nixpkgs pkgs haskell compiler ghcOrig local; };
   drv     = import ./package.nix  { inherit nixpkgs pkgs haskell compiler ghcOrig local; };
   drv'    = haskell.lib.overrideCabal
             drv

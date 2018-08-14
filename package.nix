@@ -6,7 +6,7 @@
 }:
 let
 
-  ghc     = import ./packages.nix { inherit nixpkgs pkgs haskell compiler ghcOrig local; };
-  default = import ./.;
+  ghc     = import ./ghc.nix { inherit nixpkgs pkgs haskell compiler ghcOrig local; };
+  default = import ./default.nix;
 in
   ghc.callPackage default {}
