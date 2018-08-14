@@ -14,7 +14,7 @@ lcs lcstress:
 hols holostress:
 	ghc -threaded -eventlog -rtsopts -isrc --make Holostress.hs && ./Holostress +RTS -T -ls -N2
 
-SRCS=$(wildcard src/*.hs)
+SRCS=$(wildcard src/*.hs src/*/*.hs)
 dist/build/holotype/holotype: $(SRCS)
 	cabal build exe:holotype
 
@@ -23,6 +23,8 @@ dist/build/holotype/holotype: $(SRCS)
 clean:
 	cabal clean
 	rm -f {,src/}*.{o,hi,dyn_hi,dyn_o,hs~}
+cls:
+	echo -en '\ec'
 
 #
 #
@@ -75,13 +77,21 @@ holotype: dist/build/holotype/holotype
 
 #
 #
-package:             GHC ?= 841
+package:             GHC ?= 843
 package:
 	nix-build packages.nix -A ${NAME} --argstr compiler ghc${GHC} --show-trace --cores 0 --no-out-link
-list-shell-failures: GHC ?= 841
+list-shell-failures: GHC ?= 843
 list-shell-failures:
 	nix-shell shell.nix               --argstr compiler ghc${GHC} --show-trace --cores 1 --max-jobs 1 --keep-going
 
 .PHONY: overrides.nix
 overrides.nix:
 	nh overrides-descs > $@
+
+.PHONY: refs references
+refs references:
+	nix-store --query --references $$(nix-instantiate package.nix)
+
+.PHONY: gdb
+gdb: dist/build/holotype/holotype
+	gdb -ex run --args dist/build/holotype/holotype +RTS -V0 -l-au
