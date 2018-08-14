@@ -1,0 +1,25 @@
+* glGenBuffers | glDeleteBuffers
+*** glGenBuffers
+    lambdacube-gl/src/LambdaCube/GL/Data.hs:compileBuffer :: [Array] -> IO Buffer
+*** glDeleteBuffers
+    lambdacube-gl/src/LambdaCube/GL/Data.hs:disposeBuffer :: Buffer -> IO ()
+*** GL.Data.compileBuffer
+    lambdacube-gl/src/LambdaCube/GL/Mesh.hs:uploadMeshToGPU :: Mesh -> IO GPUMesh
+    lambdacube-gl/src/LambdaCube/GL/Backend.hs:compileStreamData :: StreamData -> IO GLStream
+    lambdacube-quake3/GameEngine/Graphics/BSP.hs:uploadBSP :: Set String -> BSPLevel -> IO GPUBSP
+    lambdacube-quake3/GameEngine/Graphics/Quad.hs:addQuad storage shaderName
+    lambdacube-quake3/GameEngine/Graphics/MD3.hs:uploadMD3 :: MD3Model -> IO GPUMD3
+*** GL.Data.disposeBuffer
+    lambdacube-gl/src/LambdaCube/GL/Mesh.hs:disposeMesh :: GPUMesh -> IO ()
+*** GL.Mesh.uploadMeshToGPU
+    lambdacube-quake3/GameEngine/Graphics/MD3.hs:addGPUMD3 :: GLStorage -> GPUMD3 -> MD3Skin -> [String] -> IO MD3Instance
+*** GL.Backend.compileStreamData
+    lambdacube-gl/src/LambdaCube/GL/Backend.hs:allocRenderer :: Pipeline -> IO GLRenderer
+* uploadMeshToGPU | disposeMesh | allocRenderer
+*** GL.Mesh.uploadMeshToGPU
+    src/HoloPort.hs:makeDrawable ∷ (MonadIO m) ⇒ ObjectStream → Di Double → m Drawable
+*** GL.Mesh.disposeMesh
+    src/HoloPort.hs:makeDrawable / SMem.addFinalizer
+    src/HoloPort.hs:disposeDrawable ∷ (MonadIO m) ⇒ ObjectStream → Drawable → m ()
+*** GL.Backend.allocRenderer
+    src/HoloCube.hs:bindPipeline ∷ (MonadIO m) ⇒ GL.GLStorage → String → m (Maybe GL.GLRenderer)
