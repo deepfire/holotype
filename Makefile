@@ -95,3 +95,7 @@ refs references:
 .PHONY: gdb
 gdb: dist/build/holotype/holotype
 	gdb -ex run --args dist/build/holotype/holotype +RTS -V0 -l-au
+
+.PHONY: modules graph
+modules graph:
+	graphmod | dot -Tpdf > holotype.pdf && evince holotype.pdf

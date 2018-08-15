@@ -11,6 +11,16 @@ with haskellLib; with self; {
   ## Upstreamed
 
   ## Upstreamed, awaiting a Hackage release
+  graphmod = overrideCabal super.graphmod (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "yav";
+      repo   = "graphmod";
+      rev    = "b1ba362eb1405dda9b22ed5cba532013cc30f862";
+      sha256 = "179kxfjzn3y5xq654ilm3d63nq762l465crvn9ryp0zn3ffvkq8r";
+    };
+  });
+
+  ## Upstreamed, awaiting a Hackage release
   lambdacube-compiler = overrideCabal super.lambdacube-compiler (drv: {
     src = pkgs.fetchFromGitHub {
       owner  = "lambdacube3d";

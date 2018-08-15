@@ -14,7 +14,7 @@ let
             (old: {
               libraryHaskellDepends =
                 old.libraryHaskellDepends
-                ++ [ pkgs.cabal-install pkgs.stack ghc.ghc-events ]
+                ++ [ pkgs.cabal-install pkgs.stack ghc.ghc-events ghc.graphmod pkgs.graphviz ]
                 ++ (if intero then [ ghc.intero ] else []);
              });
 in
