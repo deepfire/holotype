@@ -1,14 +1,6 @@
-{ pkgs, local ? false }:
-self: super:
+{ self, super, pkgs, lib, local ? false }:
 
-let
-  debugBuild = pkg: pkgs.haskell.lib.overrideCabal pkg (drv: {
-    configureFlags  = "--ghc-option=-g --ghc-option=-O1";
-    doHaddock       = false;
-    dontStrip       = true;
-  });
-in
-with pkgs.haskell.lib; with self; {
+with pkgs.haskell.lib; with lib; with self; {
 
   # lambdacube-ir     = debugBuild super.lambdacube-ir;
   # reflex            = debugBuild super.reflex;
