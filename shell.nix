@@ -1,5 +1,5 @@
 { nixpkgs     ? import <nixpkgs> {}
-, pkgs        ? nixpkgs.pkgs, haskell ? pkgs.haskell
+, pkgs        ? nixpkgs.pkgs
 , compiler    ? "ghc843"
 , ghcOrig     ? pkgs.haskell.packages."${compiler}"
 , tools       ? false
@@ -7,9 +7,9 @@
 , local       ? false
 }:
 let
-  ghc     = import ./ghc.nix      { inherit nixpkgs pkgs haskell compiler ghcOrig local; };
-  drv     = import ./package.nix  { inherit nixpkgs pkgs haskell compiler ghcOrig local; };
-  drv'    = haskell.lib.overrideCabal
+  drv     = import ./package.nix  { inherit nixpkgs pkgs compiler ghcOrig local; };
+  ghc     = import ./ghc.nix      { inherit nixpkgs pkgs compiler ghcOrig local; };
+  drv'    = pkgs.haskell.lib.overrideCabal
             drv
             (old: {
               libraryHaskellDepends =

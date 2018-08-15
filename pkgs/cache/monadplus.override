@@ -1,0 +1,10 @@
+  ## Unmerged.  PR: https://github.com/hanshoglund/monadplus/pull/3
+  monadplus = overrideCabal super.monadplus (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "asr";
+      repo   = "monadplus";
+      rev    = "c4231e1423e5c81f2779acf4462eea8872f6a4e6";
+      sha256 = "1r82rqpjkkkwm35wrqwwqkba4nbvilf7arcwqiacvwfz5zkp2gf6";
+    };
+  });
+

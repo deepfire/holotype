@@ -19,7 +19,7 @@
 *.eventlog
 
 /pkgs/build/
-/pkgs/cache/
+/pkgs/overrides.nix
 /dist/
 /dist-newstyle/
 /cabal-dev/

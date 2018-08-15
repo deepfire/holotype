@@ -1,0 +1,11 @@
+  ## Unmerged.  PR: https://github.com/bos/text-format/pull/23
+  text-format = overrideCabal super.text-format (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "phadej";
+      repo   = "text-format";
+      rev    = "fd9598537f8bb4d718459e3b71b64bf9c1e92526";
+      sha256 = "16b5821jfsd0lfkllpahvaq344jmhkhvl284k7k375fy1fw20bwq";
+    };
+    jailbreak       = true;
+  });
+

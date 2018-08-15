@@ -1,0 +1,12 @@
+  ## Upstreamed, awaiting a Hackage release
+  lambdacube-ir = overrideCabal super.lambdacube-ir (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "lambdacube3d";
+      repo   = "lambdacube-ir";
+      rev    = "b8b4ec9fa985b2eb756ac1a5a65af483a0bd586b";
+      sha256 = "0xqm9idapiyl0k93kfi8mh181bxvmda0nf6ipbamlgzxyjcd0314";
+    };
+    prePatch        = "cd lambdacube-ir.haskell; ";
+    jailbreak       = true;
+  });
+

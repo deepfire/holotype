@@ -1,0 +1,13 @@
+  ## Upstreamed, awaiting a Hackage release
+  reflex = overrideCabal super.reflex (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "reflex-frp";
+      repo   = "reflex";
+      rev    = "39d9392b191ec85052eb8839f6c9f207f9e21885";
+      sha256 = "07rzrapnalzvl24nc9vgbzah8qpwqkd2v90ijzchwhlgk9y82lfb";
+    };
+    doCheck         = false;
+    jailbreak       = true;
+    libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (with self; [ lens data-default hlint filemanip monad-control monoidal-containers prim-uniq unbounded-delays MemoTrie ]);
+  });
+

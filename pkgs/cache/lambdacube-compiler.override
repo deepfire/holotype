@@ -1,0 +1,11 @@
+  ## Upstreamed, awaiting a Hackage release
+  lambdacube-compiler = overrideCabal super.lambdacube-compiler (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "lambdacube3d";
+      repo   = "lambdacube-compiler";
+      rev    = "b0b09ee4e7578b9ee0fef1aa9ae541018eafb1d8";
+      sha256 = "1x24yis7db3c8n5pbpmmm3a5hp1wm7q8bb548s7747hvswblp0df";
+    };
+    jailbreak       = true;
+  });
+

@@ -1,0 +1,13 @@
+  ## Upstreamed, awaiting a Hackage release
+  text-lens = overrideCabal super.text-lens (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "ChrisPenner";
+      repo   = "rasa";
+      rev    = "9eb595bf166f0c23c4596d1161ec9b14e2d71b48";
+      sha256 = "0p0biq6kaa7jv83rpdj5g3rhflcrqazlf8lbgn8zvfhr31ijkvwk";
+    };
+    prePatch        = "cd text-lens; ";
+    doCheck         = false;
+    jailbreak       = true;
+  });
+
