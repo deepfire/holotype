@@ -119,6 +119,11 @@ portDΠ = sttsDΠ ∘ portSettings
 
 portCreate  ∷ (MonadIO m) ⇒ GL.Window → Settings → m (Port)
 portCreate portWindow portSettings@Settings{..} = do
+  liftIO $ setupTracer [
+      (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
+     ,(MISSALLOC, DRW, STACK, 4),(REUSE,     DRW, TRACE, 4),(REALLOC,   DRW, TRACE, 4),(ALLOC,     DRW, TRACE, 4),(FREE,        DRW, TRACE, 4)
+     ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
+    ]
   portFontmap                      ← makeFontMap sttsDΠ fmDefault sttsFontPreferences
   liftIO $ putStrLn $ printf "%s" (show portFontmap)
   (portRenderer, portObjectStream) ← makeSimpleRenderedStream portWindow (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))

@@ -1,23 +1,61 @@
-{-# LANGUAGE ViewPatterns, UnicodeSyntax #-}
+{-# LANGUAGE GADTs, ViewPatterns, UnicodeSyntax #-}
 module Tracer
-  (trev, TraceKind(..), TraceEntity(..))
+  (setupTracer, trev, trevE, TraceKind(..), TraceEntity(..), TraceAction(..))
 where
+import           GHC.Stack
+import qualified Data.Map.Strict                   as Map
 import           Debug.Trace
+import           Data.List
 import           Foreign.Ptr
 import           Numeric
+import           Prelude.Unicode
+import qualified System.IO.Unsafe                  as IO
+import qualified Data.IORef                        as IO
 
 data TraceKind
   = ALLOC
   | USE
+  | MISSALLOC
+  | REALLOC
   | FREE
-  deriving (Eq, Show)
+  | REUSE
+  deriving (Eq, Ord, Show)
 
 data TraceEntity
-  = Tex
-  deriving (Eq, Show)
+  = TEX
+  | DRW
+  | TOK
+  | HOLO
+  deriving (Eq, Ord, Show)
 
-trev ∷ Show a ⇒ TraceKind → TraceEntity → a → Ptr b → IO ()
-trev kind entity arg (ptrToIntPtr → IntPtr addr) = do
-  let msg = show kind <> " " <> show entity <> " " <> show arg <> " 0x" <> showHex (toInteger addr) ""
-  traceIO      msg
-  traceEventIO msg
+data TraceAction
+  = IGNORE
+  | STACK
+  | TRACE
+  deriving (Eq, Ord, Show)
+
+data TraceConf where
+  TraceConf ∷
+    { tcas ∷ Map.Map (TraceKind, TraceEntity) (TraceAction, Int)
+    } → TraceConf
+
+conf ∷ IO.IORef TraceConf
+conf = IO.unsafePerformIO $ IO.newIORef $ TraceConf mempty
+
+setupTracer ∷ [(TraceKind, TraceEntity, TraceAction, Int)] → IO ()
+setupTracer = IO.writeIORef conf ∘ TraceConf ∘ Map.fromList ∘ (fmap $ \(k,e,a,d)→((k,e),(a,d)))
+
+trev ∷ (HasCallStack, Show a) ⇒ TraceKind → TraceEntity → a → Int → IO ()
+trev kind entity arg addrOrId = do
+  enabled ← Map.lookup (kind, entity) ∘ tcas <$> IO.readIORef conf
+  let msg = show kind <> " " <> show entity <> " 0x" <> showHex addrOrId "" <> " " <> show arg
+  case enabled of
+    Just (IGNORE, _)     → pure ()
+    Just (STACK,  depth) → let prefix = replicate depth ' ' in (putStrLn $ prettyCallStack callStack) >> traceIO (prefix <> msg) >> traceEventIO msg
+    Just (TRACE,  depth) → let prefix = replicate depth ' ' in                                           traceIO (prefix <> msg) >> traceEventIO msg
+    _                    →                                                                               traceIO            msg  >> traceEventIO msg
+
+trevE ∷ (HasCallStack, Show a) ⇒ TraceKind → TraceEntity → a → Int → b → b
+trevE kind entity arg addrOrId x =
+  let msg = show kind <> " " <> show entity <> " 0x" <> showHex addrOrId "" <> " " <> show arg
+  in trace msg $ traceEvent msg x
