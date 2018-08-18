@@ -57,7 +57,11 @@ import qualified Text.Trifecta.Result              as P
 import           Elsewhere
 import           Flatland
 import           Flex
-import           Holo
+
+import           HoloTypes
+
+import           Holo                                     (StyleOf)
+import qualified Holo
 import           HoloCube
 import           HoloFont
 import           HoloPort
@@ -118,14 +122,14 @@ parseQuery x = case P.parseString parserQuery mempty (T.unpack x) of
                  P.Success r       → Right r
                  P.Failure errinfo → Left $ T.pack $ show errinfo
 
-wordInterpStyle ∷ (FromUnit u) ⇒ Word → TextStyle u
+wordInterpStyle ∷ (FromUnit u) ⇒ Word → Holo.TextStyle u
 wordInterpStyle x = mempty
-  & tsFontKey .~ "defaultSans"
-  & tsColor   .~ case x of
-                   WText   _ → co 0.514 0.580 0.588 1
-                   WSource _ → co 0.149 0.545 0.824 1
-                   WLens   _ → co 0.710 0.537 0.000 1
-                   WError  _ → co 0.863 0.196 0.184 1
+  & Holo.tsFontKey .~ "defaultSans"
+  & Holo.tsColor   .~ case x of
+                        WText   _ → co 0.514 0.580 0.588 1
+                        WSource _ → co 0.149 0.545 0.824 1
+                        WLens   _ → co 0.710 0.537 0.000 1
+                        WError  _ → co 0.863 0.196 0.184 1
 
 data QueryParseState =
   QueryParseState
@@ -141,20 +145,23 @@ updateQueryParseState text qps =
 
 
 
-mkTextWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf u T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, HoloItem Layout))
+mkTextWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf u T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.Layout))
 mkTextWidgetD portV styleD editE' initialV = do
   -- the dynamic here is needed for state accumulation
   valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initialV]) editE'
   setupE       ← getPostBuild
   tokenV       ← newId
   --  holoE fires whenever either style is updated, or the textZipper is
-  let holoE     = attachPromptlyDyn styleD (leftmost [initialV <$ setupE, updated valD])
-                  <&> uncurry (holoLeaf tokenV) ∘ swap
-  -- XXX: why query now?
-  holoIOE      ← (performEvent $ (flip $ queryHoloitem portV) [] <$> holoE)
-  holdDyn (initialV, emptyLayoutHolo) $ attachPromptlyDyn valD holoIOE
+  let holoD     = zipDynWith (Holo.leaf tokenV) valD styleD
+  initHoloV    ← sample $ current holoD
+  holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
+  -- let holoE     = attachPromptlyDyn styleD (leftmost [initialV <$ setupE, updated valD])
+  --                 <&> uncurry (holoLeaf tokenV) ∘ swap
+  -- -- XXX: why query now?
+  -- holoIOE      ← (performEvent $ (flip $ queryHoloitem portV) [] <$> holoE)
+  holdDyn (initialV, Holo.emptyLayoutHolo) $ attachPromptlyDyn valD holoIOE
 
-mkTextValidatedWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf u T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, HoloItem Layout))
+mkTextValidatedWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf u T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.Layout))
 mkTextValidatedWidgetD portV styleD editE' initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
@@ -184,42 +191,45 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
 
   -- text1HoloQD ← textWidgetD "defaultSans" editE $ constant mempty { _tsFontKey = "defaultSans" }
   -- text2HoloQD ← textWidgetD "woo hoo"     editE $ constant mempty { _tsFontKey = "defaultMono" }
-  styleEntryD      ← mkTextValidatedWidgetD portV (constDyn mempty { _tsFontKey = "defaultMono" }) editE "defaultSans" $
+  styleEntryD      ← mkTextValidatedWidgetD portV (constDyn mempty { Holo._tsFontKey = "defaultMono" }) editE "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-  let styleD        = (\name→ mempty { _tsFontKey = HoloFont.FK name }) ∘ fst <$> styleEntryD 
+  let styleD        = (\name→ mempty { Holo._tsFontKey = HoloFont.FK name }) ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD) 
   text2HoloQD      ← mkTextWidgetD portV styleD editE "watch me"
 
   -- * Thoughts
   --
   -- 1. flicker
-  -- 2. font lookup fails: defaultMono → Terminus, yet not Terminus…
 
   -- * SCENE
-  let sceneE        = attachPromptlyDyn styleEntryD (updated text2HoloQD) <&>
-        \((_, x), (_, y))→
-          holoVBox [x, y]
-      scenePlacedE  = layout (Size $ di 400 200) <$> sceneE
+  let sceneD        = zipDynWith -- <&>
+        (\(_, a) (_, b)→
+          Holo.vbox [a, b])
+        styleEntryD text2HoloQD
+      scenePlacedTreeE  = layout (Size $ di 400 200) <$> updated sceneD
 
   -- * At every scene update
-  sceneVisualE     ← performEvent $ scenePlacedE <&>
-    \(tree ∷ HoloItem Layout) → liftIO $ do
+  sceneVisualTreeE     ← performEvent $ scenePlacedTreeE <&>
+    \(tree ∷ Holo.HoloItem Holo.Layout) → liftIO $ do
       drwMap ← liftIO $ STM.readTVarIO (iomap $ fromDT portDrawableTracker)
 
-      let leaves     = holotreeLeaves tree
+      let leaves     ∷ M.Map IdToken (Holo.HoloItem 'Holo.Layout)
+          leaves     = Holo.holotreeLeaves tree -- this shouldn't contain nodes!
+          unusedDrws ∷ M.Map IdToken Drawable
           unusedDrws = M.filterWithKey (flip $ const (not ∘ flip M.member leaves)) drwMap
-      forM_ (M.elems unusedDrws) $
-        disposeDrawable portObjectStream
+      forM_ (M.toList unusedDrws) $ \(idt, drv@Drawable{..})→ do
+        trev FREE DRW (dDi^.di'v._x, dDi^.di'v._y) (tokenHash idt)
+        disposeDrawable portObjectStream drv
 
-      tree' ← visualiseHolotree portV tree
-      renderHolotreeVisuals portV tree'
+      tree' ← Holo.visualiseHolotree portV tree
+      Holo.renderHolotreeVisuals portV tree'
       pure tree'
-  sceneVisualD     ← holdDyn emptyVisualHolo sceneVisualE
+  sceneVisualTreeD ← holdDyn Holo.emptyVisualHolo sceneVisualTreeE
 
   -- * At every frame
-  let drawE         = attachPromptlyDyn sceneVisualD frameE
+  let drawE         = attachPromptlyDyn sceneVisualTreeD frameE
   _                ← performEvent $ drawE <&>
                      \(tree, f@Frame{..}) → do
-                       drawHolotreeVisuals portV f tree
+                       Holo.drawHolotreeVisuals portV f tree
 
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)

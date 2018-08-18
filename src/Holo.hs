@@ -2,7 +2,7 @@
 {-# LANGUAGE DataKinds, GADTs, NoMonomorphismRestriction, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
 {-# LANGUAGE LambdaCase, OverloadedLists, OverloadedStrings, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, TypeOperators, ViewPatterns #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
 module Holo
   (
   -- * Define this:
@@ -10,10 +10,10 @@ module Holo
   -- * Get that:
   , StyleOf(..), VisualOf(..)
   , KNode(..), Node(..)
-  , mkHoloitem
-  , mkHoloNode
-  , holoVBox, holoHBox
-  , holoLeaf
+  , item
+  , node
+  , vbox, hbox
+  , leaf
   , Phase(..)
   , HoloItem, hiToken, hiArea, holoitemDrawable
   , holotreeLeaves
@@ -40,76 +40,28 @@ import           HoloPrelude
 
 import           Control.Monad
 import qualified Data.Map.Strict                   as Map
-import qualified Data.Set                          as Set
+-- import qualified Data.Set                          as Set
 import           Data.Singletons
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
-import qualified Data.Unique                       as U
 import           Linear
 import           Prelude                           hiding ((.), id)
 
 import qualified GI.Pango                          as GIP
 
 -- Local imports
+import           HoloTypes
+
 import           Elsewhere
 import           Flatland
-import           Flex                              as Flex
+import qualified Flex                              as Flex
+import           Flex                                     (Flex, Geo)
 import           HoloCube                                 (Frame)
 import           HoloFont
 import           HoloPort
 
 
--- | 'Holo': anything visualisable.
-class (FromUnit u, Monoid (StyleOf u a)) ⇒ Holo (u ∷ UnitK) a where
-  data VisualOf u a
-  data StyleOf  u a
-  -- | Given:
-  --   1. global context
-  --   2. geometry-enriched style
-  --   3. datum
-  --   Produce an initial visualisation.
-  query           ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a →                  a →            m (Di (Maybe Double))
-  createVisual    ∷ (MonadIO m, FromUnit u) ⇒ Port → StyleOf u a → Area'LU Double → a → Drawable → m (VisualOf u a)
-  -- * Question: what do we change, to allow animation of style?
-  --
-  -- The current model doesn't allow for it.
-  renderVisual    ∷ (MonadIO m) ⇒ Port →            VisualOf u a → a → m ()           -- ^ Update a visualisation of 'a'.
-  -- For: drawHolotree
-  drawableOf      ∷ Port → VisualOf u a → Drawable
-
-
 -- * HoloItem
---
-data Phase
-  = Blank
-  | Layout
-  | Visual
-
-type family HIArea   (p ∷ Phase) ∷ Type where
-  HIArea   Blank  = ()
-  HIArea   Layout = Area'LU Double
-  HIArea   Visual = Area'LU Double
-
-type family HIVisual (p ∷ Phase) u a ∷ Type where
-  HIVisual Blank  u a = ()
-  HIVisual Layout u a = ()
-  HIVisual Visual u a = VisualOf u a
-
-data HoloItem (p ∷ Phase) where
-  HoloItem ∷ ∀ p u a. (FromUnit u, Holo u a) ⇒
-    { holo       ∷ a
-    , hiToken    ∷ IdToken
-    , hiUnit     ∷ SUnitK u
-    , hiGeo      ∷ Geo
-    , hiStyle    ∷ StyleOf u a
-    , hiChildren ∷ [HoloItem p]
-    -- Problem:
-    -- 1. We have size for top entry, want to record it
-    -- 2. The tree is type-coherent, and children need have the same type.
-    , hiSize     ∷ Di (Maybe Double)
-    , hiArea     ∷ HIArea p
-    , hiVisual   ∷ HIVisual p u a
-    } → HoloItem p
 
 instance Eq (HoloItem a) where
   (==) a b = (≡) (hiToken a) (hiToken b)
@@ -146,7 +98,7 @@ instance Monoid    (HoloItem Blank) where
   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
 
 instance Semigroup (HoloItem Layout) where
-  l <> r = holoVBox [l, r]
+  l <> r = vbox [l, r]
 instance Monoid    (HoloItem Layout) where
   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
 -- instance Monoid (HoloItem Visual) where
@@ -192,17 +144,14 @@ queryHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem Blank → [HoloItem Layout] 
 queryHoloitem port hoi children =
   case hoi of
     HoloItem{..} → do
-      hiSize     ← query port hiStyle holo
-      let hiArea     = mempty
-          hiChildren = children
-      pure HoloItem{..}
+      size ← query port hiStyle holo
+      pure HoloItem{hiSize=size, hiArea=mempty, hiChildren=children, ..}
 
-visualiseHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem Layout → [HoloItem Visual] → m (HoloItem Visual)
+visualiseHoloitem ∷ (HasCallStack, MonadIO m) ⇒ Port → HoloItem Layout → [HoloItem Visual] → m (HoloItem Visual)
 visualiseHoloitem port HoloItem{..} hiChildren' = do
-  drw      ← establishSizedDrawableForId port hiToken (hiArea^.area'b.size'di)
-  hiVisual ← createVisual port hiStyle hiArea holo drw
-  let hiChildren = hiChildren'
-  pure HoloItem{..}
+  drw ← establishSizedDrawableForId port hiToken (hiArea^.area'b.size'di)
+  vis ← createVisual port hiStyle hiArea holo drw
+  pure HoloItem{hiVisual=vis, hiChildren = hiChildren', ..}
 
 renderHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem Visual → m ()
 renderHoloitem port HoloItem{..} = do
@@ -260,33 +209,34 @@ instance Monoid    (StyleOf u (Node u k)) where
   mempty      = NodeStyle
 
 nodeGeo ∷ Node u k → Geo
-nodeGeo HBoxN = mempty & grow .~ 1 & direction .~ DirRow
-nodeGeo VBoxN = mempty & grow .~ 1 & direction .~ DirColumn
+nodeGeo HBoxN = mempty & Flex.grow .~ 1 & Flex.direction .~ Flex.DirRow
+nodeGeo VBoxN = mempty & Flex.grow .~ 1 & Flex.direction .~ Flex.DirColumn
 
 
 -- * Layout tree Item constructors
 --
 -- XXX: this FromUnit constraint is a genuine pain.
 
-mkHoloitem ∷ ∀ p u a. (FromUnit u, Holo u a, SingI u) ⇒ SUnitK u → HIVisual p u a → StyleOf u a → HIArea p → Geo → IdToken → a → [HoloItem p] → HoloItem p
-mkHoloitem hiUnit hiVisual hiStyle hiArea hiGeo hiToken holo hiChildren =
+item ∷ ∀ p u a. (FromUnit u, Holo u a, SingI u) ⇒ SUnitK u → HIVisual p u a → StyleOf u a → HIArea p → Geo → IdToken → a → [HoloItem p] → HoloItem p
+item hiUnit hiVisual hiStyle hiArea hiGeo hiToken holo hiChildren =
   let hiSize = Di (V2 Nothing Nothing)
   in HoloItem{..}
 
-mkHoloNode ∷ ∀ p u k. (FromUnit u, Holo u (Node u k), SingI u) ⇒ IdToken → HIVisual p u (Node u k) → HIArea p → Node u k → [HoloItem p] → HoloItem p
-mkHoloNode idToken visual area holo =
-  mkHoloitem (sing ∷ SUnitK u) visual mempty area (nodeGeo holo) idToken holo
+node ∷ ∀ p u k. (FromUnit u, Holo u (Node u k), SingI u) ⇒ IdToken → HIVisual p u (Node u k) → HIArea p → Node u k → [HoloItem p] → HoloItem p
+node idToken visual area holo =
+  item (sing ∷ SUnitK u) visual mempty area (nodeGeo holo) idToken holo
 
-holoLeaf ∷ ∀ u a. (Holo u a, SingI u) ⇒ IdToken → a → StyleOf u a → HoloItem Blank
-holoLeaf idToken holo hiStyle =
-  mkHoloitem (sing ∷ SUnitK u) () hiStyle () mempty         idToken holo []
+leaf ∷ ∀ u a. (Holo u a, SingI u) ⇒ IdToken → a → StyleOf u a → HoloItem Blank
+leaf idToken holo hiStyle =
+  item (sing ∷ SUnitK u) () hiStyle () mempty         idToken holo []
 
 
 -- * Pre-package tree constructors
 --
-holoVBox, holoHBox ∷ [HoloItem Layout] → HoloItem Layout
-holoHBox = mkHoloNode blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (HBoxN ∷ Node PU HBox)
-holoVBox = mkHoloNode blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (VBoxN ∷ Node PU VBox)
+vbox, hbox ∷ [HoloItem Layout] → HoloItem Layout
+-- XXX: here's trouble -- we're using blankIdToken!
+hbox = node blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (HBoxN ∷ Node PU HBox)
+vbox = node blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (VBoxN ∷ Node PU VBox)
 
 
 -- * Leaves
@@ -312,6 +262,7 @@ instance FromUnit u ⇒ Holo   u (Rect u) where
   query     port _       Rect{..} = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$>_rectDim
   createVisual port@Port{..} _ _area Rect{..} _drw = do
     let dim = PUs <$> _area^.area'b.size'di
+    -- WTF: we're given a DRW, and then we proceed to ignore it?
     d@Drawable{..} ← portMakeDrawable port $ fromPU ∘ fromUnit (sttsDΠ portSettings) <$> dim
     drawableDrawRect port d _rectColor dim
     pure $ RectVisual d
@@ -360,12 +311,15 @@ instance FromUnit u ⇒ Holo u T.Text where
     let font = portFont' port _tsFontKey -- XXX: non-total
     (Just ∘ fromPU <$>) ∘ either errorT id <$> fontQuerySize font (convert (portDΠ port) _tsSizeSpec) (partial (≢ "") content)
   createVisual port tStyle@TextStyle{..} area' _content tDrawable = do
+    -- 1. find font, 2. bind font to GIC, 3. create layout
+    -- Q: why not also draw here?  Reflow?
     let font = portFont' port _tsFontKey -- XXX: non-total
         tDim = fromUnit (portDΠ port) ∘ PUs <$> dimOf area'
-    liftIO $ putStrLn $ printf "%s → %s" (show _tsFontKey) (show font)
+    -- liftIO $ putStrLn $ printf "createVisual T.Text: %s → %s" (show _tsFontKey) (show font)
     (,) tFont tLayout ← drawableBindFontLayout (portDΠ port) tDrawable font tDim _tsSizeSpec
     pure Text{..}
   renderVisual _ Text{..} text =
+    -- 1. execute GIP draw & GIPC composition
     drawableDrawText tDrawable tLayout (_tsColor tStyle) text
 
 tsFontKey   ∷ Lens' (TextStyle u) FontKey
@@ -404,6 +358,7 @@ instance FromUnit u ⇒ Holo  u  (T.TextZipper T.Text) where
 
 tesTSStyle  ∷ Lens' (TextZipperStyle u) (TextStyle u)
 tesTSStyle f (TextZipperStyle x) = TextZipperStyle <$> f x
+
 
 
 -- visual ∷ (ReflexGLFWCtx t m, Holo a) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → Event t (a, b) → m (Event t (Holosome a, b))

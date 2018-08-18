@@ -6,8 +6,8 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude #-}
-{-# OPTIONS_GHC -Wno-monomorphism-restriction -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists #-}
+{-# OPTIONS_GHC -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations #-}
+{-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults #-}
 
 module HoloPort where
 
@@ -16,7 +16,7 @@ import           HoloPrelude
 
 -- Types
 import qualified Data.Map.Strict                   as Map
-import qualified Data.Set                          as Set
+-- import qualified Data.Set                          as Set
 import qualified Data.Text                         as T
 import qualified Data.Vector                       as V
 import qualified Data.Vect                         as Vc
@@ -30,7 +30,6 @@ import qualified Graphics.Rendering.Cairo          as GRC
 import qualified Graphics.Rendering.Cairo.Internal as GRCI
 
 -- glib-introspection -based Cairo and Pango
-import qualified GI.Cairo                          as GIC
 import qualified GI.Pango                          as GIP
 
 -- Dirty stuff
@@ -39,6 +38,7 @@ import qualified Data.Unique                       as U
 import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
 import qualified System.IO.Unsafe                  as IO
+import qualified Data.IORef                        as IO
 import qualified System.Mem.Weak                   as SMem
 
 -- …
@@ -55,31 +55,35 @@ import           LambdaCube.Mesh                   as LC
 import           GameEngine.Utils                  as Q3
 
 -- Local imports
+import           HoloTypes
+
 import           Flatland
 import           HoloCairo
 import           HoloCube
 import           HoloFont
 
 
--- * Drawable state support
---
-newtype IdToken = IdToken { fromIdToken ∷ U.Unique } deriving (Eq, Ord)
+-- * Drawable identity support
 
-newId ∷ (MonadIO m) ⇒ m IdToken
-newId = liftIO $
-  IdToken <$> U.newUnique
+newId ∷ (HasCallStack, MonadIO m) ⇒ m IdToken
+newId = liftIO $ do
+  tok ← U.newUnique
+  trev ALLOC TOK (U.hashUnique tok) (U.hashUnique tok)
+  pure $ IdToken tok
 
-blankIdToken ∷ IdToken
-blankIdToken = IO.unsafePerformIO newId
+blankIdToken'      ∷ IO.IORef IdToken
+blankIdToken'      = IO.unsafePerformIO $ IO.newIORef  undefined
+blankIdToken'setup ∷ IO ()
+blankIdToken'setup = IO.writeIORef blankIdToken' =<< newId
+blankIdToken       ∷ IdToken
+blankIdToken       = IO.unsafePerformIO $ IO.readIORef blankIdToken'
+{-# NOINLINE blankIdToken #-}
+
+tokenHash ∷ IdToken → Int
+tokenHash = U.hashUnique ∘ fromIdToken
 
 
 -- * Impure IO-stateful map
-data IOMap k v where
-  IOMap ∷ Ord k ⇒
-    { iomap ∷ STM.TVar (Map.Map k v)
-    } → IOMap k v
-
-newtype DrawableTracker = DrawableTracker { fromDT ∷ IOMap IdToken Drawable }
 
 mkIOMap ∷ (MonadIO m, Ord k) ⇒ m (IOMap k v)
 mkIOMap = IOMap
@@ -103,16 +107,6 @@ iomapHas iomap x = Map.member x <$> iomapAccess iomap
 
 -- | Usher Cairo + Pango -enabled surfaces onto a GL Window,
 --   according to user-controlled Settings.
-data Port where
-  Port ∷
-    { portSettings        ∷ Settings
-    , portFontmap         ∷ FontMap PU
-    , portWindow          ∷ GL.Window
-    , portObjectStream    ∷ ObjectStream
-    , portRenderer        ∷ Renderer
-    , portEmptyDrawable   ∷ Drawable
-    , portDrawableTracker ∷ DrawableTracker
-    } → Port
 
 portDΠ ∷ Port → DΠ
 portDΠ = sttsDΠ ∘ portSettings
@@ -124,13 +118,16 @@ portCreate portWindow portSettings@Settings{..} = do
      ,(MISSALLOC, DRW, STACK, 4),(REUSE,     DRW, TRACE, 4),(REALLOC,   DRW, TRACE, 4),(ALLOC,     DRW, TRACE, 4),(FREE,        DRW, TRACE, 4)
      ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
     ]
+  liftIO $ blankIdToken'setup
+
   portFontmap                      ← makeFontMap sttsDΠ fmDefault sttsFontPreferences
   liftIO $ putStrLn $ printf "%s" (show portFontmap)
   (portRenderer, portObjectStream) ← makeSimpleRenderedStream portWindow (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))
   rendererDrawFrame portRenderer
+  liftIO $ trev ALLOC DRW (1, 1) (tokenHash blankIdToken)
   portEmptyDrawable ← makeDrawable portObjectStream (di 1 1)
-  portDrawableTracker@(DrawableTracker dt) ← DrawableTracker <$> mkIOMap
-  iomapAdd dt blankIdToken portEmptyDrawable
+  portDrawableTracker@(DrawableTracker _) ← DrawableTracker <$> mkIOMap
+  -- iomapAdd dt blankIdToken portEmptyDrawable
   pure Port{..}
 
 portUpdateSettings ∷ (MonadIO m) ⇒ Port → Settings → m (Port)
@@ -150,53 +147,33 @@ portFont' po fk = portFont po fk
   & fromMaybe (errorMissingFontkey fk)
 
 
-data Settings where
-  Settings ∷
-    { sttsDΠ              ∷ DΠ
-    , sttsFontPreferences ∷ FontPreferences PU
-    } → Settings
-    deriving (Eq, Show)
-
 defaultSettings ∷ (MonadIO m) ⇒ m Settings
 defaultSettings = do
   let sttsDΠ ∷ DΠ         = 96
       sttsFontPreferences = FontPreferences
         [ ("default",     Left $ Alias "defaultMono" )
-        , ("defaultSans", Right $ [ FontSpec "Bitstream Charter" "Regular" $ FSROutline (PUs 16) ])
+        , ("defaultSans", Right $ [ FontSpec "Bitstream Charter" "Regular" $ FSROutline (PUs 16)
+                                  , FontSpec "Aurulent Sans"     "Regular" $ FSROutline (PUs 16) ])
         , ("defaultMono", Right $ [ FontSpec "Terminus"          "Regular" $ FSRBitmap  (PUs 15) LT ])
         ]
   pure Settings{..}
 
 
 -- | A Pango/Cairo-capable 'Drawable' to display in a qPort.
-data Drawable where
-  Drawable ∷
-    { dObjectStream ∷ ObjectStream
-    , dDi           ∷ Di Int
-    , dSurface      ∷ GRCI.Surface
-    , dSurfaceData  ∷ (F.Ptr F.CUChar, (Int, Int))
-    , dCairo        ∷ Cairo
-    , dGIC          ∷ GIC.Context
-    --
-    , dMesh         ∷ LC.Mesh
-    , dGPUMesh      ∷ GL.GPUMesh
-    , dGLObject     ∷ GL.Object
-    , dTexId        ∷ GLuint
-    } → Drawable
 
-imageSurfaceGetPixels' :: GRC.Surface → IO (F.Ptr F.CUChar, (Int, Int))
+imageSurfaceGetPixels' :: GRC.Surface → IO (F.Ptr F.CUChar, V2 Int)
 imageSurfaceGetPixels' pb = do
   pixPtr ← GRCI.imageSurfaceGetData pb
   when (pixPtr ≡ F.nullPtr) $ do
     fail "imageSurfaceGetPixels: image surface not available"
   h ← GRC.imageSurfaceGetHeight pb
   r ← GRC.imageSurfaceGetStride pb
-  return (pixPtr, (r, h))
+  return (pixPtr, V2 r h)
 
 portMakeDrawable ∷ (MonadIO m) ⇒ Port → Di Double → m Drawable
 portMakeDrawable Port{..} = makeDrawable portObjectStream
 
-makeDrawable ∷ (MonadIO m) ⇒ ObjectStream → Di Double → m Drawable
+makeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → Di Double → m Drawable
 makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
@@ -211,19 +188,21 @@ makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                       , ("uv",        A_V2F texcoord) ] }
   dGPUMesh      ← GL.uploadMeshToGPU dMesh
-  SMem.addFinalizer dGPUMesh $
+  SMem.addFinalizer dGPUMesh $ do
     GL.disposeMesh dGPUMesh
   dGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [unameStr osUniform, "viewProj"] dGPUMesh
 
   dSurfaceData  ← imageSurfaceGetPixels' dSurface
   dTexId        ← F.alloca $! \pto → glGenTextures 1 pto >> F.peek pto
+  trev ALLOC TEX (dDi^.di'v) (fromIntegral dTexId)
 
   -- dTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi dStridePixels, h, GL_BGRA, pixels)
   pure Drawable{..}
 
-disposeDrawable ∷ (MonadIO m) ⇒ ObjectStream → Drawable → m ()
+disposeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → Drawable → m ()
 disposeDrawable ObjectStream{..} Drawable{..} = liftIO $ do
   -- see experiment in LCstress
+  trev FREE TEX (dDi^.di'v) (fromIntegral dTexId)
   F.withArray [dTexId] $ glDeleteTextures 1 -- release tex id
   GL.removeObject osStorage dGLObject
   -- GL.disposeMesh  dGPUMesh
@@ -234,7 +213,7 @@ drawableContentToGPU ∷ (MonadIO m) ⇒ Drawable → m ()
 drawableContentToGPU Drawable{..} = liftIO $ do
   let ObjectStream{..} = dObjectStream
 
-  let (pixels, (strideBytes, pixelrows)) = dSurfaceData
+  let (pixels, V2 strideBytes pixelrows) = dSurfaceData
   cTexture ← uploadTexture2DToGPU'''' False False False False (strideBytes `div` 4, pixelrows, GL_BGRA, pixels) dTexId
 
   GL.updateObjectUniforms dGLObject $ do
@@ -247,23 +226,27 @@ framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = 
   liftIO $ GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
     Q3.mat4ToM44F $! (Vc.fromProjective $! Vc.translation cvpos) Vc..*. toScreen
 
-establishSizedDrawableForId ∷ (MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
-establishSizedDrawableForId Port{..} idt dim = do
+establishSizedDrawableForId ∷ (HasCallStack, MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
+establishSizedDrawableForId Port{..} idt dim@(Di (V2 w h)) = do
   drwMap ← iomapAccess (fromDT portDrawableTracker)
   case Map.lookup idt drwMap of
     Nothing → do
-      liftIO $ putStrLn $ printf "--> releasing drawable %d" (U.hashUnique $ fromIdToken idt)
+      -- liftIO $ putStrLn $ printf "--> releasing drawable %d" (U.hashUnique $ fromIdToken idt)
+      liftIO $ trev MISSALLOC DRW (w, h) (tokenHash idt)
       d ← makeDrawable portObjectStream dim
       iomapAdd (fromDT portDrawableTracker) idt d
       pure d
     Just d@Drawable{..} →
       if False -- (dDi ≡ (ceiling <$> dim))
       then do
-        liftIO $ putStrLn $ printf "--> reusing drawable %d" (U.hashUnique $ fromIdToken idt)
+        -- liftIO $ putStrLn $ printf "--> reusing drawable %d" (U.hashUnique $ fromIdToken idt)
+        liftIO $ trev REUSE DRW   (w, h)                      (tokenHash idt)
         pure d
       else do
-        liftIO $ putStrLn $ printf "--> resizing drawable %d" (U.hashUnique $ fromIdToken idt)
+        -- liftIO $ putStrLn $ printf "--> resizing drawable %d" (U.hashUnique $ fromIdToken idt)
+        liftIO $ trev FREE  DRW (dDi^.di'v._x, dDi^.di'v._y) (tokenHash idt)
         disposeDrawable portObjectStream d
+        liftIO $ trev REALLOC DRW (w, h)                      (tokenHash idt)
         d' ← makeDrawable portObjectStream dim
         iomapAdd (fromDT portDrawableTracker) idt d'
         pure d'
@@ -324,6 +307,7 @@ drawableDrawRect Port{portSettings=Settings{..}} d@Drawable{..} color dim' = do
 -- Render with: framePutDrawable frame px0 (doubleToFloat <$> po 0 0)
 mkRectDrawable ∷ (MonadIO m, FromUnit u) ⇒ Port → Di (Unit u) → Co Double → m Drawable
 mkRectDrawable port@Port{portSettings=Settings{..}} dim color = do
+  liftIO $ trev ALLOC DRW (dim^.di'v._x, dim^.di'v._y) (-1)
   d@Drawable{..} ← portMakeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> dim
   drawableDrawRect port d color dim
   pure d

@@ -40,6 +40,7 @@ library
                   HoloOS
                   HoloPort
                   HoloPrelude
+                  HoloTypes
 
                   Reflex.GLFW
                   Reflex.Random
