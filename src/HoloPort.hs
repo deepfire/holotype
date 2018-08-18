@@ -237,7 +237,7 @@ establishSizedDrawableForId Port{..} idt dim@(Di (V2 w h)) = do
       iomapAdd (fromDT portDrawableTracker) idt d
       pure d
     Just d@Drawable{..} →
-      if False -- (dDi ≡ (ceiling <$> dim))
+      if (dDi ≡ (ceiling <$> dim))
       then do
         -- liftIO $ putStrLn $ printf "--> reusing drawable %d" (U.hashUnique $ fromIdToken idt)
         liftIO $ trev REUSE DRW   (w, h)                      (tokenHash idt)
