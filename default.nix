@@ -1,19 +1,19 @@
 { mkDerivation, aeson, base, base-unicode-symbols, binary
 , bytestring, cairo, clock, containers, dependent-sum, directory
-, dlist, exceptions, extra, filepath, free, freer-simple, fsnotify, ghc-prim
-, gi-cairo, gi-pango, gi-pangocairo, GLFW-b, Glob, hashable
-, haskell-gi-base, hedgehog, hspec, hxt, JuicyPixels
+, dlist, exceptions, extra, filepath, free, freer-simple, fsnotify
+, ghc-prim, gi-cairo, gi-pango, gi-pangocairo, GLFW-b, Glob
+, hashable, haskell-gi-base, hedgehog, hspec, hxt, JuicyPixels
 , lambdacube-compiler, lambdacube-gl, lambdacube-ir
 , lambdacube-quake3, lens, linear, lub, metamorphic, MissingH
 , monadplus, MonadRandom, mono-traversable, mtl, OpenGL, OpenGLRaw
 , parsers, pretty, pretty-show, primitive, profunctors, proteaaudio
-, QuickCheck, random, ref-tf, reflex, semigroupoids
-, semigroups, singletons, stdenv, stm, tasty, tasty-discover
+, QuickCheck, random, ref-tf, reflex, semigroupoids, semigroups
+, singletons, stdenv, stm, tasty, tasty-discover
 , tasty-expected-failure, tasty-hedgehog, tasty-hspec, tasty-hunit
 , tasty-quickcheck, tasty-smallcheck, template-haskell, text
 , text-format, text-lens, text-zipper, these, transformers
-, trifecta, unordered-containers, vect, vector, wl-pprint-extras
-, wl-pprint-text
+, trifecta, type-map, unordered-containers, vect, vector
+, wl-pprint-extras, wl-pprint-text
 }:
 mkDerivation {
   pname = "holotype";
@@ -24,16 +24,16 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson base base-unicode-symbols binary bytestring cairo clock
     containers dependent-sum directory dlist exceptions extra filepath
-    free freer-simple fsnotify ghc-prim gi-cairo gi-pango gi-pangocairo GLFW-b
-    hashable haskell-gi-base hedgehog hspec hxt JuicyPixels
+    free freer-simple fsnotify ghc-prim gi-cairo gi-pango gi-pangocairo
+    GLFW-b hashable haskell-gi-base hedgehog hspec hxt JuicyPixels
     lambdacube-compiler lambdacube-gl lambdacube-ir lambdacube-quake3
     lens linear lub metamorphic MissingH monadplus MonadRandom
     mono-traversable mtl OpenGL OpenGLRaw parsers pretty pretty-show
-    primitive profunctors proteaaudio QuickCheck random ref-tf
-    reflex semigroupoids semigroups singletons stm tasty
+    primitive profunctors proteaaudio QuickCheck random ref-tf reflex
+    semigroupoids semigroups singletons stm tasty
     tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
     tasty-quickcheck tasty-smallcheck template-haskell text text-format
-    text-lens text-zipper these transformers trifecta
+    text-lens text-zipper these transformers trifecta type-map
     unordered-containers vect vector wl-pprint-extras wl-pprint-text
   ];
   executableHaskellDepends = [
@@ -48,6 +48,7 @@ mkDerivation {
     tasty-hedgehog tasty-hspec tasty-hunit tasty-quickcheck
     tasty-smallcheck
   ];
+  testToolDepends = [ tasty-discover ];
   description = "Graph-backed visual mind assistant";
   license = stdenv.lib.licenses.agpl3;
 }

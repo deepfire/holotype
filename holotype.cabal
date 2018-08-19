@@ -103,6 +103,7 @@ library
                      -- , rapid
                      , text-lens
                      , text-zipper
+                     , type-map
                      , hspec
                      , QuickCheck
 

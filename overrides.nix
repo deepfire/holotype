@@ -107,4 +107,8 @@ with pkgs.haskell.lib; with self; {
 
   ## Non-code, configuration-only change
 
+  type-map = overrideCabal super.type-map (drv: {
+    jailbreak       = true;
+  });
+
 }
