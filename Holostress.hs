@@ -20,7 +20,6 @@
 {-# OPTIONS_GHC -Wextra -Wno-unticked-promoted-constructors -Wno-type-defaults #-}
 
 import           HoloPrelude
-import           Elsewhere
 
 import qualified Data.List
 import qualified Data.Map                          as Map
@@ -44,6 +43,7 @@ import qualified Data.Text.Zipper                  as T
 
 
 import           Flatland
+import           HoloTypes
 
 import           HoloCube
 import           HoloCairo
