@@ -14,7 +14,7 @@ lcs lcstress:
 hols holostress:
 	ghc -threaded -eventlog -rtsopts -isrc --make Holostress.hs && ./Holostress +RTS -T -ls -N2
 
-SRCS=$(wildcard src/*.hs src/*/*.hs)
+SRCS=$(wildcard *.hs src/*.hs src/*/*.hs)
 ## BUILDBASE=dist/build
 BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-8.4.3/holotype-0.0.1/x/holotype/build
 HOLOTYPE=$(BUILDBASE)/holotype/holotype
