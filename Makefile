@@ -16,7 +16,7 @@ hols holostress:
 
 SRCS=$(wildcard src/*.hs src/*/*.hs)
 dist/build/holotype/holotype: $(SRCS)
-	cabal build exe:holotype
+	cabal new-build exe:holotype
 
 #
 #
@@ -37,7 +37,7 @@ exdeps     := $(exdepsbase)$(if $(deps), $(deps))
 experiments := $(shell find experiments -maxdepth 1 -mindepth 1 -type d | grep -vw dist | cut -d/ -f2)
 define defexperiment =
 dist/build/$1/$1: ./experiments/$1/Main.hs
-	@cabal -v0 build $1
+	@cabal -v0 new-build $1
 .PHONY: $1
 $1: dist/build/$1/$1
 	@dist/build/$1/$1
