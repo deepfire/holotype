@@ -206,21 +206,25 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   frameE           ← newPortFrame $ portV <$ windowFrameE
 
   fpsValueD        ← fpsCounterD frameE
+  frameNoD ∷ Dynamic t Int
+                   ← count       frameE
   fpsD             ← mkTextD portV (constDyn mempty) (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  frameCountD      ← mkTextD portV (constDyn mempty) (T.pack ∘ printf "frame #%04d" <$> frameNoD)
 
   styleEntryD      ← mkTextEntryValidatedD portV (constDyn mempty { Holo._tsFontKey = "defaultMono" }) editE "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-  let styleD        = (\name→ mempty { Holo._tsFontKey = HoloFont.FK name }) ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD) 
+  let styleD        = (\name→ mempty { Holo._tsFontKey = HoloFont.FK name }) ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
   text2HoloQD      ← mkTextEntryD portV styleD editE "watch me"
 
   -- * SCENE
   let sceneD        = zipDynWith -- <&>
-        (\(_, entry) (driven, fps)→
-          Holo.vbox [fps, entry, driven])
-        styleEntryD $ zipDynWith
-        (\(_, driven) fps →
-          (driven, fps))
-        text2HoloQD fpsD
+        (\(_, entry) [driven, fps, counter]→
+          Holo.vbox [counter, fps, entry, driven])
+        styleEntryD
+        $ zipDynWith (:) (snd <$> text2HoloQD)
+        $ zipDynWith (:) fpsD
+        ((:[]) <$> frameCountD)
+
       scenePlacedTreeE ∷ Event t (Holo.HoloItem 'Holo.PLayout)
       scenePlacedTreeE = layout (Size $ di 400 200) <$> updated sceneD
 
