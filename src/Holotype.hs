@@ -145,8 +145,17 @@ updateQueryParseState text qps =
 
 
 
-mkTextWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.Layout))
-mkTextWidgetD portV styleD editE' initialV = do
+mkTextD ∷ Port → Dynamic t (StyleOf T.Text) → Dynamic t T.Text → ReflexGLFW t m (Dynamic t (Holo.HoloItem Holo.PLayout))
+mkTextD portV styleD valD = do
+  setupE       ← getPostBuild
+  tokenV       ← newId
+  let holoD     = zipDynWith (Holo.leaf tokenV) valD styleD
+  initHoloV    ← sample $ current holoD
+  holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
+  holdDyn Holo.emptyLayoutHolo holoIOE
+
+mkTextEntryD ∷ Port → Dynamic t (StyleOf T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.PLayout))
+mkTextEntryD portV styleD editE' initialV = do
   -- the dynamic here is needed for state accumulation
   valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initialV]) editE'
   setupE       ← getPostBuild
@@ -161,15 +170,22 @@ mkTextWidgetD portV styleD editE' initialV = do
   -- holoIOE      ← (performEvent $ (flip $ queryHoloitem portV) [] <$> holoE)
   holdDyn (initialV, Holo.emptyLayoutHolo) $ attachPromptlyDyn valD holoIOE
 
-mkTextValidatedWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.Layout))
-mkTextValidatedWidgetD portV styleD editE' initialV testF = do
+mkTextEntryValidatedD ∷ Port → Dynamic t (StyleOf T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.PLayout))
+mkTextEntryValidatedD portV styleD editE' initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
-  textD ← mkTextWidgetD portV styleD editE' initialV
+  textD ← mkTextEntryD portV styleD editE' initialV
   initial ← sample $ current textD
   foldDyn (\(new, newHoloi) (oldValid, _)→
               (if testF new then new else oldValid, newHoloi))
     initial $ updated textD
+
+fpsCounterD ∷ ∀ t m. Event t Frame → ReflexGLFW t m (Dynamic t Double)
+fpsCounterD frameE = do
+  frameMomentE     ← performEvent $ fmap (\_ → HOS.fromSec <$> HOS.getTime) frameE
+  frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
+  avgFrameΔD       ← average 20 $ updated frameΔD
+  pure (recip <$> avgFrameΔD)
 
 -- * Top level network
 --
@@ -189,30 +205,31 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
       editE         = ffilter (\case Edit{..}  → True; _ → False) worldE
   frameE           ← newPortFrame $ portV <$ windowFrameE
 
-  -- text1HoloQD ← textWidgetD "defaultSans" editE $ constant mempty { _tsFontKey = "defaultSans" }
-  -- text2HoloQD ← textWidgetD "woo hoo"     editE $ constant mempty { _tsFontKey = "defaultMono" }
-  styleEntryD      ← mkTextValidatedWidgetD portV (constDyn mempty { Holo._tsFontKey = "defaultMono" }) editE "defaultSans" $
+  fpsValueD        ← fpsCounterD frameE
+  fpsD             ← mkTextD portV (constDyn mempty) (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+
+  styleEntryD      ← mkTextEntryValidatedD portV (constDyn mempty { Holo._tsFontKey = "defaultMono" }) editE "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
   let styleD        = (\name→ mempty { Holo._tsFontKey = HoloFont.FK name }) ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD) 
-  text2HoloQD      ← mkTextWidgetD portV styleD editE "watch me"
-
-  -- * Thoughts
-  --
-  -- 1. flicker
+  text2HoloQD      ← mkTextEntryD portV styleD editE "watch me"
 
   -- * SCENE
   let sceneD        = zipDynWith -- <&>
-        (\(_, a) (_, b)→
-          Holo.vbox [a, b])
-        styleEntryD text2HoloQD
-      scenePlacedTreeE  = layout (Size $ di 400 200) <$> updated sceneD
+        (\(_, entry) (driven, fps)→
+          Holo.vbox [fps, entry, driven])
+        styleEntryD $ zipDynWith
+        (\(_, driven) fps →
+          (driven, fps))
+        text2HoloQD fpsD
+      scenePlacedTreeE ∷ Event t (Holo.HoloItem 'Holo.PLayout)
+      scenePlacedTreeE = layout (Size $ di 400 200) <$> updated sceneD
 
   -- * At every scene update
   sceneVisualTreeE     ← performEvent $ scenePlacedTreeE <&>
-    \(tree ∷ Holo.HoloItem Holo.Layout) → liftIO $ do
-      drwMap ← liftIO $ STM.readTVarIO (iomap $ fromDT portDrawableTracker)
+    \(tree ∷ Holo.HoloItem Holo.PLayout) → liftIO $ do
+      drwMap ← liftIO $ STM.readTVarIO (iomap $ fromT portVisualTracker)
 
-      let leaves     ∷ M.Map IdToken (Holo.HoloItem 'Holo.Layout)
+      let leaves     ∷ M.Map IdToken (Holo.HoloItem 'Holo.PLayout)
           leaves     = Holo.holotreeLeaves tree -- this shouldn't contain nodes!
           unusedDrws ∷ M.Map IdToken Drawable
           unusedDrws = M.filterWithKey (flip $ const (not ∘ flip M.member leaves)) drwMap
