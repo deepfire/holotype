@@ -15,7 +15,10 @@ hols holostress:
 	ghc -threaded -eventlog -rtsopts -isrc --make Holostress.hs && ./Holostress +RTS -T -ls -N2
 
 SRCS=$(wildcard src/*.hs src/*/*.hs)
-dist/build/holotype/holotype: $(SRCS)
+## BUILDBASE=dist/build
+BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-8.4.3/holotype-0.0.1/x/holotype/build
+HOLOTYPE=$(BUILDBASE)/holotype/holotype
+$(HOLOTYPE): $(SRCS)
 	cabal new-build exe:holotype
 
 #
@@ -36,11 +39,11 @@ deps       ?=
 exdeps     := $(exdepsbase)$(if $(deps), $(deps))
 experiments := $(shell find experiments -maxdepth 1 -mindepth 1 -type d | grep -vw dist | cut -d/ -f2)
 define defexperiment =
-dist/build/$1/$1: ./experiments/$1/Main.hs
+$(BUILDBASE)/$1/$1: ./experiments/$1/Main.hs
 	@cabal -v0 new-build $1
 .PHONY: $1
-$1: dist/build/$1/$1
-	@dist/build/$1/$1
+$1: $(BUILDBASE)/$1/$1
+	@$(BUILDBASE)/$1/$1
 endef
 $(foreach x,$(experiments),$(eval $(call defexperiment,$(x))))
 ls:
@@ -72,7 +75,7 @@ tool      := $(and $(leakcheck),valgrind --leak-check=full --show-leak-kinds=all
              $(and $(pprof),pprof)
 toollog   := $(and $(leakcheck), 2>&1 | ts -s | tee leakcheck.$(shell date +%s).report) \
              $(and $(pprof),     2>&1 | ts -s | tee     pprof.$(shell date +%s).report)
-holotype: dist/build/holotype/holotype
+holotype: $(BUILDBASE)/holotype/holotype
 	$(tool) $< +RTS -T $(toollog)
 
 #
@@ -93,8 +96,8 @@ refs references:
 	nix-store --query --references $$(nix-instantiate package.nix)
 
 .PHONY: gdb
-gdb: dist/build/holotype/holotype
-	gdb -ex run --args dist/build/holotype/holotype +RTS -V0 -l-au
+gdb: $(HOLOTYPE)
+	gdb -ex run --args $(HOLOTYPE) +RTS -V0 -l-au
 
 .PHONY: modules graph
 modules graph:
