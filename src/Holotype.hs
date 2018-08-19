@@ -199,6 +199,7 @@ nextFrame win windowFrameE = performEvent $ windowFrameE <&>
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
 holotype win _evCtl _setupE windowFrameE inputE = mdo
   HOS.unbufferStdout
+  liftIO $ GLFW.swapInterval 1
 
   settingsV@Settings{..} ← defaultSettings
   portV@Port{..}         ← portCreate win settingsV
