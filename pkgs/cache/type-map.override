@@ -1,0 +1,4 @@
+  type-map = overrideCabal super.type-map (drv: {
+    jailbreak       = true;
+  });
+
