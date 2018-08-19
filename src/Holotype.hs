@@ -261,7 +261,8 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
                        Holo.drawHolotreeVisuals portV f tree
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.
-  _                ← nextFrame win $ () <$ drawE
+  -- waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE
+  -- _                ← nextFrame win $ () <$ gate (current waitForVSyncD) drawE
 
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
@@ -275,6 +276,7 @@ data WorldEvent where
     { weEdit ∷ T.TextZipper T.Text → T.TextZipper T.Text
     } → WorldEvent
   ObjStream   ∷ WorldEvent
+  VSyncToggle ∷ WorldEvent
   GCing       ∷ WorldEvent
   Spawn       ∷ WorldEvent
   Shutdown    ∷ WorldEvent
@@ -303,6 +305,7 @@ translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _)) 
 -- how to process key chords?
 translateEvent (U (EventKey  _ GLFW.Key'F1        _ GLFW.KeyState'Pressed   _)) = ObjStream
 translateEvent (U (EventKey  _ GLFW.Key'F2        _ GLFW.KeyState'Pressed   _)) = GCing
+translateEvent (U (EventKey  _ GLFW.Key'F3        _ GLFW.KeyState'Pressed   _)) = VSyncToggle
 translateEvent (U (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = Spawn
 translateEvent (U (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = Shutdown
 translateEvent _                                                                = NonEvent
