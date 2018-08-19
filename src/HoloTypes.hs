@@ -86,22 +86,22 @@ data Drawable where
 
 
 -- | 'Holo': anything visualisable.
-class (FromUnit u, Monoid (StyleOf u a)) ⇒ Holo (u ∷ UnitK) a where
-  data VisualOf u a
-  data StyleOf  u a
+class (Monoid (StyleOf a)) ⇒ Holo a where
+  data VisualOf a
+  data StyleOf  a
   -- | Given:
   --   1. global context
   --   2. geometry-enriched style
   --   3. datum
   --   Produce an initial visualisation.
-  query           ∷ (MonadIO m) ⇒ Port → StyleOf u a →                  a →            m (Di (Maybe Double))
-  createVisual    ∷ (MonadIO m) ⇒ Port → StyleOf u a → Area'LU Double → a → Drawable → m (VisualOf u a)
+  query           ∷ (MonadIO m) ⇒ Port → StyleOf a →                  a →            m (Di (Maybe Double))
+  createVisual    ∷ (MonadIO m) ⇒ Port → StyleOf a → Area'LU Double → a → Drawable → m (VisualOf a)
   -- * Question: what do we change, to allow animation of style?
   --
   -- The current model doesn't allow for it.
-  renderVisual    ∷ (MonadIO m) ⇒ Port →            VisualOf u a → a → m ()           -- ^ Update a visualisation of 'a'.
+  renderVisual    ∷ (MonadIO m) ⇒ Port →            VisualOf a → a → m ()           -- ^ Update a visualisation of 'a'.
   -- For: drawHolotree
-  drawableOf      ∷ Port → VisualOf u a → Drawable
+  drawableOf      ∷ Port → VisualOf a → Drawable
 
 
 data Phase
@@ -114,24 +114,23 @@ type family HIArea   (p ∷ Phase) ∷ Type where
   HIArea   Layout = Area'LU Double
   HIArea   Visual = Area'LU Double
 
-type family HIVisual (p ∷ Phase) u a ∷ Type where
-  HIVisual Blank  _ _ = ()
-  HIVisual Layout _ _ = ()
-  HIVisual Visual u a = VisualOf u a
+type family HIVisual (p ∷ Phase) a ∷ Type where
+  HIVisual Blank  _ = ()
+  HIVisual Layout _ = ()
+  HIVisual Visual a = VisualOf a
 
 data HoloItem (p ∷ Phase) where
-  HoloItem ∷ ∀ p u a. (FromUnit u, Holo u a) ⇒
+  HoloItem ∷ ∀ p a. (Holo a) ⇒
     { holo       ∷ a
     , hiToken    ∷ IdToken
     -- XXX: everything below seems like it's not needed early?
-    , hiUnit     ∷ SUnitK u
     , hiGeo      ∷ Geo
-    , hiStyle    ∷ StyleOf u a
+    , hiStyle    ∷ StyleOf a
     , hiChildren ∷ [HoloItem p]
     -- Problem:
     -- 1. We have size for top entry, want to record it
     -- 2. The tree is type-coherent, and children need have the same type.
     , hiSize     ∷ Di (Maybe Double)
     , hiArea     ∷ HIArea p
-    , hiVisual   ∷ HIVisual p u a
+    , hiVisual   ∷ HIVisual p a
     } → HoloItem p

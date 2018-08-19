@@ -122,7 +122,7 @@ parseQuery x = case P.parseString parserQuery mempty (T.unpack x) of
                  P.Success r       → Right r
                  P.Failure errinfo → Left $ T.pack $ show errinfo
 
-wordInterpStyle ∷ (FromUnit u) ⇒ Word → Holo.TextStyle u
+wordInterpStyle ∷ Word → Holo.TextStyle
 wordInterpStyle x = mempty
   & Holo.tsFontKey .~ "defaultSans"
   & Holo.tsColor   .~ case x of
@@ -145,7 +145,7 @@ updateQueryParseState text qps =
 
 
 
-mkTextWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf u T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.Layout))
+mkTextWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.Layout))
 mkTextWidgetD portV styleD editE' initialV = do
   -- the dynamic here is needed for state accumulation
   valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initialV]) editE'
@@ -161,7 +161,7 @@ mkTextWidgetD portV styleD editE' initialV = do
   -- holoIOE      ← (performEvent $ (flip $ queryHoloitem portV) [] <$> holoE)
   holdDyn (initialV, Holo.emptyLayoutHolo) $ attachPromptlyDyn valD holoIOE
 
-mkTextValidatedWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf u T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.Layout))
+mkTextValidatedWidgetD ∷ (FromUnit u, SingI u, a ~ T.Text, u ~ PU) ⇒ Port → Dynamic t (StyleOf T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.Layout))
 mkTextValidatedWidgetD portV styleD editE' initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
