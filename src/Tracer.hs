@@ -2,6 +2,7 @@
 module Tracer
   (setupTracer, trev, trevE, TraceKind(..), TraceEntity(..), TraceAction(..))
 where
+import           Control.Monad
 import           GHC.Stack
 import qualified Data.Map.Strict                   as Map
 import           Debug.Trace
@@ -47,13 +48,15 @@ setupTracer = IO.writeIORef conf ∘ TraceConf ∘ Map.fromList ∘ (fmap $ \(k,
 
 trev ∷ (HasCallStack, Show a) ⇒ TraceKind → TraceEntity → a → Int → IO ()
 trev kind entity arg addrOrId = do
-  enabled ← Map.lookup (kind, entity) ∘ tcas <$> IO.readIORef conf
-  let msg = show kind <> " " <> show entity <> " 0x" <> showHex addrOrId "" <> " " <> show arg
-  case enabled of
-    Just (IGNORE, _)     → pure ()
-    Just (STACK,  depth) → let prefix = replicate depth ' ' in (putStrLn $ prettyCallStack callStack) >> traceIO (prefix <> msg) >> traceEventIO msg
-    Just (TRACE,  depth) → let prefix = replicate depth ' ' in                                           traceIO (prefix <> msg) >> traceEventIO msg
-    _                    →                                                                               traceIO            msg  >> traceEventIO msg
+  config ← tcas <$> IO.readIORef conf
+  unless (Map.null config) $ do
+    let cfg = Map.lookup (kind, entity) config
+    let msg = show kind <> " " <> show entity <> " 0x" <> showHex addrOrId "" <> " " <> show arg
+    case cfg of
+      Just (IGNORE, _)     → pure ()
+      Just (STACK,  depth) → let prefix = replicate depth ' ' in (putStrLn $ prettyCallStack callStack) >> traceIO (prefix <> msg) >> traceEventIO msg
+      Just (TRACE,  depth) → let prefix = replicate depth ' ' in                                           traceIO (prefix <> msg) >> traceEventIO msg
+      _                    →                                                                               traceIO            msg  >> traceEventIO msg
 
 trevE ∷ (HasCallStack, Show a) ⇒ TraceKind → TraceEntity → a → Int → b → b
 trevE kind entity arg addrOrId x =
