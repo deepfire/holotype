@@ -46,7 +46,12 @@ data IOMap k v where
     { iomap               ∷ STM.TVar (Map.Map k v)
     } → IOMap k v
 
-newtype DrawableTracker = DrawableTracker { fromDT ∷ IOMap IdToken Drawable }
+newtype VisualTracker = VisualTracker { fromT ∷ IOMap IdToken Drawable }
+-- data Visuals
+-- newtype PolyTracker = PolyTracker { fromPT ∷ TM.TypeMap Visuals }
+-- type instance TM.Item Visuals t = IOMap IdToken (VisualOf t)
+    -- let x ∷ TM.TypeMap Visuals
+    --     x = TM.insert Proxy v TM.empty
 
 
 -- | Usher Cairo + Pango -enabled surfaces onto a GL Window,
@@ -59,7 +64,7 @@ data Port where
     , portObjectStream    ∷ ObjectStream
     , portRenderer        ∷ Renderer
     , portEmptyDrawable   ∷ Drawable
-    , portDrawableTracker ∷ DrawableTracker
+    , portVisualTracker   ∷ VisualTracker
     } → Port
 
 data Settings where
@@ -103,24 +108,27 @@ class (Monoid (StyleOf a)) ⇒ Holo a where
   -- For: drawHolotree
   drawableOf      ∷ Port → VisualOf a → Drawable
 
+data Visual where
+  Visual ∷ ∀ a. Holo a ⇒ VisualOf a → Visual
+
 
 data Phase
-  = Blank
-  | Layout
-  | Visual
+  = PBlank
+  | PLayout
+  | PVisual
 
 type family HIArea   (p ∷ Phase) ∷ Type where
-  HIArea   Blank  = ()
-  HIArea   Layout = Area'LU Double
-  HIArea   Visual = Area'LU Double
+  HIArea   PBlank  = ()
+  HIArea   PLayout = Area'LU Double
+  HIArea   PVisual = Area'LU Double
 
 type family HIVisual (p ∷ Phase) a ∷ Type where
-  HIVisual Blank  _ = ()
-  HIVisual Layout _ = ()
-  HIVisual Visual a = VisualOf a
+  HIVisual PBlank  _ = ()
+  HIVisual PLayout _ = ()
+  HIVisual PVisual a = VisualOf a
 
 data HoloItem (p ∷ Phase) where
-  HoloItem ∷ ∀ p a. (Holo a) ⇒
+  HoloItem ∷ ∀ p a. Holo a ⇒
     { holo       ∷ a
     , hiToken    ∷ IdToken
     -- XXX: everything below seems like it's not needed early?

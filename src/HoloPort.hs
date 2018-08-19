@@ -113,11 +113,11 @@ portDΠ = sttsDΠ ∘ portSettings
 
 portCreate  ∷ (MonadIO m) ⇒ GL.Window → Settings → m (Port)
 portCreate portWindow portSettings@Settings{..} = do
-  liftIO $ setupTracer [
-      (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
-     ,(MISSALLOC, DRW, STACK, 4),(REUSE,     DRW, TRACE, 4),(REALLOC,   DRW, TRACE, 4),(ALLOC,     DRW, TRACE, 4),(FREE,        DRW, TRACE, 4)
-     ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
-    ]
+  -- liftIO $ setupTracer [
+  --     (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
+  --    ,(MISSALLOC, DRW, STACK, 4),(REUSE,     DRW, TRACE, 4),(REALLOC,   DRW, TRACE, 4),(ALLOC,     DRW, TRACE, 4),(FREE,        DRW, TRACE, 4)
+  --    ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
+  --   ]
   liftIO $ blankIdToken'setup
 
   portFontmap                      ← makeFontMap sttsDΠ fmDefault sttsFontPreferences
@@ -126,7 +126,7 @@ portCreate portWindow portSettings@Settings{..} = do
   rendererDrawFrame portRenderer
   liftIO $ trev ALLOC DRW (1, 1) (tokenHash blankIdToken)
   portEmptyDrawable ← makeDrawable portObjectStream (di 1 1)
-  portDrawableTracker@(DrawableTracker _) ← DrawableTracker <$> mkIOMap
+  portVisualTracker@(VisualTracker _) ← VisualTracker <$> mkIOMap
   -- iomapAdd dt blankIdToken portEmptyDrawable
   pure Port{..}
 
@@ -228,13 +228,13 @@ framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = 
 
 establishSizedDrawableForId ∷ (HasCallStack, MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
 establishSizedDrawableForId Port{..} idt dim@(Di (V2 w h)) = do
-  drwMap ← iomapAccess (fromDT portDrawableTracker)
+  drwMap ← iomapAccess (fromT portVisualTracker)
   case Map.lookup idt drwMap of
     Nothing → do
       -- liftIO $ putStrLn $ printf "--> releasing drawable %d" (U.hashUnique $ fromIdToken idt)
       liftIO $ trev MISSALLOC DRW (w, h) (tokenHash idt)
       d ← makeDrawable portObjectStream dim
-      iomapAdd (fromDT portDrawableTracker) idt d
+      iomapAdd (fromT portVisualTracker) idt d
       pure d
     Just d@Drawable{..} →
       if (dDi ≡ (ceiling <$> dim))
@@ -248,7 +248,7 @@ establishSizedDrawableForId Port{..} idt dim@(Di (V2 w h)) = do
         disposeDrawable portObjectStream d
         liftIO $ trev REALLOC DRW (w, h)                      (tokenHash idt)
         d' ← makeDrawable portObjectStream dim
-        iomapAdd (fromDT portDrawableTracker) idt d'
+        iomapAdd (fromT portVisualTracker) idt d'
         pure d'
 
 

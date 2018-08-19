@@ -73,7 +73,7 @@ holotreeLeaves root = Map.fromList $ walk root
   where walk x@(hiChildren → []) = [(hiToken x, x)]
         walk HoloItem{..}        = concat $ walk <$> hiChildren
 
-holoitemDrawable ∷ Port → HoloItem Visual → Drawable
+holoitemDrawable ∷ Port → HoloItem PVisual → Drawable
 holoitemDrawable port HoloItem{..} = drawableOf port hiVisual
 
 
@@ -91,41 +91,41 @@ instance Semigroup (StyleOf ()) where
 instance Monoid    (StyleOf ()) where
   mempty      = UnitStyle
 
-instance Semigroup (HoloItem Blank) where
+instance Semigroup (HoloItem PBlank) where
   _ <> _ = mempty
-instance Monoid    (HoloItem Blank) where
+instance Monoid    (HoloItem PBlank) where
   mempty      = HoloItem () blankIdToken mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
 
-instance Semigroup (HoloItem Layout) where
+instance Semigroup (HoloItem PLayout) where
   l <> r = vbox [l, r]
-instance Monoid    (HoloItem Layout) where
+instance Monoid    (HoloItem PLayout) where
   mempty      = HoloItem () blankIdToken mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
 -- instance Monoid (HoloItem Visual) where
 --   mappend l r = holoVBox [l, r]
 --   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty UnitVisual
 
-emptyLayoutHolo ∷ HoloItem Layout
+emptyLayoutHolo ∷ HoloItem PLayout
 emptyLayoutHolo =
   HoloItem () blankIdToken mempty mempty [] (Di $ V2 Nothing Nothing) mempty ()
 
-emptyVisualHolo ∷ HoloItem Visual
+emptyVisualHolo ∷ HoloItem PVisual
 emptyVisualHolo =
   HoloItem () blankIdToken mempty mempty [] (Di $ V2 Nothing Nothing) mempty UnitVisual
 
 
-instance Flex (HoloItem Blank) where
+instance Flex (HoloItem PBlank) where
   geo      f hi@HoloItem{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
   size     f hi@HoloItem{..} = (\x→ hi {hiSize=x})     <$> f hiSize
   children f hi@HoloItem{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
   -- area     f hi@HoloItem{..} = (\x→ hi {hiArea=x})     <$> f hiArea
 
-instance Flex (HoloItem Layout) where
+instance Flex (HoloItem PLayout) where
   geo      f hi@HoloItem{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
   size     f hi@HoloItem{..} = (\x→ hi {hiSize=x})     <$> f hiSize
   children f hi@HoloItem{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
   area     f hi@HoloItem{..} = (\x→ hi {hiArea=x})     <$> f hiArea
 
-instance Flex (HoloItem Visual) where
+instance Flex (HoloItem PVisual) where
   geo      f hi@HoloItem{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
   size     f hi@HoloItem{..} = (\x→ hi {hiSize=x})     <$> f hiSize
   children f hi@HoloItem{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
@@ -139,20 +139,20 @@ instance Flex (HoloItem Visual) where
 --   2. Layout
 --   2. CreateVisual
 
-queryHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem Blank → [HoloItem Layout] → m (HoloItem Layout)
+queryHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem PBlank → [HoloItem PLayout] → m (HoloItem PLayout)
 queryHoloitem port hoi children =
   case hoi of
     HoloItem{..} → do
       size ← query port hiStyle holo
       pure HoloItem{hiSize=size, hiArea=mempty, hiChildren=children, ..}
 
-visualiseHoloitem ∷ (HasCallStack, MonadIO m) ⇒ Port → HoloItem Layout → [HoloItem Visual] → m (HoloItem Visual)
+visualiseHoloitem ∷ (HasCallStack, MonadIO m) ⇒ Port → HoloItem PLayout → [HoloItem PVisual] → m (HoloItem PVisual)
 visualiseHoloitem port HoloItem{..} hiChildren' = do
   drw ← establishSizedDrawableForId port hiToken (hiArea^.area'b.size'di)
   vis ← createVisual port hiStyle hiArea holo drw
   pure HoloItem{hiVisual=vis, hiChildren = hiChildren', ..}
 
-renderHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem Visual → m ()
+renderHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem PVisual → m ()
 renderHoloitem port HoloItem{..} = do
   let drw = drawableOf port hiVisual
   clearDrawable drw
@@ -160,20 +160,20 @@ renderHoloitem port HoloItem{..} = do
   drawableContentToGPU drw
 
 
-queryHolotree ∷ (MonadIO m) ⇒ Port → HoloItem Blank → m (HoloItem Layout)
+queryHolotree ∷ (MonadIO m) ⇒ Port → HoloItem PBlank → m (HoloItem PLayout)
 queryHolotree port hoi@HoloItem{..} =
   queryHoloitem     port hoi =<< (sequence $ queryHolotree     port <$> hiChildren)
 
-visualiseHolotree ∷ (MonadIO m) ⇒ Port → HoloItem Layout → m (HoloItem Visual)
+visualiseHolotree ∷ (MonadIO m) ⇒ Port → HoloItem PLayout → m (HoloItem PVisual)
 visualiseHolotree port hoi@HoloItem{..} = do
   visualiseHoloitem port hoi =<< (sequence $ visualiseHolotree port <$> hiChildren)
 
-renderHolotreeVisuals ∷ (MonadIO m) ⇒ Port → HoloItem Visual → m ()
+renderHolotreeVisuals ∷ (MonadIO m) ⇒ Port → HoloItem PVisual → m ()
 renderHolotreeVisuals port hoi@HoloItem{..} = do
   renderHoloitem port hoi
   forM_ hiChildren (renderHolotreeVisuals port)
 
-drawHolotreeVisuals ∷ (MonadIO m) ⇒ Port → Frame → HoloItem Visual → m ()
+drawHolotreeVisuals ∷ (MonadIO m) ⇒ Port → Frame → HoloItem PVisual → m ()
 drawHolotreeVisuals port frame root = loop (luOf (hiArea root)^.lu'po) root
   where
     loop offset HoloItem{..} = do
@@ -225,14 +225,14 @@ node ∷ ∀ p k. (Holo (Node k)) ⇒ IdToken → HIVisual p (Node k) → HIArea
 node idToken visual area holo =
   item visual mempty area (nodeGeo holo) idToken holo
 
-leaf ∷ ∀ a. (Holo a) ⇒ IdToken → a → StyleOf a → HoloItem Blank
+leaf ∷ ∀ a. (Holo a) ⇒ IdToken → a → StyleOf a → HoloItem PBlank
 leaf idToken holo hiStyle =
   item () hiStyle () mempty         idToken holo []
 
 
 -- * Pre-package tree constructors
 --
-vbox, hbox ∷ [HoloItem Layout] → HoloItem Layout
+vbox, hbox ∷ [HoloItem PLayout] → HoloItem PLayout
 -- XXX: here's trouble -- we're using blankIdToken!
 hbox = node blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (HBoxN ∷ Node HBox)
 vbox = node blankIdToken () (Area (mkLU 0 0) (mkSize 0 0)) (VBoxN ∷ Node VBox)
@@ -258,7 +258,7 @@ instance Holo   Rect where
   data StyleOf  Rect where RectStyle  ∷ RectStyle
   data VisualOf Rect where RectVisual ∷ { rectDrawable ∷ Drawable } → RectVisual
   drawableOf _ = rectDrawable
-  query     port _       Rect{..} = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$>_rectDim
+  query     port _       Rect{..} = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$> _rectDim
   createVisual port@Port{..} _ _area Rect{..} _drw = do
     let dim = PUs <$> _area^.area'b.size'di
     -- WTF: we're given a DRW, and then we proceed to ignore it?
