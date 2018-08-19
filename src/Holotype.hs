@@ -187,6 +187,13 @@ fpsCounterD frameE = do
   avgFrameΔD       ← average 20 $ updated frameΔD
   pure (recip <$> avgFrameΔD)
 
+nextFrame ∷ ReflexGLFWCtx t m ⇒ GLFW.Window → Event t () → ReflexGLFW t m (Event t ())
+nextFrame win windowFrameE = performEvent $ windowFrameE <&>
+  \_ → liftIO $ do
+    GLFW.swapBuffers win
+    -- GL.flush  -- not necessary, but someone recommended it
+    GLFW.pollEvents
+
 -- * Top level network
 --
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
@@ -251,6 +258,9 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   _                ← performEvent $ drawE <&>
                      \(tree, f@Frame{..}) → do
                        Holo.drawHolotreeVisuals portV f tree
+
+  -- * Limit frame rate to vsync.  XXX:  also, flicker.
+  _                ← nextFrame win $ () <$ drawE
 
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
