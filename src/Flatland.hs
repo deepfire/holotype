@@ -550,6 +550,11 @@ makeLenses ''Area'
 deriving instance (Eq   (a d), Eq   (b d)) ⇒ Eq   (Area' a b d)
 deriving instance (Show (a d), Show (b d)) ⇒ Show (Area' a b d)
 
+class    (Additive a, Additive b, Fractional d, Ord d, Pretty d, Show d) ⇒ NoArea a b d where
+  noArea ∷ Area' a b d
+instance (Additive a, Additive b, Fractional d, Ord d, Pretty d, Show d) ⇒ NoArea a b d where
+  noArea = Area zero zero
+
 pretty'Area ∷ FromArea a b LU Size d ⇒ Area' a b d → Doc
 pretty'Area a =
   let Area (LU (Po (V2 x y))) (Size (Di d)) = from'area a
