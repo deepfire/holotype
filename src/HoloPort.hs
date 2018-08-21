@@ -122,11 +122,16 @@ portCreate portWindow portSettings@Settings{..} = do
 
   portFontmap                      ← makeFontMap sttsDΠ fmDefault sttsFontPreferences
   liftIO $ putStrLn $ printf "%s" (show portFontmap)
+
   (portRenderer, portObjectStream) ← makeSimpleRenderedStream portWindow (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))
   rendererDrawFrame portRenderer
+  -- Enable vsync
+  liftIO $ GL.swapInterval 1
+
   liftIO $ trev ALLOC DRW (1, 1) (tokenHash blankIdToken)
   portEmptyDrawable ← makeDrawable portObjectStream (di 1 1)
-  portVisualTracker@(VisualTracker _) ← VisualTracker <$> mkIOMap
+  portDrawableTracker@(DrawableTracker _) ← DrawableTracker <$> mkIOMap
+  portVisualTracker@(VisualTracker _)     ← VisualTracker <$> mkIOMap
   -- iomapAdd dt blankIdToken portEmptyDrawable
   pure Port{..}
 
@@ -228,13 +233,13 @@ framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = 
 
 establishSizedDrawableForId ∷ (HasCallStack, MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
 establishSizedDrawableForId Port{..} idt dim@(Di (V2 w h)) = do
-  drwMap ← iomapAccess (fromT portVisualTracker)
+  drwMap ← iomapAccess (fromDT portDrawableTracker)
   case Map.lookup idt drwMap of
     Nothing → do
       -- liftIO $ putStrLn $ printf "--> releasing drawable %d" (U.hashUnique $ fromIdToken idt)
       liftIO $ trev MISSALLOC DRW (w, h) (tokenHash idt)
       d ← makeDrawable portObjectStream dim
-      iomapAdd (fromT portVisualTracker) idt d
+      iomapAdd (fromDT portDrawableTracker) idt d
       pure d
     Just d@Drawable{..} →
       if (dDi ≡ (ceiling <$> dim))
@@ -248,8 +253,33 @@ establishSizedDrawableForId Port{..} idt dim@(Di (V2 w h)) = do
         disposeDrawable portObjectStream d
         liftIO $ trev REALLOC DRW (w, h)                      (tokenHash idt)
         d' ← makeDrawable portObjectStream dim
-        iomapAdd (fromT portVisualTracker) idt d'
+        iomapAdd (fromDT portDrawableTracker) idt d'
         pure d'
+
+-- * Look up the visual and, if present, check compatibility with
+--   new requirements: style generation and size.
+establishVisualForId ∷ (HasCallStack, MonadIO m) ⇒ Port → IdToken → Di Double → StyleGene  → m WVisual
+establishVisualForId Port{..} idt dim@(Di (V2 w h)) styg@(StyleGene stygInt) = do
+  visMap ← iomapAccess (fromVT portVisualTracker)
+  case Map.lookup idt visMap of
+    Nothing → do
+      liftIO $ trev MISSALLOC VIS (w, h, stygInt) (tokenHash idt)
+      vis ← (⊥)
+      -- iomapAdd (fromVT portVisualTracker) idt vis
+      pure vis
+    Just v@(WVisual Visual{..}) → do
+      let vDi = dDi vDrawable
+      if vDi ≡ (ceiling <$> dim) ∧ vStyGene ≡ styg
+      then do
+        liftIO $ trev REUSE   VIS (w, h)                       (tokenHash idt)
+        pure v
+      else do
+        liftIO $ trev FREE    VIS (vDi^.di'v._x, vDi^.di'v._y) (tokenHash idt)
+        -- disposeDrawable portObjectStream v
+        liftIO $ trev REALLOC VIS (w, h)                       (tokenHash idt)
+        v' ← (⊥)
+        iomapAdd (fromVT portVisualTracker) idt v'
+        pure v'
 
 
 -- * Matrix works

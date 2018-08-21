@@ -25,6 +25,7 @@ data TraceKind
 data TraceEntity
   = TEX
   | DRW
+  | VIS
   | TOK
   | HOLO
   deriving (Eq, Ord, Show)

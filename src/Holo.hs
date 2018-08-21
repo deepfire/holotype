@@ -290,8 +290,8 @@ instance Monoid    TextStyle where
 
 type TextStyle  = StyleOf  T.Text
 type TextVisual = VisualOf T.Text
-instance Holo T.Text where
-  data StyleOf  T.Text where
+instance Holo  T.Text where
+  data StyleOf T.Text where
     TextStyle ∷
       { _tsFontKey     ∷ FontKey
       , _tsSizeSpec    ∷ TextSizeSpec PU

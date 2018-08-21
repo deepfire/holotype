@@ -37,7 +37,7 @@ import           HoloCube
 import           HoloFont
 
 
-
+-- * Identity of what we're drawing, to allow re-use of underlying stateful resources.
 newtype IdToken = IdToken { fromIdToken ∷ U.Unique } deriving (Eq, Ord)
 
 -- * Impure IO-stateful map
@@ -46,12 +46,8 @@ data IOMap k v where
     { iomap               ∷ STM.TVar (Map.Map k v)
     } → IOMap k v
 
-newtype VisualTracker = VisualTracker { fromT ∷ IOMap IdToken Drawable }
--- data Visuals
--- newtype PolyTracker = PolyTracker { fromPT ∷ TM.TypeMap Visuals }
--- type instance TM.Item Visuals t = IOMap IdToken (VisualOf t)
-    -- let x ∷ TM.TypeMap Visuals
-    --     x = TM.insert Proxy v TM.empty
+newtype DrawableTracker = DrawableTracker { fromDT ∷ IOMap IdToken Drawable }
+newtype VisualTracker   = VisualTracker   { fromVT ∷ IOMap IdToken WVisual }
 
 
 -- | Usher Cairo + Pango -enabled surfaces onto a GL Window,
@@ -64,6 +60,7 @@ data Port where
     , portObjectStream    ∷ ObjectStream
     , portRenderer        ∷ Renderer
     , portEmptyDrawable   ∷ Drawable
+    , portDrawableTracker ∷ DrawableTracker
     , portVisualTracker   ∷ VisualTracker
     } → Port
 
@@ -94,22 +91,25 @@ data Drawable where
 class (Monoid (StyleOf a)) ⇒ Holo a where
   data VisualOf a
   data StyleOf  a
-  -- | Given:
-  --   1. global context
-  --   2. geometry-enriched style
-  --   3. datum
-  --   Produce an initial visualisation.
   query           ∷ (MonadIO m) ⇒ Port → StyleOf a →                  a →            m (Di (Maybe Double))
   createVisual    ∷ (MonadIO m) ⇒ Port → StyleOf a → Area'LU Double → a → Drawable → m (VisualOf a)
-  -- * Question: what do we change, to allow animation of style?
-  --
-  -- The current model doesn't allow for it.
-  renderVisual    ∷ (MonadIO m) ⇒ Port →            VisualOf a → a → m ()           -- ^ Update a visualisation of 'a'.
-  -- For: drawHolotree
+  renderVisual    ∷ (MonadIO m) ⇒ Port →                 VisualOf a → a →            m ()  -- ^ Update a visualisation of 'a'.
   drawableOf      ∷ Port → VisualOf a → Drawable
 
-data Visual where
-  Visual ∷ ∀ a. Holo a ⇒ VisualOf a → Visual
+data Visual a where
+  Visual ∷ Holo a ⇒
+    { vVis        ∷ VisualOf a
+    , vStyGene    ∷ StyleGene
+    , vDrawable   ∷ Drawable
+    } → Visual a
+
+data WVisual where
+  WVisual ∷ Holo a ⇒
+    { wVis        ∷ Visual a
+    } → WVisual
+
+newtype StyleGene  = StyleGene  { fromStyleGene  ∷ Int      } deriving (Eq, Ord)
+newtype StyleToken = StyleToken { fromStyleToken ∷ U.Unique } deriving (Eq, Ord)
 
 
 data Phase
