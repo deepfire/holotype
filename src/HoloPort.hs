@@ -142,6 +142,11 @@ viomapHas iomap p k = isJust ∘ join ∘ (Map.lookup k <$>) ∘ TM.lookup p <$>
 portDΠ ∷ Port → DΠ
 portDΠ = sttsDΠ ∘ portSettings
 
+portSetVSync ∷ (MonadIO m) ⇒ Bool → m ()
+portSetVSync x = liftIO $ GL.swapInterval $ case x of
+                                              True  → 1
+                                              False → 0
+
 portCreate  ∷ (MonadIO m) ⇒ GL.Window → Settings → m (Port)
 portCreate portWindow portSettings@Settings{..} = do
   -- liftIO $ setupTracer [
@@ -156,8 +161,7 @@ portCreate portWindow portSettings@Settings{..} = do
 
   (portRenderer, portObjectStream) ← makeSimpleRenderedStream portWindow (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))
   rendererDrawFrame portRenderer
-  -- Enable vsync
-  liftIO $ GL.swapInterval 1
+  portSetVSync True
 
   liftIO $ trev ALLOC DRW (1, 1) (tokenHash blankIdToken)
   portEmptyDrawable ← makeDrawable portObjectStream (di 1 1)

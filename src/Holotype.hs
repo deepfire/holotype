@@ -267,8 +267,8 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
                        Holo.drawHolotreeVisuals portV f tree
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.
-  -- waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE
-  -- _                ← nextFrame win $ () <$ gate (current waitForVSyncD) drawE
+  waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE
+  _                ← performEvent $ portSetVSync <$> updated waitForVSyncD
 
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
