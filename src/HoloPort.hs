@@ -121,6 +121,9 @@ mkVIOMap  = VIOMap
 viomapAccess ∷ (MonadIO m) ⇒ VIOMap → m (TM.TypeMap VisualIOMap)
 viomapAccess (VIOMap m) = liftIO $ STM.readTVarIO m
 
+viomapReplace ∷ (MonadIO m) ⇒ VIOMap → TM.TypeMap VisualIOMap → m ()
+viomapReplace (VIOMap m) tm = liftIO $ STM.atomically $ STM.writeTVar m tm
+
 viomapAdd  ∷ (MonadIO m, Typeable a) ⇒ VIOMap → Proxy a → IdToken → Visual a → m ()
 viomapAdd  (VIOMap m) p k v = liftIO $ do
   STM.atomically $ STM.modifyTVar' m $
