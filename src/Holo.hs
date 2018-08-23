@@ -326,6 +326,9 @@ instance Holo  T.Text where
         tDim = fromUnit (portDΠ port) ∘ PUs <$> dimOf area'
     -- liftIO $ putStrLn $ printf "createVisual T.Text: %s → %s" (show _tsFontKey) (show font)
     (,) tFont tLayout ← drawableBindFontLayout (portDΠ port) tDrawable font tDim _tsSizeSpec
+    -- drawableBindFontLayout allocates:
+    --   GIPC.createContext gic  -- released by FFI finalizers
+    --   GIP.layoutNew      gipc -- same as above
     pure Text{..}
   renderVisual _ Text{..} text =
     -- 1. execute GIP draw & GIPC composition
