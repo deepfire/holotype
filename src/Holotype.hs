@@ -18,7 +18,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports -Wno-type-defaults #-}
 module Holotype where
 
 -- Basis
@@ -60,7 +60,7 @@ import           Flex
 
 import           HoloTypes
 
-import           Holo                                     (StyleOf)
+import           Holo                                     (tsFontKey, tsSizeSpec, tsColor)
 import qualified Holo
 import           HoloCube
 import           HoloFont
@@ -123,13 +123,13 @@ parseQuery x = case P.parseString parserQuery mempty (T.unpack x) of
                  P.Failure errinfo → Left $ T.pack $ show errinfo
 
 wordInterpStyle ∷ Word → Holo.TextStyle
-wordInterpStyle x = mempty
-  & Holo.tsFontKey .~ "defaultSans"
-  & Holo.tsColor   .~ case x of
-                        WText   _ → co 0.514 0.580 0.588 1
-                        WSource _ → co 0.149 0.545 0.824 1
-                        WLens   _ → co 0.710 0.537 0.000 1
-                        WError  _ → co 0.863 0.196 0.184 1
+wordInterpStyle x = defStyleOf
+  & tsFontKey .~ "defaultSans"
+  & tsColor   .~ case x of
+                   WText   _ → co 0.514 0.580 0.588 1
+                   WSource _ → co 0.149 0.545 0.824 1
+                   WLens   _ → co 0.710 0.537 0.000 1
+                   WError  _ → co 0.863 0.196 0.184 1
 
 data QueryParseState =
   QueryParseState
@@ -145,23 +145,23 @@ updateQueryParseState text qps =
 
 
 
-mkTextD ∷ Port → Dynamic t (StyleOf T.Text) → Dynamic t T.Text → ReflexGLFW t m (Dynamic t (Holo.HoloItem Holo.PLayout))
+mkTextD ∷ Port → Dynamic t (Style T.Text) → Dynamic t T.Text → ReflexGLFW t m (Dynamic t (Holo.HoloItem Holo.PLayout))
 mkTextD portV styleD valD = do
   setupE       ← getPostBuild
   tokenV       ← newId
-  let holoD     = zipDynWith (Holo.leaf tokenV) valD styleD
+  let holoD     = zipDynWith (Holo.leaf tokenV) styleD valD
   initHoloV    ← sample $ current holoD
   holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
   holdDyn Holo.emptyLayoutHolo holoIOE
 
-mkTextEntryD ∷ Port → Dynamic t (StyleOf T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.PLayout))
+mkTextEntryD ∷ Port → Dynamic t (Style T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.PLayout))
 mkTextEntryD portV styleD editE' initialV = do
   -- the dynamic here is needed for state accumulation
   valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initialV]) editE'
   setupE       ← getPostBuild
   tokenV       ← newId
   --  holoE fires whenever either style is updated, or the textZipper is
-  let holoD     = zipDynWith (Holo.leaf tokenV) valD styleD
+  let holoD     = zipDynWith (Holo.leaf tokenV) styleD valD
   initHoloV    ← sample $ current holoD
   holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
   -- let holoE     = attachPromptlyDyn styleD (leftmost [initialV <$ setupE, updated valD])
@@ -170,7 +170,7 @@ mkTextEntryD portV styleD editE' initialV = do
   -- holoIOE      ← (performEvent $ (flip $ queryHoloitem portV) [] <$> holoE)
   holdDyn (initialV, Holo.emptyLayoutHolo) $ attachPromptlyDyn valD holoIOE
 
-mkTextEntryValidatedD ∷ Port → Dynamic t (StyleOf T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.PLayout))
+mkTextEntryValidatedD ∷ Port → Dynamic t (Style T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.PLayout))
 mkTextEntryValidatedD portV styleD editE' initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
@@ -194,6 +194,11 @@ nextFrame win windowFrameE = performEvent $ windowFrameE <&>
     -- GL.flush  -- not necessary, but someone recommended it
     GLFW.pollEvents
 
+trackStyle ∷ ∀ a t m. (Holo a, ReflexGLFWCtx t m) ⇒ Dynamic t (StyleOf a) → ReflexGLFW t m (Dynamic t (Style a))
+trackStyle sof = do
+  gene ← count $ updated sof
+  pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
+
 -- * Top level network
 --
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
@@ -215,12 +220,13 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   fpsValueD        ← fpsCounterD frameE
   frameNoD ∷ Dynamic t Int
                    ← count       frameE
-  fpsD             ← mkTextD portV (constDyn mempty) (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
-  frameCountD      ← mkTextD portV (constDyn mempty) (T.pack ∘ printf "frame #%04d" <$> frameNoD)
+  fpsD             ← mkTextD portV (constDyn defStyle) (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  frameCountD      ← mkTextD portV (constDyn defStyle) (T.pack ∘ printf "frame #%04d" <$> frameNoD)
 
-  styleEntryD      ← mkTextEntryValidatedD portV (constDyn mempty { Holo._tsFontKey = "defaultMono" }) editE "defaultSans" $
+  styleEntryD      ← mkTextEntryValidatedD portV (constDyn (defStyle & sStyle.tsFontKey .~ "defaultMono" )) editE "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-  let styleD        = (\name→ mempty { Holo._tsFontKey = HoloFont.FK name }) ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
+  let styleOfD      = (\name→ (defStyleOf & tsFontKey .~ HoloFont.FK name )) ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
+  styleD           ← trackStyle styleOfD
   text2HoloQD      ← mkTextEntryD portV styleD editE "watch me"
 
   -- * SCENE
@@ -238,15 +244,16 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   -- * At every scene update
   sceneVisualTreeE     ← performEvent $ scenePlacedTreeE <&>
     \(tree ∷ Holo.HoloItem Holo.PLayout) → liftIO $ do
-      drwMap ← liftIO $ STM.readTVarIO (iomap $ fromDT portDrawableTracker)
+      -- XXX: need to implement the GCing of unused Visual's
+      -- drwMap ← liftIO $ STM.readTVarIO (iomap $ fromDT portDrawableTracker)
 
-      let leaves     ∷ M.Map IdToken (Holo.HoloItem 'Holo.PLayout)
-          leaves     = Holo.holotreeLeaves tree -- this shouldn't contain nodes!
-          unusedDrws ∷ M.Map IdToken Drawable
-          unusedDrws = M.filterWithKey (flip $ const (not ∘ flip M.member leaves)) drwMap
-      forM_ (M.toList unusedDrws) $ \(idt, drv@Drawable{..})→ do
-        trev FREE DRW (dDi^.di'v._x, dDi^.di'v._y) (tokenHash idt)
-        disposeDrawable portObjectStream drv
+      -- let leaves     ∷ M.Map IdToken (Holo.HoloItem 'Holo.PLayout)
+      --     leaves     = Holo.holotreeLeaves tree -- this shouldn't contain nodes!
+      --     unusedDrws ∷ M.Map IdToken Drawable
+      --     unusedDrws = M.filterWithKey (flip $ const (not ∘ flip M.member leaves)) drwMap
+      -- forM_ (M.toList unusedDrws) $ \(idt, drv@Drawable{..})→ do
+      --   trev FREE DRW (dDi^.di'v._x, dDi^.di'v._y) (tokenHash idt)
+      --   disposeDrawable portObjectStream drv
 
       tree' ← Holo.visualiseHolotree portV tree
       Holo.renderHolotreeVisuals portV tree'

@@ -15,9 +15,14 @@ module HoloPort where
 import           HoloPrelude
 
 -- Types
+import           Control.Monad
 import qualified Data.Map.Strict                   as Map
 -- import qualified Data.Set                          as Set
+import           Data.Maybe
+import           Data.Proxy
 import qualified Data.Text                         as T
+import           Data.Typeable
+import qualified Data.TypeMap.Dynamic              as TM
 import qualified Data.Vector                       as V
 import qualified Data.Vect                         as Vc
 import           Data.Vect                                (Mat4(..), Vec3(..))
@@ -104,6 +109,32 @@ iomapDrop IOMap{..} x = liftIO $
 iomapHas ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → m Bool
 iomapHas iomap x = Map.member x <$> iomapAccess iomap
 
+-- * Could benefit from:
+--
+-- updateTM ∷ ∀ t x proxy. Typeable t ⇒ proxy t → (TM.Item x t → TM.Item x t) → TM.TypeMap x → TM.TypeMap x
+-- updateTM = (⊥)
+
+mkVIOMap  ∷ (MonadIO m) ⇒ m VIOMap
+mkVIOMap  = VIOMap
+  <$> (liftIO $ STM.newTVarIO $ TM.empty)
+
+viomapAccess ∷ (MonadIO m) ⇒ VIOMap → m (TM.TypeMap VisualIOMap)
+viomapAccess (VIOMap m) = liftIO $ STM.readTVarIO m
+
+viomapAdd  ∷ (MonadIO m, Typeable a) ⇒ VIOMap → Proxy a → IdToken → Visual a → m ()
+viomapAdd  (VIOMap m) p k v = liftIO $ do
+  STM.atomically $ STM.modifyTVar' m $
+    \tm→ TM.insert p (Map.insert k v $ fromMaybe Map.empty $ TM.lookup p tm) tm
+    -- \tm→ update p (\idm→ Map.insert k v idm) tm
+
+viomapDrop ∷ (MonadIO m, Typeable a) ⇒ VIOMap → Proxy (a ∷ *) → IdToken → m ()
+viomapDrop (VIOMap m) p k = liftIO $ do
+  STM.atomically $ STM.modifyTVar' m $
+    \tm→ TM.insert p (Map.delete k $ fromMaybe Map.empty $ TM.lookup p tm) tm
+
+viomapHas ∷ (MonadIO m, Typeable a) ⇒ VIOMap → Proxy (a ∷ *) → IdToken → m Bool
+viomapHas iomap p k = isJust ∘ join ∘ (Map.lookup k <$>) ∘ TM.lookup p <$> viomapAccess iomap
+
 
 -- | Usher Cairo + Pango -enabled surfaces onto a GL Window,
 --   according to user-controlled Settings.
@@ -130,8 +161,7 @@ portCreate portWindow portSettings@Settings{..} = do
 
   liftIO $ trev ALLOC DRW (1, 1) (tokenHash blankIdToken)
   portEmptyDrawable ← makeDrawable portObjectStream (di 1 1)
-  portDrawableTracker@(DrawableTracker _) ← DrawableTracker <$> mkIOMap
-  portVisualTracker@(VisualTracker _)     ← VisualTracker <$> mkIOMap
+  portVisualTracker@(VisualTracker _)     ← VisualTracker <$> mkVIOMap
   -- iomapAdd dt blankIdToken portEmptyDrawable
   pure Port{..}
 
@@ -231,55 +261,46 @@ framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = 
   liftIO $ GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
     Q3.mat4ToM44F $! (Vc.fromProjective $! Vc.translation cvpos) Vc..*. toScreen
 
-establishSizedDrawableForId ∷ (HasCallStack, MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
-establishSizedDrawableForId Port{..} idt dim@(Di (V2 w h)) = do
-  drwMap ← iomapAccess (fromDT portDrawableTracker)
-  case Map.lookup idt drwMap of
-    Nothing → do
-      -- liftIO $ putStrLn $ printf "--> releasing drawable %d" (U.hashUnique $ fromIdToken idt)
-      liftIO $ trev MISSALLOC DRW (w, h) (tokenHash idt)
-      d ← makeDrawable portObjectStream dim
-      iomapAdd (fromDT portDrawableTracker) idt d
-      pure d
-    Just d@Drawable{..} →
-      if (dDi ≡ (ceiling <$> dim))
-      then do
-        -- liftIO $ putStrLn $ printf "--> reusing drawable %d" (U.hashUnique $ fromIdToken idt)
-        liftIO $ trev REUSE DRW   (w, h)                      (tokenHash idt)
-        pure d
-      else do
-        -- liftIO $ putStrLn $ printf "--> resizing drawable %d" (U.hashUnique $ fromIdToken idt)
-        liftIO $ trev FREE  DRW (dDi^.di'v._x, dDi^.di'v._y) (tokenHash idt)
-        disposeDrawable portObjectStream d
-        liftIO $ trev REALLOC DRW (w, h)                      (tokenHash idt)
-        d' ← makeDrawable portObjectStream dim
-        iomapAdd (fromDT portDrawableTracker) idt d'
-        pure d'
-
 -- * Look up the visual and, if present, check compatibility with
 --   new requirements: style generation and size.
-establishVisualForId ∷ (HasCallStack, MonadIO m) ⇒ Port → IdToken → Di Double → StyleGene  → m WVisual
-establishVisualForId Port{..} idt dim@(Di (V2 w h)) styg@(StyleGene stygInt) = do
-  visMap ← iomapAccess (fromVT portVisualTracker)
-  case Map.lookup idt visMap of
-    Nothing → do
-      liftIO $ trev MISSALLOC VIS (w, h, stygInt) (tokenHash idt)
-      vis ← (⊥)
-      -- iomapAdd (fromVT portVisualTracker) idt vis
-      pure vis
-    Just v@(WVisual Visual{..}) → do
-      let vDi = dDi vDrawable
-      if vDi ≡ (ceiling <$> dim) ∧ vStyGene ≡ styg
-      then do
-        liftIO $ trev REUSE   VIS (w, h)                       (tokenHash idt)
-        pure v
-      else do
-        liftIO $ trev FREE    VIS (vDi^.di'v._x, vDi^.di'v._y) (tokenHash idt)
-        -- disposeDrawable portObjectStream v
-        liftIO $ trev REALLOC VIS (w, h)                       (tokenHash idt)
-        v' ← (⊥)
-        iomapAdd (fromVT portVisualTracker) idt v'
-        pure v'
+--   XXX: violates abstraction (fiddles with port and Holo's visual at the same time)
+--   XXX: not thread-safe
+visualiseHoloitem ∷ (HasCallStack, MonadIO m) ⇒ Port → HoloItem PLayout → [HoloItem PVisual] → m (HoloItem PVisual)
+visualiseHoloitem port@Port{..} hi children = case hi of
+  HoloItem{..} → do
+    let dim@(Di (V2 w h)) = hiArea^.area'b.size'di
+    visMap ← viomapAccess (fromVT portVisualTracker)
+    (updated ∷ Bool, vis)
+           ← case join $ Map.lookup hiToken <$> TM.lookup Proxy visMap of
+             Nothing → do
+               liftIO $ trev MISSALLOC VIS (w, h, _fromStyleGene $ _sStyleGene $ hiStyle) (tokenHash hiToken)
+               newDrawable ← makeDrawable portObjectStream dim
+               (,) True <$>
+                 (Visual
+                  <$> createVisual port (_sStyle hiStyle) hiArea holo newDrawable
+                  <*> pure (_sStyleGene $ hiStyle)
+                  <*> pure newDrawable)
+             Just vis@Visual{..} →
+               let vDi     = dDi vDrawable
+                   styleChanged = vStyleGene ≢ hiStyleGene hi
+                   sizeChanged  = vDi ≢ (ceiling <$> dim)
+                   update       = sizeChanged ∨ styleChanged
+               in if update
+               then do
+                 liftIO $ trev REALLOC VIS (w, h)                       (tokenHash hiToken)
+                 disposeDrawable portObjectStream vDrawable
+                 newDrawable ← makeDrawable portObjectStream dim
+                 (,) update <$>
+                   (Visual
+                    <$> createVisual port (_sStyle hiStyle) hiArea holo newDrawable
+                    <*> pure (_sStyleGene $ hiStyle)
+                    <*> pure newDrawable)
+               else do
+                 liftIO $ trev REUSE   VIS (w, h)                       (tokenHash hiToken)
+                 pure $ (,) update vis
+    when updated $
+      viomapAdd (fromVT portVisualTracker) Proxy hiToken vis
+    pure HoloItem{hiVisual=vis, hiChildren=children, ..}
 
 
 -- * Matrix works

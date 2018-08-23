@@ -14,6 +14,8 @@ where
 
 import qualified Control.Concurrent.STM            as STM
 import qualified Data.Map.Strict                   as Map
+import           Data.Typeable
+import qualified Data.TypeMap.Dynamic              as TM
 import qualified Data.Unique                       as U
 import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
@@ -46,8 +48,12 @@ data IOMap k v where
     { iomap               ∷ STM.TVar (Map.Map k v)
     } → IOMap k v
 
-newtype DrawableTracker = DrawableTracker { fromDT ∷ IOMap IdToken Drawable }
-newtype VisualTracker   = VisualTracker   { fromVT ∷ IOMap IdToken WVisual }
+data                  VisualIOMap
+type instance TM.Item VisualIOMap a = Map.Map IdToken (Visual a)
+
+newtype VIOMap = VIOMap (STM.TVar (TM.TypeMap VisualIOMap))
+
+newtype VisualTracker = VisualTracker { fromVT ∷ VIOMap }
 
 
 -- | Usher Cairo + Pango -enabled surfaces onto a GL Window,
@@ -60,7 +66,6 @@ data Port where
     , portObjectStream    ∷ ObjectStream
     , portRenderer        ∷ Renderer
     , portEmptyDrawable   ∷ Drawable
-    , portDrawableTracker ∷ DrawableTracker
     , portVisualTracker   ∷ VisualTracker
     } → Port
 
@@ -88,28 +93,40 @@ data Drawable where
 
 
 -- | 'Holo': anything visualisable.
-class (Monoid (StyleOf a)) ⇒ Holo a where
+class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
   data VisualOf a
   data StyleOf  a
   query           ∷ (MonadIO m) ⇒ Port → StyleOf a →                  a →            m (Di (Maybe Double))
   createVisual    ∷ (MonadIO m) ⇒ Port → StyleOf a → Area'LU Double → a → Drawable → m (VisualOf a)
   renderVisual    ∷ (MonadIO m) ⇒ Port →                 VisualOf a → a →            m ()  -- ^ Update a visualisation of 'a'.
   drawableOf      ∷ Port → VisualOf a → Drawable
+class DefStyleOf a where
+  defStyleOf      ∷ a
 
 data Visual a where
   Visual ∷ Holo a ⇒
-    { vVis        ∷ VisualOf a
-    , vStyGene    ∷ StyleGene
+    { vVisual     ∷ VisualOf a
+    , vStyleGene  ∷ StyleGene
     , vDrawable   ∷ Drawable
     } → Visual a
 
-data WVisual where
-  WVisual ∷ Holo a ⇒
-    { wVis        ∷ Visual a
-    } → WVisual
+newtype StyleGene = StyleGene { _fromStyleGene ∷ Int } deriving (Eq, Ord)
+fromStyleGene ∷ Lens' StyleGene Int
+fromStyleGene f (StyleGene x) = f x <&> StyleGene
 
-newtype StyleGene  = StyleGene  { fromStyleGene  ∷ Int      } deriving (Eq, Ord)
-newtype StyleToken = StyleToken { fromStyleToken ∷ U.Unique } deriving (Eq, Ord)
+data Style a where
+  Style ∷ Holo a ⇒
+    { _sStyle      ∷ StyleOf a
+    , _sStyleGene  ∷ StyleGene
+    } → Style a
+
+sStyle     ∷ Lens' (Style a) (StyleOf a)
+sStyle     f s@Style{..} = f _sStyle     <&> \x→ s{_sStyle=x}
+sStyleGene ∷ Lens' (Style a) StyleGene
+sStyleGene f s@Style{..} = f _sStyleGene <&> \x→ s{_sStyleGene=x}
+
+defStyle ∷ Holo a ⇒ Style a
+defStyle = Style defStyleOf (StyleGene 0)
 
 
 data Phase
@@ -125,20 +142,24 @@ type family HIArea   (p ∷ Phase) ∷ Type where
 type family HIVisual (p ∷ Phase) a ∷ Type where
   HIVisual PBlank  _ = ()
   HIVisual PLayout _ = ()
-  HIVisual PVisual a = VisualOf a
+  HIVisual PVisual a = Visual a
 
 data HoloItem (p ∷ Phase) where
   HoloItem ∷ ∀ p a. Holo a ⇒
-    { holo       ∷ a
-    , hiToken    ∷ IdToken
-    -- XXX: everything below seems like it's not needed early?
-    , hiGeo      ∷ Geo
-    , hiStyle    ∷ StyleOf a
-    , hiChildren ∷ [HoloItem p]
-    -- Problem:
+    { holo        ∷ a
+    , hiToken     ∷ IdToken
+    , hiStyle     ∷ Style a
+    , hiGeo       ∷ Geo
+    , hiChildren  ∷ [HoloItem p]
+    -- Problem (why we have both hiSize & hiArea):
     -- 1. We have size for top entry, want to record it
     -- 2. The tree is type-coherent, and children need have the same type.
-    , hiSize     ∷ Di (Maybe Double)
-    , hiArea     ∷ HIArea p
-    , hiVisual   ∷ HIVisual p a
+    , hiSize      ∷ Di (Maybe Double)
+    -- TTG-inspired phasing:
+    , hiArea      ∷ HIArea p
+    , hiVisual    ∷ HIVisual p a
     } → HoloItem p
+
+hiStyleGene ∷ HoloItem p → StyleGene
+hiStyleGene x =
+  case x of HoloItem{..} → _sStyleGene hiStyle
