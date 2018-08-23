@@ -3,6 +3,7 @@ module Tracer
   (setupTracer, trev, trevE, TraceKind(..), TraceEntity(..), TraceAction(..))
 where
 import           Control.Monad
+import           Control.Monad.IO.Class
 import           GHC.Stack
 import qualified Data.Map.Strict                   as Map
 import           Debug.Trace
@@ -47,8 +48,8 @@ conf = IO.unsafePerformIO $ IO.newIORef $ TraceConf mempty
 setupTracer ∷ [(TraceKind, TraceEntity, TraceAction, Int)] → IO ()
 setupTracer = IO.writeIORef conf ∘ TraceConf ∘ Map.fromList ∘ (fmap $ \(k,e,a,d)→((k,e),(a,d)))
 
-trev ∷ (HasCallStack, Show a) ⇒ TraceKind → TraceEntity → a → Int → IO ()
-trev kind entity arg addrOrId = do
+trev ∷ (HasCallStack, MonadIO m, Show a) ⇒ TraceKind → TraceEntity → a → Int → m ()
+trev kind entity arg addrOrId = liftIO $ do
   config ← tcas <$> IO.readIORef conf
   unless (Map.null config) $ do
     let cfg = Map.lookup (kind, entity) config
