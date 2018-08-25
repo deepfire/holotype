@@ -20,7 +20,7 @@ module HoloFont
   , fontQuerySize
 
   -- * Main API
-  , bindFont, bindWFontLayout
+  , bindFont, bindWFontLayout, unbindFontLayout
 
   -- * Layout
   , laySetWidth, laySetHeight, laySetSize, layGetSize, laySetHeightLimit
@@ -62,6 +62,7 @@ import           Text.Printf                              (printf)
 import qualified Graphics.Rendering.Cairo          as GRC
 
 -- glib-introspection -based Cairo and Pango
+import qualified GI.GObject.Objects.Object         as GI
 import qualified GI.Cairo                          as GIC
 import qualified GI.Pango                          as GIP
 import qualified GI.PangoCairo.Interfaces.FontMap  as GIPC
@@ -304,7 +305,12 @@ bindWFontLayout dπ gic font dim sizeSpec = do
   layout ← makeFontLayout dπ fbound dim (sizeSpec^.tssHeight)
   pure (WFont fbound, layout)
 
--- | 'LayoutHeightLimit', quoting Pango documentation:
+unbindFontLayout ∷ (MonadIO m) ⇒ WFont Bound → GIP.Layout → m ()
+unbindFontLayout (WFont FontBinding{..}) gipl = do
+  GI.objectUnref gipl
+  GI.objectUnref fbContext
+
+  -- | 'LayoutHeightLimit', quoting Pango documentation:
 --
 -- @height: the desired height of the layout in Pango units if positive,
 --          or desired number of lines if negative.
