@@ -29,6 +29,7 @@ import           Prelude                           hiding (id, Word)
 import           Control.Monad
 import           Data.Semigroup
 import           Data.Tuple
+import qualified Data.TypeMap.Dynamic              as TM
 
 -- Algebra
 import           Linear
@@ -148,7 +149,8 @@ updateQueryParseState text qps =
 mkTextD ∷ Port → Dynamic t (Style T.Text) → Dynamic t T.Text → ReflexGLFW t m (Dynamic t (Holo.HoloItem Holo.PLayout))
 mkTextD portV styleD valD = do
   setupE       ← getPostBuild
-  tokenV       ← newId
+  initV        ← sample $ current valD
+  tokenV       ← newId $ printf "%d: %s" (T.length initV) (T.unpack initV)
   let holoD     = zipDynWith (Holo.leaf tokenV) styleD valD
   initHoloV    ← sample $ current holoD
   holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
@@ -159,8 +161,8 @@ mkTextEntryD portV styleD editE' initialV = do
   -- the dynamic here is needed for state accumulation
   valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initialV]) editE'
   setupE       ← getPostBuild
-  tokenV       ← newId
-  --  holoE fires whenever either style is updated, or the textZipper is
+  initV        ← sample $ current valD
+  tokenV       ← newId $ printf "%d: %s" (T.length initV) (T.unpack initV)
   let holoD     = zipDynWith (Holo.leaf tokenV) styleD valD
   initHoloV    ← sample $ current holoD
   holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
@@ -220,8 +222,19 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   fpsValueD        ← fpsCounterD frameE
   frameNoD ∷ Dynamic t Int
                    ← count       frameE
+  statsValE        ← performEvent $ frameE <&>
+                     \(_)→ liftIO $ do
+                         mem ← HOS.gcKBytesUsed
+                         pure (mem)
+  statsValD        ← holdDyn 0 statsValE
+
   fpsD             ← mkTextD portV (constDyn defStyle) (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  statsD           ← mkTextD portV (constDyn defStyle) $ statsValD <&>
+                     \(mem)→ T.pack $ printf "mem: %d" mem
+
   frameCountD      ← mkTextD portV (constDyn defStyle) (T.pack ∘ printf "frame #%04d" <$> frameNoD)
+  -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
+  varlenTextD      ← mkTextD portV (constDyn defStyle)               (T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
 
   styleEntryD      ← mkTextEntryValidatedD portV (constDyn (defStyle & sStyle.tsFontKey .~ "defaultMono" )) editE "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
@@ -231,10 +244,12 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
 
   -- * SCENE
   let sceneD        = zipDynWith -- <&>
-        (\(_, entry) [driven, fps, counter]→
-          Holo.vbox [counter, fps, entry, driven])
+        (\(_, entry) [driven, varlen, stats, fps, counter]→
+          Holo.vbox [counter, fps, stats, varlen, entry, driven])
         styleEntryD
         $ zipDynWith (:) (snd <$> text2HoloQD)
+        $ zipDynWith (:) (varlenTextD)
+        $ zipDynWith (:) (statsD)
         $ zipDynWith (:) fpsD
         ((:[]) <$> frameCountD)
 
