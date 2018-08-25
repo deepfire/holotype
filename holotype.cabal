@@ -119,6 +119,7 @@ library
                      , proteaaudio
 
                      , cairo
+                     , gi-gobject
                      , gi-cairo
                      , gi-pango
                      , gi-pangocairo
