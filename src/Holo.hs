@@ -266,12 +266,10 @@ instance Holo   Rect where
   data StyleOf  Rect where RectStyle  ∷ RectStyle
   data VisualOf Rect where RectVisual ∷ { rectDrawable ∷ Drawable } → RectVisual
   query     port _       Rect{..} = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$> _rectDim
-  createVisual port@Port{..} _ _area Rect{..} _drw = do
+  createVisual port@Port{..} _ _area Rect{..} drw = do
     let dim = PUs <$> _area^.area'b.size'di
-    -- WTF: we're given a DRW, and then we proceed to ignore it?
-    d@Drawable{..} ← portMakeDrawable port $ fromPU ∘ fromUnit (sttsDΠ portSettings) <$> dim
-    drawableDrawRect port d _rectColor dim
-    pure $ RectVisual d
+    drawableDrawRect port drw _rectColor dim
+    pure $ RectVisual drw
   renderVisual port v@RectVisual{rectDrawable=Drawable{..}} Rect{..} =
     drawableDrawRect port (rectDrawable v) _rectColor _rectDim
   freeVisualOf _ _       = pure ()
