@@ -96,14 +96,14 @@ instance DefStyleOf (StyleOf ()) where
 --   mappend l r = holoVBox [l, r]
 --   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty UnitVisual
 
-emptyDrawable ∷ Drawable
-emptyDrawable = (⊥)
+emptyDrawable ∷ HasCallStack ⇒ Drawable
+emptyDrawable = (⊥) -- hihi
 
 emptyLayoutHolo ∷ HoloItem PLayout
 emptyLayoutHolo =
   HoloItem () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty ()
 
-emptyVisualHolo ∷ HoloItem PVisual
+emptyVisualHolo ∷ HasCallStack ⇒ HoloItem PVisual
 emptyVisualHolo =
   HoloItem () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty (Visual UnitVisual (undefined) emptyDrawable)
 

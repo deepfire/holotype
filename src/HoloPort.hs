@@ -44,9 +44,9 @@ import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
 import qualified System.IO.Unsafe                  as IO
 import qualified Data.IORef                        as IO
-import qualified System.Mem.Weak                   as SMem
 
 -- …
+import           GHC.Stack
 import           Graphics.GL.Core33                as GL
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 
@@ -157,8 +157,8 @@ portSetVSync x = liftIO $ GL.swapInterval $ case x of
 portCreate  ∷ (MonadIO m) ⇒ GL.Window → Settings → m (Port)
 portCreate portWindow portSettings@Settings{..} = do
   -- liftIO $ setupTracer [
-  --     (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
-  --    ,(MISSALLOC, DRW, STACK, 4),(REUSE,     DRW, TRACE, 4),(REALLOC,   DRW, TRACE, 4),(ALLOC,     DRW, TRACE, 4),(FREE,        DRW, TRACE, 4)
+  --     (ALLOC,     TOK, STACK, 0),(FREE,      TOK, TRACE, 0)
+  --    ,(MISSALLOC, VIS, STACK, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
   --    ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
   --   ]
   liftIO $ blankIdToken'setup
