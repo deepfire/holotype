@@ -264,7 +264,7 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   let drawE         = attachPromptlyDyn sceneVisualTreeD frameE
   _                ← performEvent $ drawE <&>
                      \(tree, f@Frame{..}) → do
-                       Holo.drawHolotreeVisuals portV f tree
+                       Holo.drawHolotreeVisuals f tree
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.
   waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE

@@ -163,8 +163,8 @@ renderHolotreeVisuals port hoi@HoloItem{..} = do
   renderHoloitem port hoi
   forM_ hiChildren (renderHolotreeVisuals port)
 
-drawHolotreeVisuals ∷ (MonadIO m) ⇒ Port → Frame → HoloItem PVisual → m ()
-drawHolotreeVisuals port frame root = loop (luOf (hiArea root)^.lu'po) root
+drawHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → HoloItem PVisual → m ()
+drawHolotreeVisuals frame root = loop (luOf (hiArea root)^.lu'po) root
   where
     loop offset HoloItem{..} = do
       if null hiChildren
