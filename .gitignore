@@ -14,7 +14,7 @@
 *.hp
 *.json
 *.lprof
-*.ltrace
+*.ltrace*
 *.o
 *.o_p
 *.orig
@@ -30,14 +30,11 @@
 /pkgs/overrides.nix
 /dist/
 /dist-newstyle/
-/cabal-dev/
-/.cabal-sandbox/
 /experiments/dist/
 
 /.ghc.environment*
 .stack-work/
 nohup.out
 
-/Holotype
-/Holostress
-/LCstress
+/cairostress
+

@@ -136,8 +136,8 @@ main = do
             avgPost@(avgVal, _) = avgStep dt avgPre
         when (0 == mod iterN 40) $
           printf " frame  used dFrMem avgFrMem avgFrTime frTimeNonGC\n"
-        when (preKB /= new) $
-          printf "%5dn %dk %4ddK %5dK/f    %4.2fms      %4.2fms\n"
+        -- when (preKB /= new) $
+        printf "%5dn %dk %4ddK %5dK/f    %4.2fms      %4.2fms\n"
                  iterN new (new - preKB) (ceiling $ (fromIntegral new / fromIntegral iterN) ∷ Int)
                  (avgVal ⋅ 1000) (nonGCt ⋅ 1000)
         loop (iterN + 1, timePost) avgPost new

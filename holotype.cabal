@@ -181,6 +181,7 @@ executable lcstress
                      , vector
                      -- pixel crafting
                      , cairo
+                     , gi-gobject
                      , gi-cairo
                      , gi-pangocairo
                      , haskell-gi-base
@@ -214,6 +215,27 @@ executable holostress
                      , OpenGLRaw
                      , lambdacube-gl
                      , lambdacube-ir
+
+
+executable crstress
+  hs-source-dirs:      .
+  main-is:             Cairostress.hs
+  default-language:    Haskell2010
+
+  build-depends:       holotype
+                     -- generic
+                     , base >=4.8
+                     , base-unicode-symbols
+                     , containers >=0.5
+                     , linear
+                     , text
+                     , text-zipper
+                     , vector
+                     -- pixel crafting
+                     , cairo
+                     , gi-gobject
+                     , gi-pango
+                     , gi-pangocairo
 
 executable app
   hs-source-dirs:      experiments/app

@@ -16,6 +16,12 @@ let
                 old.libraryHaskellDepends
                 ++ [ pkgs.cabal-install pkgs.stack ghc.ghc-events ghc.graphmod pkgs.graphviz ]
                 ++ (if intero then [ ghc.intero ] else []);
+              libraryPkgconfigDepends = [ pkgs.cairo pkgs.pango ];
+              doHaddock = false;
+              preCompileBuildDriver = ''
+                PKG_CONFIG_PATH+=":${pkgs.cairo}/lib/pkgconfig"
+                setupCompileFlags+=" $(pkg-config --libs cairo-gobject)"
+              '';
              });
 in
   drv'.env
