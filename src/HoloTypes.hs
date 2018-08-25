@@ -40,7 +40,10 @@ import           HoloFont
 
 
 -- * Identity of what we're drawing, to allow re-use of underlying stateful resources.
-newtype IdToken = IdToken { fromIdToken ∷ U.Unique } deriving (Eq, Ord)
+newtype IdToken = IdToken { fromIdToken' ∷ (U.Unique, String) } deriving (Eq, Ord)
+
+fromIdToken ∷ IdToken → U.Unique
+fromIdToken = fst ∘ fromIdToken'
 
 -- * Impure IO-stateful map
 data IOMap k v where

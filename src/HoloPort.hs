@@ -70,22 +70,26 @@ import           HoloFont
 
 -- * Drawable identity support
 
-newId ∷ (HasCallStack, MonadIO m) ⇒ m IdToken
-newId = liftIO $ do
+newId ∷ (HasCallStack, MonadIO m) ⇒ String → m IdToken
+newId desc = liftIO $ do
   tok ← U.newUnique
   trev ALLOC TOK (U.hashUnique tok) (U.hashUnique tok)
-  pure $ IdToken tok
+
+  pure $ IdToken (tok, desc <> "\n" <> prettyCallStack callStack)
 
 blankIdToken'      ∷ IO.IORef IdToken
 blankIdToken'      = IO.unsafePerformIO $ IO.newIORef  undefined
 blankIdToken'setup ∷ IO ()
-blankIdToken'setup = IO.writeIORef blankIdToken' =<< newId
+blankIdToken'setup = IO.writeIORef blankIdToken' =<< newId "<blank>"
 blankIdToken       ∷ IdToken
 blankIdToken       = IO.unsafePerformIO $ IO.readIORef blankIdToken'
 {-# NOINLINE blankIdToken #-}
 
 tokenHash ∷ IdToken → Int
 tokenHash = U.hashUnique ∘ fromIdToken
+
+tokenDesc ∷ IdToken → String
+tokenDesc = snd ∘ fromIdToken'
 
 
 -- * Impure IO-stateful map
@@ -166,7 +170,6 @@ portCreate portWindow portSettings@Settings{..} = do
   rendererDrawFrame portRenderer
   portSetVSync True
 
-  liftIO $ trev ALLOC DRW (1, 1) (tokenHash blankIdToken)
   portEmptyDrawable ← makeDrawable portObjectStream (di 1 1)
   portVisualTracker@(VisualTracker _)     ← VisualTracker <$> mkVIOMap
   -- iomapAdd dt blankIdToken portEmptyDrawable
@@ -365,7 +368,6 @@ drawableDrawRect Port{portSettings=Settings{..}} d@Drawable{..} color dim' = do
 -- Render with: framePutDrawable frame px0 (doubleToFloat <$> po 0 0)
 mkRectDrawable ∷ (MonadIO m, FromUnit u) ⇒ Port → Di (Unit u) → Co Double → m Drawable
 mkRectDrawable port@Port{portSettings=Settings{..}} dim color = do
-  liftIO $ trev ALLOC DRW (dim^.di'v._x, dim^.di'v._y) (-1)
   d@Drawable{..} ← portMakeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> dim
   drawableDrawRect port d color dim
   pure d
