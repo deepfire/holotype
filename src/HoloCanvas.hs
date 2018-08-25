@@ -94,7 +94,6 @@ import qualified HoloCube                          as HC
 
 -- class Container d ⇒ WDrawable d where
 --   assemble       ∷ (MonadIO m) ⇒ Settings PU → HC.ObjectStream → StyleOf d → Content d → m d
---   drawableOf     ∷ d → Drawable
 --   render         ∷ (MonadIO m) ⇒ d → m ()
 
 
@@ -368,7 +367,6 @@ import qualified HoloCube                          as HC
 --     let w = Canvas{..} where cInner = (⊥)                -- resolve circularity due to *ToInner..
 --     cInner ← make settings (CW w) innerStyle innerContent cPSpace
 --     pure w { cInner = cInner }
---   drawableOf = cDrawable
 --   render self@Canvas{..} = do
 --     draw (CW self) cInner
 --     drawableContentToGPU cDrawable

@@ -79,7 +79,6 @@ holotreeLeaves root = Map.fromList $ walk root
 instance Holo () where
   data StyleOf  ()     = UnitStyle
   data VisualOf ()     = UnitVisual
-  drawableOf Port{..} _  = portEmptyDrawable
   query        _ _ _     = pure $ Di $ V2 Nothing Nothing
   createVisual _ _ _ _ _ = pure UnitVisual
   renderVisual _ _ _     = pure ()
@@ -144,7 +143,7 @@ queryHoloitem port hoi children =
 
 renderHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem PVisual → m ()
 renderHoloitem port HoloItem{..} = do
-  let drw = drawableOf port (vVisual hiVisual)
+  let drw = vDrawable hiVisual
   clearDrawable drw
   renderVisual port (vVisual hiVisual) holo
   drawableContentToGPU drw
@@ -169,7 +168,7 @@ drawHolotreeVisuals port frame root = loop (luOf (hiArea root)^.lu'po) root
     loop offset HoloItem{..} = do
       if null hiChildren
       then do
-        framePutDrawable frame (drawableOf port (vVisual hiVisual)) (doubleToFloat <$> (offset + luOf hiArea^.lu'po))
+        framePutDrawable frame (vDrawable hiVisual) (doubleToFloat <$> (offset + luOf hiArea^.lu'po))
         -- liftIO $ putStrLn $ "draw -- " <> (show $ luOf hiArea^.lu'po) <> " " <> (TL.unpack $ rendCompact $ pretty'Area hiArea) <> " " <> (TL.unpack $ rendCompact $ pretty'Area (area'LU hiArea))
       else do
         forM_ hiChildren $ loop (luOf hiArea^.lu'po)
@@ -189,7 +188,6 @@ data Node (k ∷ KNode) where
 instance Typeable k ⇒ Holo   (Node (k ∷ KNode)) where
   data StyleOf  (Node k) = NodeStyle
   data VisualOf (Node k) = NodeVisual
-  drawableOf Port{..} _  = portEmptyDrawable
   query        _ _ _     = pure $ Di $ V2 Nothing Nothing
   createVisual _ _ _ _ _ = pure NodeVisual
   renderVisual _ _ _     = pure ()
@@ -265,7 +263,6 @@ type RectVisual = VisualOf Rect
 instance Holo   Rect where
   data StyleOf  Rect where RectStyle  ∷ RectStyle
   data VisualOf Rect where RectVisual ∷ { rectDrawable ∷ Drawable } → RectVisual
-  drawableOf _ = rectDrawable
   query     port _       Rect{..} = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$> _rectDim
   createVisual port@Port{..} _ _area Rect{..} _drw = do
     let dim = PUs <$> _area^.area'b.size'di
@@ -315,7 +312,6 @@ instance Holo  T.Text where
       , tLayout        ∷ GIP.Layout
       , tDim           ∷ Di (Unit u)
       } → TextVisual
-  drawableOf _ = tDrawable
   query port@Port{..} TextStyle{..} content = do
     let font = portFont' port _tsFontKey -- XXX: non-total
     (Just ∘ fromPU <$>) ∘ either errorT id <$> fontQuerySize font (convert (portDΠ port) _tsSizeSpec) (partial (≢ "") content)
@@ -360,7 +356,6 @@ instance Holo   (T.TextZipper T.Text) where
     TextZipper ∷
       { teText ∷ VisualOf T.Text
       } → TextZipperVisual
-  drawableOf _ = tDrawable ∘ teText
   query port TextZipperStyle{..} tz =
     query port fromTextZipperStyle (zipperText tz)
   createVisual port hsty area' content drw = do
