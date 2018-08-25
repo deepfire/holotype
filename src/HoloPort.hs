@@ -312,9 +312,24 @@ visualiseHoloitem port@Port{..} hi children = case hi of
       viomapAdd (fromVT portVisualTracker) Proxy hiToken vis
     pure HoloItem{hiVisual=vis, hiChildren=children, ..}
 
+portGarbageCollectVisuals ∷ (MonadIO m) ⇒ Port → Map.Map IdToken (HoloItem a) → m ()
+portGarbageCollectVisuals Port{..} validLeaves = do
+  visMap ← viomapAccess $ fromVT portVisualTracker
+  let gcTM ∷ MonadIO m ⇒ Proxy b -> Map.Map IdToken (Visual b) -> m (Map.Map IdToken (Visual b))
+      gcTM proxy vismap = do
+        let used   = Map.intersection vismap validLeaves
+            unused = Map.difference   vismap used
+        _ ← flip Map.traverseWithKey unused $ \_k Visual{..}→ do
+          -- printf "releasing Visual for IdToken %s\n" (show $ U.hashUnique $ fromIdToken k)
+          disposeDrawable portObjectStream vDrawable
+          freeVisualOf vVisual proxy
+        pure used
+  visMap' ← TM.traverse gcTM visMap
+  viomapReplace (fromVT portVisualTracker) visMap'
+
 
 -- * Matrix works
--- 
+--
 -- This one, while canonical, murders the projection.
 ortho ∷ Int → Int → Int → Int → Int → Int → Mat4
 ortho l' r' t' b' n' f' =

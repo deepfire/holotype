@@ -244,17 +244,7 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   -- * At every scene update
   sceneVisualTreeE     ← performEvent $ scenePlacedTreeE <&>
     \(tree ∷ Holo.HoloItem Holo.PLayout) → liftIO $ do
-      -- XXX: need to implement the GCing of unused Visual's
-      -- drwMap ← liftIO $ STM.readTVarIO (iomap $ fromDT portDrawableTracker)
-
-      -- let leaves     ∷ M.Map IdToken (Holo.HoloItem 'Holo.PLayout)
-      --     leaves     = Holo.holotreeLeaves tree -- this shouldn't contain nodes!
-      --     unusedDrws ∷ M.Map IdToken Drawable
-      --     unusedDrws = M.filterWithKey (flip $ const (not ∘ flip M.member leaves)) drwMap
-      -- forM_ (M.toList unusedDrws) $ \(idt, drv@Drawable{..})→ do
-      --   trev FREE DRW (dDi^.di'v._x, dDi^.di'v._y) (tokenHash idt)
-      --   disposeDrawable portObjectStream drv
-
+      portGarbageCollectVisuals portV (Holo.holotreeLeaves tree)
       tree' ← Holo.visualiseHolotree portV tree
       Holo.renderHolotreeVisuals portV tree'
       pure tree'
