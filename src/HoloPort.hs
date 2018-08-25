@@ -279,17 +279,19 @@ visualiseHoloitem ∷ (HasCallStack, MonadIO m) ⇒ Port → HoloItem PLayout �
 visualiseHoloitem port@Port{..} hi children = case hi of
   HoloItem{..} → do
     let dim@(Di (V2 w h)) = hiArea^.area'b.size'di
+        mkVisual = do
+          newDrawable ← makeDrawable portObjectStream dim
+          (,) True <$>
+            (Visual
+             <$> createVisual port (_sStyle hiStyle) hiArea holo newDrawable
+             <*> pure (_sStyleGene $ hiStyle)
+             <*> pure newDrawable)
     visMap ← viomapAccess (fromVT portVisualTracker)
     (updated ∷ Bool, vis)
            ← case join $ Map.lookup hiToken <$> TM.lookup Proxy visMap of
              Nothing → do
-               liftIO $ trev MISSALLOC VIS (w, h, _fromStyleGene $ _sStyleGene $ hiStyle) (tokenHash hiToken)
-               newDrawable ← makeDrawable portObjectStream dim
-               (,) True <$>
-                 (Visual
-                  <$> createVisual port (_sStyle hiStyle) hiArea holo newDrawable
-                  <*> pure (_sStyleGene $ hiStyle)
-                  <*> pure newDrawable)
+               trev MISSALLOC VIS (w, h, _fromStyleGene $ _sStyleGene $ hiStyle) (tokenHash hiToken)
+               mkVisual
              Just vis@Visual{..} →
                let vDi     = dDi vDrawable
                    styleChanged = vStyleGene ≢ hiStyleGene hi
@@ -297,17 +299,12 @@ visualiseHoloitem port@Port{..} hi children = case hi of
                    update       = sizeChanged ∨ styleChanged
                in if update
                then do
-                 liftIO $ trev REALLOC VIS (w, h)                       (tokenHash hiToken)
+                 trev REALLOC VIS (w, h)    (tokenHash hiToken)
                  disposeDrawable portObjectStream vDrawable
-                 newDrawable ← makeDrawable portObjectStream dim
-                 (,) update <$>
-                   (Visual
-                    <$> createVisual port (_sStyle hiStyle) hiArea holo newDrawable
-                    <*> pure (_sStyleGene $ hiStyle)
-                    <*> pure newDrawable)
+                 mkVisual
                else do
-                 liftIO $ trev REUSE   VIS (w, h)                       (tokenHash hiToken)
-                 pure $ (,) update vis
+                 trev REUSE   VIS (w, h)                       (tokenHash hiToken)
+                 pure $ (,) False vis
     when updated $
       viomapAdd (fromVT portVisualTracker) Proxy hiToken vis
     pure HoloItem{hiVisual=vis, hiChildren=children, ..}
