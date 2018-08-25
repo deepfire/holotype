@@ -233,8 +233,9 @@ makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                       , ("uv",        A_V2F texcoord) ] }
   dGPUMesh      ← GL.uploadMeshToGPU dMesh
-  SMem.addFinalizer dGPUMesh $ do
-    GL.disposeMesh dGPUMesh
+  -- XXX: this is leaky -- has to be done manually
+  -- SMem.addFinalizer dGPUMesh $ do
+  --   GL.disposeMesh dGPUMesh
   dGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [unameStr osUniform, "viewProj"] dGPUMesh
 
   dSurfaceData  ← imageSurfaceGetPixels' dSurface
@@ -250,8 +251,9 @@ disposeDrawable ObjectStream{..} Drawable{..} = liftIO $ do
   trev FREE TEX (dDi^.di'v) (fromIntegral dTexId)
   F.withArray [dTexId] $ glDeleteTextures 1 -- release tex id
   GL.removeObject osStorage dGLObject
-  -- GL.disposeMesh  dGPUMesh
-  -- cairoCreate is auto-managed
+  GL.disposeMesh  dGPUMesh
+  -- dGIC   ← cairoToGICairo ?
+  -- dCairo ← cairoCreate is auto-managed
   GRCI.surfaceFinish dSurface -- undo createImageSurface
 
 drawableContentToGPU ∷ (MonadIO m) ⇒ Drawable → m ()
