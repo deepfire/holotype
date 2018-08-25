@@ -82,6 +82,7 @@ instance Holo () where
   query        _ _ _     = pure $ Di $ V2 Nothing Nothing
   createVisual _ _ _ _ _ = pure UnitVisual
   renderVisual _ _ _     = pure ()
+  freeVisualOf _ _       = pure ()
 instance DefStyleOf (StyleOf ()) where
   defStyleOf = UnitStyle
 
@@ -191,6 +192,7 @@ instance Typeable k ⇒ Holo   (Node (k ∷ KNode)) where
   query        _ _ _     = pure $ Di $ V2 Nothing Nothing
   createVisual _ _ _ _ _ = pure NodeVisual
   renderVisual _ _ _     = pure ()
+  freeVisualOf _ _       = pure ()
 instance DefStyleOf (StyleOf (Node k)) where
   defStyleOf = NodeStyle
 
@@ -272,6 +274,7 @@ instance Holo   Rect where
     pure $ RectVisual d
   renderVisual port v@RectVisual{rectDrawable=Drawable{..}} Rect{..} =
     drawableDrawRect port (rectDrawable v) _rectColor _rectDim
+  freeVisualOf _ _       = pure ()
 instance DefStyleOf (StyleOf Rect) where
   defStyleOf = RectStyle
 
@@ -329,6 +332,8 @@ instance Holo  T.Text where
   renderVisual _ Text{..} text =
     -- 1. execute GIP draw & GIPC composition
     drawableDrawText tDrawable tLayout (_tsColor tStyle) text
+  freeVisualOf Text{..} _ =
+    unbindFontLayout tFont tLayout
 
 tsFontKey   ∷ Lens' TextStyle FontKey
 tsFontKey  f ts@(TextStyle x _ _) = (\xx→ts{_tsFontKey=xx})  <$> f x
@@ -363,6 +368,7 @@ instance Holo   (T.TextZipper T.Text) where
   renderVisual _ (TextZipper Text{..}) content = do
     -- XXX: cursor position
     drawableDrawText tDrawable tLayout (_tsColor tStyle) (zipperText content)
+  freeVisualOf TextZipper{..} _ = freeVisualOf teText Proxy
 
 tesTSStyle  ∷ Lens' TextZipperStyle TextStyle
 tesTSStyle f (TextZipperStyle x) = TextZipperStyle <$> f x

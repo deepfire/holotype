@@ -102,6 +102,7 @@ class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
   query           ∷ (MonadIO m) ⇒ Port → StyleOf a →                  a →            m (Di (Maybe Double))
   createVisual    ∷ (MonadIO m) ⇒ Port → StyleOf a → Area'LU Double → a → Drawable → m (VisualOf a)
   renderVisual    ∷ (MonadIO m) ⇒ Port →                 VisualOf a → a →            m ()  -- ^ Update a visualisation of 'a'.
+  freeVisualOf    ∷ (MonadIO m) ⇒                        VisualOf a → Proxy a      → m ()
 class DefStyleOf a where
   defStyleOf      ∷ a
 
