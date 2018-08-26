@@ -8,23 +8,26 @@ LTRACE_TRACE_SPEC=-o holotype.ltrace -e '-poll-write-__errno_location'
 LTRACE_OPTIONS=--no-signals $(LTRACE_TRACE_SPEC)
 #
 #
-dist/build/holostress/holostress: Holostress.hs  src/*.hs
-	cabal build holostress
-hls holostress: dist/build/holostress/holostress
-	$(GDB) $< $(SCENARIO) +RTS -T $(RTS)
+Holostress:     Holostress.hs  src/*.hs
+	ghc $<
+hls holostress: Holostress
+	./$< $(SCENARIO) +RTS -T $(RTS)
+
 # hols holostress:
 # 	ghc -threaded -eventlog -rtsopts -isrc --make Holostress.hs && ./Holostress +RTS -T -ls -N2
-dist/build/lcstress/lcstress:     LCstress.hs    src/*.hs
-	cabal build lcstress
-lcs lcstress: dist/build/lcstress/lcstress
-	$(GDB) $< $(SCENARIO) +RTS -T $(RTS)
-dist/build/crstress/crstress:     Cairostress.hs src/*.hs
-	cabal build crstress
-crs crstress: dist/build/crstress/crstress
-	$< $(SCENARIO) +RTS -T $(RTS)
-crsl crstressl: dist/build/crstress/crstress
+LCstress:     LCstress.hs    src/*.hs
+	ghc $<
+lcs lcstress: LCstress
+	./$< $(SCENARIO) +RTS -T $(RTS)
+
+Cairostress:    Cairostress.hs src/*.hs
+	ghc $<
+crs crstress:   Cairostress
+	./$< # +RTS -T $(RTS)
+crsl crstressl: Cairostress
 	ltrace $(LTRACE_OPTIONS) $< $(SCENARIO) +RTS -T $(RTS)
 	cut -d '(' -f1 holotype.ltrace | sort | uniq -c | grep -v 'resumed>' | sort -n | tee crstress.lprof
+
 cairostress: cairostress.c
 	gcc $< -g -o $@ $$(pkg-config --cflags cairo pango pangocairo) $$(pkg-config --libs cairo pango pangocairo)
 ccrs: cairostress
