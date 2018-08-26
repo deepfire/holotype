@@ -265,21 +265,17 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
 
       scenePlacedTreeE ∷ Event t (Holo.Item 'Holo.PLayout)
       scenePlacedTreeE = layout (Size $ di 400 200) <$> updated sceneD
-
-  -- * At every scene update
-  sceneVisualTreeE     ← performEvent $ scenePlacedTreeE <&>
-    \(tree ∷ Holo.Item Holo.PLayout) → liftIO $ do
-      portGarbageCollectVisuals portV (Holo.holotreeLeaves tree)
-      tree' ← Holo.visualiseHolotree portV tree
-      Holo.renderHolotreeVisuals portV tree'
-      pure tree'
-  sceneVisualTreeD ← holdDyn Holo.emptyVisualHolo sceneVisualTreeE
+  -- A veritable race condition, FRP-style below (scenePlacedTreeE fires before frameE), lol:
+  scenePlacedTreeD ← holdDyn (undefined) scenePlacedTreeE
 
   -- * At every frame
-  let drawE         = attachPromptlyDyn sceneVisualTreeD frameE
+  let drawE         = attachPromptlyDyn scenePlacedTreeD frameE
   _                ← performEvent $ drawE <&>
                      \(tree, f@Frame{..}) → do
-                       Holo.drawHolotreeVisuals f tree
+                       portGarbageCollectVisuals portV (Holo.holotreeLeaves tree)
+                       tree' ← Holo.visualiseHolotree portV tree
+                       Holo.renderHolotreeVisuals portV tree'
+                       Holo.drawHolotreeVisuals f tree'
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.
   waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE
