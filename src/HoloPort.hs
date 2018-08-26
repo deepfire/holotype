@@ -252,7 +252,6 @@ disposeDrawable ObjectStream{..} Drawable{..} = liftIO $ do
   F.withArray [dTexId] $ glDeleteTextures 1 -- release tex id
   GL.removeObject osStorage dGLObject
   GL.disposeMesh  dGPUMesh
-  -- dGIC   ← cairoToGICairo ?
   -- dCairo ← cairoCreate is auto-managed
   GRCI.surfaceFinish dSurface -- undo createImageSurface
 

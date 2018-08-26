@@ -293,7 +293,8 @@ chooseFont fMap freqs = loop freqs []
 
 bindFont ∷ (MonadIO m, FromUnit u) ⇒ Font Found u → GIC.Context → m (Font Bound u)
 bindFont fbFont@Font{..} gic = do
-  fbContext ← GIPC.createContext gic
+  -- fbContext ← GIPC.createContext gic
+  fbContext ← pangoCairoCreateContext gic
   GIP.contextSetFontDescription fbContext fDesc
   GIPC.contextSetResolution     fbContext (fromDΠ fDΠ)
   pure $ FontBinding{..}
@@ -373,7 +374,8 @@ fontQuerySize Font{..} TextSizeSpec{..} (Just text) = do
 -- * Text
 makeLayout ∷ (MonadIO m) ⇒ GIP.Context → m (GIP.Layout)
 makeLayout gipc = do
-  gip ← GIP.layoutNew gipc
+  -- gip ← GIP.layoutNew gipc
+  gip ← pangoLayoutNew gipc
   GIP.layoutSetWrap      gip GIP.WrapModeWord
   GIP.layoutSetEllipsize gip GIP.EllipsizeModeEnd
   pure gip
