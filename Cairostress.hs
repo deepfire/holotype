@@ -6,6 +6,9 @@ import           Control.Monad                            (forever)
 
 import qualified Foreign                           as F
 import qualified Foreign.ForeignPtr.Unsafe         as F
+import qualified Foreign.Concurrent                as FC
+import qualified System.Environment                as Sys
+import qualified Data.IORef                        as IO
 
 import qualified Data.GI.Base                      as GI
 import qualified GI.GObject.Objects.Object         as GIO
@@ -20,6 +23,9 @@ import qualified GI.PangoCairo.Functions           as GIPC
 
 import qualified GI.Cairo.Structs.Context          as Cairo.Context
 import qualified GI.Pango.Objects.Context          as Pango.Context
+import           Control.Monad.IO.Class
+import qualified Data.GI.Base.CallStack            as B.CallStack
+import           Data.GI.Base.ShortPrelude            (checkUnexpectedReturnNULL)
 
 
 foreign import ccall "&cairo_destroy"
@@ -32,7 +38,13 @@ foreign import ccall "g_object_unref" g_object_unref ::
     IO ()
 
 main ∷ IO ()
-main = forever scenarioB
+main = do
+  args ← Sys.getArgs
+  forever $ case args of
+              ["a"] → scenarioA
+              ["b"] → scenarioB
+              ["c"] → scenarioC
+              _     → scenarioB
 
 scenarioA ∷ IO ()
 scenarioA = do
@@ -53,6 +65,35 @@ scenarioB = do
   gipc                 ← GIPC.createContext gic
   GIO.objectUnref gipc
   GRC.surfaceFinish  crSurf
+
+createContext' ::
+    (B.CallStack.HasCallStack, MonadIO m) =>
+    Cairo.Context.Context
+    {- ^ /@cr@/: a Cairo context -}
+    -> m Pango.Context.Context
+    {- ^ __Returns:__ the newly created 'GI.Pango.Objects.Context.Context'. Free with
+      'GI.GObject.Objects.Object.objectUnref'. -}
+createContext' cr = liftIO $ do
+    cr' <- GI.unsafeManagedPtrGetPtr cr
+    result <- pango_cairo_create_context cr'
+    checkUnexpectedReturnNULL "createContext" result
+    fPtr <- FC.newForeignPtr result (pure ())
+    GI.touchManagedPtr cr
+    isDisownedRef <- IO.newIORef Nothing
+    return $ Pango.Context.Context $ GI.ManagedPtr
+             { GI.managedForeignPtr = fPtr
+             , GI.managedPtrIsDisowned = isDisownedRef
+             }
+
+scenarioC ∷ IO ()
+scenarioC = do
+  crSurf               ← GRC.createImageSurface GRC.FormatARGB32 256 256
+  grccfptr ∷ F.ForeignPtr GRC.Cairo
+                       ← F.newForeignPtr cairo_destroy =<< GRC.unCairo <$> GRC.create crSurf
+  gic@(GIC.Context gicfp) ← GIC.Context <$> GI.newManagedPtr (F.castPtr $ F.unsafeForeignPtrToPtr grccfptr) (F.touchForeignPtr grccfptr)
+  gipc@(Pango.Context.Context gipcmptr)  ← createContext' gic
+  GIO.objectUnref gipc
+  GRC.surfaceFinish crSurf
 
 -- full ∷ IO ()
 -- full = do

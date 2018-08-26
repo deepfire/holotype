@@ -23,7 +23,7 @@ lcs lcstress: LCstress
 Cairostress:    Cairostress.hs src/*.hs
 	ghc $<
 crs crstress:   Cairostress
-	./$< # +RTS -T $(RTS)
+	./$< $(SCENARIO) # +RTS -T $(RTS)
 crsl crstressl: Cairostress
 	ltrace $(LTRACE_OPTIONS) $< $(SCENARIO) +RTS -T $(RTS)
 	cut -d '(' -f1 holotype.ltrace | sort | uniq -c | grep -v 'resumed>' | sort -n | tee crstress.lprof
