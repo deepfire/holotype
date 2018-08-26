@@ -65,7 +65,6 @@ import           HoloTypes
 import           Flatland
 import           HoloCairo
 import           HoloCube
-import           HoloFont
 
 
 -- * Drawable identity support

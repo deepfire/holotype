@@ -57,7 +57,7 @@ import           Flatland
 import qualified Flex                              as Flex
 import           Flex                                     (Flex, Geo)
 import           HoloCube                                 (Frame)
-import           HoloFont
+import           HoloCairo
 import           HoloPort
 
 

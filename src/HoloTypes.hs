@@ -36,7 +36,6 @@ import           Flex                                     (Geo)
 import           Flatland
 import           HoloCairo
 import           HoloCube
-import           HoloFont
 
 
 -- * Identity of what we're drawing, to allow re-use of underlying stateful resources.

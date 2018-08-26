@@ -64,7 +64,7 @@ import           HoloTypes
 import           Holo                                     (tsFontKey, tsSizeSpec, tsColor)
 import qualified Holo
 import           HoloCube
-import           HoloFont
+import           HoloCairo
 import           HoloPort
 import qualified HoloOS                            as HOS
 

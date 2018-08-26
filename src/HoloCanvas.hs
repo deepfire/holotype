@@ -64,7 +64,6 @@ import Elsewhere
 import Flatland
 import FlatDraw
 import Flex
-import HoloFont
 import HoloCairo
 import qualified HoloCube                          as HC
 
