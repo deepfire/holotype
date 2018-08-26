@@ -244,8 +244,12 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
 
   -- * SCENE
   let sceneD        = zipDynWith -- <&>
-        (\(_, entry) [driven, varlen, stats, fps, counter]→
-          Holo.vbox [counter, fps, stats, varlen, entry, driven])
+        (\(_, entry) [driven
+                     , varlen
+                     , stats, fps, counter]→
+          Holo.vbox [counter, fps, stats
+                    , varlen
+                    , entry, driven])
         styleEntryD
         $ zipDynWith (:) (snd <$> text2HoloQD)
         $ zipDynWith (:) (varlenTextD)

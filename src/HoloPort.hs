@@ -168,7 +168,7 @@ portCreate portWindow portSettings@Settings{..} = do
 
   (portRenderer, portObjectStream) ← makeSimpleRenderedStream portWindow (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))
   rendererDrawFrame portRenderer
-  portSetVSync True
+  portSetVSync False
 
   portEmptyDrawable ← makeDrawable portObjectStream (di 1 1)
   portVisualTracker@(VisualTracker _)     ← VisualTracker <$> mkVIOMap
