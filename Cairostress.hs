@@ -1,101 +1,77 @@
--- Usage:
---   cabal build Holostress && ./dist/build/Holostress/Holostress +RTS -T -RTS
---
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wextra -Wno-unticked-promoted-constructors -Wno-type-defaults #-}
 
-import           HoloPrelude
+import           Control.Monad                            (forever)
 
-import qualified Data.List
-import qualified Data.Map                          as Map
-import qualified Data.Vector                       as V
+import qualified Foreign                           as F
+import qualified Foreign.ForeignPtr.Unsafe         as F
 
-import           Linear
+import qualified Data.GI.Base                      as GI
+import qualified GI.GObject.Objects.Object         as GIO
 
-import qualified GI.GObject.Objects.Object         as GI
-import qualified GI.PangoCairo.Functions           as GIPC
 import qualified Graphics.Rendering.Cairo          as GRC
+import qualified Graphics.Rendering.Cairo.Internal as GRC (create, destroy, surfaceDestroy)
+import qualified Graphics.Rendering.Cairo.Types    as GRC
+
+import qualified GI.Cairo.Structs.Context          as GIC
 import qualified GI.Pango                          as GIP
+import qualified GI.PangoCairo.Functions           as GIPC
 
-
-import qualified Data.Text                         as T
-import qualified Data.Text.Zipper                  as T
-
-
-import           Flatland
-import           HoloTypes
-
-import           HoloCube
-import           HoloCairo
-import qualified HoloCube                          as HC
-import qualified HoloOS                            as HOS
-import           HoloPort
+import qualified GI.Cairo.Structs.Context          as Cairo.Context
+import qualified GI.Pango.Objects.Context          as Pango.Context
 
 
+foreign import ccall "&cairo_destroy"
+  cairo_destroy ∷ F.FinalizerPtr GRC.Cairo
+foreign import ccall "pango_cairo_create_context" pango_cairo_create_context ::
+    F.Ptr Cairo.Context.Context ->            -- cr : TInterface (Name {namespace = "cairo", name = "Context"})
+    IO (F.Ptr Pango.Context.Context)
+foreign import ccall "g_object_unref" g_object_unref :: 
+    F.Ptr GIO.Object ->                       -- object : TInterface (Name {namespace = "GObject", name = "Object"})
+    IO ()
+
 main ∷ IO ()
-main = do
-  HOS.unbufferStdout
+main = forever scenarioB
 
-  -- * Holo
-  Settings{..}        ← defaultSettings
+scenarioA ∷ IO ()
+scenarioA = do
+  crSurf               ← GRC.createImageSurface GRC.FormatARGB32 256 256
+  grccfptr ∷ F.ForeignPtr GRC.Cairo
+                       ← F.newForeignPtr cairo_destroy =<< GRC.unCairo <$> GRC.create crSurf
+  gic@(GIC.Context gicfp) ← GIC.Context <$> GI.newManagedPtr (F.castPtr $ F.unsafeForeignPtrToPtr grccfptr) (F.touchForeignPtr grccfptr)
+  gipc                 ← pango_cairo_create_context =<< GI.unsafeManagedPtrCastPtr gicfp
+  g_object_unref $ F.castPtr gipc
+  GRC.surfaceFinish  crSurf
 
-  timeStart           ← HOS.fromSec <$> HOS.getTime
-  let dim@(Di (V2 w h)) = di 256 256
-      navg = 10
-      loop (iterN, timePre) avgPre preKB = do
-        do
-          -- build stack
-          crSurf       ← GRC.createImageSurface GRC.FormatARGB32 w h
-          cr           ← cairoCreate        crSurf
-          gic          ← cairoToGICairo     cr
-          gipc         ← GIPC.createContext gic
-          -- gipl         ← GIP.layoutNew      gipc
-          -- GIP.layoutSetWidth  lay $ fromIntegral w
-          -- GIP.layoutSetHeight lay $ fromIntegral h
-          -- GIP.layoutSetText   lay "lol" (-1)
-          -- free stack
-          -- GI.objectUnref gipl
-          GI.objectUnref gipc
-          -- cairoDestroy cr
-          GRC.surfaceFinish crSurf
-          pure ()
+scenarioB ∷ IO ()
+scenarioB = do
+  crSurf               ← GRC.createImageSurface GRC.FormatARGB32 256 256
+  grccfptr ∷ F.ForeignPtr GRC.Cairo
+                       ← F.newForeignPtr cairo_destroy =<< GRC.unCairo <$> GRC.create crSurf
+  gic@(GIC.Context gicfp) ← GIC.Context <$> GI.newManagedPtr (F.castPtr $ F.unsafeForeignPtrToPtr grccfptr) (F.touchForeignPtr grccfptr)
+  gipc                 ← GIPC.createContext gic
+  GIO.objectUnref gipc
+  GRC.surfaceFinish  crSurf
 
-        --- do stats
-        timePreGC ← HOS.fromSec <$> HOS.getTime
-        HOS.gc
-        new       ← HOS.gcKBytesUsed
-        timePost  ← HOS.fromSec <$> HOS.getTime
-        let dt     = timePost  - timePre
-            nonGCt = timePreGC - timePre
-            avgPost@(avgVal, _) = avgStep dt avgPre
-        when (0 == mod iterN 40) $
-          printf " frame  used dFrMem avgFrMem avgFrTime frTimeNonGCasdsa\n"
-        -- when (preKB /= new) $
-        printf "%5dn %dk %4ddK %5dK/f    %4.2fms      %4.2fms\n"
-                 iterN new (new - preKB) (ceiling $ (fromIntegral new / fromIntegral iterN) ∷ Int)
-                 (avgVal ⋅ 1000) (nonGCt ⋅ 1000)
-        loop (iterN + 1, timePost) avgPost new
-  loop (0 ∷ Integer, timeStart) (0.0, (navg, 0, [])) =<< HOS.gcKBytesUsed
-
-type Avg a = (Int, Int, [a])
-avgStep ∷ Fractional a ⇒ a → (a, Avg a) → (a, Avg a)
-avgStep x (_, (lim, cur, xs)) =
-  let (ncur, nxs) = if cur < lim
-                    then (cur + 1, x:xs)
-                    else (lim,     x:Data.List.init xs)
-  in ((sum nxs) / fromIntegral ncur, (lim, ncur, nxs))
+-- full ∷ IO ()
+-- full = do
+--   crSurf               ← GRC.createImageSurface GRC.FormatARGB32 256 256
+--   grccfptr ∷ F.ForeignPtr GRC.Cairo
+--                        ← F.newForeignPtr cairo_destroy =<< GRC.unCairo <$> GRC.create crSurf
+--   -- grcc ∷ GRC.Cairo   ← GRC.create crSurf
+--   gic@(GIC.Context gicfp) ← GIC.Context <$> GI.newManagedPtr (F.castPtr $ F.unsafeForeignPtrToPtr grccfptr) (F.touchForeignPtr grccfptr)
+--   -- gic                  ← GIC.Context <$> GI.newManagedPtr (F.castPtr $ GRC.unCairo grcc) (cairo_destroy grcc)
+--   -- gipc                 ← GIPC.createContext gic
+--   gicptr               ← GI.unsafeManagedPtrCastPtr gicfp
+--   gipc                 ← pango_cairo_create_context $ gicptr
+--   -- gipl         ← GIP.layoutNew      gipc
+--   -- GIP.layoutSetWidth  lay $ fromIntegral w
+--   -- GIP.layoutSetHeight lay $ fromIntegral h
+--   -- GIP.layoutSetText   lay "lol" (-1)
+--   -- GI.objectUnref gipl
+--   -- GIO.objectUnref gipc
+--   -- gipcptr              ← GI.unsafeManagedPtrCastPtr gipc
+--   g_object_unref $ F.castPtr gipc
+--   GRC.destroy grcc
+--   GRC.surfaceFinish  crSurf

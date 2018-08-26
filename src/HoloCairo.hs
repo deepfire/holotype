@@ -7,7 +7,7 @@
 
 module HoloCairo
   (
-    Cairo, cairoCreate, cairoDestroy
+    Cairo(..), cairoCreate, cairoDestroy
   , runCairo
   , cairoToGICairo
   --
