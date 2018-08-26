@@ -54,7 +54,7 @@ import           Elsewhere
 import           Flatland
 import           Flex
 import           Holo
-import           HoloCairo
+import qualified HoloCairo                         as Cr
 import           HoloCube
 import           HoloPort
 import qualified HoloOS                            as HOS

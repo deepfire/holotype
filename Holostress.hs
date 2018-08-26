@@ -45,8 +45,8 @@ import qualified Data.Text.Zipper                  as T
 import           Flatland
 import           HoloTypes
 
+import qualified HoloCairo                         as Cr
 import           HoloCube
-import           HoloCairo
 import qualified HoloCube                          as HC
 import qualified HoloOS                            as HOS
 import           HoloPort
@@ -85,8 +85,8 @@ main = do
       navg = 10
       loop (iterN, timePre) avgPre preKB = do
         dSurface       ← GRC.createImageSurface GRC.FormatARGB32 w h
-        cairo          ← cairoCreate dSurface
-        dGIC           ← cairoToGICairo cairo
+        cairo          ← Cr.cairoCreate dSurface
+        dGIC           ← Cr.cairoToGICairo cairo
 
         let (_dx, _dy)  = (fromIntegral w, fromIntegral $ -h)
             _position   = V.fromList [ LCLin.V2  0 _dy,   LCLin.V2  0  0,   LCLin.V2 _dx  0,   LCLin.V2  0 _dy,   LCLin.V2 _dx  0,   LCLin.V2 _dx _dy ]
@@ -102,8 +102,8 @@ main = do
         -- cDrawable ← makeDrawable stream $ fromIntegral <$> dim
         do
           dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
-          dCairo        ← cairoCreate  dSurface
-          dGIC          ← cairoToGICairo dCairo
+          dCairo        ← Cr.cairoCreate  dSurface
+          dGIC          ← Cr.cairoToGICairo dCairo
           let (dx, dy) = (fromIntegral w, fromIntegral $ -h)
               position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
               texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]

@@ -63,7 +63,7 @@ import           GameEngine.Utils                  as Q3
 import           HoloTypes
 
 import           Flatland
-import           HoloCairo
+import qualified HoloCairo                         as Cr
 import           HoloCube
 
 
@@ -91,27 +91,6 @@ tokenDesc ∷ IdToken → String
 tokenDesc = snd ∘ fromIdToken'
 
 
--- * Impure IO-stateful map
-
-mkIOMap ∷ (MonadIO m, Ord k) ⇒ m (IOMap k v)
-mkIOMap = IOMap
-  <$> (liftIO $ STM.newTVarIO $ Map.empty)
-
-iomapAccess ∷ (MonadIO m) ⇒ IOMap k v → m (Map.Map k v)
-iomapAccess IOMap{..} = liftIO $ STM.readTVarIO iomap
-
-iomapAdd ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → v → m ()
-iomapAdd IOMap{..} k v = liftIO $ do
-  STM.atomically $ STM.modifyTVar' iomap (Map.insert k v)
-  pure ()
-
-iomapDrop ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → m ()
-iomapDrop IOMap{..} x = liftIO $
-  STM.atomically $ STM.modifyTVar' iomap (Map.delete x)
-
-iomapHas ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → m Bool
-iomapHas iomap x = Map.member x <$> iomapAccess iomap
-
 -- * Could benefit from:
 --
 -- updateTM ∷ ∀ t x proxy. Typeable t ⇒ proxy t → (TM.Item x t → TM.Item x t) → TM.TypeMap x → TM.TypeMap x
@@ -162,7 +141,7 @@ portCreate portWindow portSettings@Settings{..} = do
   --   ]
   liftIO $ blankIdToken'setup
 
-  portFontmap                      ← makeFontMap sttsDΠ fmDefault sttsFontPreferences
+  portFontmap                      ← Cr.makeFontMap sttsDΠ Cr.fmDefault sttsFontPreferences
   liftIO $ putStrLn $ printf "%s" (show portFontmap)
 
   (portRenderer, portObjectStream) ← makeSimpleRenderedStream portWindow (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))
@@ -183,22 +162,22 @@ portNextFrame Port{..} = do
   rendererDrawFrame  portRenderer
   rendererSetupFrame portRenderer
 
-portFont  ∷ Port → FontKey → Maybe (Font Found PU)
-portFont Port{..} = lookupFont portFontmap
+portFont  ∷ Port → Cr.FontKey → Maybe (Cr.Font Found PU)
+portFont Port{..} = Cr.lookupFont portFontmap
 
-portFont' ∷ Port → FontKey → Font Found PU
+portFont' ∷ Port → Cr.FontKey → Cr.Font Found PU
 portFont' po fk = portFont po fk
-  & fromMaybe (errorMissingFontkey fk)
+  & fromMaybe (Cr.errorMissingFontkey fk)
 
 
 defaultSettings ∷ (MonadIO m) ⇒ m Settings
 defaultSettings = do
   let sttsDΠ ∷ DΠ         = 96
-      sttsFontPreferences = FontPreferences
-        [ ("default",     Left $ Alias "defaultMono" )
-        , ("defaultSans", Right $ [ FontSpec "Bitstream Charter" "Regular" $ FSROutline (PUs 16)
-                                  , FontSpec "Aurulent Sans"     "Regular" $ FSROutline (PUs 16) ])
-        , ("defaultMono", Right $ [ FontSpec "Terminus"          "Regular" $ FSRBitmap  (PUs 15) LT ])
+      sttsFontPreferences = Cr.FontPreferences
+        [ ("default",     Left $ Cr.Alias "defaultMono" )
+        , ("defaultSans", Right $ [ Cr.FontSpec "Bitstream Charter" "Regular" $ Cr.Outline (PUs 16)
+                                  , Cr.FontSpec "Aurulent Sans"     "Regular" $ Cr.Outline (PUs 16) ])
+        , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (PUs 15) LT ])
         ]
   pure Settings{..}
 
@@ -221,8 +200,8 @@ makeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → Di Double → m 
 makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
-  dCairo        ← cairoCreate  dSurface
-  dGIC          ← cairoToGICairo dCairo
+  dCairo        ← Cr.cairoCreate  dSurface
+  dGIC          ← Cr.cairoToGICairo dCairo
 
   let (dx, dy) = (fromIntegral w, fromIntegral $ -h)
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
@@ -355,24 +334,24 @@ screenM w h = scaleM -- Vc..*. flipM
 -- * Actual drawing
 --
 dpx ∷ Po Double → Co Double → GRCI.Render ()
-dpx (Po (V2 x y)) color = crColor color >>
+dpx (Po (V2 x y)) color = Cr.crColor color >>
                           -- GRC.rectangle (x) (y) 1 1 >> GRC.fill
                           GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
 
 clearDrawable ∷ (MonadIO m) ⇒ Drawable → m ()
 clearDrawable Drawable{..} = do
-  runCairo dCairo $ do
+  Cr.runCairo dCairo $ do
     GRC.save
     GRC.setOperator GRCI.OperatorSource
-    crColor (co 0 0 0 0)
+    Cr.crColor (co 0 0 0 0)
     GRC.paint
     GRC.restore
 
 drawableDrawRect ∷ (MonadIO m, FromUnit u) ⇒ Port → Drawable → Co Double → Di (Unit u) → m ()
 drawableDrawRect Port{portSettings=Settings{..}} d@Drawable{..} color dim' = do
   let dim = fromUnit sttsDΠ <$> dim'
-  runCairo dCairo $ do
-    crColor color
+  Cr.runCairo dCairo $ do
+    Cr.crColor color
     GRC.rectangle (0) (0) (fromPU $ dim^.di'v._x) (fromPU $ dim^.di'v._y)
     GRC.fill
   drawableContentToGPU d
@@ -386,9 +365,9 @@ mkRectDrawable port@Port{portSettings=Settings{..}} dim color = do
   pure d
 
 drawableBindFontLayout ∷ (MonadIO m, FromUnit u, FromUnit v) ⇒
-  DΠ → Drawable → Font Found u → Di (Unit v) → TextSizeSpec v → m (WFont Bound, GIP.Layout)
-drawableBindFontLayout dπ Drawable{..} = bindWFontLayout dπ dGIC
+  DΠ → Drawable → Cr.Font Found u → Di (Unit v) → Cr.TextSizeSpec v → m (Cr.WFont Bound, GIP.Layout)
+drawableBindFontLayout dπ Drawable{..} = Cr.bindWFontLayout dπ dGIC
 
 drawableDrawText ∷ (MonadIO m) ⇒ Drawable → GIP.Layout → Co Double → T.Text → m ()
 drawableDrawText Drawable{..} layout color text = do
-  layDrawText dCairo dGIC layout (po 0 0) color text
+  Cr.layDrawText dCairo dGIC layout (po 0 0) color text

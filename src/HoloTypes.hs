@@ -10,6 +10,27 @@
 {-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults #-}
 
 module HoloTypes
+  ( module HoloCairo
+  --
+  , IdToken(..), fromIdToken
+  , VIOMap(..)
+  , VisualIOMap
+  , VisualTracker(..)
+  --
+  , Settings(..)
+  , Port(..)
+  --
+  , Drawable(..)
+  , Visual(..)
+  --
+  , Style(..)
+  , DefStyleOf(..), defStyle
+  , StyleGene(..), hiStyleGene, sStyle, sStyleGene
+  , HIArea, HIVisual
+  , Holo(..)
+  , HoloItem(..)
+  , Phase(..)
+  )
 where
 
 import qualified Control.Concurrent.STM            as STM
@@ -34,7 +55,8 @@ import           HoloPrelude
 import           Flex                                     (Geo)
 
 import           Flatland
-import           HoloCairo
+import           HoloCairo                                (FKind(..))
+import qualified HoloCairo                         as Cr
 import           HoloCube
 
 
@@ -43,12 +65,6 @@ newtype IdToken = IdToken { fromIdToken' ∷ (U.Unique, String) } deriving (Eq, 
 
 fromIdToken ∷ IdToken → U.Unique
 fromIdToken = fst ∘ fromIdToken'
-
--- * Impure IO-stateful map
-data IOMap k v where
-  IOMap ∷ Ord k ⇒
-    { iomap               ∷ STM.TVar (Map.Map k v)
-    } → IOMap k v
 
 data                  VisualIOMap
 type instance TM.Item VisualIOMap a = Map.Map IdToken (Visual a)
@@ -63,7 +79,7 @@ newtype VisualTracker = VisualTracker { fromVT ∷ VIOMap }
 data Port where
   Port ∷
     { portSettings        ∷ Settings
-    , portFontmap         ∷ FontMap PU
+    , portFontmap         ∷ Cr.FontMap PU
     , portWindow          ∷ GL.Window
     , portObjectStream    ∷ ObjectStream
     , portRenderer        ∷ Renderer
@@ -74,7 +90,7 @@ data Port where
 data Settings where
   Settings ∷
     { sttsDΠ              ∷ DΠ
-    , sttsFontPreferences ∷ FontPreferences PU
+    , sttsFontPreferences ∷ Cr.FontPreferences PU
     } → Settings
     deriving (Eq, Show)
 
@@ -84,7 +100,7 @@ data Drawable where
     , dDi                 ∷ Di Int
     , dSurface            ∷ GRCI.Surface
     , dSurfaceData        ∷ (F.Ptr F.CUChar, V2 Int)
-    , dCairo              ∷ Cairo
+    , dCairo              ∷ Cr.Cairo
     , dGIC                ∷ GIC.Context
     --
     , dMesh               ∷ LC.Mesh
@@ -165,3 +181,30 @@ data HoloItem (p ∷ Phase) where
 hiStyleGene ∷ HoloItem p → StyleGene
 hiStyleGene x =
   case x of HoloItem{..} → _sStyleGene hiStyle
+
+
+-- * Impure IO-stateful map
+
+-- data IOMap k v where
+--   IOMap ∷ Ord k ⇒
+--     { iomap               ∷ STM.TVar (Map.Map k v)
+--     } → IOMap k v
+
+-- mkIOMap ∷ (MonadIO m, Ord k) ⇒ m (IOMap k v)
+-- mkIOMap = IOMap
+--   <$> (liftIO $ STM.newTVarIO $ Map.empty)
+
+-- iomapAccess ∷ (MonadIO m) ⇒ IOMap k v → m (Map.Map k v)
+-- iomapAccess IOMap{..} = liftIO $ STM.readTVarIO iomap
+
+-- iomapAdd ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → v → m ()
+-- iomapAdd IOMap{..} k v = liftIO $ do
+--   STM.atomically $ STM.modifyTVar' iomap (Map.insert k v)
+--   pure ()
+
+-- iomapDrop ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → m ()
+-- iomapDrop IOMap{..} x = liftIO $
+--   STM.atomically $ STM.modifyTVar' iomap (Map.delete x)
+
+-- iomapHas ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → m Bool
+-- iomapHas iomap x = Map.member x <$> iomapAccess iomap

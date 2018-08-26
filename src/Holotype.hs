@@ -64,7 +64,7 @@ import           HoloTypes
 import           Holo                                     (tsFontKey, tsSizeSpec, tsColor)
 import qualified Holo
 import           HoloCube
-import           HoloCairo
+import qualified HoloCairo                         as Cr
 import           HoloPort
 import qualified HoloOS                            as HOS
 
@@ -238,7 +238,7 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
 
   styleEntryD      ← mkTextEntryValidatedD portV (constDyn (defStyle & sStyle.tsFontKey .~ "defaultMono" )) editE "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-  let styleOfD      = (\name→ (defStyleOf & tsFontKey .~ HoloFont.FK name )) ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
+  let styleOfD      = (\name→ (defStyleOf & tsFontKey .~ Cr.FK name )) ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
   styleD           ← trackStyle styleOfD
   text2HoloQD      ← mkTextEntryD portV styleD editE "watch me"
 
@@ -247,9 +247,15 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
         (\(_, entry) [driven
                      , varlen
                      , stats, fps, counter]→
-          Holo.vbox [counter, fps, stats
-                    , varlen
-                    , entry, driven])
+          -- varlen
+          Holo.vbox [ varlen
+                    -- , counter
+                    -- , fps
+                    -- , stats
+                    -- , entry
+                    -- , driven
+                    ]
+        )
         styleEntryD
         $ zipDynWith (:) (snd <$> text2HoloQD)
         $ zipDynWith (:) (varlenTextD)

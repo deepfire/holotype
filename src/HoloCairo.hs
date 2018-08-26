@@ -241,10 +241,10 @@ fdSetSize fd (PUIs is)  = GIP.fontDescriptionSetAbsoluteSize fd $ fromIntegral i
 fdSetSize fd (Pts  pts) = GIP.fontDescriptionSetSize         fd $ pts * GIP.SCALE
 
 data FontSizeRequest u where
-  FSROutline ∷ FromUnit u ⇒
+  Outline ∷ FromUnit u ⇒
     { fsValue   ∷ Unit u
     } → FontSizeRequest u
-  FSRBitmap  ∷ FromUnit u ⇒
+  Bitmap  ∷ FromUnit u ⇒
     { fsValue   ∷ Unit u
     , fsbPolicy ∷ Ordering
     } → FontSizeRequest u
@@ -331,12 +331,12 @@ validateFont fFontMap (FontSpec
       fDesc  ← GIP.fontFaceDescribe fFace
       let mayfPISizes = ffacePISizes fFace
           eifSizeFail = case (fSizeRequest, mayfPISizes) of
-            (FSROutline fs, Nothing)       → Right fs -- Outline font was requested, and was obtained: we can request any size
-            (FSROutline fs, Just fPISizes) →
+            (Outline fs, Nothing)       → Right fs -- Outline font was requested, and was obtained: we can request any size
+            (Outline fs, Just fPISizes) →
               if | fPI ∈ fPISizes → Right $ fs
                  | otherwise      → Left  $ printf "Bitmap font family '%s' does not provide for size %s." ffamname (show fs)
-            (FSRBitmap   _      _, Nothing) → Left $ printf "Outline font family '%s' does not provide for bitmaps." ffamname
-            (FSRBitmap  fs policy, Just fPISizes) →
+            (Bitmap   _      _, Nothing) → Left $ printf "Outline font family '%s' does not provide for bitmaps." ffamname
+            (Bitmap  fs policy, Just fPISizes) →
               case trace (printf "policy: %s, fPI: %s, sizes: %s" (show policy) (show fPI) (show fPISizes)) (policy, fPI ∈ fPISizes) of
                 (_,  True)  → Right fs
                 (EQ, False) → Left failure

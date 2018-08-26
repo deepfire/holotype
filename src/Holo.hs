@@ -57,7 +57,7 @@ import           Flatland
 import qualified Flex                              as Flex
 import           Flex                                     (Flex, Geo)
 import           HoloCube                                 (Frame)
-import           HoloCairo
+import qualified HoloCairo                         as Cr
 import           HoloPort
 
 
@@ -292,7 +292,7 @@ instance DefStyleOf (StyleOf Rect) where
 instance DefStyleOf (StyleOf T.Text) where
   defStyleOf = TextStyle
     { _tsFontKey     = "default"
-    , _tsSizeSpec    = TextSizeSpec Nothing OneLine
+    , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
     , _tsColor       = white
     }
 
@@ -301,21 +301,21 @@ type TextVisual = VisualOf T.Text
 instance Holo  T.Text where
   data StyleOf T.Text where
     TextStyle ∷
-      { _tsFontKey     ∷ FontKey
-      , _tsSizeSpec    ∷ TextSizeSpec PU
+      { _tsFontKey     ∷ Cr.FontKey
+      , _tsSizeSpec    ∷ Cr.TextSizeSpec PU
       , _tsColor       ∷ Co Double
       } → TextStyle
   data VisualOf T.Text where
     Text ∷
       { tStyle         ∷ TextStyle
       , tDrawable      ∷ Drawable
-      , tFont          ∷ WFont Bound
+      , tFont          ∷ Cr.WFont Bound
       , tLayout        ∷ GIP.Layout
       , tDim           ∷ Di (Unit u)
       } → TextVisual
   query port@Port{..} TextStyle{..} content = do
     let font = portFont' port _tsFontKey -- XXX: non-total
-    (Just ∘ fromPU <$>) ∘ either errorT id <$> fontQuerySize font (convert (portDΠ port) _tsSizeSpec) (partial (≢ "") content)
+    (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (portDΠ port) _tsSizeSpec) (partial (≢ "") content)
   createVisual port tStyle@TextStyle{..} area' _content tDrawable = do
     -- 1. find font, 2. bind font to GIC, 3. create layout
     -- Q: why not also draw here?  Reflow?
@@ -331,11 +331,11 @@ instance Holo  T.Text where
     -- 1. execute GIP draw & GIPC composition
     drawableDrawText tDrawable tLayout (_tsColor tStyle) text
   freeVisualOf Text{..} _ =
-    unbindFontLayout tFont tLayout
+    Cr.unbindFontLayout tFont tLayout
 
-tsFontKey   ∷ Lens' TextStyle FontKey
+tsFontKey   ∷ Lens' TextStyle Cr.FontKey
 tsFontKey  f ts@(TextStyle x _ _) = (\xx→ts{_tsFontKey=xx})  <$> f x
-tsSizeSpec  ∷ Lens' TextStyle (TextSizeSpec PU)
+tsSizeSpec  ∷ Lens' TextStyle (Cr.TextSizeSpec PU)
 tsSizeSpec f ts@(TextStyle _ x _) = (\xx→ts{_tsSizeSpec=xx}) <$> f x
 tsColor     ∷ Lens' TextStyle (Co Double)
 tsColor    f ts@(TextStyle _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
