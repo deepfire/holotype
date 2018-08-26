@@ -318,10 +318,11 @@ portGarbageCollectVisuals Port{..} validLeaves = do
       gcTM proxy vismap = do
         let used   = Map.intersection vismap validLeaves
             unused = Map.difference   vismap used
-        _ ← flip Map.traverseWithKey unused $ \_k Visual{..}→ do
+        _ ← flip Map.traverseWithKey unused $ \k Visual{..}→ do
           -- printf "releasing Visual for IdToken %s\n" (show $ U.hashUnique $ fromIdToken k)
-          disposeDrawable portObjectStream vDrawable
           freeVisualOf vVisual proxy
+          trev FREE VIS (dDi vDrawable^.di'w, dDi vDrawable^.di'h) (tokenHash k)
+          disposeDrawable portObjectStream vDrawable
         pure used
   visMap' ← TM.traverse gcTM visMap
   viomapReplace (fromVT portVisualTracker) visMap'
