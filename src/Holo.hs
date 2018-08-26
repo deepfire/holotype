@@ -15,7 +15,7 @@ module Holo
   , vbox, hbox
   , leaf
   , Phase(..)
-  , HoloItem, hiToken, hiArea
+  , Item, hiToken, hiArea
   , holotreeLeaves
   , queryHoloitem
   , renderHoloitem
@@ -61,18 +61,18 @@ import qualified HoloCairo                         as Cr
 import           HoloPort
 
 
--- * HoloItem
+-- * Item
 
-instance Eq (HoloItem a) where
+instance Eq (Item a) where
   (==) a b = (≡) (hiToken a) (hiToken b)
 
-instance Ord (HoloItem a) where
+instance Ord (Item a) where
   compare a b = compare (hiToken a) (hiToken b)
 
-holotreeLeaves ∷ HoloItem a → Map.Map IdToken (HoloItem a)
+holotreeLeaves ∷ Item a → Map.Map IdToken (Item a)
 holotreeLeaves root = Map.fromList $ walk root
   where walk x@(hiChildren → []) = [(hiToken x, x)]
-        walk HoloItem{..}        = concat $ walk <$> hiChildren
+        walk Item{..}        = concat $ walk <$> hiChildren
 
 
 -- * Minimal
@@ -86,87 +86,87 @@ instance Holo () where
 instance DefStyleOf (StyleOf ()) where
   defStyleOf = UnitStyle
 
--- instance Monoid    (HoloItem PBlank) where
---   mempty      = HoloItem () blankIdToken mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
+-- instance Monoid    (Item PBlank) where
+--   mempty      = Item () blankIdToken mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
 
--- instance Semigroup (HoloItem PLayout) where
+-- instance Semigroup (Item PLayout) where
 --   l <> r = vbox [l, r]
--- instance Monoid    (HoloItem PLayout) where
---   mempty      = HoloItem () blankIdToken mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
--- instance Monoid (HoloItem Visual) where
+-- instance Monoid    (Item PLayout) where
+--   mempty      = Item () blankIdToken mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
+-- instance Monoid (Item Visual) where
 --   mappend l r = holoVBox [l, r]
---   mempty      = HoloItem () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty UnitVisual
+--   mempty      = Item () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty UnitVisual
 
 emptyDrawable ∷ HasCallStack ⇒ Drawable
 emptyDrawable = (⊥) -- hihi
 
-emptyLayoutHolo ∷ HoloItem PLayout
+emptyLayoutHolo ∷ Item PLayout
 emptyLayoutHolo =
-  HoloItem () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty ()
+  Item () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty ()
 
-emptyVisualHolo ∷ HasCallStack ⇒ HoloItem PVisual
+emptyVisualHolo ∷ HasCallStack ⇒ Item PVisual
 emptyVisualHolo =
-  HoloItem () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty (Visual UnitVisual (undefined) emptyDrawable)
+  Item () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty (Visual UnitVisual (undefined) emptyDrawable)
 
 
-instance Flex (HoloItem PBlank) where
-  geo      f hi@HoloItem{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
-  size     f hi@HoloItem{..} = (\x→ hi {hiSize=x})     <$> f hiSize
-  children f hi@HoloItem{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
-  -- area     f hi@HoloItem{..} = (\x→ hi {hiArea=x})     <$> f hiArea
+instance Flex (Item PBlank) where
+  geo      f hi@Item{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
+  size     f hi@Item{..} = (\x→ hi {hiSize=x})     <$> f hiSize
+  children f hi@Item{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
+  -- area     f hi@Item{..} = (\x→ hi {hiArea=x})     <$> f hiArea
 
-instance Flex (HoloItem PLayout) where
-  geo      f hi@HoloItem{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
-  size     f hi@HoloItem{..} = (\x→ hi {hiSize=x})     <$> f hiSize
-  children f hi@HoloItem{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
-  area     f hi@HoloItem{..} = (\x→ hi {hiArea=x})     <$> f hiArea
+instance Flex (Item PLayout) where
+  geo      f hi@Item{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
+  size     f hi@Item{..} = (\x→ hi {hiSize=x})     <$> f hiSize
+  children f hi@Item{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
+  area     f hi@Item{..} = (\x→ hi {hiArea=x})     <$> f hiArea
 
-instance Flex (HoloItem PVisual) where
-  geo      f hi@HoloItem{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
-  size     f hi@HoloItem{..} = (\x→ hi {hiSize=x})     <$> f hiSize
-  children f hi@HoloItem{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
-  area     f hi@HoloItem{..} = (\x→ hi {hiArea=x})     <$> f hiArea
+instance Flex (Item PVisual) where
+  geo      f hi@Item{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
+  size     f hi@Item{..} = (\x→ hi {hiSize=x})     <$> f hiSize
+  children f hi@Item{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
+  area     f hi@Item{..} = (\x→ hi {hiArea=x})     <$> f hiArea
 
 
--- | 'HoloItem': raison d'etre: type-free payload of Flex's item tree.
+-- | 'Item': raison d'etre: type-free payload of Flex's item tree.
 --
 -- | Designate three passes over the tree:
 --   1. Query
 --   2. Layout
 --   2. CreateVisual
 
-queryHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem PBlank → [HoloItem PLayout] → m (HoloItem PLayout)
+queryHoloitem ∷ (MonadIO m) ⇒ Port → Item PBlank → [Item PLayout] → m (Item PLayout)
 queryHoloitem port hoi children =
   case hoi of
-    HoloItem{..} → do
+    Item{..} → do
       size ← query port (_sStyle $ hiStyle) holo
-      pure HoloItem{hiSize=size, hiArea=mempty, hiChildren=children, ..}
+      pure Item{hiSize=size, hiArea=mempty, hiChildren=children, ..}
 
-renderHoloitem ∷ (MonadIO m) ⇒ Port → HoloItem PVisual → m ()
-renderHoloitem port HoloItem{..} = do
+renderHoloitem ∷ (MonadIO m) ⇒ Port → Item PVisual → m ()
+renderHoloitem port Item{..} = do
   let drw = vDrawable hiVisual
   clearDrawable drw
   renderVisual port (vVisual hiVisual) holo
   drawableContentToGPU drw
 
 
-queryHolotree ∷ (MonadIO m) ⇒ Port → HoloItem PBlank → m (HoloItem PLayout)
-queryHolotree port hoi@HoloItem{..} =
+queryHolotree ∷ (MonadIO m) ⇒ Port → Item PBlank → m (Item PLayout)
+queryHolotree port hoi@Item{..} =
   queryHoloitem     port hoi =<< (sequence $ queryHolotree     port <$> hiChildren)
 
-visualiseHolotree ∷ (MonadIO m) ⇒ Port → HoloItem PLayout → m (HoloItem PVisual)
-visualiseHolotree port hoi@HoloItem{..} =
+visualiseHolotree ∷ (MonadIO m) ⇒ Port → Item PLayout → m (Item PVisual)
+visualiseHolotree port hoi@Item{..} =
   visualiseHoloitem port hoi =<< (sequence $ visualiseHolotree port <$> hiChildren)
 
-renderHolotreeVisuals ∷ (MonadIO m) ⇒ Port → HoloItem PVisual → m ()
-renderHolotreeVisuals port hoi@HoloItem{..} = do
+renderHolotreeVisuals ∷ (MonadIO m) ⇒ Port → Item PVisual → m ()
+renderHolotreeVisuals port hoi@Item{..} = do
   renderHoloitem port hoi
   forM_ hiChildren (renderHolotreeVisuals port)
 
-drawHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → HoloItem PVisual → m ()
+drawHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → Item PVisual → m ()
 drawHolotreeVisuals frame root = loop (luOf (hiArea root)^.lu'po) root
   where
-    loop offset HoloItem{..} = do
+    loop offset Item{..} = do
       if null hiChildren
       then do
         framePutDrawable frame (vDrawable hiVisual) (doubleToFloat <$> (offset + luOf hiArea^.lu'po))
@@ -212,11 +212,11 @@ item ∷ ∀ p a. (Holo a)
   → Geo
   → HIArea p
   → HIVisual p a
-  → [HoloItem p]
-  → HoloItem p
+  → [Item p]
+  → Item p
 item hiToken hiStyle holo hiGeo hiArea hiVisual hiChildren =
   let hiSize = Di (V2 Nothing Nothing)
-  in HoloItem{..}
+  in Item{..}
 
 node ∷ ∀ p a k. (Holo a, a ~ Node k)
   ⇒ IdToken
@@ -224,8 +224,8 @@ node ∷ ∀ p a k. (Holo a, a ~ Node k)
   → a
   → HIArea p
   → HIVisual p a
-  → [HoloItem p]
-  → HoloItem p
+  → [Item p]
+  → Item p
 node idToken style holo area visual =
   item idToken style holo (nodeGeo holo) area visual
 
@@ -233,14 +233,14 @@ leaf ∷ ∀ a. (Holo a)
   ⇒ IdToken
   → Style a
   → a
-  → HoloItem PBlank
+  → Item PBlank
 leaf idToken hiStyle holo =
   item idToken hiStyle holo mempty () () []
 
 
 -- * Pre-package tree constructors
 --
-vbox, hbox ∷ [HoloItem PLayout] → HoloItem PLayout
+vbox, hbox ∷ [Item PLayout] → Item PLayout
 -- XXX: here's trouble -- we're using blankIdToken!
 hbox = node blankIdToken defStyle (HBoxN ∷ Node HBox) noArea ()
 vbox = node blankIdToken defStyle (VBoxN ∷ Node VBox) noArea ()

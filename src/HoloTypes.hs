@@ -28,7 +28,7 @@ module HoloTypes
   , StyleGene(..), hiStyleGene, sStyle, sStyleGene
   , HIArea, HIVisual
   , Holo(..)
-  , HoloItem(..)
+  , Item(..)
   , Phase(..)
   )
 where
@@ -162,13 +162,13 @@ type family HIVisual (p ∷ Phase) a ∷ Type where
   HIVisual PLayout _ = ()
   HIVisual PVisual a = Visual a
 
-data HoloItem (p ∷ Phase) where
-  HoloItem ∷ ∀ p a. Holo a ⇒
+data Item (p ∷ Phase) where
+  Item ∷ ∀ p a. Holo a ⇒
     { holo        ∷ a
     , hiToken     ∷ IdToken
     , hiStyle     ∷ Style a
     , hiGeo       ∷ Geo
-    , hiChildren  ∷ [HoloItem p]
+    , hiChildren  ∷ [Item p]
     -- Problem (why we have both hiSize & hiArea):
     -- 1. We have size for top entry, want to record it
     -- 2. The tree is type-coherent, and children need have the same type.
@@ -176,11 +176,11 @@ data HoloItem (p ∷ Phase) where
     -- TTG-inspired phasing:
     , hiArea      ∷ HIArea p
     , hiVisual    ∷ HIVisual p a
-    } → HoloItem p
+    } → Item p
 
-hiStyleGene ∷ HoloItem p → StyleGene
+hiStyleGene ∷ Item p → StyleGene
 hiStyleGene x =
-  case x of HoloItem{..} → _sStyleGene hiStyle
+  case x of Item{..} → _sStyleGene hiStyle
 
 
 -- * Impure IO-stateful map

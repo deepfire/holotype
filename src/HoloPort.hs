@@ -254,9 +254,9 @@ framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = 
 --   new requirements: style generation and size.
 --   XXX: violates abstraction (fiddles with port and Holo's visual at the same time)
 --   XXX: not thread-safe
-visualiseHoloitem ∷ (HasCallStack, MonadIO m) ⇒ Port → HoloItem PLayout → [HoloItem PVisual] → m (HoloItem PVisual)
+visualiseHoloitem ∷ (HasCallStack, MonadIO m) ⇒ Port → Item PLayout → [Item PVisual] → m (Item PVisual)
 visualiseHoloitem port@Port{..} hi children = case hi of
-  HoloItem{..} → do
+  Item{..} → do
     let dim@(Di (V2 w h)) = hiArea^.area'b.size'di
         mkVisual = do
           newDrawable ← makeDrawable portObjectStream dim
@@ -286,9 +286,9 @@ visualiseHoloitem port@Port{..} hi children = case hi of
                  pure $ (,) False vis
     when updated $
       viomapAdd (fromVT portVisualTracker) Proxy hiToken vis
-    pure HoloItem{hiVisual=vis, hiChildren=children, ..}
+    pure Item{hiVisual=vis, hiChildren=children, ..}
 
-portGarbageCollectVisuals ∷ (MonadIO m) ⇒ Port → Map.Map IdToken (HoloItem a) → m ()
+portGarbageCollectVisuals ∷ (MonadIO m) ⇒ Port → Map.Map IdToken (Item a) → m ()
 portGarbageCollectVisuals Port{..} validLeaves = do
   visMap ← viomapAccess $ fromVT portVisualTracker
   let gcTM ∷ MonadIO m ⇒ Proxy b -> Map.Map IdToken (Visual b) -> m (Map.Map IdToken (Visual b))

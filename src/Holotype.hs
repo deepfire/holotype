@@ -146,7 +146,7 @@ updateQueryParseState text qps =
 
 
 
-mkTextD ∷ Port → Dynamic t (Style T.Text) → Dynamic t T.Text → ReflexGLFW t m (Dynamic t (Holo.HoloItem Holo.PLayout))
+mkTextD ∷ Port → Dynamic t (Style T.Text) → Dynamic t T.Text → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PLayout))
 mkTextD portV styleD valD = do
   setupE       ← getPostBuild
   initV        ← sample $ current valD
@@ -156,7 +156,7 @@ mkTextD portV styleD valD = do
   holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
   holdDyn Holo.emptyLayoutHolo holoIOE
 
-mkTextEntryD ∷ Port → Dynamic t (Style T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.PLayout))
+mkTextEntryD ∷ Port → Dynamic t (Style T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PLayout))
 mkTextEntryD portV styleD editE' initialV = do
   -- the dynamic here is needed for state accumulation
   valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initialV]) editE'
@@ -172,7 +172,7 @@ mkTextEntryD portV styleD editE' initialV = do
   -- holoIOE      ← (performEvent $ (flip $ queryHoloitem portV) [] <$> holoE)
   holdDyn (initialV, Holo.emptyLayoutHolo) $ attachPromptlyDyn valD holoIOE
 
-mkTextEntryValidatedD ∷ Port → Dynamic t (Style T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.HoloItem Holo.PLayout))
+mkTextEntryValidatedD ∷ Port → Dynamic t (Style T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PLayout))
 mkTextEntryValidatedD portV styleD editE' initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
@@ -263,12 +263,12 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
         $ zipDynWith (:) fpsD
         ((:[]) <$> frameCountD)
 
-      scenePlacedTreeE ∷ Event t (Holo.HoloItem 'Holo.PLayout)
+      scenePlacedTreeE ∷ Event t (Holo.Item 'Holo.PLayout)
       scenePlacedTreeE = layout (Size $ di 400 200) <$> updated sceneD
 
   -- * At every scene update
   sceneVisualTreeE     ← performEvent $ scenePlacedTreeE <&>
-    \(tree ∷ Holo.HoloItem Holo.PLayout) → liftIO $ do
+    \(tree ∷ Holo.Item Holo.PLayout) → liftIO $ do
       portGarbageCollectVisuals portV (Holo.holotreeLeaves tree)
       tree' ← Holo.visualiseHolotree portV tree
       Holo.renderHolotreeVisuals portV tree'
