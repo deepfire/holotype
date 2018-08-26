@@ -7,7 +7,7 @@
 
 module HoloCairo
   (
-    Cairo, cairoCreate
+    Cairo, cairoCreate, cairoDestroy
   , runCairo
   , cairoToGICairo
   --
@@ -19,7 +19,7 @@ import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import           Control.Monad.Trans.Reader               (ReaderT(..))
 
 import qualified Graphics.Rendering.Cairo          as GRC
-import qualified Graphics.Rendering.Cairo.Internal as GRC (Render(..), create)
+import qualified Graphics.Rendering.Cairo.Internal as GRC (Render(..), create, destroy)
 import qualified Graphics.Rendering.Cairo.Types    as GRC
 
 import qualified Data.GI.Base                      as GI
@@ -40,6 +40,9 @@ foreign import ccall "&cairo_destroy"
 
 cairoCreate ∷ (MonadIO m) ⇒ GRC.Surface → m Cairo
 cairoCreate s = Cairo <$> (liftIO $ F.newForeignPtr cairo_destroy =<< GRC.unCairo <$> GRC.create s)
+
+cairoDestroy ∷ (MonadIO m) ⇒ Cairo → m ()
+cairoDestroy (Cairo fpcr) = liftIO $ GRC.destroy $ GRC.Cairo $ F.unsafeForeignPtrToPtr $ fpcr
 
 runCairo ∷ (MonadIO m) ⇒ Cairo → GRC.Render a → m a
 runCairo (Cairo fpGRC) body =
