@@ -44,6 +44,8 @@ main = do
               ["a"] → scenarioA
               ["b"] → scenarioB
               ["c"] → scenarioC
+              ["d"] → scenarioD
+              ["e"] → scenarioE
               _     → scenarioB
 
 scenarioA ∷ IO ()
@@ -91,7 +93,64 @@ scenarioC = do
   grccfptr ∷ F.ForeignPtr GRC.Cairo
                        ← F.newForeignPtr cairo_destroy =<< GRC.unCairo <$> GRC.create crSurf
   gic@(GIC.Context gicfp) ← GIC.Context <$> GI.newManagedPtr (F.castPtr $ F.unsafeForeignPtrToPtr grccfptr) (F.touchForeignPtr grccfptr)
-  gipc@(Pango.Context.Context gipcmptr)  ← createContext' gic
+  gipc                 ← createContext' gic
+  GIO.objectUnref gipc
+  GRC.surfaceFinish crSurf
+
+scenarioD ∷ IO ()
+scenarioD = do
+  crSurf               ← GRC.createImageSurface GRC.FormatARGB32 256 256
+  grccfptr ∷ F.ForeignPtr GRC.Cairo
+                       ← F.newForeignPtr cairo_destroy =<< GRC.unCairo <$> GRC.create crSurf
+  gic@(GIC.Context gicfp) ← GIC.Context <$> GI.newManagedPtr (F.castPtr $ F.unsafeForeignPtrToPtr grccfptr) (F.touchForeignPtr grccfptr)
+  gipc                 ← createContext' gic
+  gipl                 ← GIP.layoutNew  gipc
+  GIP.layoutSetWidth  gipl $ fromIntegral 256
+  GIP.layoutSetHeight gipl $ fromIntegral 256
+  GIP.layoutSetText   gipl "lol" (-1)
+  GIO.objectUnref gipl
+  GIO.objectUnref gipc
+  GRC.surfaceFinish crSurf
+
+foreign import ccall "pango_layout_new" pango_layout_new :: 
+    F.Ptr Pango.Context.Context ->            -- context : TInterface (Name {namespace = "Pango", name = "Context"})
+    IO (F.Ptr GIP.Layout)
+{- |
+Create a new 'GI.Pango.Objects.Layout.Layout' object with attributes initialized to
+default values for a particular 'GI.Pango.Objects.Context.Context'.
+-}
+layoutNew' ::
+    (B.CallStack.HasCallStack, MonadIO m, Pango.Context.IsContext a) =>
+    a
+    {- ^ /@context@/: a 'GI.Pango.Objects.Context.Context' -}
+    -> m GIP.Layout
+    {- ^ __Returns:__ the newly allocated 'GI.Pango.Objects.Layout.Layout', with a reference
+              count of one, which should be freed with
+              'GI.GObject.Objects.Object.objectUnref'. -}
+layoutNew' context = liftIO $ do
+    context' <- GI.unsafeManagedPtrCastPtr context
+    result <- pango_layout_new context'
+    checkUnexpectedReturnNULL "layoutNew" result
+    fPtr <- FC.newForeignPtr result (pure ())
+    GI.touchManagedPtr context
+    isDisownedRef <- IO.newIORef Nothing
+    return $ GIP.Layout $ GI.ManagedPtr
+             { GI.managedForeignPtr = fPtr
+             , GI.managedPtrIsDisowned = isDisownedRef
+             }
+
+scenarioE ∷ IO ()
+scenarioE = do
+  crSurf               ← GRC.createImageSurface GRC.FormatARGB32 256 256
+  grccfptr ∷ F.ForeignPtr GRC.Cairo
+                       ← F.newForeignPtr cairo_destroy =<< GRC.unCairo <$> GRC.create crSurf
+  gic@(GIC.Context gicfp) ← GIC.Context <$> GI.newManagedPtr (F.castPtr $ F.unsafeForeignPtrToPtr grccfptr) (F.touchForeignPtr grccfptr)
+  gipc                 ← createContext' gic
+  gipl                 ← layoutNew'  gipc
+  GIP.layoutSetWidth  gipl $ fromIntegral 256
+  GIP.layoutSetHeight gipl $ fromIntegral 256
+  GIP.layoutSetText   gipl "lol" (-1)
+  GIO.objectUnref gipl
   GIO.objectUnref gipc
   GRC.surfaceFinish crSurf
 
