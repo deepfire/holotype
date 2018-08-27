@@ -253,6 +253,8 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← mkTextD portV (constDyn defStyle)               (T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
 
+  longStaticTextD  ← mkTextD portV (constDyn defStyle) (constDyn "0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100")
+
   styleEntryD      ← mkTextEntryValidatedD portV (constDyn (defStyle & sStyle.tsFontKey .~ "defaultMono" )) editE "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
   let styleOfD      = (\name→ (defStyleOf & tsFontKey .~ Cr.FK name )) ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
@@ -263,8 +265,8 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   let sceneD        = zipDynWith -- <&>
         (\(_, entry) [driven
                      , varlen
-                     , stats, fps, rect, counter]→
-          rect -- XXX: this gets teh entire 400x200 vis so no resize and so no leak, LOL
+                     , stats, lostt, fps, rect, counter]→
+          lostt -- XXX: this gets teh entire 400x200 vis so no resize and so no leak, LOL
           -- Holo.vbox [
           --              -- Holo.vbox []
           --             varlen
@@ -278,8 +280,9 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
         )
         styleEntryD
         $ zipDynWith (:) (snd <$> text2HoloQD)
-        $ zipDynWith (:) (varlenTextD)
-        $ zipDynWith (:) (statsD)
+        $ zipDynWith (:) varlenTextD
+        $ zipDynWith (:) statsD
+        $ zipDynWith (:) longStaticTextD
         $ zipDynWith (:) fpsD
         $ zipDynWith (:) rectD
         ((:[]) <$> frameCountD)
