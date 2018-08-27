@@ -24,6 +24,7 @@ module HoloPrelude
   --
   , (<>)
   , (.:)
+  , flip2
   , assert
   , catchAny
   , choosePartially
@@ -86,6 +87,9 @@ goldenRatio = 1.61803398875
 (.:) = (.) ∘ (.)
 
 infixr 9 .:
+
+flip2 ∷ (a → b → c → d) → b → c → a → d
+flip2 f b c a = f a b c
 
 choosePartially ∷ Eq a ⇒ a → a → a → a
 choosePartially one l r = fromMaybe one $ partial (≢ one) l <|> partial (≢ one) r

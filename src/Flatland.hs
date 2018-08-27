@@ -261,6 +261,8 @@ instance Show a ⇒ Pretty (Di a) where pretty = text ∘ ("#<Di " <>) ∘ (<> "
 instance Show a ⇒ Pretty (Po a) where pretty = text ∘ ("#<Po " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.po'v)
 ---------- </boilerplate>
 
+unsafe'di ∷ a → a → Di a
+unsafe'di x y = Di $ V2 x y
 di ∷ Wi a → He a  → Di a
 di  (Wi x) (He y) = Di $ V2 x y
 po ∷ a → a → Po a
