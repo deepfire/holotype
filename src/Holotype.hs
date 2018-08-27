@@ -146,6 +146,21 @@ updateQueryParseState text qps =
 
 
 
+mkColorRectD ∷ Port → Dynamic t (Di (Unit PU)) → Dynamic t (Co Double) → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PLayout))
+mkColorRectD portV diD coD = do
+  setupE       ← getPostBuild
+  initDiV      ← sample $ current diD
+  initCoV      ← sample $ current coD
+  tokenV       ← newId $ printf "rect: %s" (show initCoV)
+
+  let valD      = zipDynWith Holo.Rect diD coD
+      holoD     = zipDynWith (\sty val@(Holo.Rect di _)→
+                                Holo.leaf tokenV sty val & size.~(Just∘fromPU <$> di))
+                             (constDyn defStyle) valD
+  initHoloV    ← sample $ current holoD
+  holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
+  holdDyn Holo.emptyLayoutHolo holoIOE
+
 mkTextD ∷ Port → Dynamic t (Style T.Text) → Dynamic t T.Text → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PLayout))
 mkTextD portV styleD valD = do
   setupE       ← getPostBuild
