@@ -247,6 +247,8 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   statsD           ← mkTextD portV (constDyn defStyle) $ statsValD <&>
                      \(mem)→ T.pack $ printf "mem: %d" mem
 
+  let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
+  rectD            ← mkColorRectD portV rectDiD (constDyn $ co 1 0 0 1)
   frameCountD      ← mkTextD portV (constDyn defStyle) (T.pack ∘ printf "frame #%04d" <$> frameNoD)
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← mkTextD portV (constDyn defStyle)               (T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
@@ -261,29 +263,28 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   let sceneD        = zipDynWith -- <&>
         (\(_, entry) [driven
                      , varlen
-                     , stats, fps, counter]→
-          -- varlen
-          Holo.vbox [
-                       -- Holo.vbox []
-                       varlen
-                    , counter
-                    , fps
-                    , stats
-                    , entry
-                    , driven
-                     ]
+                     , stats, fps, rect, counter]→
+          rect -- XXX: this gets teh entire 400x200 vis so no resize and so no leak, LOL
+          -- Holo.vbox [
+          --              -- Holo.vbox []
+          --             varlen
+          --           -- ,
+          --           --   counter
+          --           -- , fps
+          --           -- , stats
+          --           -- , entry
+          --           -- , driven
+          --           ]
         )
         styleEntryD
         $ zipDynWith (:) (snd <$> text2HoloQD)
         $ zipDynWith (:) (varlenTextD)
         $ zipDynWith (:) (statsD)
         $ zipDynWith (:) fpsD
+        $ zipDynWith (:) rectD
         ((:[]) <$> frameCountD)
-
-      scenePlacedTreeE ∷ Event t (Holo.Item 'Holo.PLayout)
-      scenePlacedTreeE = layout (Size $ di 400 200) <$> updated sceneD
-  -- A veritable race condition, FRP-style below (scenePlacedTreeE fires before frameE), lol:
-  scenePlacedTreeD ← holdDyn (undefined) scenePlacedTreeE
+      scenePlacedTreeD = flip2 zipDynWith rectDiD sceneD $
+        \dim scene→ layout (Size $ fromPU <$> dim) scene
 
   -- * At every frame
   let drawE         = attachPromptlyDyn scenePlacedTreeD frameE
