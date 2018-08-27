@@ -25,9 +25,9 @@ module HoloTypes
   --
   , Style(..)
   , DefStyleOf(..), defStyle
-  , StyleGene(..), hiStyleGene, sStyle, sStyleGene
+  , StyleGene(..), sStyle, sStyleGene
   , HIArea, HIVisual
-  , Holo(..)
+  , Holo(..), hiStyleGene, hiHasVisual
   , Item(..)
   , Phase(..)
   )
@@ -114,10 +114,13 @@ data Drawable where
 class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
   data VisualOf a
   data StyleOf  a
-  query           ∷ (MonadIO m) ⇒ Port → StyleOf a →                  a →            m (Di (Maybe Double))
-  createVisual    ∷ (MonadIO m) ⇒ Port → StyleOf a → Area'LU Double → a → Drawable → m (VisualOf a)
-  renderVisual    ∷ (MonadIO m) ⇒ Port →                 VisualOf a → a →            m ()  -- ^ Update a visualisation of 'a'.
-  freeVisualOf    ∷ (MonadIO m) ⇒                        VisualOf a → Proxy a      → m ()
+  query           ∷ (MonadIO m) ⇒ Port → StyleOf a →                                   a → m (Di (Maybe Double))
+  hasVisual       ∷                                                                    a → Bool
+  createVisual    ∷ (MonadIO m) ⇒ Port → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
+  renderVisual    ∷ (MonadIO m) ⇒ Port →                            VisualOf a →       a → m ()  -- ^ Update a visualisation of 'a'.
+  freeVisualOf    ∷ (MonadIO m) ⇒                                   VisualOf a → Proxy a → m ()
+  --
+  hasVisual _     = False
 class DefStyleOf a where
   defStyleOf      ∷ a
 
@@ -160,7 +163,7 @@ type family HIArea   (p ∷ Phase) ∷ Type where
 type family HIVisual (p ∷ Phase) a ∷ Type where
   HIVisual PBlank  _ = ()
   HIVisual PLayout _ = ()
-  HIVisual PVisual a = Visual a
+  HIVisual PVisual a = Maybe (Visual a)
 
 data Item (p ∷ Phase) where
   Item ∷ ∀ p a. Holo a ⇒
@@ -181,6 +184,10 @@ data Item (p ∷ Phase) where
 hiStyleGene ∷ Item p → StyleGene
 hiStyleGene x =
   case x of Item{..} → _sStyleGene hiStyle
+
+hiHasVisual ∷ Item p → Bool
+hiHasVisual x =
+  case x of Item{..} → hasVisual holo
 
 
 -- * Impure IO-stateful map

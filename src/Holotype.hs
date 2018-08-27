@@ -248,13 +248,15 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
                      , varlen
                      , stats, fps, counter]→
           -- varlen
-          Holo.vbox [ varlen
-                    -- , counter
-                    -- , fps
-                    -- , stats
-                    -- , entry
-                    -- , driven
-                    ]
+          Holo.vbox [
+                       -- Holo.vbox []
+                       varlen
+                    , counter
+                    , fps
+                    , stats
+                    , entry
+                    , driven
+                     ]
         )
         styleEntryD
         $ zipDynWith (:) (snd <$> text2HoloQD)
@@ -272,10 +274,14 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
   let drawE         = attachPromptlyDyn scenePlacedTreeD frameE
   _                ← performEvent $ drawE <&>
                      \(tree, f@Frame{..}) → do
-                       portGarbageCollectVisuals portV (Holo.holotreeLeaves tree)
+                       -- liftIO $ putStrLn ">---->---->---->---->---->---->---->---->---->---->---->---->----"
+                       let leaves = Holo.holotreeLeaves tree
+                       -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
+                       portGarbageCollectVisuals portV leaves
                        tree' ← Holo.visualiseHolotree portV tree
                        Holo.renderHolotreeVisuals portV tree'
                        Holo.drawHolotreeVisuals f tree'
+                       -- liftIO $ putStrLn "--<----<----<----<----<----<----<----<----<----<----<----<----<--"
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.
   waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE

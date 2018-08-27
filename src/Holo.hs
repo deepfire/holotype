@@ -80,9 +80,6 @@ instance Holo () where
   data StyleOf  ()     = UnitStyle
   data VisualOf ()     = UnitVisual
   query        _ _ _     = pure $ Di $ V2 Nothing Nothing
-  createVisual _ _ _ _ _ = pure UnitVisual
-  renderVisual _ _ _     = pure ()
-  freeVisualOf _ _       = pure ()
 instance DefStyleOf (StyleOf ()) where
   defStyleOf = UnitStyle
 
@@ -106,7 +103,7 @@ emptyLayoutHolo =
 
 emptyVisualHolo ∷ HasCallStack ⇒ Item PVisual
 emptyVisualHolo =
-  Item () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty (Visual UnitVisual (undefined) emptyDrawable)
+  Item () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty Nothing
 
 
 instance Flex (Item PBlank) where
@@ -144,10 +141,13 @@ queryHoloitem port hoi children =
 
 renderHoloitem ∷ (MonadIO m) ⇒ Port → Item PVisual → m ()
 renderHoloitem port Item{..} = do
-  let drw = vDrawable hiVisual
-  clearDrawable drw
-  renderVisual port (vVisual hiVisual) holo
-  drawableContentToGPU drw
+  case hiVisual of
+    Nothing → pure ()
+    Just v  → do
+      let drw = vDrawable v
+      clearDrawable drw
+      renderVisual port (vVisual v) holo
+      drawableContentToGPU drw
 
 
 queryHolotree ∷ (MonadIO m) ⇒ Port → Item PBlank → m (Item PLayout)
@@ -167,12 +167,10 @@ drawHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → Item PVisual → m ()
 drawHolotreeVisuals frame root = loop (luOf (hiArea root)^.lu'po) root
   where
     loop offset Item{..} = do
-      if null hiChildren
-      then do
-        framePutDrawable frame (vDrawable hiVisual) (doubleToFloat <$> (offset + luOf hiArea^.lu'po))
-        -- liftIO $ putStrLn $ "draw -- " <> (show $ luOf hiArea^.lu'po) <> " " <> (TL.unpack $ rendCompact $ pretty'Area hiArea) <> " " <> (TL.unpack $ rendCompact $ pretty'Area (area'LU hiArea))
-      else do
-        forM_ hiChildren $ loop (luOf hiArea^.lu'po)
+      case hiVisual of
+        Nothing → pure ()
+        Just v  → framePutDrawable frame (vDrawable v) (doubleToFloat <$> (offset + luOf hiArea^.lu'po))
+      forM_ hiChildren $ loop (luOf hiArea^.lu'po)
 
 
 -- * Internal nodes
@@ -190,9 +188,6 @@ instance Typeable k ⇒ Holo   (Node (k ∷ KNode)) where
   data StyleOf  (Node k) = NodeStyle
   data VisualOf (Node k) = NodeVisual
   query        _ _ _     = pure $ Di $ V2 Nothing Nothing
-  createVisual _ _ _ _ _ = pure NodeVisual
-  renderVisual _ _ _     = pure ()
-  freeVisualOf _ _       = pure ()
 instance DefStyleOf (StyleOf (Node k)) where
   defStyleOf = NodeStyle
 
@@ -266,7 +261,8 @@ instance Holo   Rect where
   data StyleOf  Rect where RectStyle  ∷ RectStyle
   data VisualOf Rect where RectVisual ∷ { rectDrawable ∷ Drawable } → RectVisual
   query     port _       Rect{..} = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$> _rectDim
-  createVisual port@Port{..} _ _area Rect{..} drw = do
+  hasVisual _ = True
+  createVisual port@Port{..} _ _area drw Rect{..} = do
     let dim = PUs <$> _area^.area'b.size'di
     drawableDrawRect port drw _rectColor dim
     pure $ RectVisual drw
@@ -316,7 +312,8 @@ instance Holo  T.Text where
   query port@Port{..} TextStyle{..} content = do
     let font = portFont' port _tsFontKey -- XXX: non-total
     (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (portDΠ port) _tsSizeSpec) (partial (≢ "") content)
-  createVisual port tStyle@TextStyle{..} area' _content tDrawable = do
+  hasVisual _ = True
+  createVisual port tStyle@TextStyle{..} area' tDrawable _content = do
     -- 1. find font, 2. bind font to GIC, 3. create layout
     -- Q: why not also draw here?  Reflow?
     let font = portFont' port _tsFontKey -- XXX: non-total
@@ -326,7 +323,7 @@ instance Holo  T.Text where
     -- drawableBindFontLayout allocates:
     --   GIPC.createContext gic  -- released by FFI finalizers
     --   GIP.layoutNew      gipc -- same as above
-    pure Text{..}
+    pure $ Text{..}
   renderVisual _ Text{..} text =
     -- 1. execute GIP draw & GIPC composition
     drawableDrawText tDrawable tLayout (_tsColor tStyle) text
@@ -361,8 +358,9 @@ instance Holo   (T.TextZipper T.Text) where
       } → TextZipperVisual
   query port TextZipperStyle{..} tz =
     query port fromTextZipperStyle (zipperText tz)
-  createVisual port hsty area' content drw = do
-    TextZipper <$> createVisual port (hsty & fromTextZipperStyle) area' (zipperText content) drw
+  hasVisual _ = True
+  createVisual port hsty area' drw content = do
+    TextZipper <$> createVisual port (hsty & fromTextZipperStyle) area' drw (zipperText content)
   renderVisual _ (TextZipper Text{..}) content = do
     -- XXX: cursor position
     drawableDrawText tDrawable tLayout (_tsColor tStyle) (zipperText content)
@@ -389,3 +387,5 @@ tesTSStyle f (TextZipperStyle x) = TextZipperStyle <$> f x
 --   let new = f old
 --   liftIO $ IO.writeIORef holoRef new
 --   renderVisual stts holoStream holoVisual new
+
+  

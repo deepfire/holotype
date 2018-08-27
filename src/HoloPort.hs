@@ -134,11 +134,11 @@ portSetVSync x = liftIO $ GL.swapInterval $ case x of
 
 portCreate  ∷ (MonadIO m) ⇒ GL.Window → Settings → m (Port)
 portCreate portWindow portSettings@Settings{..} = do
-  -- liftIO $ setupTracer [
-  --     (ALLOC,     TOK, STACK, 0),(FREE,      TOK, TRACE, 0)
-  --    ,(MISSALLOC, VIS, STACK, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
-  --    ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
-  --   ]
+  liftIO $ setupTracer [
+      (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
+     ,(MISSALLOC, VIS, TRACE, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
+     ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
+    ]
   liftIO $ blankIdToken'setup
 
   portFontmap                      ← Cr.makeFontMap sttsDΠ Cr.fmDefault sttsFontPreferences
@@ -258,35 +258,39 @@ visualiseHoloitem ∷ (HasCallStack, MonadIO m) ⇒ Port → Item PLayout → [I
 visualiseHoloitem port@Port{..} hi children = case hi of
   Item{..} → do
     let dim@(Di (V2 w h)) = hiArea^.area'b.size'di
-        mkVisual = do
+        mkVisual ∷ (MonadIO m, Holo a) ⇒ a → Style a → m (Visual a)
+        mkVisual holo hiStyle = do
           newDrawable ← makeDrawable portObjectStream dim
-          (,) True <$>
-            (Visual
-             <$> createVisual port (_sStyle hiStyle) hiArea holo newDrawable
-             <*> pure (_sStyleGene $ hiStyle)
-             <*> pure newDrawable)
+          Visual
+                 <$> createVisual port (_sStyle hiStyle) hiArea newDrawable holo
+                 <*> pure (_sStyleGene $ hiStyle)
+                 <*> pure newDrawable
     visMap ← viomapAccess (fromVT portVisualTracker)
-    (updated ∷ Bool, vis)
-           ← case join $ Map.lookup hiToken <$> TM.lookup Proxy visMap of
-             Nothing → do
-               trev MISSALLOC VIS (w, h, _fromStyleGene $ _sStyleGene $ hiStyle) (tokenHash hiToken)
-               mkVisual
-             Just vis@Visual{..} →
-               let vDi     = dDi vDrawable
-                   styleChanged = vStyleGene ≢ hiStyleGene hi
-                   sizeChanged  = vDi ≢ (ceiling <$> dim)
-                   update       = sizeChanged ∨ styleChanged
-               in if update
-               then do
-                 trev REALLOC VIS (w, h)    (tokenHash hiToken)
-                 disposeDrawable portObjectStream vDrawable
-                 mkVisual
-               else do
-                 trev REUSE   VIS (w, h)                       (tokenHash hiToken)
-                 pure $ (,) False vis
-    when updated $
-      viomapAdd (fromVT portVisualTracker) Proxy hiToken vis
-    pure Item{hiVisual=vis, hiChildren=children, ..}
+    if not $ hiHasVisual hi
+    then pure Item{hiVisual=Nothing, hiChildren=children, ..}
+    else do
+      -- XXX:                ..why is..                ..this.. the correctly-typed Proxy?
+      (vis, updated ∷ Bool)
+            ← case join $ Map.lookup hiToken <$> TM.lookup Proxy visMap of
+              Nothing → do
+                trev MISSALLOC VIS (w, h, _fromStyleGene $ _sStyleGene $ hiStyle) (tokenHash hiToken)
+                (,True) <$> mkVisual holo hiStyle
+              Just v@Visual{..} →
+                let vDi          = dDi vDrawable
+                    styleChanged = vStyleGene ≢ hiStyleGene hi
+                    sizeChanged  = vDi ≢ (ceiling <$> dim)
+                    update       = sizeChanged ∨ styleChanged
+                in if update
+                then do
+                  trev REALLOC VIS (w, h) (tokenHash hiToken)
+                  disposeDrawable portObjectStream vDrawable
+                  (,True) <$> mkVisual holo hiStyle
+                else do
+                  trev REUSE   VIS (w, h) (tokenHash hiToken)
+                  pure $ (v, False)
+      when updated $
+        viomapAdd (fromVT portVisualTracker) Proxy hiToken vis
+      pure Item{hiVisual=Just vis, hiChildren=children, ..}
 
 portGarbageCollectVisuals ∷ (MonadIO m) ⇒ Port → Map.Map IdToken (Item a) → m ()
 portGarbageCollectVisuals Port{..} validLeaves = do
