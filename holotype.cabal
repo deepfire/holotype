@@ -87,6 +87,7 @@ library
                      , text
                      , text-format
                      , these
+                     , time
                      , transformers
                      , trifecta
                      , unordered-containers
