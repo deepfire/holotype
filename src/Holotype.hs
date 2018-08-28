@@ -22,32 +22,23 @@
 module Holotype where
 
 -- Basis
-import           HoloPrelude                       hiding ((<>))
-import           Prelude                           hiding (id, Word)
-
--- Generic
 import           Control.Monad
+import qualified Control.Monad.Ref
 import           Data.Semigroup
+import           Data.Singletons
 import           Data.Tuple
-import qualified Data.TypeMap.Dynamic              as TM
-
--- Algebra
 import           Linear
-
--- Dirty stuff
-import qualified Control.Concurrent.STM            as STM
-import qualified Data.Unique                       as U
-
--- Reflex
+import           Prelude                           hiding (id, Word)
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW
-
--- Text parsing & editing
+import qualified Control.Concurrent.STM            as STM
 import qualified Data.Map.Strict                   as M
-import           Data.Singletons
 import qualified Data.Set                          as S
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
+import qualified Data.Time.Clock                   as Time
+import qualified Data.TypeMap.Dynamic              as TM
+import qualified Data.Unique                       as U
 import qualified Text.Parser.Char                  as P
 import qualified Text.Parser.Combinators           as P
 import qualified Text.Parser.Token                 as P
@@ -61,6 +52,7 @@ import           Flex
 
 import           HoloTypes
 
+import           HoloPrelude                       hiding ((<>))
 import           Holo                                     (tsFontKey, tsSizeSpec, tsColor)
 import qualified Holo
 import           HoloCube
