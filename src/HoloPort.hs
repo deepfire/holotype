@@ -134,11 +134,11 @@ portSetVSync x = liftIO $ GL.swapInterval $ case x of
 
 portCreate  ∷ (MonadIO m) ⇒ GL.Window → Settings → m (Port)
 portCreate portWindow portSettings@Settings{..} = do
-  liftIO $ setupTracer [
-      (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
-     ,(MISSALLOC, VIS, TRACE, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
-     ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
-    ]
+  -- liftIO $ setupTracer [
+  --     (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
+  --    ,(MISSALLOC, VIS, TRACE, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
+  --    ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
+  --   ]
   liftIO $ blankIdToken'setup
 
   portFontmap                      ← Cr.makeFontMap sttsDΠ Cr.fmDefault sttsFontPreferences
@@ -283,6 +283,7 @@ visualiseHoloitem port@Port{..} hi children = case hi of
                 in if update
                 then do
                   trev REALLOC VIS (w, h) (tokenHash hiToken)
+                  freeVisualOf vVisual Proxy
                   disposeDrawable portObjectStream vDrawable
                   (,True) <$> mkVisual holo hiStyle
                 else do

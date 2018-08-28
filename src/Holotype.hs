@@ -266,17 +266,16 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
         (\(_, entry) [driven
                      , varlen
                      , stats, lostt, fps, rect, counter]→
-          lostt -- XXX: this gets teh entire 400x200 vis so no resize and so no leak, LOL
-          -- Holo.vbox [
-          --              -- Holo.vbox []
-          --             varlen
-          --           -- ,
-          --           --   counter
-          --           -- , fps
-          --           -- , stats
-          --           -- , entry
-          --           -- , driven
-          --           ]
+          Holo.vbox [
+                      varlen
+                    , counter
+                    , fps
+                    , stats
+                    , entry
+                    , driven
+                    , rect
+                    , lostt
+                    ]
         )
         styleEntryD
         $ zipDynWith (:) (snd <$> text2HoloQD)
@@ -287,7 +286,7 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
         $ zipDynWith (:) rectD
         ((:[]) <$> frameCountD)
       scenePlacedTreeD = flip2 zipDynWith rectDiD sceneD $
-        \dim scene→ layout (Size $ fromPU <$> dim) scene
+        \dim scene→ layout (Size $ fromPU <$> di 800 600) scene
 
   -- * At every frame
   let drawE         = attachPromptlyDyn scenePlacedTreeD frameE
