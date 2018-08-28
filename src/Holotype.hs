@@ -259,11 +259,21 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
 
   longStaticTextD  ← mkTextD portV (constDyn defStyle) (constDyn "0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100")
 
-  styleEntryD      ← mkTextEntryValidatedD portV (constDyn (defStyle & sStyle.tsFontKey .~ "defaultMono" )) editE "defaultSans" $
-                     (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-  let styleOfD      = (\name→ (defStyleOf & tsFontKey .~ Cr.FK name )) ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
+  let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
+      defFontNameV = "defaultMono"
+  -- (styleNameE, styIOA)
+  --                  ← newTriggerEvent
+  -- styleNameD       ← holdDyn defFontNameV styleNameE
+  -- let styleOfD      = fontNameStyle <$> styleNameD
+  let styleOfD      = constDyn $ fontNameStyle defFontNameV
   styleD           ← trackStyle styleOfD
-  text2HoloQD      ← mkTextEntryD portV styleD editE "watch me"
+  styleEntryD      ← mkTextEntryValidatedD portV styleD editE "defaultSans" $
+                     (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
+  -- performEvent $ ((\v -> liftIO $ styIOA v) ∘ fst <$> updated styleEntryD)
+  let styleOfD'     = fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
+  styleD'          ← trackStyle styleOfD'
+  -- styleD'          ← delayDyn 0 styleD
+  text2HoloQD      ← mkTextEntryD portV styleD' editE "watch me"
 
   -- * SCENE
   let sceneD        = zipDynWith -- <&>
