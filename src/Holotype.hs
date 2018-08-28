@@ -208,6 +208,18 @@ trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
 
+-- delayDyn ∷ (MonadHold t m, MonadIO (Performable m), PerformEvent t m, TriggerEvent t m, Reflex t) ⇒ Time.NominalDiffTime → Dynamic t a → m (Dynamic t a)
+delayDyn ∷ (ReflexGLFWCtx t m, Control.Monad.Ref.MonadRef m)
+  ⇒ Time.NominalDiffTime
+  → Dynamic t a
+  → ReflexGLFW t m (Dynamic t a)
+delayDyn dt dyn = do
+  initial ← sample   $ current dyn
+  -- delayed ← delay dt $ updated dyn
+  -- holdDyn initial delayed
+  let delayed = tag (current dyn) (updated dyn)
+  holdDyn initial delayed
+
 -- * Top level network
 --
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
