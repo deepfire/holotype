@@ -223,7 +223,7 @@ delayDyn dt dyn = do
 -- * Top level network
 --
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
-holotype win _evCtl _setupE windowFrameE inputE = mdo
+holotype win _evCtl _setupE windowFrameE inputE = do
   HOS.unbufferStdout
 
   settingsV@Settings{..} ← defaultSettings
@@ -261,15 +261,19 @@ holotype win _evCtl _setupE windowFrameE inputE = mdo
 
   let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
       defFontNameV = "defaultMono"
-  -- (styleNameE, styIOA)
-  --                  ← newTriggerEvent
-  -- styleNameD       ← holdDyn defFontNameV styleNameE
-  -- let styleOfD      = fontNameStyle <$> styleNameD
-  let styleOfD      = constDyn $ fontNameStyle defFontNameV
+  (styleNameE, styIOA)
+                   ← newTriggerEvent
+  styleNameD       ← holdDyn defFontNameV styleNameE
+  let styleOfD      = fontNameStyle <$> styleNameD
+  -- let styleOfD      = constDyn $ fontNameStyle defFontNameV
   styleD           ← trackStyle styleOfD
+  -- XXX: step1: styleEntryD's event is what we're looking at -- which _should_ be just editE
+  --      ..but since that's nowhere near, what else can it be?
   styleEntryD      ← mkTextEntryValidatedD portV styleD editE "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-  -- performEvent $ ((\v -> liftIO $ styIOA v) ∘ fst <$> updated styleEntryD)
+  delayed          ← delay 0 $ updated styleEntryD
+  performEvent $ ((\v -> liftIO $ styIOA v) ∘ fst <$> delayed)
+  -- XXX: step0: traceDynWith fires non-stop, ergo its event is implicated
   let styleOfD'     = fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
   styleD'          ← trackStyle styleOfD'
   -- styleD'          ← delayDyn 0 styleD
