@@ -13,6 +13,11 @@ Holostress:     Holostress.hs  src/*.hs
 hls holostress: Holostress
 	./$< $(SCENARIO) +RTS -T $(RTS)
 
+Refstress:      Refstress.hs   src/*.hs
+	ghc $<
+rfs refstress: Refstress       src/*.hs
+	./$< $(SCENARIO) +RTS -T $(RTS)
+
 # hols holostress:
 # 	ghc -threaded -eventlog -rtsopts -isrc --make Holostress.hs && ./Holostress +RTS -T -ls -N2
 LCstress:     LCstress.hs    src/*.hs

@@ -163,6 +163,16 @@ test-suite test
 
                      , holotype
 
+executable refstress
+  hs-source-dirs:      .
+  main-is:             Refstress.hs
+  default-language:    Haskell2010
+
+  build-depends:       holotype
+                     , base
+                     , containers >=0.5
+                     , reflex
+
 executable lcstress
   hs-source-dirs:      .
   main-is:             LCstress.hs
