@@ -163,27 +163,21 @@ mkTextD portV styleD valD = do
   holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
   holdDyn Holo.emptyLayoutHolo holoIOE
 
-mkTextEntryD ∷ Port → Dynamic t (Style T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PLayout))
-mkTextEntryD portV styleD editE' initialV = do
-  -- the dynamic here is needed for state accumulation
+mkTextEntryD ∷ Port → Behavior t (Style T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PLayout))
+mkTextEntryD portV styleB editE' initialV = do
   valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initialV]) editE'
   setupE       ← getPostBuild
   initV        ← sample $ current valD
   tokenV       ← newId $ printf "%d: %s" (T.length initV) (T.unpack initV)
-  let holoD     = zipDynWith (Holo.leaf tokenV) styleD valD
-  initHoloV    ← sample $ current holoD
-  holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
-  -- let holoE     = attachPromptlyDyn styleD (leftmost [initialV <$ setupE, updated valD])
-  --                 <&> uncurry (holoLeaf tokenV) ∘ swap
-  -- -- XXX: why query now?
-  -- holoIOE      ← (performEvent $ (flip $ queryHoloitem portV) [] <$> holoE)
+  let holoE     = attachWith (Holo.leaf tokenV) styleB $ leftmost [updated valD, initV <$ setupE]
+  holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> holoE)
   holdDyn (initialV, Holo.emptyLayoutHolo) $ attachPromptlyDyn valD holoIOE
 
-mkTextEntryValidatedD ∷ Port → Dynamic t (Style T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PLayout))
-mkTextEntryValidatedD portV styleD editE' initialV testF = do
+mkTextEntryValidatedD ∷ Port → Behavior t (Style T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PLayout))
+mkTextEntryValidatedD portV styleB editE' initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
-  textD ← mkTextEntryD portV styleD editE' initialV
+  textD ← mkTextEntryD portV styleB editE' initialV
   initial ← sample $ current textD
   foldDyn (\(new, newHoloi) (oldValid, _)→
               (if testF new then new else oldValid, newHoloi))
@@ -208,22 +202,10 @@ trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
 
--- delayDyn ∷ (MonadHold t m, MonadIO (Performable m), PerformEvent t m, TriggerEvent t m, Reflex t) ⇒ Time.NominalDiffTime → Dynamic t a → m (Dynamic t a)
-delayDyn ∷ (ReflexGLFWCtx t m, Control.Monad.Ref.MonadRef m)
-  ⇒ Time.NominalDiffTime
-  → Dynamic t a
-  → ReflexGLFW t m (Dynamic t a)
-delayDyn dt dyn = do
-  initial ← sample   $ current dyn
-  -- delayed ← delay dt $ updated dyn
-  -- holdDyn initial delayed
-  let delayed = tag (current dyn) (updated dyn)
-  holdDyn initial delayed
-
 -- * Top level network
 --
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
-holotype win _evCtl _setupE windowFrameE inputE = do
+holotype win _evCtl windowFrameE inputE = mdo
   HOS.unbufferStdout
 
   settingsV@Settings{..} ← defaultSettings
@@ -260,24 +242,14 @@ holotype win _evCtl _setupE windowFrameE inputE = do
   longStaticTextD  ← mkTextD portV (constDyn defStyle) (constDyn "0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100")
 
   let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
-      defFontNameV = "defaultMono"
-  (styleNameE, styIOA)
-                   ← newTriggerEvent
-  styleNameD       ← holdDyn defFontNameV styleNameE
-  let styleOfD      = fontNameStyle <$> styleNameD
-  -- let styleOfD      = constDyn $ fontNameStyle defFontNameV
-  styleD           ← trackStyle styleOfD
-  -- XXX: step1: styleEntryD's event is what we're looking at -- which _should_ be just editE
-  --      ..but since that's nowhere near, what else can it be?
-  styleEntryD      ← mkTextEntryValidatedD portV styleD editE "defaultSans" $
+
+  styleEntryD      ← mkTextEntryValidatedD portV styleB editE "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-  delayed          ← delay 0 $ updated styleEntryD
-  performEvent $ ((\v -> liftIO $ styIOA v) ∘ fst <$> delayed)
-  -- XXX: step0: traceDynWith fires non-stop, ergo its event is implicated
   let styleOfD'     = fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
   styleD'          ← trackStyle styleOfD'
+  let styleB        = current styleD'
   -- styleD'          ← delayDyn 0 styleD
-  text2HoloQD      ← mkTextEntryD portV styleD' editE "watch me"
+  text2HoloQD      ← mkTextEntryD portV styleB editE "watch me"
 
   -- * SCENE
   let sceneD        = zipDynWith -- <&>
