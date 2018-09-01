@@ -215,9 +215,11 @@ holotype win _evCtl windowFrameE inputE = mdo
   -- Constructing the FRP network:
 
   -- EXTERNAL INPUTS
-  let worldE        ∷ Event t WorldEvent
-      worldE        = translateEvent <$> inputE
-      editE         = ffilter (\case Edit{..}  → True; _ → False) worldE
+  worldE ∷ Event t WorldEvent
+                   ← performEvent $ inputE <&> translateEvent
+
+  let editE         = ffilter (\case Edit{..}                     → True; _ → False) worldE
+      clickE        = ffilter (\case (Click GLFW.MouseButton'1 _) → True; _ → False) worldE
   frameE           ← newPortFrame $ portV <$ windowFrameE
 
   fpsValueD        ← fpsCounterD frameE
@@ -275,8 +277,12 @@ holotype win _evCtl windowFrameE inputE = mdo
         $ zipDynWith (:) fpsD
         $ zipDynWith (:) rectD
         ((:[]) <$> frameCountD)
-      scenePlacedTreeD = flip2 zipDynWith rectDiD sceneD $
-        \dim scene→ layout (Size $ fromPU <$> di 800 600) scene
+      scenePlacedTreeD = layout (Size $ fromPU <$> di 800 600) <$> sceneD
+      sceneClickE      = flip2 attachPromptlyDynWith scenePlacedTreeD clickE $
+        \scene click→ (⊥)
+  _                ← performEvent $ clickE <&>
+                     \(Click GLFW.MouseButton'1 (Po (V2 x y))) →
+                       liftIO $ printf "click at %f:%f\n" x y
 
   -- * At every frame
   let drawE         = attachPromptlyDyn scenePlacedTreeD frameE
@@ -306,6 +312,10 @@ data WorldEvent where
   Edit ∷
     { weEdit ∷ T.TextZipper T.Text → T.TextZipper T.Text
     } → WorldEvent
+  Click ∷
+    { weMButton ∷ GLFW.MouseButton
+    , weCoord   ∷ Po Double
+    } → WorldEvent
   ObjStream   ∷ WorldEvent
   VSyncToggle ∷ WorldEvent
   GCing       ∷ WorldEvent
@@ -313,30 +323,33 @@ data WorldEvent where
   Shutdown    ∷ WorldEvent
   NonEvent    ∷ WorldEvent
 
-translateEvent ∷ InputU → WorldEvent
-translateEvent (U (EventChar _ c))                                              = Edit $ T.insertChar c
-translateEvent (U (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Pressed   _)) = Edit $ T.breakLine
-translateEvent (U (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Pressed   _)) = Edit $ T.deletePrevChar
-translateEvent (U (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Pressed   _)) = Edit $ T.deleteChar
-translateEvent (U (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Pressed   _)) = Edit $ T.moveLeft
-translateEvent (U (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Pressed   _)) = Edit $ T.moveUp
-translateEvent (U (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Pressed   _)) = Edit $ T.moveRight
-translateEvent (U (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Pressed   _)) = Edit $ T.moveDown
-translateEvent (U (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Pressed   _)) = Edit $ T.gotoBOL
-translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Pressed   _)) = Edit $ T.gotoEOL
-translateEvent (U (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Repeating _)) = Edit $ T.breakLine
-translateEvent (U (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Repeating _)) = Edit $ T.deletePrevChar
-translateEvent (U (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Repeating _)) = Edit $ T.deleteChar
-translateEvent (U (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Repeating _)) = Edit $ T.moveLeft
-translateEvent (U (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Repeating _)) = Edit $ T.moveUp
-translateEvent (U (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _)) = Edit $ T.moveRight
-translateEvent (U (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _)) = Edit $ T.moveDown
-translateEvent (U (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _)) = Edit $ T.gotoBOL
-translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _)) = Edit $ T.gotoEOL
+translateEvent ∷ (MonadIO m) ⇒ InputU → m WorldEvent
+translateEvent (U (EventMouseButton w button GLFW.MouseButtonState'Pressed _)) = do
+  (,) x y ← liftIO $ GLFW.getCursorPos w
+  pure $ Click button (po x y)
+translateEvent (U (EventChar _ c))                                              = pure $ Edit $ T.insertChar c
+translateEvent (U (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.breakLine
+translateEvent (U (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.deletePrevChar
+translateEvent (U (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.deleteChar
+translateEvent (U (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.moveLeft
+translateEvent (U (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.moveUp
+translateEvent (U (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.moveRight
+translateEvent (U (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.moveDown
+translateEvent (U (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.gotoBOL
+translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.gotoEOL
+translateEvent (U (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.breakLine
+translateEvent (U (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.deletePrevChar
+translateEvent (U (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.deleteChar
+translateEvent (U (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.moveLeft
+translateEvent (U (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.moveUp
+translateEvent (U (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.moveRight
+translateEvent (U (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.moveDown
+translateEvent (U (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.gotoBOL
+translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.gotoEOL
 -- how to process key chords?
-translateEvent (U (EventKey  _ GLFW.Key'F1        _ GLFW.KeyState'Pressed   _)) = ObjStream
-translateEvent (U (EventKey  _ GLFW.Key'F2        _ GLFW.KeyState'Pressed   _)) = GCing
-translateEvent (U (EventKey  _ GLFW.Key'F3        _ GLFW.KeyState'Pressed   _)) = VSyncToggle
-translateEvent (U (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = Spawn
-translateEvent (U (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = Shutdown
-translateEvent _                                                                = NonEvent
+translateEvent (U (EventKey  _ GLFW.Key'F1        _ GLFW.KeyState'Pressed   _)) = pure $ ObjStream
+translateEvent (U (EventKey  _ GLFW.Key'F2        _ GLFW.KeyState'Pressed   _)) = pure $ GCing
+translateEvent (U (EventKey  _ GLFW.Key'F3        _ GLFW.KeyState'Pressed   _)) = pure $ VSyncToggle
+translateEvent (U (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = pure $ Spawn
+translateEvent (U (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = pure $ Shutdown
+translateEvent _                                                                = pure $ NonEvent
