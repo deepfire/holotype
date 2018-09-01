@@ -8,10 +8,10 @@
 , monadplus, MonadRandom, mono-traversable, mtl, OpenGL, OpenGLRaw
 , parsers, pretty, pretty-show, primitive, profunctors, proteaaudio
 , QuickCheck, random, ref-tf, reflex, semigroupoids, semigroups
-, singletons, stdenv, stm, tasty, tasty-discover
+, singletons, spool, stdenv, stm, tasty, tasty-discover
 , tasty-expected-failure, tasty-hedgehog, tasty-hspec, tasty-hunit
 , tasty-quickcheck, tasty-smallcheck, template-haskell, text
-, text-format, text-lens, text-zipper, these, transformers
+, text-format, text-lens, text-zipper, these, time, transformers
 , trifecta, type-map, unordered-containers, vect, vector
 , wl-pprint-extras, wl-pprint-text
 }:
@@ -30,17 +30,17 @@ mkDerivation {
     lambdacube-quake3 lens linear lub metamorphic MissingH monadplus
     MonadRandom mono-traversable mtl OpenGL OpenGLRaw parsers pretty
     pretty-show primitive profunctors proteaaudio QuickCheck random
-    ref-tf reflex semigroupoids semigroups singletons stm tasty
+    ref-tf reflex semigroupoids semigroups singletons spool stm tasty
     tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
     tasty-quickcheck tasty-smallcheck template-haskell text text-format
-    text-lens text-zipper these transformers trifecta type-map
+    text-lens text-zipper these time transformers trifecta type-map
     unordered-containers vect vector wl-pprint-extras wl-pprint-text
   ];
   executableHaskellDepends = [
     aeson base base-unicode-symbols bytestring cairo clock containers
     directory free gi-cairo gi-gobject gi-pango gi-pangocairo GLFW-b
     haskell-gi-base lambdacube-compiler lambdacube-gl lambdacube-ir
-    lambdacube-quake3 lens linear mtl OpenGLRaw pretty-show text
+    lambdacube-quake3 lens linear mtl OpenGLRaw pretty-show reflex text
     text-zipper vector
   ];
   testHaskellDepends = [
