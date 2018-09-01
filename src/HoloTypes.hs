@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
+{-# LANGUAGE DeriveGeneric, GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
 {-# LANGUAGE LambdaCase, OverloadedStrings, PackageImports, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators #-}
@@ -18,6 +18,7 @@ module HoloTypes
   , VisualTracker(..)
   --
   , Settings(..)
+  , WindowGeo(..)
   , Port(..)
   --
   , Drawable(..)
@@ -86,13 +87,21 @@ data Port where
     , portEmptyDrawable   ∷ Drawable
     , portVisualTracker   ∷ VisualTracker
     } → Port
+    deriving (Generic)
+
+data WindowGeo
+  = FullScreen
+  | Windowed (Di Int)
+  deriving (Eq, Generic, Show)
 
 data Settings where
+
   Settings ∷
     { sttsDΠ              ∷ DΠ
     , sttsFontPreferences ∷ Cr.FontPreferences PU
+    , sttsWindowGeo       ∷ WindowGeo
     } → Settings
-    deriving (Eq, Show)
+    deriving (Eq, Generic, Show)
 
 data Drawable where
   Drawable ∷

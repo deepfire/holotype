@@ -139,6 +139,9 @@ portCreate portWindow portSettings@Settings{..} = do
   --    ,(MISSALLOC, VIS, TRACE, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
   --    ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
   --   ]
+  liftIO $ case sttsWindowGeo of
+             Windowed (Di (V2 w h)) → GL.setWindowSize portWindow w h
+             FullScreen             → error "XXX: implement fullscreen"
   liftIO $ blankIdToken'setup
 
   portFontmap                      ← Cr.makeFontMap sttsDΠ Cr.fmDefault sttsFontPreferences
@@ -179,6 +182,7 @@ defaultSettings = do
                                   , Cr.FontSpec "Aurulent Sans"     "Regular" $ Cr.Outline (PUs 16) ])
         , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (PUs 15) LT ])
         ]
+      sttsWindowGeo       = Windowed $ di 800 600
   pure Settings{..}
 
 
