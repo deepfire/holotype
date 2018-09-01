@@ -21,9 +21,7 @@
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports -Wno-type-defaults #-}
 module Holotype where
 
--- Basis
 import           Control.Monad
-import qualified Control.Monad.Ref
 import           Data.Semigroup
 import           Data.Singletons
 import           Data.Tuple
@@ -31,7 +29,11 @@ import           Linear
 import           Prelude                           hiding (id, Word)
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW
+import qualified Codec.Picture                     as Juicy
+import qualified Codec.Picture.Saving              as Juicy
 import qualified Control.Concurrent.STM            as STM
+import qualified Control.Monad.Ref
+import qualified Data.ByteString.Lazy              as B
 import qualified Data.Map.Strict                   as M
 import qualified Data.Set                          as S
 import qualified Data.Text                         as T
@@ -278,24 +280,27 @@ holotype win _evCtl windowFrameE inputE = mdo
         $ zipDynWith (:) rectD
         ((:[]) <$> frameCountD)
       scenePlacedTreeD = layout (Size $ fromPU <$> di 800 600) <$> sceneD
-      sceneClickE      = flip2 attachPromptlyDynWith scenePlacedTreeD clickE $
-        \scene click→ (⊥)
-  _                ← performEvent $ clickE <&>
-                     \(Click GLFW.MouseButton'1 (Po (V2 x y))) →
-                       liftIO $ printf "click at %f:%f\n" x y
-
   -- * At every frame
   let drawE         = attachPromptlyDyn scenePlacedTreeD frameE
-  _                ← performEvent $ drawE <&>
+  -- _                ← performEvent $ clickE <&>
+  --                    \(Click GLFW.MouseButton'1 (Po (V2 x y))) →
+  --                      liftIO $ printf "click at %f:%f\n" x y
+  drawnE           ← performEvent $ drawE <&>
                      \(tree, f@Frame{..}) → do
-                       -- liftIO $ putStrLn ">---->---->---->---->---->---->---->---->---->---->---->---->----"
                        let leaves = Holo.holotreeLeaves tree
                        -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
                        portGarbageCollectVisuals portV leaves
                        tree' ← Holo.visualiseHolotree portV tree
                        Holo.renderHolotreeVisuals portV tree'
                        Holo.drawHolotreeVisuals f tree'
-                       -- liftIO $ putStrLn "--<----<----<----<----<----<----<----<----<----<----<----<----<--"
+                       pure ()
+  drawnD           ← holdDyn () drawnE
+  let pickE         = attachPromptlyDyn drawnD clickE
+  pickedE          ← performEvent $ pickE <&>
+                     \((), Click GLFW.MouseButton'1 (Po (V2 x y)))→ do
+                       -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
+                       p ← liftIO $ pickFrameBuffer (di 800 600) $ floor <$> po x y
+                       liftIO $ printf "%d:%d: %x\n" (floor x ∷ Int) (floor y ∷ Int) p
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.
   waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE

@@ -11,55 +11,43 @@
 
 module HoloPort where
 
--- Basis
-import           HoloPrelude
 
--- Types
 import           Control.Monad
-import qualified Data.Map.Strict                   as Map
--- import qualified Data.Set                          as Set
+import           Data.Bits
 import           Data.Maybe
 import           Data.Proxy
-import qualified Data.Text                         as T
 import           Data.Typeable
-import qualified Data.TypeMap.Dynamic              as TM
-import qualified Data.Vector                       as V
-import qualified Data.Vect                         as Vc
 import           Data.Vect                                (Mat4(..), Vec3(..))
-
--- Algebra
-import           Linear
-
--- Manually-bound Cairo
-import qualified Graphics.Rendering.Cairo          as GRC
-import qualified Graphics.Rendering.Cairo.Internal as GRCI
-
--- glib-introspection -based Cairo and Pango
-import qualified GI.Pango                          as GIP
-
--- Dirty stuff
-import qualified Control.Concurrent.STM            as STM
-import qualified Data.Unique                       as U
-import qualified Foreign.C.Types                   as F
-import qualified Foreign                           as F
-import qualified System.IO.Unsafe                  as IO
-import qualified Data.IORef                        as IO
-
--- …
+import           Data.Vector.Storable
 import           GHC.Stack
 import           Graphics.GL.Core33                as GL
+import           HoloPrelude
+import           LambdaCube.Mesh                   as LC
+import           Linear
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
-
--- LambdaCube
+import qualified Codec.Picture                     as Juicy
+import qualified Control.Concurrent.STM            as STM
+import qualified Data.ByteString                   as B
+import qualified Data.IORef                        as IO
+import qualified Data.Map.Strict                   as Map
+import qualified Data.Text                         as T
+import qualified Data.TypeMap.Dynamic              as TM
+import qualified Data.Unique                       as U
+import qualified Data.Vect                         as Vc
+import qualified Data.Vector                       as V
+import qualified Data.Vector.Storable.ByteString   as B
+import qualified Foreign                           as F
+import qualified Foreign.C.Types                   as F
+import qualified GI.Pango                          as GIP
+import qualified Graphics.Rendering.Cairo          as GRC
+import qualified Graphics.Rendering.Cairo.Internal as GRCI
 import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Mesh                as GL
 import qualified LambdaCube.Linear                 as LCLin
-import           LambdaCube.Mesh                   as LC
-
--- LambdaCube Quake III
-import           GameEngine.Utils                  as Q3
+import qualified System.IO.Unsafe                  as IO
 
 -- Local imports
+import           GameEngine.Utils                  as Q3
 import           HoloTypes
 
 import           Flatland
@@ -139,9 +127,10 @@ portCreate portWindow portSettings@Settings{..} = do
   --    ,(MISSALLOC, VIS, TRACE, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
   --    ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
   --   ]
-  liftIO $ case sttsWindowGeo of
-             Windowed (Di (V2 w h)) → GL.setWindowSize portWindow w h
-             FullScreen             → error "XXX: implement fullscreen"
+  liftIO $ case sttsScreenMode of
+             Windowed   → let Di (V2 w h) = sttsScreenDim
+                          in GL.setWindowSize portWindow w h
+             FullScreen → error "XXX: implement fullscreen"
   liftIO $ blankIdToken'setup
 
   portFontmap                      ← Cr.makeFontMap sttsDΠ Cr.fmDefault sttsFontPreferences
@@ -182,7 +171,8 @@ defaultSettings = do
                                   , Cr.FontSpec "Aurulent Sans"     "Regular" $ Cr.Outline (PUs 16) ])
         , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (PUs 15) LT ])
         ]
-      sttsWindowGeo       = Windowed $ di 800 600
+      sttsScreenMode      = Windowed
+      sttsScreenDim       = di 800 600
   pure Settings{..}
 
 
@@ -312,6 +302,45 @@ portGarbageCollectVisuals Port{..} validLeaves = do
         pure used
   visMap' ← TM.traverse gcTM visMap
   viomapReplace (fromVT portVisualTracker) visMap'
+
+-- The next couple of functions mostly stolen from lambdacube-gl/testclient.hs
+pickFrameBuffer ∷ (MonadIO m) ⇒ Di Int → Po Int → m Int
+pickFrameBuffer (Di (V2 w h)) (Po (V2 x y)) = do
+  glFinish
+  glBindFramebuffer GL_READ_FRAMEBUFFER 0 -- This is decided in LambdaCube/GL/Backend.hs:compileRenderTarget
+  -- glReadBuffer GL_FRONT_LEFT
+  -- glBindFramebuffer GL_READ_FRAMEBUFFER 0
+  -- glReadBuffer GL_BACK_LEFT
+  -- glBlitFramebuffer 0 0 (fromIntegral w) (fromIntegral h) 0 (fromIntegral h) (fromIntegral w) 0 GL_COLOR_BUFFER_BIT GL_NEAREST
+  glReadBuffer GL_BACK
+  liftIO $ withFrameBuffer x (h - y - 1) 1 1 $ \p -> fromIntegral <$> F.peek (F.castPtr p ∷ F.Ptr F.Word32)
+
+snapFrameBuffer ∷ (MonadIO m) ⇒ Di Int → m Juicy.DynamicImage
+snapFrameBuffer (Di (V2 w h)) = do
+  glFinish
+  glBindFramebuffer GL_READ_FRAMEBUFFER 0
+  -- glReadBuffer GL_FRONT
+  -- glBlitFramebuffer 0 0 (fromIntegral w) (fromIntegral h) 0 (fromIntegral h) (fromIntegral w) 0 GL_COLOR_BUFFER_BIT GL_NEAREST
+  glReadBuffer GL_BACK
+  bs ← liftIO $ withFrameBuffer 0 0 w h $ \p -> B.packCStringLen (F.castPtr p,w*h*4)
+  let v = B.byteStringToVector bs
+  pure $ Juicy.ImageRGBA8 $ Juicy.Image w h v
+  
+
+withFrameBuffer ∷ Int → Int → Int → Int → (F.Ptr F.Word8 → IO a) → IO a
+withFrameBuffer x y w h fn = F.allocaBytes (w*h*4) $ \p → do
+  glPixelStorei GL_UNPACK_LSB_FIRST    0
+  glPixelStorei GL_UNPACK_SWAP_BYTES   0
+  glPixelStorei GL_UNPACK_ROW_LENGTH   $ fromIntegral w
+  -- glPixelStorei GL_UNPACK_ROW_LENGTH   0
+  glPixelStorei GL_UNPACK_IMAGE_HEIGHT 0
+  glPixelStorei GL_UNPACK_SKIP_ROWS    0
+  glPixelStorei GL_UNPACK_SKIP_PIXELS  0
+  glPixelStorei GL_UNPACK_SKIP_IMAGES  0
+  glPixelStorei GL_UNPACK_ALIGNMENT    1 -- normally 4!
+  glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) GL_RGBA GL_UNSIGNED_BYTE $ F.castPtr p
+  glPixelStorei GL_UNPACK_ROW_LENGTH   0
+  fn p
 
 
 -- * Matrix works

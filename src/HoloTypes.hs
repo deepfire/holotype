@@ -18,7 +18,7 @@ module HoloTypes
   , VisualTracker(..)
   --
   , Settings(..)
-  , WindowGeo(..)
+  , ScreenMode(..)
   , Port(..)
   --
   , Drawable(..)
@@ -89,17 +89,17 @@ data Port where
     } → Port
     deriving (Generic)
 
-data WindowGeo
+data ScreenMode
   = FullScreen
-  | Windowed (Di Int)
+  | Windowed
   deriving (Eq, Generic, Show)
 
 data Settings where
-
   Settings ∷
     { sttsDΠ              ∷ DΠ
     , sttsFontPreferences ∷ Cr.FontPreferences PU
-    , sttsWindowGeo       ∷ WindowGeo
+    , sttsScreenMode      ∷ ScreenMode
+    , sttsScreenDim       ∷ Di Int
     } → Settings
     deriving (Eq, Generic, Show)
 
