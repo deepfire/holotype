@@ -123,20 +123,27 @@ type FB = FrameBuffer 1 '[ 'Depth, 'Color (Vec 4 Float)]
 addOverlay :: String -> CommonAttrs -> FB -> FB
 addOverlay name ca prevFB =
   Accumulate                (mkaccumulationContext stage)
-  (mapFragments             (mkFragmentShader stage) $
-   maybe id filterFragments Nothing $
-   rasterizePrimitives      (TriangleCtx CullFront PolygonFill NoOffset LastVertex) (Smooth, Smooth) $
-   mapPrimitives            (mkVertexShader ca stage) $
-   fetch name               ( Attribute "position"   :: Vec 3 Float
+  (mapFragments             (mkFragmentShader stage)
+   (maybe id filterFragments Nothing $
+   (let args = fetch name    ( Attribute "position"   :: Vec 3 Float
                             -- , Attribute "normal"     :: Vec 3 Float
-                            , Attribute "uv"         :: Vec 2 Float)) prevFB
+                             , Attribute "uv"         :: Vec 2 Float
+                             , Attribute "id"         :: Int)
+    in rasterizePrimitives      (TriangleCtx CullFront PolygonFill NoOffset LastVertex) (Smooth, Smooth) $
+       mapPrimitives            (mkVertexShader ca stage) $
+       args))) prevFB
+   -- fetch name               ( Attribute "position"   :: Vec 3 Float
+   --                          -- , Attribute "normal"     :: Vec 3 Float
+   --                          , Attribute "uv"         :: Vec 2 Float
+   --                          , Attribute "id"         :: Int)) prevFB
   where
-    mkVertexShader ca stage = \(pos, uv) -> -- \(pos, norm, diffuv) ->
+    mkVertexShader ca stage = \(pos, uv, id) -> -- \(pos, norm, diffuv) ->
       let viewProj  = Uniform "viewProj" :: Mat 4 4 Float
           screenPos = viewProj *. (V4 pos%x pos%y 0 1)
       in (screenPos
          ,mkTexCoord pos (V3 0 0 1) stage uv $ V2 0 0 -- last arg is UVL
-         ,mkColor ca stage $ V4 0 0 0 1)
+         ,mkColor ca stage $ V4 0 0 0 1
+         )
     stage           = head $ caStages ca
 
 --main :: Output
