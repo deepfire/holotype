@@ -29,6 +29,7 @@ import qualified Codec.Picture                     as Juicy
 import qualified Control.Concurrent.STM            as STM
 import qualified Data.ByteString                   as B
 import qualified Data.IORef                        as IO
+import qualified Data.List                         as L
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Text                         as T
 import qualified Data.TypeMap.Dynamic              as TM
@@ -137,10 +138,11 @@ portCreate portWindow portSettings@Settings{..} = do
   liftIO $ putStrLn $ printf "%s" (show portFontmap)
 
   (portRenderer, portObjectStream) ← makeSimpleRenderedStream portWindow (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))
-  rendererDrawFrame portRenderer
+  rendererDrawFrame portRenderer PipeDraw
+  liftIO $ GL.swapBuffers portWindow
   portSetVSync False
 
-  portEmptyDrawable ← makeDrawable portObjectStream (di 1 1)
+  portEmptyDrawable ← makeDrawable portObjectStream blankIdToken (di 1 1)
   portVisualTracker@(VisualTracker _)     ← VisualTracker <$> mkVIOMap
   -- iomapAdd dt blankIdToken portEmptyDrawable
   pure Port{..}
@@ -151,7 +153,8 @@ portUpdateSettings port portSettings = do
 
 portNextFrame ∷ (MonadIO m) ⇒ Port → m Frame
 portNextFrame Port{..} = do
-  rendererDrawFrame  portRenderer
+  rendererDrawFrame  portRenderer PipeDraw
+  liftIO $ GL.swapBuffers portWindow
   rendererSetupFrame portRenderer
 
 portFont  ∷ Port → Cr.FontKey → Maybe (Cr.Font Found PU)
@@ -187,11 +190,11 @@ imageSurfaceGetPixels' pb = do
   r ← GRC.imageSurfaceGetStride pb
   return (pixPtr, V2 r h)
 
-portMakeDrawable ∷ (MonadIO m) ⇒ Port → Di Double → m Drawable
+portMakeDrawable ∷ (MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
 portMakeDrawable Port{..} = makeDrawable portObjectStream
 
-makeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → Di Double → m Drawable
-makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
+makeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → IdToken → Di Double → m Drawable
+makeDrawable dObjectStream@ObjectStream{..} ident dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
   dCairo        ← Cr.cairoCreate  dSurface
@@ -201,9 +204,11 @@ makeDrawable dObjectStream@ObjectStream{..} dDi' = liftIO $ do
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
       position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
       texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
+      ids      = V.fromList $ L.replicate 6 $ fromIntegral $ tokenHash ident
       dMesh    = LC.Mesh { mPrimitive  = P_Triangles
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
-                                                      , ("uv",        A_V2F texcoord) ] }
+                                                      , ("uv",        A_V2F texcoord)
+                                                      , ("id",        A_Int ids)] }
   dGPUMesh      ← GL.uploadMeshToGPU dMesh
   -- XXX: this is leaky -- has to be done manually
   -- SMem.addFinalizer dGPUMesh $ do
@@ -254,7 +259,7 @@ visualiseHoloitem port@Port{..} hi children = case hi of
     let dim@(Di (V2 w h)) = hiArea^.area'b.size'di
         mkVisual ∷ (MonadIO m, Holo a) ⇒ a → Style a → m (Visual a)
         mkVisual holo hiStyle = do
-          newDrawable ← makeDrawable portObjectStream dim
+          newDrawable ← makeDrawable portObjectStream hiToken dim
           Visual
                  <$> createVisual port (_sStyle hiStyle) hiArea newDrawable holo
                  <*> pure (_sStyleGene $ hiStyle)
@@ -396,11 +401,11 @@ drawableDrawRect Port{portSettings=Settings{..}} d@Drawable{..} color dim' = do
   pure ()
 
 -- Render with: framePutDrawable frame px0 (doubleToFloat <$> po 0 0)
-mkRectDrawable ∷ (MonadIO m, FromUnit u) ⇒ Port → Di (Unit u) → Co Double → m Drawable
-mkRectDrawable port@Port{portSettings=Settings{..}} dim color = do
-  d@Drawable{..} ← portMakeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> dim
-  drawableDrawRect port d color dim
-  pure d
+-- mkRectDrawable ∷ (MonadIO m, FromUnit u) ⇒ Port → Di (Unit u) → Co Double → m Drawable
+-- mkRectDrawable port@Port{portSettings=Settings{..}} dim color = do
+--   d@Drawable{..} ← portMakeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> dim
+--   drawableDrawRect port d color dim
+--   pure d
 
 drawableBindFontLayout ∷ (MonadIO m, FromUnit u, FromUnit v) ⇒
   DΠ → Drawable → Cr.Font Found u → Di (Unit v) → Cr.TextSizeSpec v → m (Cr.WFont Bound, GIP.Layout)

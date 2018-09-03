@@ -122,20 +122,19 @@ type FB = FrameBuffer 1 '[ 'Depth, 'Color (Vec 4 Float)]
 
 addOverlay :: String -> CommonAttrs -> FB -> FB
 addOverlay name ca prevFB =
-  Accumulate                (mkaccumulationContext stage)
-  (mapFragments             (mkFragmentShader stage)
-   (maybe id filterFragments Nothing $
-   (let args = fetch name    ( Attribute "position"   :: Vec 3 Float
-                            -- , Attribute "normal"     :: Vec 3 Float
-                             , Attribute "uv"         :: Vec 2 Float
-                             , Attribute "id"         :: Int)
-    in rasterizePrimitives      (TriangleCtx CullFront PolygonFill NoOffset LastVertex) (Smooth, Smooth) $
-       mapPrimitives            (mkVertexShader ca stage) $
-       args))) prevFB
-   -- fetch name               ( Attribute "position"   :: Vec 3 Float
-   --                          -- , Attribute "normal"     :: Vec 3 Float
-   --                          , Attribute "uv"         :: Vec 2 Float
-   --                          , Attribute "id"         :: Int)) prevFB
+  let mode  = Uniform "mode" :: Int
+      fb    = Accumulate                (mkaccumulationContext stage)
+              (mapFragments             (mkFragmentShader stage)
+               (maybe id filterFragments Nothing $
+               (let args = fetch name    ( Attribute "position"   :: Vec 3 Float
+                                        -- , Attribute "normal"     :: Vec 3 Float
+                                         , Attribute "uv"         :: Vec 2 Float
+                                         , Attribute "id"         :: Int)
+                    pipel = rasterizePrimitives      (TriangleCtx CullFront PolygonFill NoOffset LastVertex) (Smooth, Smooth) $
+                            mapPrimitives            (mkVertexShader ca stage) $
+                            args
+                in pipel))) prevFB
+  in fb
   where
     mkVertexShader ca stage = \(pos, uv, id) -> -- \(pos, norm, diffuv) ->
       let viewProj  = Uniform "viewProj" :: Mat 4 4 Float
@@ -146,7 +145,7 @@ addOverlay name ca prevFB =
          )
     stage           = head $ caStages ca
 
---main :: Output
+main :: Output
 main = ScreenOut $
        addOverlay "portStream" portMtl $
        FrameBuffer (depthImage1 1000, colorImage1 (V4 0.002 0.002 0.008 1))

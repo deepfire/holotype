@@ -5,7 +5,7 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module HoloCube
-  ( ObjectStream(..), Renderer(..)
+  ( ObjectStream(..), Renderer(..), PipeName(..)
   , makeSimpleRenderedStream
   , rendererShutdown
   , ObjArrayNameS(..)
@@ -17,46 +17,29 @@ module HoloCube
   )
 where
 
--- Basis
-import           HoloPrelude
+import           Control.Arrow
+import           Control.Monad
+import           Data.Map                                 (Map)
+import           Graphics.GL.Core33                as GL
+import           Linear
 import           Prelude                           hiding ((.), id)
-
--- Generic
+import           Text.Show.Pretty                         (ppShow)
+import "GLFW-b"  Graphics.UI.GLFW                  as GLFW
+import qualified Data.Aeson                        as AE
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
-import           Data.Map                                 (Map)
 import qualified Data.Map                          as Map
 import qualified Data.Maybe
-
--- Algebra
-import           Linear
-
--- Serialization
-import qualified Data.Aeson                        as AE
-
--- System
-import qualified System.Directory                  as FS
-
--- Misc
-import           Text.Show.Pretty                         (ppShow)
-
--- Dirty stuff
-import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
-
--- Window system (..hello WIndowSys..)
-import "GLFW-b"  Graphics.UI.GLFW                  as GLFW
-
--- …
-import           Graphics.GL.Core33                as GL
-
--- LambdaCube
+import qualified Foreign.C.Types                   as F
 import qualified GameEngine.Utils                  as Q3
 import qualified LambdaCube.Compiler               as LCC
 import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Type                as GL
+import qualified System.Directory                  as FS
 
 -- Local imports
+import           HoloPrelude
 import           Flatland
 
 
@@ -83,7 +66,8 @@ pipelineSchema schemaPairs =
       simplePosUVSchema =
         GL.ObjectArraySchema GL.Triangles $ Map.fromList
         [ ("position",       GL.Attribute_V2F)
-        , ("uv",             GL.Attribute_V2F) ]
+        , ("uv",             GL.Attribute_V2F)
+        , ("id",             GL.Attribute_Int) ]
   in GL.PipelineSchema
   { objectArrays = Map.fromList $ zip arrays $ repeat simplePosUVSchema
   , uniforms =
@@ -97,34 +81,29 @@ pipelineSchema schemaPairs =
       ++ zip textures (repeat GL.FTexture2D)
   }
 
-compilePipeline ∷ (MonadIO m) ⇒ FilePath → m Bool
-compilePipeline jsonOutput = liftIO $ Q3.printTimeDiff "-- compiling graphics pipeline... " $ do
-  let pipelineSrc = "Holotype.lc"
-  LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc >>= \case
-    Left  err → printf "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err) >> return False
-    Right ppl → LB.writeFile jsonOutput (AE.encode ppl)                   >> return True
-
-bindPipeline ∷ (MonadIO m) ⇒ GL.GLStorage → String → m (Maybe GL.GLRenderer)
-bindPipeline storage pipelineJSON = liftIO $ do
-    putStrLn $ "-- reading GPU pipeline from " ++ pipelineJSON
-    let paths = [pipelineJSON]
-    validPaths ← filterM FS.doesFileExist paths
-    when (Prelude.null validPaths) $
-      fail $ "GPU pipeline " ++ pipelineJSON ++ " couldn't be found in " ++ show paths
-    renderer ← Q3.printTimeDiff "-- allocating GPU pipeline (GL.allocRenderer)... " $ do
-      AE.eitherDecode <$> LB.readFile (Prelude.head validPaths) >>= \case
-        Left err  → fail err
-        Right ppl → GL.allocRenderer ppl
-    _ ← Q3.printTimeDiff "-- binding GPU pipeline to GL storage (GL.setStorage)... " $ GL.setStorage renderer storage
-    return $ Just renderer
+buildPipelineForStorage ∷ (MonadIO m) ⇒ GL.GLStorage → String → m GL.GLRenderer
+buildPipelineForStorage storage pipelineSrc = liftIO $ do
+  (Q3.printTimeDiff "-- compiling graphics pipeline... " $
+    LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc) >>= \case
+    Left  err → error $ printf "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err)
+    Right ppl → do
+      renderer ← GL.allocRenderer ppl
+      _ ← Q3.printTimeDiff "-- binding GPU pipeline to GL storage (GL.setStorage)... " $
+        GL.setStorage renderer storage
+      pure renderer
 
 
 -- | A 'Renderer' provides 'ObjArrayNameS'-named streams of flat objects,
 --   textured with a corresponding, 'UniformNameS'-named texture.
+data PipeName
+  = PipeDraw
+  | PipePick
+  deriving (Bounded, Enum, Eq, Ord, Show)
+
 data Renderer where
   Renderer ∷
     { rGLStorage  ∷ GL.GLStorage
-    , rGLRenderer ∷ GL.GLRenderer
+    , rPipelines  ∷ Map PipeName GL.GLRenderer
     , rStreams    ∷ Map (ObjArrayNameS, UniformNameS) ObjectStream
     , rWindow     ∷ GLFW.Window
     } → Renderer
@@ -140,7 +119,7 @@ data Frame where
 --   'ous' is a list of object array/texture uniform name pairs, that have to be
 --   recognized by the Lambdacube pipeline.
 --   A GL context must have already been set up in 'IO', with f.e. 'makeGLWindow'.
-makeRenderer ∷ (MonadIO m) ⇒ GLFW.Window → [(ObjArrayNameS, UniformNameS)] → m (Either String Renderer)
+makeRenderer ∷ (MonadIO m) ⇒ GLFW.Window → [(ObjArrayNameS, UniformNameS)] → m Renderer
 makeRenderer rWindow ous = liftIO $ do
     let schema = pipelineSchema ous
 
@@ -148,23 +127,15 @@ makeRenderer rWindow ous = liftIO $ do
     let rStreams = Map.fromList [ (k, ObjectStream rGLStorage oa un')
                                 | k@(oa, un') ← ous ]
 
-    let pipelineJSON = "Holotype.json"
-    success ← compilePipeline pipelineJSON
-    unless success $
-      fail "FATAL: failed to compile the GPU pipeline."
-    renderer' ← bindPipeline rGLStorage pipelineJSON
-    unless (Data.Maybe.isJust renderer') $
-      fail "FATAL: failed to bind the compiled GPU pipeline."
-    let rGLRenderer = Data.Maybe.fromJust renderer'
+    let pipeSpecs ∷ Map PipeName String
+        pipeSpecs = Map.fromList $ (id *** (<>".lc") ∘ show) ∘ join (,) <$> (everything ∷ [PipeName])
+    rPipelines ← traverse (buildPipelineForStorage rGLStorage) pipeSpecs
 
-    mFailure ← GL.setStorage rGLRenderer rGLStorage
-    pure $ case mFailure of -- XXX/expressivity: there ought to be some kind of a standard Maybe-to-Either transform..
-      Just failure → Left failure
-      Nothing      → Right Renderer{..}
+    pure $ Renderer{..}
 
 rendererShutdown ∷ (MonadIO m) ⇒ Renderer → m ()
 rendererShutdown Renderer{..} = liftIO $ do
-  GL.disposeRenderer rGLRenderer
+  _ ← traverse GL.disposeRenderer rPipelines
   GLFW.destroyWindow rWindow
 
 rStream ∷ Renderer → (ObjArrayNameS, UniformNameS) → Maybe ObjectStream
@@ -172,10 +143,7 @@ rStream Renderer{..} = flip Map.lookup rStreams
 
 makeSimpleRenderedStream ∷ (MonadIO m) ⇒ GLFW.Window → (ObjArrayNameS, UniformNameS) → m (Renderer, ObjectStream)
 makeSimpleRenderedStream glWindow streamDesc = do
-  rend' ← makeRenderer glWindow [streamDesc]
-  let rend@Renderer{..} = case rend' of
-                            Left failure → error $ printf "FATAL: failed to create a renderer: %s" failure
-                            Right r → r
+  rend@Renderer{..} ← makeRenderer glWindow [streamDesc]
   let stream = rStream rend streamDesc
                & fromMaybe (error $ "Silly invariant #1 failure.")
   pure (rend, stream)
@@ -194,10 +162,9 @@ rendererSetupFrame r@Renderer{..} = liftIO $ do
   GL.setScreenSize rGLStorage (fromIntegral screenW) (fromIntegral screenH)
   pure $ Frame d
 
-rendererDrawFrame ∷ (MonadIO m) ⇒ Renderer → m ()
-rendererDrawFrame Renderer{..} = liftIO $ do
-  GL.renderFrame rGLRenderer
-  GLFW.swapBuffers rWindow
+rendererDrawFrame ∷ (MonadIO m) ⇒ Renderer → PipeName → m ()
+rendererDrawFrame Renderer{..} name = liftIO $ do
+  GL.renderFrame ∘ Data.Maybe.fromJust $ Map.lookup name rPipelines
 
 
 -- * Shader attributery (XXX: unused)

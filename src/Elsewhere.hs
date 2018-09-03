@@ -9,6 +9,7 @@
 module Elsewhere
   ( ppV2
   , textZipper, zipperText
+  , everything
   )
 where
 

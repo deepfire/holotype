@@ -27,6 +27,7 @@ module HoloPrelude
   , flip2
   , assert
   , catchAny
+  , everything
   , choosePartially
   , doubleToFloat
   , either
@@ -93,6 +94,9 @@ flip2 f b c a = f a b c
 
 choosePartially ∷ Eq a ⇒ a → a → a → a
 choosePartially one l r = fromMaybe one $ partial (≢ one) l <|> partial (≢ one) r
+
+everything :: (Enum a, Bounded a) => [a]
+everything = enumFromTo minBound maxBound
 
 -- * Exceptions
 catchAny ∷ IO a → (SomeException → IO a) → IO a
