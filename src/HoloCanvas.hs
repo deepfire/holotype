@@ -56,9 +56,6 @@ import qualified LambdaCube.GL.Mesh                as GL
 import qualified LambdaCube.Linear                 as LCLin
 import           LambdaCube.Mesh                   as LC
 
--- LambdaCube Quake III
-import           GameEngine.Utils                  as Q3
-
 -- Local imports
 import Elsewhere
 import Flatland

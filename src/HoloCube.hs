@@ -32,7 +32,6 @@ import qualified Data.Map                          as Map
 import qualified Data.Maybe
 import qualified Foreign                           as F
 import qualified Foreign.C.Types                   as F
-import qualified GameEngine.Utils                  as Q3
 import qualified LambdaCube.Compiler               as LCC
 import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Type                as GL
@@ -83,12 +82,12 @@ pipelineSchema schemaPairs =
 
 buildPipelineForStorage ∷ (MonadIO m) ⇒ GL.GLStorage → String → m GL.GLRenderer
 buildPipelineForStorage storage pipelineSrc = liftIO $ do
-  (Q3.printTimeDiff "-- compiling graphics pipeline... " $
+  (printTimeDiff "-- compiling graphics pipeline... " $
     LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc) >>= \case
     Left  err → error $ printf "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err)
     Right ppl → do
       renderer ← GL.allocRenderer ppl
-      _ ← Q3.printTimeDiff "-- binding GPU pipeline to GL storage (GL.setStorage)... " $
+      _ ← printTimeDiff "-- binding GPU pipeline to GL storage (GL.setStorage)... " $
         GL.setStorage renderer storage
       pure renderer
 
@@ -165,22 +164,6 @@ rendererSetupFrame r@Renderer{..} = liftIO $ do
 rendererDrawFrame ∷ (MonadIO m) ⇒ Renderer → PipeName → m ()
 rendererDrawFrame Renderer{..} name = liftIO $ do
   GL.renderFrame ∘ Data.Maybe.fromJust $ Map.lookup name rPipelines
-
-
--- * Shader attributery (XXX: unused)
--- canvasCommonAttrs ∷ UniformNameS → CommonAttrs
--- canvasCommonAttrs uname =
---   Q3.defaultCommonAttrs
---   { caSort   = 10.0
---   , caStages =
---     [ Q3.defaultStageAttrs
---       { saTexture        = ST_ClampMap ∘ SB.unpack ∘ fromUNS $ uname
---       , saTextureUniform = SB.unpack $ fromUNS uname
---       , saBlend          = Just ( B_SrcAlpha , B_OneMinusSrcAlpha )
---       , saTCGen          = TG_Base
---       , saDepthWrite     = True
---       , saRGBGen         = RGB_IdentityLighting
---       }]}
 
 
 -- * GL Toolkit

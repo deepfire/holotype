@@ -46,6 +46,7 @@ module HoloPrelude
   , PP(..)
   , showT,  showTL,  showTS
   , errorT, errorTL, errorTS
+  , showTime, timeDiff, printTimeDiff
   )
 where
 
@@ -64,6 +65,7 @@ import           Data.String                              (IsString)
 import qualified Data.Text                         as TS
 import qualified Data.Text.Lazy                    as TL
 import qualified Data.Text.Lazy.IO
+import           Data.Time.Clock
 import           Debug.Trace                              (trace)
 import           GHC.Generics                             (Generic)
 import           GHC.Stack                                (HasCallStack)
@@ -162,3 +164,26 @@ errorT = errorTS
 
 errorTL ∷ HasCallStack ⇒ TL.Text → a
 errorTL = error ∘ TL.unpack
+
+-- * simple benchamrking functions from lambdacube-quake3
+--
+showTime ∷ NominalDiffTime → String
+showTime delta
+    | t > 1e-1  = printf "%.3fs" t
+    | t > 1e-3  = printf "%.1fms" (t/1e-3)
+    | otherwise = printf "%.0fus" (t/1e-6)
+  where
+    t = realToFrac delta :: Double
+
+timeDiff ∷ IO a → IO (NominalDiffTime, a)
+timeDiff m = (\s x e -> (diffUTCTime e s, x))
+  <$> getCurrentTime
+  <*> m
+  <*> getCurrentTime
+
+printTimeDiff ∷ String → IO a → IO a
+printTimeDiff message m = do
+  (t,r) <- timeDiff m
+  putStr message
+  putStrLn $ showTime t
+  return r

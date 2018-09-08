@@ -52,8 +52,6 @@ import qualified LambdaCube.GL.Mesh                as GL
 import qualified LambdaCube.Linear                 as LCLin
 import           LambdaCube.Mesh                   as LC
 
-import qualified GameEngine.Utils                  as Q3
-
 import           Text.Printf                              (printf)
 import           Text.Show.Pretty                         (ppShow)
 
@@ -77,6 +75,7 @@ import Data.IORef
 import Data.Vector (Vector,(//),(!))
 import LambdaCube.GL.Input (createObjectCommands, mkUniform)
 import LambdaCube.GL.Mesh (GPUMesh(..), GPUData(..))
+import HoloPrelude
 
 
 foreign import ccall "&cairo_destroy"
@@ -168,7 +167,7 @@ main = do
   when (Prelude.null validPaths) $
     fail $ "GPU pipeline " ++ pipelineJSON ++ " couldn't be found in " ++ show paths
 
-  renderer ← Q3.printTimeDiff "-- allocating GPU pipeline (GL.allocRenderer)... " $ do
+  renderer ← printTimeDiff "-- allocating GPU pipeline (GL.allocRenderer)... " $ do
     AE.eitherDecode <$> LB.readFile (Prelude.head validPaths) >>= \case
       Left err  → fail err
       Right ppl → GL.allocRenderer ppl

@@ -17,13 +17,12 @@ import           Data.Bits
 import           Data.Maybe
 import           Data.Proxy
 import           Data.Typeable
-import           Data.Vect                                (Mat4(..), Vec3(..))
-import           Data.Vector.Storable
+import           Data.Vect                                (Mat4(..), Vec3(..), Vec4(..))
 import           GHC.Stack
 import           Graphics.GL.Core33                as GL
 import           HoloPrelude
 import           LambdaCube.Mesh                   as LC
-import           Linear
+import           Linear                            hiding (V3, V4)
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Codec.Picture                     as Juicy
 import qualified Control.Concurrent.STM            as STM
@@ -48,7 +47,6 @@ import qualified LambdaCube.Linear                 as LCLin
 import qualified System.IO.Unsafe                  as IO
 
 -- Local imports
-import           GameEngine.Utils                  as Q3
 import           HoloTypes
 
 import           Flatland
@@ -247,7 +245,21 @@ framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = 
   let cvpos     = Vec3 x (-y) 0
       toScreen  = screenM screenW screenH
   liftIO $ GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
-    Q3.mat4ToM44F $! (Vc.fromProjective $! Vc.translation cvpos) Vc..*. toScreen
+    mat4ToM44F $! (Vc.fromProjective $! Vc.translation cvpos) Vc..*. toScreen
+
+-- * From lambdacube-quake3
+--
+vec4ToV4F ∷ Vec4 → LCLin.V4F
+vec4ToV4F (Vc.Vec4 x y z w) = LCLin.V4 x y z w
+
+vec3ToV3F ∷ Vec3 → LCLin.V3F
+vec3ToV3F (Vec3 x y z) = LCLin.V3 x y z
+
+mat4ToM44F ∷ Mat4 → LCLin.M44F
+mat4ToM44F (Mat4 a b c d) = LCLin.V4 (vec4ToV4F a) (vec4ToV4F b) (vec4ToV4F c) (vec4ToV4F d)
+
+rotationEuler ∷ Vec3 → Vc.Proj4
+rotationEuler (Vec3 a b c) = Vc.orthogonal $ Vc.toOrthoUnsafe $ Vc.rotMatrixZ a Vc..*. Vc.rotMatrixX b Vc..*. Vc.rotMatrixY (-c)
 
 -- * Look up the visual and, if present, check compatibility with
 --   new requirements: style generation and size.
@@ -310,7 +322,7 @@ portGarbageCollectVisuals Port{..} validLeaves = do
 
 -- The next couple of functions mostly stolen from lambdacube-gl/testclient.hs
 pickFrameBuffer ∷ (MonadIO m) ⇒ Di Int → Po Int → m Int
-pickFrameBuffer (Di (V2 w h)) (Po (V2 x y)) = do
+pickFrameBuffer (Di (V2 _w h)) (Po (V2 x y)) = do
   glFinish
   glBindFramebuffer GL_READ_FRAMEBUFFER 0 -- This is decided in LambdaCube/GL/Backend.hs:compileRenderTarget
   -- glReadBuffer GL_FRONT_LEFT

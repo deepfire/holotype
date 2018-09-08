@@ -115,7 +115,6 @@ library
                      , lambdacube-ir
                      , lambdacube-compiler
                      , lambdacube-gl
-                     , lambdacube-quake3
                      , OpenGL, OpenGLRaw
                      , proteaaudio
 
@@ -202,7 +201,6 @@ executable lcstress
                      , lambdacube-compiler
                      , lambdacube-gl
                      , lambdacube-ir
-                     , lambdacube-quake3
 
 executable holostress
   hs-source-dirs:      .
