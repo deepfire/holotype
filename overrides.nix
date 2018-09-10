@@ -22,34 +22,41 @@ with pkgs.haskell.lib; with self; {
 
   ## Upstreamed, awaiting a Hackage release
   lambdacube-compiler = overrideCabal super.lambdacube-compiler (drv: {
-    src = pkgs.fetchFromGitHub {
-      owner  = "lambdacube3d";
-      repo   = "lambdacube-compiler";
-      rev    = "b0b09ee4e7578b9ee0fef1aa9ae541018eafb1d8";
-      sha256 = "1x24yis7db3c8n5pbpmmm3a5hp1wm7q8bb548s7747hvswblp0df";
-    };
+    # src = pkgs.fetchFromGitHub {
+    #   owner  = "deepfire";
+    #   repo   = "lambdacube-compiler";
+    #   rev    = "e022a56bfeafe8306c7615fb1441364ccd876e8e";
+    #   sha256 = "0lfyr55jpk113bgkpv8k4140swdmnqh6cxsds9njm462gna3hffr";
+    # };
+    # src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-compiler.src.json)) ["date"]);
+    src = ../lambdacube-compiler;
+    libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (with self; [ aeson semigroups exceptions megaparsec ansi-wl-pprint pretty-show lambdacube-ir vector ]);
     jailbreak       = true;
+    enableLibraryProfiling = false;
   });
 
   ## Upstreamed, awaiting a Hackage release
   lambdacube-gl = overrideCabal super.lambdacube-gl (drv: {
-    src = pkgs.fetchFromGitHub {
-      owner  = "lambdacube3d";
-      repo   = "lambdacube-gl";
-      rev    = "297828bdcf105c5942ed0e43d9f28130f543f34c";
-      sha256 = "1gclb1wn5rl23vsrl1zs3lhiyyddrga6kggrnkpsyi8bwgq8l5z7";
-    };
+    # src = pkgs.fetchFromGitHub {
+    #   owner  = "deepfire";
+    #   repo   = "lambdacube-gl";
+    #   rev    = "afa3956593e42ae0495615680f874292647612a3";
+    #   sha256 = "1s7y302qcdlwm9j0kzzk0k21drkyh9zijm6v4igr8kfixz2wmwll";
+    # };
+    # src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-gl.src.json)) ["date"]);
+    src = ../lambdacube-gl;
     jailbreak       = true;
   });
 
   ## Upstreamed, awaiting a Hackage release
   lambdacube-ir = overrideCabal super.lambdacube-ir (drv: {
-    src = pkgs.fetchFromGitHub {
-      owner  = "lambdacube3d";
-      repo   = "lambdacube-ir";
-      rev    = "b8b4ec9fa985b2eb756ac1a5a65af483a0bd586b";
-      sha256 = "0xqm9idapiyl0k93kfi8mh181bxvmda0nf6ipbamlgzxyjcd0314";
-    };
+    # src = pkgs.fetchFromGitHub {
+    #   owner  = "deepfire";
+    #   repo   = "lambdacube-ir";
+    #   rev    = "36e2a9a208356657c4589869ab6ad8d60a1b2225";
+    #   sha256 = "0b3f11133lhy758chf48k4p9q1sp1zalriwzzqa3kfq6hzxd33w9";
+    # };
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-ir.src.json)) ["date"]);
     prePatch        = "cd lambdacube-ir.haskell; ";
     jailbreak       = true;
   });

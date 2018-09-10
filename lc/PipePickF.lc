@@ -1,0 +1,52 @@
+module Holotype where
+
+type ColorComponent = Float
+
+mkaccumulationContext :: (FragmentOperation Depth, FragmentOperation (Color (Vec 4 ColorComponent)))
+mkaccumulationContext = ( DepthOp Lequal True
+                        , ColorOp NoBlending (one :: Vec 4 Bool))
+  where
+    blend = Blend (FuncAdd,FuncAdd) ((OneBF,ZeroBF),(OneBF,OneBF)) one
+
+type FB = FrameBuffer 1 '[ 'Depth, 'Color (Vec 4 ColorComponent)]
+
+fragmap :: (Vec 2 Float, Vec 4 ColorComponent) -> ((Vec 4 ColorComponent))
+fragmap (uv, rgba) =
+  -- ((V4 255 127 63 255))
+  ((V4 0.9 0.5 0.1 1))
+  -- ((V4 16777215 16777215 16777215 16777215))
+  -- ((rgba))
+
+-- Theories
+--
+-- 1. We're missing a SetSamplerUniform
+
+scene :: String -> FB -> FB
+scene name prevFB =
+  Accumulate    mkaccumulationContext
+  (mapFragments
+     fragmap
+   $ maybe id filterFragments Nothing
+   $ rasterizePrimitives (TriangleCtx CullFront PolygonFill NoOffset LastVertex) (Flat, Flat)
+   $ mapPrimitives
+    (\(pos, uv, id)->
+      ( (Uniform "viewProj" :: Mat 4 4 Float) *. (V4 pos%x pos%y 0 1)
+      , uv
+      , V4 1 1 1 1))
+    $ fetch name ( Attribute "position"   :: Vec 3 Float
+                 , Attribute "uv"         :: Vec 2 Float
+                 , Attribute "id"         :: Int))
+  prevFB
+  where
+    maybe a b Nothing = a
+    maybe a b (Just x) = b x
+    
+
+main :: Output
+main = ScreenOut $
+       scene "portStream" $
+       FrameBuffer (depthImage1 1000, colorImage1 (V4 0.5 0.5 0 0.5))
+
+-- Local Variables:
+-- eval: (progn (haskell-mode) (intero-disable))
+-- End:

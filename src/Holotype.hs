@@ -299,6 +299,7 @@ holotype win _evCtl windowFrameE inputE = mdo
   pickedE          ← performEvent $ pickE <&>
                      \((), Click GLFW.MouseButton'1 (Po (V2 x y)))→ do
                        -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
+                       rendererDrawFrame  portRenderer PipePick
                        p ← liftIO $ pickFrameBuffer (di 800 600) $ floor <$> po x y
                        liftIO $ printf "%d:%d: %x\n" (floor x ∷ Int) (floor y ∷ Int) p
 

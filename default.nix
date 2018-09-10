@@ -1,8 +1,8 @@
-{ mkDerivation, aeson, base, base-unicode-symbols, binary
-, bytestring, cairo, clock, containers, dependent-sum, directory
-, dlist, exceptions, extra, filepath, free, freer-simple, fsnotify
-, ghc-prim, gi-cairo, gi-gobject, gi-pango, gi-pangocairo, GLFW-b
-, Glob, hashable, haskell-gi-base, hedgehog, hspec, hxt
+{ mkDerivation, aeson, aeson-pretty, base, base-unicode-symbols
+, binary, bytestring, cairo, clock, containers, dependent-sum
+, directory, dlist, exceptions, extra, filepath, free, freer-simple
+, fsnotify, ghc-prim, gi-cairo, gi-gobject, gi-pango, gi-pangocairo
+, GLFW-b, Glob, hashable, haskell-gi-base, hedgehog, hspec, hxt
 , JuicyPixels, lambdacube-compiler, lambdacube-gl, lambdacube-ir
 , lens, linear, lub, metamorphic, MissingH, monadplus, MonadRandom
 , mono-traversable, mtl, OpenGL, OpenGLRaw, parsers, pretty
@@ -22,15 +22,15 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    aeson base base-unicode-symbols binary bytestring cairo clock
-    containers dependent-sum directory dlist exceptions extra filepath
-    free freer-simple fsnotify ghc-prim gi-cairo gi-gobject gi-pango
-    gi-pangocairo GLFW-b hashable haskell-gi-base hedgehog hspec hxt
-    JuicyPixels lambdacube-compiler lambdacube-gl lambdacube-ir lens
-    linear lub metamorphic MissingH monadplus MonadRandom
-    mono-traversable mtl OpenGL OpenGLRaw parsers pretty pretty-show
-    primitive profunctors proteaaudio QuickCheck random ref-tf reflex
-    semigroupoids semigroups singletons spool stm tasty
+    aeson aeson-pretty base base-unicode-symbols binary bytestring
+    cairo clock containers dependent-sum directory dlist exceptions
+    extra filepath free freer-simple fsnotify ghc-prim gi-cairo
+    gi-gobject gi-pango gi-pangocairo GLFW-b hashable haskell-gi-base
+    hedgehog hspec hxt JuicyPixels lambdacube-compiler lambdacube-gl
+    lambdacube-ir lens linear lub metamorphic MissingH monadplus
+    MonadRandom mono-traversable mtl OpenGL OpenGLRaw parsers pretty
+    pretty-show primitive profunctors proteaaudio QuickCheck random
+    ref-tf reflex semigroupoids semigroups singletons spool stm tasty
     tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
     tasty-quickcheck tasty-smallcheck template-haskell text text-format
     text-lens text-zipper these time transformers trifecta type-map

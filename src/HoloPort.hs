@@ -202,7 +202,10 @@ makeDrawable dObjectStream@ObjectStream{..} ident dDi' = liftIO $ do
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
       position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
       texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
-      ids      = V.fromList $ L.replicate 6 $ fromIntegral $ tokenHash ident
+      x        = tokenHash ident
+      cvt ∷ Int → Int → Float
+      cvt x bi = fromIntegral (shiftR x bi .&. 255) / 255.0
+      ids      = V.fromList $ L.replicate 6 $ fromIntegral x -- LCLin.V3 (cvt x 16) (cvt x 8) (cvt x 0)
       dMesh    = LC.Mesh { mPrimitive  = P_Triangles
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                       , ("uv",        A_V2F texcoord)
@@ -329,7 +332,7 @@ pickFrameBuffer (Di (V2 _w h)) (Po (V2 x y)) = do
   -- glBindFramebuffer GL_READ_FRAMEBUFFER 0
   -- glReadBuffer GL_BACK_LEFT
   -- glBlitFramebuffer 0 0 (fromIntegral w) (fromIntegral h) 0 (fromIntegral h) (fromIntegral w) 0 GL_COLOR_BUFFER_BIT GL_NEAREST
-  glReadBuffer GL_BACK
+  glReadBuffer GL_BACK_LEFT
   liftIO $ withFrameBuffer x (h - y - 1) 1 1 $ \p -> fromIntegral <$> F.peek (F.castPtr p ∷ F.Ptr F.Word32)
 
 snapFrameBuffer ∷ (MonadIO m) ⇒ Di Int → m Juicy.DynamicImage

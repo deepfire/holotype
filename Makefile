@@ -9,13 +9,18 @@ LTRACE_OPTIONS=--no-signals $(LTRACE_TRACE_SPEC)
 #
 #
 Holostress:     Holostress.hs  src/*.hs
-	ghc $<
+	ghc $< -isrc
 hls holostress: Holostress
+	./$< $(SCENARIO) +RTS -T $(RTS)
+
+Holoframe:      Holoframe.hs   src/*.hs
+	ghc $< -isrc
+hf holoframe: Holoframe
 	./$< $(SCENARIO) +RTS -T $(RTS)
 
 Refstress:      Refstress.hs   src/*.hs
 	ghc $<
-rfs refstress: Refstress       src/*.hs
+rfs refstress: Refstress
 	./$< $(SCENARIO) +RTS -T $(RTS)
 
 # hols holostress:
@@ -49,6 +54,7 @@ $(HOLOTYPE): $(SRCS)
 #
 clean:
 	cabal clean
+	rm dist dist-newstyle -rf
 	rm -f {,src/}*.{o,hi,dyn_hi,dyn_o,hs~}
 cls:
 	echo -en '\ec'

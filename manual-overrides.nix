@@ -13,22 +13,4 @@ with pkgs.haskell.lib; with lib; with self; {
   # OpenGL            = debugBuild super.OpenGL;
   # OpenGLRaw         = debugBuild super.OpenGLRaw;
   # proteaaudio       = debugBuild super.proteaaudio;
-
-  # lambdacube-gl = overrideCabal (debugBuild super.lambdacube-gl) (drv: {
-  #   src = if local
-  #         then
-  #         builtins.filterSource (path: type:
-  #           type != "unknown"           &&
-  #           baseNameOf path != ".git"   &&
-  #           baseNameOf path != "result" &&
-  #           baseNameOf path != "dist") ../lambdacube-gl
-  #         else
-  #         pkgs.fetchFromGitHub {
-  #           owner  = "lambdacube3d";
-  #           repo   = "lambdacube-gl";
-  #           rev    = "297828bdcf105c5942ed0e43d9f28130f543f34c";
-  #           sha256 = "1gclb1wn5rl23vsrl1zs3lhiyyddrga6kggrnkpsyi8bwgq8l5z7";
-  #         };
-  # });
-
 }

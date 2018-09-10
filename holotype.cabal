@@ -49,6 +49,7 @@ library
                   Tracer
 
   build-depends:       aeson
+                     , aeson-pretty
                      , base >=4.8
                      , base-unicode-symbols
                      , binary
@@ -205,6 +206,29 @@ executable lcstress
 executable holostress
   hs-source-dirs:      .
   main-is:             Holostress.hs
+  default-language:    Haskell2010
+
+  build-depends:       holotype
+                     -- generic
+                     , base >=4.8
+                     , base-unicode-symbols
+                     , containers >=0.5
+                     , linear
+                     , text
+                     , text-zipper
+                     , vector
+                     -- pixel crafting
+                     , cairo
+                     , gi-pangocairo
+                     -- GL
+                     , GLFW-b
+                     , OpenGLRaw
+                     , lambdacube-gl
+                     , lambdacube-ir
+
+executable holoframe
+  hs-source-dirs:      .
+  main-is:             Holoframe.hs
   default-language:    Haskell2010
 
   build-depends:       holotype

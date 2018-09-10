@@ -26,6 +26,7 @@ import           Prelude                           hiding ((.), id)
 import           Text.Show.Pretty                         (ppShow)
 import "GLFW-b"  Graphics.UI.GLFW                  as GLFW
 import qualified Data.Aeson                        as AE
+import qualified Data.Aeson.Encode.Pretty          as AE
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
 import qualified Data.Map                          as Map
@@ -35,6 +36,7 @@ import qualified Foreign.C.Types                   as F
 import qualified LambdaCube.Compiler               as LCC
 import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Type                as GL
+import qualified LambdaCube.IR                     as IR
 import qualified System.Directory                  as FS
 
 -- Local imports
@@ -80,13 +82,14 @@ pipelineSchema schemaPairs =
       ++ zip textures (repeat GL.FTexture2D)
   }
 
-buildPipelineForStorage ∷ (MonadIO m) ⇒ GL.GLStorage → String → m GL.GLRenderer
-buildPipelineForStorage storage pipelineSrc = liftIO $ do
+buildPipelineForStorage ∷ (HasCallStack, MonadIO m) ⇒ GL.GLStorage → IR.InputType → String → m GL.GLRenderer
+buildPipelineForStorage storage fbCompType pipelineSrc = liftIO $ do
   (printTimeDiff "-- compiling graphics pipeline... " $
-    LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc) >>= \case
+    LCC.compileMain ["lc"] LCC.OpenGL33 fbCompType pipelineSrc) >>= \case
     Left  err → error $ printf "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err)
     Right ppl → do
       renderer ← GL.allocRenderer ppl
+      LB.writeFile (pipelineSrc <> ".json") (AE.encodePretty ppl)
       _ ← printTimeDiff "-- binding GPU pipeline to GL storage (GL.setStorage)... " $
         GL.setStorage renderer storage
       pure renderer
@@ -96,7 +99,8 @@ buildPipelineForStorage storage pipelineSrc = liftIO $ do
 --   textured with a corresponding, 'UniformNameS'-named texture.
 data PipeName
   = PipeDraw
-  | PipePick
+  | PipePickU
+  | PipePickF
   deriving (Bounded, Enum, Eq, Ord, Show)
 
 data Renderer where
@@ -126,9 +130,12 @@ makeRenderer rWindow ous = liftIO $ do
     let rStreams = Map.fromList [ (k, ObjectStream rGLStorage oa un')
                                 | k@(oa, un') ← ous ]
 
-    let pipeSpecs ∷ Map PipeName String
-        pipeSpecs = Map.fromList $ (id *** (<>".lc") ∘ show) ∘ join (,) <$> (everything ∷ [PipeName])
-    rPipelines ← traverse (buildPipelineForStorage rGLStorage) pipeSpecs
+    let pipeSpecs ∷ Map PipeName (IR.InputType, String)
+        pipeSpecs = [(PipePickU, (IR.V4U, "PipePickU.lc"))
+                    ,(PipePickF, (IR.V4F, "PipePickF.lc"))
+                    ,(PipeDraw,  (IR.V4F, "PipeDraw.lc"))]
+          & Map.fromList
+    rPipelines ← traverse (uncurry $ buildPipelineForStorage rGLStorage) pipeSpecs
 
     pure $ Renderer{..}
 
