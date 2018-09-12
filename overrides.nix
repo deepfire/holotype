@@ -46,6 +46,7 @@ with pkgs.haskell.lib; with self; {
     src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-gl.src.json)) ["date"]);
     # src = ../lambdacube-gl;
     jailbreak       = true;
+    enableLibraryProfiling = false;
   });
 
   ## Upstreamed, awaiting a Hackage release
