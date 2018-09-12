@@ -55,7 +55,7 @@ $(HOLOTYPE): $(SRCS)
 clean:
 	cabal clean
 	rm dist dist-newstyle -rf
-	rm -f {,src/}*.{o,hi,dyn_hi,dyn_o,hs~}
+	rm -f {,src/}*.{o,hi,dyn_hi,dyn_o,hs~} *~ *.json *.hp *.lprof *.bin
 cls:
 	echo -en '\ec'
 
