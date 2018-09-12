@@ -39,6 +39,7 @@ import qualified HoloOS                            as HOS
 
 -- TEMPORARY
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
+import qualified Graphics.GL.Core33                as GL
 
 main ∷ IO ()
 main = do
@@ -61,6 +62,9 @@ main = do
 
   settingsV@Settings{..} ← defaultSettings
   portV@Port{..}         ← portCreate win settingsV
+
+  GL.glDisable GL.GL_DEPTH_TEST
+  GL.glDisable GL.GL_STENCIL_TEST
 
   tokenV           ← newId ""
   let rectD         = di 200 200

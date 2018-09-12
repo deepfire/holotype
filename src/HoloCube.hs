@@ -131,7 +131,7 @@ makeRenderer rWindow ous = liftIO $ do
                                 | k@(oa, un') ← ous ]
 
     let pipeSpecs ∷ Map PipeName (IR.InputType, String)
-        pipeSpecs = [(PipePickU, (IR.V4U, "PipePickU.lc"))
+        pipeSpecs = [(PipePickU, (IR.V4I, "PipePickU.lc"))
                     ,(PipePickF, (IR.V4F, "PipePickF.lc"))
                     ,(PipeDraw,  (IR.V4F, "PipeDraw.lc"))]
           & Map.fromList

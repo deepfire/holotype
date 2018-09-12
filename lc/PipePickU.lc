@@ -3,7 +3,7 @@ module Holotype where
 type ColorComponent = Int
 
 mkaccumulationContext :: (FragmentOperation Depth, FragmentOperation (Color (Vec 4 ColorComponent)))
-mkaccumulationContext = ( DepthOp Lequal True
+mkaccumulationContext = ( DepthOp Always False
                         , ColorOp NoBlending (one :: Vec 4 Bool))
   where
     blend = Blend (FuncAdd,FuncAdd) ((OneBF,ZeroBF),(OneBF,OneBF)) one
@@ -13,7 +13,7 @@ type FB = FrameBuffer 1 '[ 'Depth, 'Color (Vec 4 ColorComponent)]
 fragmap :: (Vec 2 Float, Vec 4 ColorComponent) -> ((Vec 4 ColorComponent))
 fragmap (uv, rgba) =
   -- ((V4 255 127 63 255))
-  ((V4 255 127 1 255))
+  ((V4 127 127 1 127))
   -- ((V4 16777215 16777215 16777215 16777215))
   -- ((rgba))
 
@@ -32,7 +32,7 @@ scene name prevFB =
     (\(pos, uv, id)->
       ( (Uniform "viewProj" :: Mat 4 4 Float) *. (V4 pos%x pos%y 0 1)
       , uv
-      , V4 1 1 1 1))
+      , V4 127 127 1 127))
     $ fetch name ( Attribute "position"   :: Vec 3 Float
                  , Attribute "uv"         :: Vec 2 Float
                  , Attribute "id"         :: Int))

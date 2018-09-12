@@ -28,8 +28,8 @@ with pkgs.haskell.lib; with self; {
     #   rev    = "e022a56bfeafe8306c7615fb1441364ccd876e8e";
     #   sha256 = "0lfyr55jpk113bgkpv8k4140swdmnqh6cxsds9njm462gna3hffr";
     # };
-    # src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-compiler.src.json)) ["date"]);
-    src = ../lambdacube-compiler;
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-compiler.src.json)) ["date"]);
+    # src = ../lambdacube-compiler;
     libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (with self; [ aeson semigroups exceptions megaparsec ansi-wl-pprint pretty-show lambdacube-ir vector ]);
     jailbreak       = true;
     enableLibraryProfiling = false;
@@ -43,8 +43,8 @@ with pkgs.haskell.lib; with self; {
     #   rev    = "afa3956593e42ae0495615680f874292647612a3";
     #   sha256 = "1s7y302qcdlwm9j0kzzk0k21drkyh9zijm6v4igr8kfixz2wmwll";
     # };
-    # src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-gl.src.json)) ["date"]);
-    src = ../lambdacube-gl;
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-gl.src.json)) ["date"]);
+    # src = ../lambdacube-gl;
     jailbreak       = true;
   });
 
@@ -59,6 +59,7 @@ with pkgs.haskell.lib; with self; {
     src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-ir.src.json)) ["date"]);
     prePatch        = "cd lambdacube-ir.haskell; ";
     jailbreak       = true;
+    enableLibraryProfiling = false;
   });
 
   ## Upstreamed, awaiting a Hackage release

@@ -3,7 +3,7 @@ module Holotype where
 type ColorComponent = Float
 
 mkaccumulationContext :: (FragmentOperation Depth, FragmentOperation (Color (Vec 4 ColorComponent)))
-mkaccumulationContext = ( DepthOp Lequal True
+mkaccumulationContext = ( DepthOp Always False
                         , ColorOp NoBlending (one :: Vec 4 Bool))
   where
     blend = Blend (FuncAdd,FuncAdd) ((OneBF,ZeroBF),(OneBF,OneBF)) one
