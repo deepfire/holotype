@@ -65,7 +65,7 @@ pipelineSchema schemaPairs =
         GL.ObjectArraySchema GL.Triangles $ Map.fromList
         [ ("position",       GL.Attribute_V2F)
         , ("uv",             GL.Attribute_V2F)
-        , ("id",             GL.Attribute_Int) ]
+        , ("id",             GL.Attribute_V4F) ]
   in GL.PipelineSchema
   { objectArrays = Map.fromList $ zip arrays $ repeat simplePosUVSchema
   , uniforms =
@@ -128,8 +128,7 @@ makeRenderer rWindow ous = liftIO $ do
                                 | k@(oa, un') ← ous ]
 
     let pipeSpecs ∷ Map PipeName (IR.InputType, String)
-        pipeSpecs = [(PipePickU, (IR.V4I, "PipePickU.lc"))
-                    ,(PipePickF, (IR.V4F, "PipePickF.lc"))
+        pipeSpecs = [(PipePickF, (IR.V4F, "PipePickF.lc"))
                     ,(PipeDraw,  (IR.V4F, "PipeDraw.lc"))]
           & Map.fromList
     rPipelines ← traverse (uncurry $ buildPipelineForStorage rGLStorage) pipeSpecs

@@ -191,6 +191,15 @@ imageSurfaceGetPixels' pb = do
 portMakeDrawable ∷ (MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
 portMakeDrawable Port{..} = makeDrawable portObjectStream
 
+encodeIDToFB ∷ Int → LCLin.V4 Float
+encodeIDToFB x = LCLin.V4 (cvt x 24) (cvt x 16) (cvt x 8) (cvt x 0)
+  where cvt x bi = fromIntegral (shiftR x bi .&. 0xff) / 255.0
+
+-- * The asymmetry with `encodeIDToFB` is due to the nature of glReadPixels
+decodeIDFromFB ∷ F.Word32 → Int
+decodeIDFromFB x = fromIntegral $ move x 24 0.|.move x 16 8.|.move x 8 16.|.move x 0 24
+  where move x from to = ((x `shiftR` from) .&. 0xff) `shiftL` to
+
 makeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → IdToken → Di Double → m Drawable
 makeDrawable dObjectStream@ObjectStream{..} ident dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
@@ -202,14 +211,11 @@ makeDrawable dObjectStream@ObjectStream{..} ident dDi' = liftIO $ do
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
       position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
       texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
-      x        = tokenHash ident
-      cvt ∷ Int → Int → Float
-      cvt x bi = fromIntegral (shiftR x bi .&. 255) / 255.0
-      ids      = V.fromList $ L.replicate 6 $ fromIntegral x -- LCLin.V3 (cvt x 16) (cvt x 8) (cvt x 0)
+      ids      = V.fromList $ L.replicate 6 $ encodeIDToFB (tokenHash ident)
       dMesh    = LC.Mesh { mPrimitive  = P_Triangles
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                       , ("uv",        A_V2F texcoord)
-                                                      , ("id",        A_Int ids)] }
+                                                      , ("id",        A_V4F ids)] }
   dGPUMesh      ← GL.uploadMeshToGPU dMesh
   -- XXX: this is leaky -- has to be done manually
   -- SMem.addFinalizer dGPUMesh $ do
@@ -324,7 +330,7 @@ portGarbageCollectVisuals Port{..} validLeaves = do
   viomapReplace (fromVT portVisualTracker) visMap'
 
 -- The next couple of functions mostly stolen from lambdacube-gl/testclient.hs
-pickFrameBuffer ∷ (MonadIO m) ⇒ Di Int → Po Int → m Int
+pickFrameBuffer ∷ (MonadIO m) ⇒ Di Int → Po Int → m F.Word32
 pickFrameBuffer (Di (V2 _w h)) (Po (V2 x y)) = do
   glFinish
   glBindFramebuffer GL_READ_FRAMEBUFFER 0 -- This is decided in LambdaCube/GL/Backend.hs:compileRenderTarget

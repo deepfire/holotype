@@ -25,7 +25,7 @@ import           Control.Monad
 import           Data.Semigroup
 import           Data.Singletons
 import           Data.Tuple
-import           Linear
+import           Linear                            hiding (trace)
 import           Prelude                           hiding (id, Word)
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW
@@ -41,6 +41,7 @@ import qualified Data.Text.Zipper                  as T
 import qualified Data.Time.Clock                   as Time
 import qualified Data.TypeMap.Dynamic              as TM
 import qualified Data.Unique                       as U
+import qualified Graphics.GL.Core33                as GL
 import qualified Text.Parser.Char                  as P
 import qualified Text.Parser.Combinators           as P
 import qualified Text.Parser.Token                 as P
@@ -85,13 +86,12 @@ average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 mkColorRectD ∷ Port → Dynamic t (Di (Unit PU)) → Dynamic t (Co Double) → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PLayout))
 mkColorRectD portV diD coD = do
   setupE       ← getPostBuild
-  initDiV      ← sample $ current diD
   initCoV      ← sample $ current coD
   tokenV       ← newId $ printf "rect: %s" (show initCoV)
 
   let valD      = zipDynWith Holo.Rect diD coD
-      holoD     = zipDynWith (\sty val@(Holo.Rect di _)→
-                                Holo.leaf tokenV sty val & size.~(Just∘fromPU <$> di))
+      holoD     = zipDynWith (\sty val@(Holo.Rect dim _)→
+                                Holo.leaf tokenV sty val & size.~(Just∘fromPU <$> dim))
                              (constDyn defStyle) valD
   initHoloV    ← sample $ current holoD
   holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
@@ -238,12 +238,15 @@ holotype win _evCtl windowFrameE inputE = mdo
                        pure ()
   drawnD           ← holdDyn () drawnE
   let pickE         = attachPromptlyDyn drawnD clickE
-  pickedE          ← performEvent $ pickE <&>
+  _                ← performEvent $ pickE <&>
                      \((), Click GLFW.MouseButton'1 (Po (V2 x y)))→ do
                        -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
-                       rendererDrawFrame  portRenderer PipePick
-                       p ← liftIO $ pickFrameBuffer (di 800 600) $ floor <$> po x y
-                       liftIO $ printf "%d:%d: %x\n" (floor x ∷ Int) (floor y ∷ Int) p
+                       GL.glDisable GL.GL_FRAMEBUFFER_SRGB
+                       rendererDrawFrame  portRenderer PipePickF
+                       raw ← liftIO $ pickFrameBuffer (di 800 600) $ floor <$> po x y
+                       GL.glEnable GL.GL_FRAMEBUFFER_SRGB
+                       let decoded = decodeIDFromFB raw
+                       liftIO $ printf "%d:%d: %x → %x\n" (floor x ∷ Int) (floor y ∷ Int) raw decoded
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.
   waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE
