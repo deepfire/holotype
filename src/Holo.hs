@@ -93,9 +93,9 @@ instance DefStyleOf (StyleOf ()) where
 -- instance Monoid (Item Visual) where
 --   mappend l r = holoVBox [l, r]
 --   mempty      = Item () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty UnitVisual
-
-emptyDrawable ∷ HasCallStack ⇒ Drawable
-emptyDrawable = (⊥) -- hihi
+--
+-- emptyDrawable ∷ HasCallStack ⇒ Drawable
+-- emptyDrawable = (⊥) -- hihi
 
 emptyLayoutHolo ∷ Item PLayout
 emptyLayoutHolo =

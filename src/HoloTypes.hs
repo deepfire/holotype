@@ -26,7 +26,7 @@ module HoloTypes
   --
   , Style(..)
   , DefStyleOf(..), defStyle
-  , StyleGene(..), sStyle, sStyleGene
+  , StyleGene(..), sStyle, sStyleGene, fromStyleGene
   , HIArea, HIVisual
   , Holo(..), hiStyleGene, hiHasVisual
   , Item(..)

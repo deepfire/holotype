@@ -17,7 +17,6 @@ module HoloCube
   )
 where
 
-import           Control.Arrow
 import           Control.Monad
 import           Data.Map                                 (Map)
 import           Graphics.GL.Core33                as GL
@@ -25,7 +24,6 @@ import           Linear
 import           Prelude                           hiding ((.), id)
 import           Text.Show.Pretty                         (ppShow)
 import "GLFW-b"  Graphics.UI.GLFW                  as GLFW
-import qualified Data.Aeson                        as AE
 import qualified Data.Aeson.Encode.Pretty          as AE
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
@@ -37,7 +35,6 @@ import qualified LambdaCube.Compiler               as LCC
 import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Type                as GL
 import qualified LambdaCube.IR                     as IR
-import qualified System.Directory                  as FS
 
 -- Local imports
 import           HoloPrelude
@@ -83,9 +80,9 @@ pipelineSchema schemaPairs =
   }
 
 buildPipelineForStorage ∷ (HasCallStack, MonadIO m) ⇒ GL.GLStorage → IR.InputType → String → m GL.GLRenderer
-buildPipelineForStorage storage fbCompType pipelineSrc = liftIO $ do
+buildPipelineForStorage storage _fbCompType pipelineSrc = liftIO $ do
   (printTimeDiff "-- compiling graphics pipeline... " $
-    LCC.compileMain ["lc"] LCC.OpenGL33 fbCompType pipelineSrc) >>= \case
+    LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc) >>= \case
     Left  err → error $ printf "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err)
     Right ppl → do
       renderer ← GL.allocRenderer ppl
