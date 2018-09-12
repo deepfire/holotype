@@ -66,14 +66,6 @@ import qualified HoloOS                            as HOS
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 
--- * Elsewhere
-simpler ∷ Reflex t ⇒ Event t a → Event t ()
-simpler = (() <$)
-
-someFire ∷ Reflex t ⇒ Event t a → Event t b → Event t ()
-someFire a b = simpler a <> simpler b
-
-
 newPortFrame ∷ ReflexGLFWCtx t m ⇒ Event t Port → ReflexGLFW t m (Event t Frame)
 newPortFrame portE = performEvent $ portNextFrame <$> portE
 
@@ -87,56 +79,6 @@ avgStep x (_, (lim, cur, xs)) =
 
 average ∷ (Fractional a, ReflexGLFWCtx t m) ⇒ Int → Event t a → ReflexGLFW t m (Dynamic t a)
 average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
-
-
--- * Words of query language: the beginning
---
-data Word where
-  WText   ∷ { wText ∷ T.Text } → Word
-  WSource ∷ { wText ∷ T.Text } → Word
-  WLens   ∷ { wText ∷ T.Text } → Word
-  WError  ∷ { wText ∷ T.Text } → Word
-  deriving (Eq, Show)
-
-parserWText, parserWSource, parserWLens ∷ (Monad p, P.TokenParsing p) ⇒ p Word
-parserWText   = WText   ∘ T.pack <$> P.choice
-  [ P.between (P.symbol "\"") (P.symbol "\"") (P.some (P.notChar '"'))
-  , P.some P.alphaNum ]
-parserWSource = WSource ∘ T.pack <$>
-  (P.symbol "." >> P.some P.alphaNum)
-parserWLens   = WLens   ∘ T.pack <$>
-  (⊥)
-
-parserQuery ∷ (Monad p, P.TokenParsing p) ⇒ p [Word]
-parserQuery = flip P.sepEndBy (P.oneOf " ") $ P.choice
-  [ parserWText
-  , parserWSource ]
-
-parseQuery ∷ T.Text → Either T.Text [Word]
-parseQuery x = case P.parseString parserQuery mempty (T.unpack x) of
-                 P.Success r       → Right r
-                 P.Failure errinfo → Left $ T.pack $ show errinfo
-
-wordInterpStyle ∷ Word → Holo.TextStyle
-wordInterpStyle x = defStyleOf
-  & tsFontKey .~ "defaultSans"
-  & tsColor   .~ case x of
-                   WText   _ → co 0.514 0.580 0.588 1
-                   WSource _ → co 0.149 0.545 0.824 1
-                   WLens   _ → co 0.710 0.537 0.000 1
-                   WError  _ → co 0.863 0.196 0.184 1
-
-data QueryParseState =
-  QueryParseState
-  { qpsLastGoodParse ∷ [Word]
-  , qpsError         ∷ Maybe Word
-  }
-
-updateQueryParseState ∷ T.Text → Maybe QueryParseState → QueryParseState
-updateQueryParseState text qps =
-  case parseQuery text of
-    Left err → QueryParseState (fromMaybe [] $ qpsLastGoodParse <$> qps) (Just $ WError err)
-    Right ws → QueryParseState ws Nothing
 
 
 
