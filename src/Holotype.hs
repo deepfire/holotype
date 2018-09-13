@@ -197,30 +197,16 @@ holotype win _evCtl windowFrameE inputE = mdo
   -- styleD'          ← delayDyn 0 styleD
   text2HoloQD      ← mkTextEntryD portV styleB editE "watch me"
 
+  let vboxD xs       = Holo.vbox <$> foldr (zipDynWith (:)) (constDyn []) xs
+
   -- * SCENE
-  let sceneD        = zipDynWith -- <&>
-        (\(_, entry) [driven
-                     , varlen
-                     , stats, lostt, fps, rect, counter]→
-          Holo.vbox [
-                      varlen
-                    , counter
-                    , fps
-                    , stats
-                    , entry
-                    , driven
-                    , rect
-                    , lostt
-                    ]
-        )
-        styleEntryD
-        $ zipDynWith (:) (snd <$> text2HoloQD)
-        $ zipDynWith (:) varlenTextD
-        $ zipDynWith (:) statsD
-        $ zipDynWith (:) longStaticTextD
-        $ zipDynWith (:) fpsD
-        $ zipDynWith (:) rectD
-        ((:[]) <$> frameCountD)
+  let sceneD = vboxD [ frameCountD
+                     , rectD
+                     , fpsD
+                     , longStaticTextD
+                     , statsD
+                     , varlenTextD
+                     , (snd <$> text2HoloQD)]
       scenePlacedTreeD = layout (Size $ fromPU <$> di 800 600) <$> sceneD
   -- * At every frame
   let drawE         = attachPromptlyDyn scenePlacedTreeD frameE
