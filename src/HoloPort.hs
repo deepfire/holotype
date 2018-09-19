@@ -330,15 +330,21 @@ portGarbageCollectVisuals Port{..} validLeaves = do
   viomapReplace (fromVT portVisualTracker) visMap'
 
 -- The next couple of functions mostly stolen from lambdacube-gl/testclient.hs
-pickFrameBuffer ∷ (MonadIO m) ⇒ Di Int → Po Int → m F.Word32
-pickFrameBuffer (Di (V2 _w h)) (Po (V2 x y)) = do
+pickFrameBuffer ∷ (MonadIO m)
+  ⇒ GLint       -- ^ framebuffer
+  → GLenum      -- ^ attachment
+  → Di Int      -- ^ FB dimensions
+  → Po Int      -- ^ pick coordinates
+  → m F.Word32  -- ^ resultant pixel value
+pickFrameBuffer fb attachment (Di (V2 _w h)) (Po (V2 x y)) = do
   glFinish
-  glBindFramebuffer GL_READ_FRAMEBUFFER 0 -- This is decided in LambdaCube/GL/Backend.hs:compileRenderTarget
+  glBindFramebuffer GL_READ_FRAMEBUFFER $ fromIntegral fb
   -- glReadBuffer GL_FRONT_LEFT
   -- glBindFramebuffer GL_READ_FRAMEBUFFER 0
   -- glReadBuffer GL_BACK_LEFT
   -- glBlitFramebuffer 0 0 (fromIntegral w) (fromIntegral h) 0 (fromIntegral h) (fromIntegral w) 0 GL_COLOR_BUFFER_BIT GL_NEAREST
-  glReadBuffer GL_BACK_LEFT
+  glReadBuffer attachment
+  -- glReadBuffer GL_COLOR_ATTACHMENT1
   liftIO $ withFrameBuffer x (h - y - 1) 1 1 $ \p -> fromIntegral <$> F.peek (F.castPtr p ∷ F.Ptr F.Word32)
 
 snapFrameBuffer ∷ (MonadIO m) ⇒ Di Int → m Juicy.DynamicImage

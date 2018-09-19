@@ -12,7 +12,8 @@ module HoloCube
   , UniformNameS(..), unameStr
   , Frame(..)
   , rendererSetupFrame, rendererDrawFrame
-  --
+  -- abstraction leaks
+  , rendererPipeline
   , uploadTexture2DToGPU''''
   )
 where
@@ -79,8 +80,8 @@ pipelineSchema schemaPairs =
       ++ zip textures (repeat GL.FTexture2D)
   }
 
-buildPipelineForStorage ∷ (HasCallStack, MonadIO m) ⇒ GL.GLStorage → IR.InputType → String → m GL.GLRenderer
-buildPipelineForStorage storage _fbCompType pipelineSrc = liftIO $ do
+buildPipelineForStorage ∷ (HasCallStack, MonadIO m) ⇒ GL.GLStorage → String → m GL.GLRenderer
+buildPipelineForStorage storage pipelineSrc = liftIO $ do
   (printTimeDiff "-- compiling graphics pipeline... " $
     LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc) >>= \case
     Left  err → error $ printf "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err)
@@ -114,6 +115,9 @@ data Frame where
     { fDim ∷ Di Int
     } → Frame
 
+rendererPipeline ∷ Renderer → PipeName → Maybe GL.GLRenderer
+rendererPipeline Renderer{..} = flip Map.lookup rPipelines
+
 -- | Setup a 'Renderer', with streams where 'Canvas' objects have be attached,
 --   to be put on screen.
 --   'ous' is a list of object array/texture uniform name pairs, that have to be
@@ -127,11 +131,12 @@ makeRenderer rWindow ous = liftIO $ do
     let rStreams = Map.fromList [ (k, ObjectStream rGLStorage oa un')
                                 | k@(oa, un') ← ous ]
 
-    let pipeSpecs ∷ Map PipeName (IR.InputType, String)
-        pipeSpecs = [(PipePickF, (IR.V4F, "PipePickF.lc"))
-                    ,(PipeDraw,  (IR.V4F, "PipeDraw.lc"))]
+    let pipeSpecs ∷ Map PipeName (String)
+        pipeSpecs = [(PipePickU, "PipePickU.lc")
+                    ,(PipePickF, "PipePickF.lc")
+                    ,(PipeDraw,  "PipeDraw.lc")]
           & Map.fromList
-    rPipelines ← traverse (uncurry $ buildPipelineForStorage rGLStorage) pipeSpecs
+    rPipelines ← traverse (buildPipelineForStorage rGLStorage) pipeSpecs
 
     pure $ Renderer{..}
 

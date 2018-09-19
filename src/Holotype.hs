@@ -63,6 +63,9 @@ import qualified HoloCairo                         as Cr
 import           HoloPort
 import qualified HoloOS                            as HOS
 
+import qualified LambdaCube.GL                     as LC
+import qualified LambdaCube.GL.Type                as LC
+
 -- TEMPORARY
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
@@ -228,8 +231,15 @@ holotype win _evCtl windowFrameE inputE = mdo
                      \((), Click GLFW.MouseButton'1 (Po (V2 x y)))→ do
                        -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
                        GL.glDisable GL.GL_FRAMEBUFFER_SRGB
-                       rendererDrawFrame  portRenderer PipePickF
-                       raw ← liftIO $ pickFrameBuffer (di 800 600) $ floor <$> po x y
+                       let pipe = PipePickF
+                       rendererDrawFrame portRenderer pipe
+                       let Just glRenderer = rendererPipeline portRenderer pipe
+                           [LC.GLOutputRenderTexture fbo _rendTex] = LC.glOutputs glRenderer
+                           pickfbo = fromIntegral $
+                                     case pipe
+                                     of PipePickF → 0
+                                        PipePickU → fbo
+                       raw ← liftIO $ pickFrameBuffer pickfbo GL.GL_BACK_LEFT (di 800 600) $ floor <$> po x y
                        GL.glEnable GL.GL_FRAMEBUFFER_SRGB
                        let decoded = decodeIDFromFB raw
                        liftIO $ printf "%d:%d: %x → %x\n" (floor x ∷ Int) (floor y ∷ Int) raw decoded

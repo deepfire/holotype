@@ -1,22 +1,11 @@
 module Holotype where
 
-type ColorComponent = Float
-
-type FB = FrameBuffer 1 '[ 'Depth, 'Color (Vec 4 ColorComponent)]
-
-mkaccumulationContext :: (FragmentOperation Depth, FragmentOperation (Color (Vec 4 ColorComponent)))
-mkaccumulationContext = ( DepthOp Always False
-                        , ColorOp NoBlending (one :: Vec 4 Bool))
-
-fragmap :: (Vec 2 Float, Vec 4 ColorComponent) -> ((Vec 4 ColorComponent))
-fragmap (uv, rgba) = ((rgba))
+type FB = FrameBuffer 1 '[ 'Color (Vec 4 Float)]
 
 scene :: String -> FB -> FB
 scene name prevFB =
-  Accumulate    mkaccumulationContext
-  (mapFragments
-     fragmap
-   $ maybe id filterFragments Nothing
+  Accumulate    ((ColorOp NoBlending (one :: Vec 4 Bool)))
+  (mapFragments (\(uv, rgba) -> ((rgba)))
    $ rasterizePrimitives (TriangleCtx CullFront PolygonFill NoOffset LastVertex) (Flat, Flat)
    $ mapPrimitives
     (\(pos, uv, id)->
@@ -27,15 +16,11 @@ scene name prevFB =
                  , Attribute "uv"         :: Vec 2 Float
                  , Attribute "id"         :: Vec 4 Float))
   prevFB
-  where
-    maybe a b Nothing = a
-    maybe a b (Just x) = b x
-    
 
 main :: Output
 main = ScreenOut $
        scene "portStream" $
-       FrameBuffer (depthImage1 1000, colorImage1 (V4 0 0 0 0))
+       FrameBuffer ((colorImage1 (V4 0 0 0 0)))
 
 -- Local Variables:
 -- eval: (progn (haskell-mode) (intero-disable))
