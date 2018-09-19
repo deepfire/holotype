@@ -92,6 +92,7 @@ library
                      , monadplus
                      , mono-traversable
                      , mtl
+                     , optparse-applicative
                      , parsers
                      , pretty
                      , pretty-show
