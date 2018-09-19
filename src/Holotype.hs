@@ -18,6 +18,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnicodeSyntax #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports -Wno-type-defaults #-}
 module Holotype where
 
@@ -26,6 +27,7 @@ import           Data.Semigroup
 import           Data.Singletons
 import           Data.Tuple
 import           Linear                            hiding (trace)
+import           Options.Applicative
 import           Prelude                           hiding (id, Word)
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW
@@ -63,10 +65,9 @@ import qualified HoloCairo                         as Cr
 import           HoloPort
 import qualified HoloOS                            as HOS
 
+-- TEMPORARY
 import qualified LambdaCube.GL                     as LC
 import qualified LambdaCube.GL.Type                as LC
-
--- TEMPORARY
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 
@@ -149,10 +150,24 @@ trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
 
+data Options where
+  Options ∷
+    { oPickPipe ∷ PipeName
+    } → Options
+parseOptions ∷ Parser Options
+parseOptions =
+  Options
+  <$> flag PipePickF PipePickU ( long "intpick" <> help "Enable the integer pipeline for picking" )
+
 -- * Top level network
 --
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
 holotype win _evCtl windowFrameE inputE = mdo
+  Options{..} ← liftIO $ execParser $ info (parseOptions <**> helper)
+                ( fullDesc
+                  -- <> header   "A simple holotype."
+                  <> progDesc "A simple holotype.")
+
   HOS.unbufferStdout
 
   settingsV@Settings{..} ← defaultSettings
@@ -231,15 +246,15 @@ holotype win _evCtl windowFrameE inputE = mdo
                      \((), Click GLFW.MouseButton'1 (Po (V2 x y)))→ do
                        -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
                        GL.glDisable GL.GL_FRAMEBUFFER_SRGB
-                       let pipe = PipePickF
+                       let pipe = oPickPipe
                        rendererDrawFrame portRenderer pipe
                        let Just glRenderer = rendererPipeline portRenderer pipe
-                           [LC.GLOutputRenderTexture fbo _rendTex] = LC.glOutputs glRenderer
-                           pickfbo = fromIntegral $
-                                     case pipe
-                                     of PipePickF → 0
-                                        PipePickU → fbo
-                       raw ← liftIO $ pickFrameBuffer pickfbo GL.GL_BACK_LEFT (di 800 600) $ floor <$> po x y
+                           (LC.GLOutputRenderTexture fbo _rendTex:_) = LC.glOutputs glRenderer
+                           (,) (fromIntegral → fb) attachment
+                             = case pipe
+                               of PipePickF → (,) 0   GL.GL_BACK_LEFT
+                                  PipePickU → (,) fbo GL.GL_BACK_LEFT
+                       raw ← liftIO $ pickFrameBuffer fb attachment (di 800 600) $ floor <$> po x y
                        GL.glEnable GL.GL_FRAMEBUFFER_SRGB
                        let decoded = decodeIDFromFB raw
                        liftIO $ printf "%d:%d: %x → %x\n" (floor x ∷ Int) (floor y ∷ Int) raw decoded
