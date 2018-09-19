@@ -8,9 +8,9 @@ scene name prevFB =
   (mapFragments (\(uv, rgba) -> ((rgba)))
    $ rasterizePrimitives (TriangleCtx CullFront PolygonFill NoOffset LastVertex) (Flat, Flat)
    $ mapPrimitives
-    (\(pos, uv, id)->
+    (\(pos, _, id)->
       ( (Uniform "viewProj" :: Mat 4 4 Float) *. (V4 pos%x pos%y 0 1)
-      , uv
+      , V2 0.0 0.0
       , id))
     $ fetch name ( Attribute "position"   :: Vec 3 Float
                  , Attribute "uv"         :: Vec 2 Float

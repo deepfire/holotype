@@ -249,11 +249,14 @@ holotype win _evCtl windowFrameE inputE = mdo
                        let pipe = oPickPipe
                        rendererDrawFrame portRenderer pipe
                        let Just glRenderer = rendererPipeline portRenderer pipe
-                           (LC.GLOutputRenderTexture fbo _rendTex:_) = LC.glOutputs glRenderer
                            (,) (fromIntegral → fb) attachment
                              = case pipe
                                of PipePickF → (,) 0   GL.GL_BACK_LEFT
                                   PipePickU → (,) fbo GL.GL_BACK_LEFT
+                                    where fbo = case LC.glOutputs glRenderer of
+                                                  [LC.GLOutputRenderTexture fbo _rendTex] → fbo
+                                                  x → error $ "Unexpected outputs: " <> show x
+
                        raw ← liftIO $ pickFrameBuffer fb attachment (di 800 600) $ floor <$> po x y
                        GL.glEnable GL.GL_FRAMEBUFFER_SRGB
                        let decoded = decodeIDFromFB raw
@@ -265,6 +268,9 @@ holotype win _evCtl windowFrameE inputE = mdo
 
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
+
+deriving instance Show (LC.GLOutput)
+deriving instance Show (LC.GLTexture)
 
 
 data WorldEvent where

@@ -106,7 +106,7 @@ tool      := $(and $(leakcheck),valgrind --leak-check=full --show-leak-kinds=all
 toollog   := $(and $(leakcheck), 2>&1 | ts -s | tee leakcheck.$(shell date +%s).report) \
              $(and $(pprof),     2>&1 | ts -s | tee     pprof.$(shell date +%s).report)
 holotype: $(BUILDBASE)/holotype/holotype
-	$(tool) $< +RTS -T $(toollog)
+	$(tool) $< +RTS -T -RTS $(OPTS) $(toollog)
 pholotype: $(BUILDBASE)/holotype/holotype
 	$(tool) $< +RTS -T -h -l $(toollog)
 	hp2ps -c holotype.hp
@@ -115,7 +115,7 @@ pholotype: $(BUILDBASE)/holotype/holotype
 
 RESOURCE_CALLS='pango_font_map_create_context|pango_cairo_create_context|pango_layout_new|cairo_destroy|cairo_surface_destroy|cairo_create|cairo_image_surface_create'
 lholotype: $(BUILDBASE)/holotype/holotype
-	ltrace $(LTRACE_OPTIONS) $< +RTS -T $(toollog)
+	ltrace $(LTRACE_OPTIONS) $< +RTS -T -RTS $(OPTS) $(toollog)
 	cut -d '(' -f1 holotype.ltrace | sort | uniq -c | grep -v 'resumed>' | sort -n | tee holotype.lprof
 res resources:
 	egrep $(RESOURCE_CALLS) holotype.lprof
