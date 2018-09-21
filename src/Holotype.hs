@@ -152,18 +152,17 @@ trackStyle sof = do
 
 data Options where
   Options ∷
-    { oPickPipe ∷ PipeName
+    {
     } → Options
 parseOptions ∷ Parser Options
 parseOptions =
-  Options
-  <$> flag PipePickF PipePickU ( long "intpick" <> help "Enable the integer pipeline for picking" )
+  pure Options
 
 -- * Top level network
 --
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
 holotype win _evCtl windowFrameE inputE = mdo
-  Options{..} ← liftIO $ execParser $ info (parseOptions <**> helper)
+  Options ← liftIO $ execParser $ info (parseOptions <**> helper)
                 ( fullDesc
                   -- <> header   "A simple holotype."
                   <> progDesc "A simple holotype.")
@@ -246,20 +245,15 @@ holotype win _evCtl windowFrameE inputE = mdo
                      \((), Click GLFW.MouseButton'1 (Po (V2 x y)))→ do
                        -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
                        GL.glDisable GL.GL_FRAMEBUFFER_SRGB
-                       let pipe = oPickPipe
-                       rendererDrawFrame portRenderer pipe
-                       let Just glRenderer = rendererPipeline portRenderer pipe
-                           (,) (fromIntegral → fb) attachment
-                             = case pipe
-                               of PipePickF → (,) 0   GL.GL_BACK_LEFT
-                                  PipePickU → (,) fbo GL.GL_BACK_LEFT
-                                    where fbo = case LC.glOutputs glRenderer of
-                                                  [LC.GLOutputRenderTexture fbo _rendTex] → fbo
-                                                  x → error $ "Unexpected outputs: " <> show x
-
-                       raw ← liftIO $ pickFrameBuffer fb attachment (di 800 600) $ floor <$> po x y
+                       rendererDrawFrame portRenderer PipePick
+                       let Just glRenderer = rendererPipeline portRenderer PipePick
+                           (fromIntegral → fb)
+                             = case LC.glOutputs glRenderer of
+                                 [LC.GLOutputRenderTexture fbo _rendTex] → fbo
+                                 x → error $ "Unexpected outputs: " <> show x
+                       raw ← liftIO $ pickFrameBuffer fb (di 800 600) $ floor <$> po x y
                        GL.glEnable GL.GL_FRAMEBUFFER_SRGB
-                       let decoded = decodeIDFromFB raw
+                       let decoded ∷ Int = fromIntegral raw
                        liftIO $ printf "%d:%d: %x → %x\n" (floor x ∷ Int) (floor y ∷ Int) raw decoded
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.

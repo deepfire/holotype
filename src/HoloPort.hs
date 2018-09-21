@@ -191,15 +191,6 @@ imageSurfaceGetPixels' pb = do
 portMakeDrawable ∷ (MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
 portMakeDrawable Port{..} = makeDrawable portObjectStream
 
-encodeIDToFB ∷ Int → LCLin.V4 Float
-encodeIDToFB x = LCLin.V4 (cvt x 24) (cvt x 16) (cvt x 8) (cvt x 0)
-  where cvt x bi = fromIntegral (shiftR x bi .&. 0xff) / 255.0
-
--- * The asymmetry with `encodeIDToFB` is due to the nature of glReadPixels
-decodeIDFromFB ∷ F.Word32 → Int
-decodeIDFromFB x = fromIntegral $ move x 24 0.|.move x 16 8.|.move x 8 16.|.move x 0 24
-  where move x from to = ((x `shiftR` from) .&. 0xff) `shiftL` to
-
 makeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → IdToken → Di Double → m Drawable
 makeDrawable dObjectStream@ObjectStream{..} ident dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
@@ -211,11 +202,11 @@ makeDrawable dObjectStream@ObjectStream{..} ident dDi' = liftIO $ do
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
       position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
       texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
-      ids      = V.fromList $ L.replicate 6 $ encodeIDToFB (tokenHash ident)
+      ids      = V.fromList $ L.replicate 6 $ fromIntegral (tokenHash ident)
       dMesh    = LC.Mesh { mPrimitive  = P_Triangles
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                       , ("uv",        A_V2F texcoord)
-                                                      , ("id",        A_V4F ids)] }
+                                                      , ("id",        A_Int ids)] }
   dGPUMesh      ← GL.uploadMeshToGPU dMesh
   -- XXX: this is leaky -- has to be done manually
   -- SMem.addFinalizer dGPUMesh $ do
@@ -330,23 +321,6 @@ portGarbageCollectVisuals Port{..} validLeaves = do
   viomapReplace (fromVT portVisualTracker) visMap'
 
 -- The next couple of functions mostly stolen from lambdacube-gl/testclient.hs
-pickFrameBuffer ∷ (MonadIO m)
-  ⇒ GLint       -- ^ framebuffer
-  → GLenum      -- ^ attachment
-  → Di Int      -- ^ FB dimensions
-  → Po Int      -- ^ pick coordinates
-  → m F.Word32  -- ^ resultant pixel value
-pickFrameBuffer fb attachment (Di (V2 _w h)) (Po (V2 x y)) = do
-  glFinish
-  glBindFramebuffer GL_READ_FRAMEBUFFER $ fromIntegral fb
-  -- glReadBuffer GL_FRONT_LEFT
-  -- glBindFramebuffer GL_READ_FRAMEBUFFER 0
-  -- glReadBuffer GL_BACK_LEFT
-  -- glBlitFramebuffer 0 0 (fromIntegral w) (fromIntegral h) 0 (fromIntegral h) (fromIntegral w) 0 GL_COLOR_BUFFER_BIT GL_NEAREST
-  glReadBuffer attachment
-  -- glReadBuffer GL_COLOR_ATTACHMENT1
-  liftIO $ withFrameBuffer x (h - y - 1) 1 1 $ \p -> fromIntegral <$> F.peek (F.castPtr p ∷ F.Ptr F.Word32)
-
 snapFrameBuffer ∷ (MonadIO m) ⇒ Di Int → m Juicy.DynamicImage
 snapFrameBuffer (Di (V2 w h)) = do
   glFinish
@@ -354,23 +328,36 @@ snapFrameBuffer (Di (V2 w h)) = do
   -- glReadBuffer GL_FRONT
   -- glBlitFramebuffer 0 0 (fromIntegral w) (fromIntegral h) 0 (fromIntegral h) (fromIntegral w) 0 GL_COLOR_BUFFER_BIT GL_NEAREST
   glReadBuffer GL_BACK
-  bs ← liftIO $ withFrameBuffer 0 0 w h $ \p -> B.packCStringLen (F.castPtr p,w*h*4)
+  bs ← liftIO $ withFrameBuffer w GL_RGBA 0 0 w h $ \p -> B.packCStringLen (F.castPtr p,w*h*4)
   let v = B.byteStringToVector bs
   pure $ Juicy.ImageRGBA8 $ Juicy.Image w h v
-  
 
-withFrameBuffer ∷ Int → Int → Int → Int → (F.Ptr F.Word8 → IO a) → IO a
-withFrameBuffer x y w h fn = F.allocaBytes (w*h*4) $ \p → do
+pickFrameBuffer ∷ (MonadIO m)
+  ⇒ GLint       -- ^ framebuffer
+  → Di Int      -- ^ FB dimensions
+  → Po Int      -- ^ pick coordinates
+  → m F.Word32  -- ^ resultant pixel value
+pickFrameBuffer fb (Di (V2 w h)) (Po (V2 x y)) = do
+  glFinish
+  glBindFramebuffer GL_READ_FRAMEBUFFER $ fromIntegral fb
+  let (fbmode, format) =
+        if fb == 0
+        then (GL_BACK_LEFT,         GL_RGBA)
+        else (GL_COLOR_ATTACHMENT0, GL_RGBA_INTEGER)
+  glReadBuffer fbmode
+  liftIO $ withFrameBuffer w format x (h - y - 1) 1 1 $ \p -> fromIntegral <$> F.peek (F.castPtr p ∷ F.Ptr F.Word32)
+
+withFrameBuffer ∷ Int → GLenum → Int → Int → Int → Int → (F.Ptr F.Word8 → IO a) → IO a
+withFrameBuffer rowLen format x y w h fn = F.allocaBytes (w*h*4) $ \p → do
   glPixelStorei GL_UNPACK_LSB_FIRST    0
   glPixelStorei GL_UNPACK_SWAP_BYTES   0
-  glPixelStorei GL_UNPACK_ROW_LENGTH   $ fromIntegral w
-  -- glPixelStorei GL_UNPACK_ROW_LENGTH   0
+  glPixelStorei GL_UNPACK_ROW_LENGTH   $ fromIntegral rowLen
   glPixelStorei GL_UNPACK_IMAGE_HEIGHT 0
   glPixelStorei GL_UNPACK_SKIP_ROWS    0
   glPixelStorei GL_UNPACK_SKIP_PIXELS  0
   glPixelStorei GL_UNPACK_SKIP_IMAGES  0
-  glPixelStorei GL_UNPACK_ALIGNMENT    1 -- normally 4!
-  glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) GL_RGBA GL_UNSIGNED_BYTE $ F.castPtr p
+  glPixelStorei GL_UNPACK_ALIGNMENT    1
+  glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) format GL_UNSIGNED_BYTE $ F.castPtr p
   glPixelStorei GL_UNPACK_ROW_LENGTH   0
   fn p
 

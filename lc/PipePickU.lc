@@ -2,6 +2,13 @@ module Holotype where
 
 type FB = FrameBuffer 1 '[ 'Color (Vec 4 Int)]
 
+intV4I :: Int -> Vec 4 Int
+intV4I x = V4
+  ((x)            % 256) -- XXX: this is suboptimal, but we can't use shifts
+  ((x / 256)      % 256) --      because of the shifts not supported by WebGL 1
+  ((x / 65536)    % 256)
+  ((x / 16777216) % 256)
+
 scene :: String -> FB -> FB
 scene name prevFB =
   Accumulate    ((ColorOp NoBlending (one :: Vec 4 Bool)))
@@ -11,7 +18,7 @@ scene name prevFB =
     (\(pos, _, id)->
       ( (Uniform "viewProj" :: Mat 4 4 Float) *. (V4 pos%x pos%y 0 1)
       , V2 0.0 0.0
-      , V4 0 0 0 id))
+      , intV4I id))
     $ fetch name ( Attribute "position"   :: Vec 3 Float
                  , Attribute "uv"         :: Vec 2 Float
                  , Attribute "id"         :: Int))

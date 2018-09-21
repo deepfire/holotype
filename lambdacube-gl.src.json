@@ -1,7 +1,7 @@
 {
-  "url": "git@github.com:lambdacube3d/lambdacube-gl",
-  "rev": "297828bdcf105c5942ed0e43d9f28130f543f34c",
-  "date": "2018-02-03T23:47:52+01:00",
-  "sha256": "1gclb1wn5rl23vsrl1zs3lhiyyddrga6kggrnkpsyi8bwgq8l5z7",
+  "url": "git@github.com:deepfire/lambdacube-gl",
+  "rev": "f864b47b3a004c05d10ac24e88d192ba5d4465cc",
+  "date": "2018-09-21T02:01:46+03:00",
+  "sha256": "023h4yr7alm74drg11r6iy12miq5yqgrin9yascm9lpvy4l8x2xm",
   "fetchSubmodules": false
 }

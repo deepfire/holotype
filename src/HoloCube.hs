@@ -66,7 +66,7 @@ pipelineSchema schemaPairs =
         GL.ObjectArraySchema GL.Triangles $ Map.fromList
         [ ("position",       GL.Attribute_V2F)
         , ("uv",             GL.Attribute_V2F)
-        , ("id",             GL.Attribute_V4F) ]
+        , ("id",             GL.Attribute_Int) ]
   in GL.PipelineSchema
   { objectArrays = Map.fromList $ zip arrays $ repeat simplePosUVSchema
   , uniforms =
@@ -97,8 +97,7 @@ buildPipelineForStorage storage pipelineSrc = liftIO $ do
 --   textured with a corresponding, 'UniformNameS'-named texture.
 data PipeName
   = PipeDraw
-  | PipePickU
-  | PipePickF
+  | PipePick
   deriving (Bounded, Enum, Eq, Ord, Show)
 
 data Renderer where
@@ -121,7 +120,7 @@ rendererPipeline Renderer{..} = flip Map.lookup rPipelines
 -- | Setup a 'Renderer', with streams where 'Canvas' objects have be attached,
 --   to be put on screen.
 --   'ous' is a list of object array/texture uniform name pairs, that have to be
---   recognized by the Lambdacube pipeline.
+--   match the Lambdacube pipeline.
 --   A GL context must have already been set up in 'IO', with f.e. 'makeGLWindow'.
 makeRenderer ∷ (MonadIO m) ⇒ GLFW.Window → [(ObjArrayNameS, UniformNameS)] → m Renderer
 makeRenderer rWindow ous = liftIO $ do
@@ -132,9 +131,8 @@ makeRenderer rWindow ous = liftIO $ do
                                 | k@(oa, un') ← ous ]
 
     let pipeSpecs ∷ Map PipeName (String)
-        pipeSpecs = [(PipePickU, "PipePickU.lc")
-                    ,(PipePickF, "PipePickF.lc")
-                    ,(PipeDraw,  "PipeDraw.lc")]
+        pipeSpecs = [(PipePick, "PipePickU.lc")
+                    ,(PipeDraw, "PipeDraw.lc")]
           & Map.fromList
     rPipelines ← traverse (buildPipelineForStorage rGLStorage) pipeSpecs
 
