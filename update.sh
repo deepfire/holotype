@@ -1,9 +1,14 @@
 #!/bin/sh
 
-what="${1:-ir gl compiler}"
-who=${2:-deepfire}
+who=${1:-deepfire}
+shift
 
 cabal2nix . > default.nix
-for x in ${what}
-do nix-prefetch-git git@github.com:${who}/lambdacube-$x > lambdacube-$x.src.json
+for x in "$@"
+do
+	if test ${who} = "deepfire"
+	then rbase=git@github.com:
+	else rbase=https://github.com/
+        fi
+        nix-prefetch-git $rbase${who}/lambdacube-$x > lambdacube-$x.src.json
 done
