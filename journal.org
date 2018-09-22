@@ -1,0 +1,8 @@
+* September 22, 2018
+  - disentangling Holo speccing from queryHoloItem invocations, finally
+    - complicated by mkTextEntryD using an emptyVisualHolo, which translated to ~emptyBlankHolo
+      - emptyBlankHolo has no dimensions, so when run through render pipeline it
+        needs a zero-sized Drawable
+        - UnDrawable was thus born, as an ADT case
+          - the entire draw thing now needs to be aware of it
+            - Switch to maybe/employ functoriality?

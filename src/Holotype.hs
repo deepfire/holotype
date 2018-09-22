@@ -27,7 +27,6 @@ import           Data.Semigroup
 import           Data.Singletons
 import           Data.Tuple
 import           Linear                            hiding (trace)
-import           Options.Applicative
 import           Prelude                           hiding (id, Word)
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW
@@ -44,6 +43,7 @@ import qualified Data.Time.Clock                   as Time
 import qualified Data.TypeMap.Dynamic              as TM
 import qualified Data.Unique                       as U
 import qualified Graphics.GL.Core33                as GL
+import qualified Options.Applicative               as Opt
 import qualified Text.Parser.Char                  as P
 import qualified Text.Parser.Combinators           as P
 import qualified Text.Parser.Token                 as P
@@ -87,45 +87,32 @@ average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 
 
-mkColorRectD ∷ Port → Dynamic t (Di (Unit PU)) → Dynamic t (Co Double) → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PLayout))
-mkColorRectD portV diD coD = do
-  setupE       ← getPostBuild
-  initCoV      ← sample $ current coD
-  tokenV       ← newId $ printf "rect: %s" (show initCoV)
+mkColorRectD ∷ Dynamic t (Di (Unit PU)) → Dynamic t (Co Double) → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PBlank))
+mkColorRectD diD coD = do
+  tokenV       ← newId "ColorRect"
+  pure $ (\val@(Holo.Rect dim _)→
+             Holo.leaf tokenV defStyle val & size.~(Just∘fromPU <$> dim))
+         <$> zipDynWith Holo.Rect diD coD
 
-  let valD      = zipDynWith Holo.Rect diD coD
-      holoD     = zipDynWith (\sty val@(Holo.Rect dim _)→
-                                Holo.leaf tokenV sty val & size.~(Just∘fromPU <$> dim))
-                             (constDyn defStyle) valD
-  initHoloV    ← sample $ current holoD
-  holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
-  holdDyn Holo.emptyLayoutHolo holoIOE
+mkTextD ∷ Dynamic t (Style T.Text) → Dynamic t T.Text → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PBlank))
+mkTextD styleD valD = do
+  tokenV       ← newId "Text"
+  pure $ zipDynWith (Holo.leaf tokenV) styleD valD
 
-mkTextD ∷ Port → Dynamic t (Style T.Text) → Dynamic t T.Text → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PLayout))
-mkTextD portV styleD valD = do
-  setupE       ← getPostBuild
-  initV        ← sample $ current valD
-  tokenV       ← newId $ printf "%d: %s" (T.length initV) (T.unpack initV)
-  let holoD     = zipDynWith (Holo.leaf tokenV) styleD valD
-  initHoloV    ← sample $ current holoD
-  holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> leftmost [updated holoD, initHoloV <$ setupE])
-  holdDyn Holo.emptyLayoutHolo holoIOE
-
-mkTextEntryD ∷ Port → Behavior t (Style T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PLayout))
-mkTextEntryD portV styleB editE' initialV = do
+mkTextEntryD ∷ Behavior t (Style T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PBlank))
+mkTextEntryD styleB editE' initialV = do
   valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initialV]) editE'
   setupE       ← getPostBuild
   initV        ← sample $ current valD
-  tokenV       ← newId $ printf "%d: %s" (T.length initV) (T.unpack initV)
+  tokenV       ← newId "TextEntry"
   let holoE     = attachWith (Holo.leaf tokenV) styleB $ leftmost [updated valD, initV <$ setupE]
-  holoIOE      ← (performEvent $ (flip $ Holo.queryHoloitem portV) [] <$> holoE)
-  holdDyn (initialV, Holo.emptyLayoutHolo) $ attachPromptlyDyn valD holoIOE
+  holdDyn (initialV, Holo.emptyHolo) $ attachPromptlyDyn valD holoE
 
-mkTextEntryValidatedD ∷ Port → Behavior t (Style T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PLayout))
-mkTextEntryValidatedD portV styleB editE' initialV testF = do
+mkTextEntryValidatedD ∷ Behavior t (Style T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PBlank))
+mkTextEntryValidatedD styleB editE' initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
-  textD ← mkTextEntryD portV styleB editE' initialV
+  textD ← mkTextEntryD styleB editE' initialV
   initial ← sample $ current textD
   foldDyn (\(new, newHoloi) (oldValid, _)→
               (if testF new then new else oldValid, newHoloi))
@@ -192,27 +179,27 @@ holotype win _evCtl windowFrameE inputE = mdo
                          pure (mem)
   statsValD        ← holdDyn 0 statsValE
 
-  fpsD             ← mkTextD portV (constDyn defStyle) (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
-  statsD           ← mkTextD portV (constDyn defStyle) $ statsValD <&>
+  fpsD             ← mkTextD (constDyn defStyle) (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  statsD           ← mkTextD (constDyn defStyle) $ statsValD <&>
                      \(mem)→ T.pack $ printf "mem: %d" mem
 
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
-  rectD            ← mkColorRectD portV rectDiD (constDyn $ co 1 0 0 1)
-  frameCountD      ← mkTextD portV (constDyn defStyle) (T.pack ∘ printf "frame #%04d" <$> frameNoD)
+  rectD            ← mkColorRectD rectDiD (constDyn $ co 1 0 0 1)
+  frameCountD      ← mkTextD (constDyn defStyle) (T.pack ∘ printf "frame #%04d" <$> frameNoD)
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
-  varlenTextD      ← mkTextD portV (constDyn defStyle)               (T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
+  varlenTextD      ← mkTextD (constDyn defStyle)               (T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
 
-  longStaticTextD  ← mkTextD portV (constDyn defStyle) (constDyn "0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100")
+  longStaticTextD  ← mkTextD (constDyn defStyle) (constDyn "0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100")
 
   let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
 
-  styleEntryD      ← mkTextEntryValidatedD portV styleB editE "defaultSans" $
+  styleEntryD      ← mkTextEntryValidatedD styleB editE "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
   let styleOfD'     = fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
   styleD'          ← trackStyle styleOfD'
   let styleB        = current styleD'
   -- styleD'          ← delayDyn 0 styleD
-  text2HoloQD      ← mkTextEntryD portV styleB editE "watch me"
+  text2HoloQD      ← mkTextEntryD styleB editE "watch me"
 
   let vboxD xs       = Holo.vbox <$> foldr (zipDynWith (:)) (constDyn []) xs
 
@@ -224,9 +211,13 @@ holotype win _evCtl windowFrameE inputE = mdo
                      , statsD
                      , varlenTextD
                      , (snd <$> text2HoloQD)]
-      scenePlacedTreeD = layout (Size $ fromPU <$> di 800 600) <$> sceneD
+  sceneQueriedE    ← performEvent $ updated sceneD <&>
+                     Holo.queryHolotree portV
+  sceneQueriedD    ← holdDyn mempty sceneQueriedE
   -- * At every frame
-  let drawE         = attachPromptlyDyn scenePlacedTreeD frameE
+  let sceneLaiddTreeD ∷ Dynamic t (Item Holo.PLayout)
+      sceneLaiddTreeD = layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
+      drawE         = attachPromptlyDyn sceneLaiddTreeD frameE
   -- _                ← performEvent $ clickE <&>
   --                    \(Click GLFW.MouseButton'1 (Po (V2 x y))) →
   --                      liftIO $ printf "click at %f:%f\n" x y
@@ -250,7 +241,7 @@ holotype win _evCtl windowFrameE inputE = mdo
                            (fromIntegral → fb)
                              = case LC.glOutputs glRenderer of
                                  [LC.GLOutputRenderTexture fbo _rendTex] → fbo
-                                 x → error $ "Unexpected outputs: " <> show x
+                                 outs → error $ "Unexpected outputs: " <> show outs
                        raw ← liftIO $ pickFrameBuffer fb (di 800 600) $ floor <$> po x y
                        GL.glEnable GL.GL_FRAMEBUFFER_SRGB
                        let decoded ∷ Int = fromIntegral raw

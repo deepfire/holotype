@@ -21,6 +21,7 @@ data TraceKind
   | REALLOC
   | FREE
   | REUSE
+  | SIZE
   deriving (Eq, Ord, Show)
 
 data TraceEntity

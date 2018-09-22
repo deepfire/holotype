@@ -35,7 +35,6 @@ import qualified Foreign.C.Types                   as F
 import qualified LambdaCube.Compiler               as LCC
 import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Type                as GL
-import qualified LambdaCube.IR                     as IR
 
 -- Local imports
 import           HoloPrelude

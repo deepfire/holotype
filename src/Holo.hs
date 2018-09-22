@@ -25,8 +25,7 @@ module Holo
   , renderHolotreeVisuals
   , drawHolotreeVisuals
   -- * Dirty parts
-  , emptyLayoutHolo
-  , emptyVisualHolo
+  , emptyHolo, emptyLayoutHolo, emptyVisualHolo
   , blankIdToken
   -- * Holo instances
   , Rect(..), RectStyle, RectVisual
@@ -83,8 +82,10 @@ instance Holo () where
 instance DefStyleOf (StyleOf ()) where
   defStyleOf = UnitStyle
 
--- instance Monoid    (Item PBlank) where
---   mempty      = Item () blankIdToken mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
+instance Semigroup (Item PBlank)  where _ <> _ = mempty
+instance Monoid    (Item PBlank)  where mempty = Item () blankIdToken defStyle mempty [] (Di $ V2 Nothing Nothing) mempty ()
+instance Semigroup (Item PLayout) where _ <> _ = mempty
+instance Monoid    (Item PLayout) where mempty = Item () blankIdToken defStyle mempty [] (Di $ V2 Nothing Nothing) mempty ()
 
 -- instance Semigroup (Item PLayout) where
 --   l <> r = vbox [l, r]
@@ -93,9 +94,10 @@ instance DefStyleOf (StyleOf ()) where
 -- instance Monoid (Item Visual) where
 --   mappend l r = holoVBox [l, r]
 --   mempty      = Item () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty UnitVisual
---
--- emptyDrawable ∷ HasCallStack ⇒ Drawable
--- emptyDrawable = (⊥) -- hihi
+
+emptyHolo ∷ (Monoid (HIArea a), Monoid (HIVisual a ())) ⇒ Item a
+emptyHolo =
+  Item () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty mempty
 
 emptyLayoutHolo ∷ Item PLayout
 emptyLayoutHolo =
@@ -107,10 +109,10 @@ emptyVisualHolo =
 
 
 instance Flex (Item PBlank) where
-  geo      f hi@Item{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
-  size     f hi@Item{..} = (\x→ hi {hiSize=x})     <$> f hiSize
-  children f hi@Item{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
-  -- area     f hi@Item{..} = (\x→ hi {hiArea=x})     <$> f hiArea
+  geo      f hi@Item{..} = (\x→ hi {hiGeo=x})       <$> f hiGeo
+  size     f hi@Item{..} = (\x→ hi {hiSize=x})      <$> f hiSize
+  children f hi@Item{..} = (\x→ hi {hiChildren=x})  <$> f hiChildren
+  area     f hi@Item{..} = (\_→ hi {hiArea=mempty}) <$> f mempty
 
 instance Flex (Item PLayout) where
   geo      f hi@Item{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
@@ -137,17 +139,17 @@ queryHoloitem port hoi children =
   case hoi of
     Item{..} → do
       size ← query port (_sStyle $ hiStyle) holo
+      trev SIZE HOLO size (tokenHash hiToken)
       pure Item{hiSize=size, hiArea=mempty, hiChildren=children, ..}
 
 renderHoloitem ∷ (MonadIO m) ⇒ Port → Item PVisual → m ()
 renderHoloitem port Item{..} = do
   case hiVisual of
-    Nothing → pure ()
-    Just v  → do
-      let drw = vDrawable v
+    Just Visual{vDrawable=Just drw, vVisual=Just vis} → do
       clearDrawable drw
-      renderVisual port (vVisual v) holo
+      renderVisual port vis holo
       drawableContentToGPU drw
+    _ → pure ()
 
 
 queryHolotree ∷ (MonadIO m) ⇒ Port → Item PBlank → m (Item PLayout)
@@ -168,8 +170,9 @@ drawHolotreeVisuals frame root = loop (luOf (hiArea root)^.lu'po) root
   where
     loop offset Item{..} = do
       case hiVisual of
-        Nothing → pure ()
-        Just v  → framePutDrawable frame (vDrawable v) (doubleToFloat <$> (offset + luOf hiArea^.lu'po))
+        Just Visual{vDrawable=Just drw} →
+          framePutDrawable frame drw (doubleToFloat <$> (offset + luOf hiArea^.lu'po))
+        _ → pure ()
       forM_ hiChildren $ loop (luOf hiArea^.lu'po)
 
 
@@ -235,10 +238,10 @@ leaf idToken hiStyle holo =
 
 -- * Pre-package tree constructors
 --
-vbox, hbox ∷ [Item PLayout] → Item PLayout
+vbox, hbox ∷ [Item PBlank] → Item PBlank
 -- XXX: here's trouble -- we're using blankIdToken!
-hbox = node blankIdToken defStyle (HBoxN ∷ Node HBox) noArea ()
-vbox = node blankIdToken defStyle (VBoxN ∷ Node VBox) noArea ()
+hbox = node blankIdToken defStyle (HBoxN ∷ Node HBox) () ()
+vbox = node blankIdToken defStyle (VBoxN ∷ Node VBox) () ()
 
 
 -- * Leaves
@@ -387,5 +390,3 @@ tesTSStyle f (TextZipperStyle x) = TextZipperStyle <$> f x
 --   let new = f old
 --   liftIO $ IO.writeIORef holoRef new
 --   renderVisual stts holoStream holoVisual new
-
-  

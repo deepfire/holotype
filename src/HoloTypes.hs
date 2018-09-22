@@ -7,7 +7,7 @@
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude #-}
 {-# OPTIONS_GHC -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations #-}
-{-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults #-}
+{-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields #-}
 
 module HoloTypes
   ( module HoloCairo
@@ -84,7 +84,6 @@ data Port where
     , portWindow          ∷ GL.Window
     , portObjectStream    ∷ ObjectStream
     , portRenderer        ∷ Renderer
-    , portEmptyDrawable   ∷ Drawable
     , portVisualTracker   ∷ VisualTracker
     } → Port
     deriving (Generic)
@@ -135,9 +134,9 @@ class DefStyleOf a where
 
 data Visual a where
   Visual ∷ Holo a ⇒
-    { vVisual     ∷ VisualOf a
+    { vVisual     ∷ Maybe (VisualOf a)
     , vStyleGene  ∷ StyleGene
-    , vDrawable   ∷ Drawable
+    , vDrawable   ∷ Maybe Drawable
     } → Visual a
 
 newtype StyleGene = StyleGene { _fromStyleGene ∷ Int } deriving (Eq, Ord)

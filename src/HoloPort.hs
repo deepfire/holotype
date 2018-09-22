@@ -2,18 +2,17 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
-{-# LANGUAGE LambdaCase, OverloadedStrings, PackageImports, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings, PackageImports, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators, ViewPatterns #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude #-}
 {-# OPTIONS_GHC -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations #-}
-{-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults #-}
+{-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-unused-do-bind #-}
 
 module HoloPort where
 
 
 import           Control.Monad
-import           Data.Bits
 import           Data.Maybe
 import           Data.Proxy
 import           Data.Typeable
@@ -121,11 +120,6 @@ portSetVSync x = liftIO $ GL.swapInterval $ case x of
 
 portCreate  ∷ (MonadIO m) ⇒ GL.Window → Settings → m (Port)
 portCreate portWindow portSettings@Settings{..} = do
-  -- liftIO $ setupTracer [
-  --     (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
-  --    ,(MISSALLOC, VIS, TRACE, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
-  --    ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
-  --   ]
   liftIO $ case sttsScreenMode of
              Windowed   → let Di (V2 w h) = sttsScreenDim
                           in GL.setWindowSize portWindow w h
@@ -140,9 +134,7 @@ portCreate portWindow portSettings@Settings{..} = do
   liftIO $ GL.swapBuffers portWindow
   portSetVSync False
 
-  portEmptyDrawable ← makeDrawable portObjectStream blankIdToken (di 1 1)
   portVisualTracker@(VisualTracker _)     ← VisualTracker <$> mkVIOMap
-  -- iomapAdd dt blankIdToken portEmptyDrawable
   pure Port{..}
 
 portUpdateSettings ∷ (MonadIO m) ⇒ Port → Settings → m (Port)
@@ -194,6 +186,8 @@ portMakeDrawable Port{..} = makeDrawable portObjectStream
 makeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → IdToken → Di Double → m Drawable
 makeDrawable dObjectStream@ObjectStream{..} ident dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
+  unless (w * h ≢ 0) $
+    error $ printf "makeDrawable: zero dimensions are not acceptable: %s" (show dDi')
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
   dCairo        ← Cr.cairoCreate  dSurface
   dGIC          ← Cr.cairoToGICairo dCairo
@@ -271,9 +265,11 @@ visualiseHoloitem port@Port{..} hi children = case hi of
     let dim@(Di (V2 w h)) = hiArea^.area'b.size'di
         mkVisual ∷ (MonadIO m, Holo a) ⇒ a → Style a → m (Visual a)
         mkVisual holo hiStyle = do
-          newDrawable ← makeDrawable portObjectStream hiToken dim
+          newDrawable ← if (w * h ≢ 0)
+                        then Just <$> makeDrawable portObjectStream hiToken dim
+                        else pure Nothing
           Visual
-                 <$> createVisual port (_sStyle hiStyle) hiArea newDrawable holo
+                 <$> sequence ((\drw→ createVisual port (_sStyle hiStyle) hiArea drw holo) <$> newDrawable)
                  <*> pure (_sStyleGene $ hiStyle)
                  <*> pure newDrawable
     visMap ← viomapAccess (fromVT portVisualTracker)
@@ -287,15 +283,15 @@ visualiseHoloitem port@Port{..} hi children = case hi of
                 trev MISSALLOC VIS (w, h, _fromStyleGene $ _sStyleGene $ hiStyle) (tokenHash hiToken)
                 (,True) <$> mkVisual holo hiStyle
               Just v@Visual{..} →
-                let vDi          = dDi vDrawable
+                let vDi          = fromMaybe zero $ dDi <$> vDrawable
                     styleChanged = vStyleGene ≢ hiStyleGene hi
                     sizeChanged  = vDi ≢ (ceiling <$> dim)
                     update       = sizeChanged ∨ styleChanged
                 in if update
                 then do
                   trev REALLOC VIS (w, h) (tokenHash hiToken)
-                  freeVisualOf vVisual Proxy
-                  disposeDrawable portObjectStream vDrawable
+                  sequence $ flip freeVisualOf Proxy <$> vVisual
+                  sequence $ disposeDrawable portObjectStream <$> vDrawable
                   (,True) <$> mkVisual holo hiStyle
                 else do
                   trev REUSE   VIS (w, h) (tokenHash hiToken)
@@ -311,11 +307,14 @@ portGarbageCollectVisuals Port{..} validLeaves = do
       gcTM proxy vismap = do
         let used   = Map.intersection vismap validLeaves
             unused = Map.difference   vismap used
-        _ ← flip Map.traverseWithKey unused $ \k Visual{..}→ do
+        _ ← flip Map.traverseWithKey unused $ \_ Visual{..}→ do
           -- printf "releasing Visual for IdToken %s\n" (show $ U.hashUnique $ fromIdToken k)
-          freeVisualOf vVisual proxy
-          trev FREE VIS (dDi vDrawable^.di'w, dDi vDrawable^.di'h) (tokenHash k)
-          disposeDrawable portObjectStream vDrawable
+          sequence $ flip freeVisualOf proxy <$> vVisual
+          -- flip (trev FREE VIS (tokenHash k)) $
+          --   case vDrawable of
+          --     Nothing → (0, 0)
+          --     Just vDrawable → (dDi vDrawable^.di'w, dDi vDrawable^.di'h)
+          sequence $ disposeDrawable portObjectStream <$> vDrawable
         pure used
   visMap' ← TM.traverse gcTM visMap
   viomapReplace (fromVT portVisualTracker) visMap'
@@ -345,7 +344,7 @@ pickFrameBuffer fb (Di (V2 w h)) (Po (V2 x y)) = do
         then (GL_BACK_LEFT,         GL_RGBA)
         else (GL_COLOR_ATTACHMENT0, GL_RGBA_INTEGER)
   glReadBuffer fbmode
-  liftIO $ withFrameBuffer w format x (h - y - 1) 1 1 $ \p -> fromIntegral <$> F.peek (F.castPtr p ∷ F.Ptr F.Word32)
+  liftIO $ withFrameBuffer w format x (h - y - 1) 1 1 $ \p -> F.peek (F.castPtr p ∷ F.Ptr F.Word32)
 
 withFrameBuffer ∷ Int → GLenum → Int → Int → Int → Int → (F.Ptr F.Word8 → IO a) → IO a
 withFrameBuffer rowLen format x y w h fn = F.allocaBytes (w*h*4) $ \p → do
