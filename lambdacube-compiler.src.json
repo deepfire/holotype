@@ -1,7 +1,7 @@
 {
-  "url": "git@github.com:deepfire/lambdacube-compiler",
-  "rev": "eef90e5765cbeb5d41b3db9f170ead03c5fd10bd",
-  "date": "2018-09-19T01:54:55+03:00",
-  "sha256": "13rvb0ni74v8kcq0m420b8bkf2in4w7997nqi5wdf9spaicx8p9j",
+  "url": "https://github.com/lambdacube3d/lambdacube-compiler",
+  "rev": "63e6b1d67b9a72f02200904d64c8ba386b28734d",
+  "date": "2018-09-22T12:46:39+02:00",
+  "sha256": "121xc9npba07qb4qp11c6cwxwchj5w2v5qgz8q3wd2cfx2lfwxpv",
   "fetchSubmodules": false
 }
