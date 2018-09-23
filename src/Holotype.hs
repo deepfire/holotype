@@ -137,6 +137,42 @@ trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
 
+vboxD ∷ Reflex t ⇒ [Dynamic t (Holo.Item Holo.PBlank)] → Dynamic t (Holo.Item Holo.PBlank)
+vboxD xs = Holo.vbox <$> foldr (zipDynWith (:)) (constDyn []) xs
+
+scene ∷ Event t WorldEvent → Dynamic t Integer → Dynamic t Int → Dynamic t Double → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PBlank))
+scene worldE statsValD frameNoD fpsValueD = mdo
+  let editE         = ffilter (\case Edit{..}                     → True; _ → False) worldE
+
+  fpsD             ← mkTextD (constDyn defStyle) (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  statsD           ← mkTextD (constDyn defStyle) $ statsValD <&>
+                     \(mem)→ T.pack $ printf "mem: %d" mem
+
+  let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
+  rectD            ← mkColorRectD rectDiD (constDyn $ co 1 0 0 1)
+  frameCountD      ← mkTextD (constDyn defStyle) (T.pack ∘ printf "frame #%04d" <$> frameNoD)
+  -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
+  varlenTextD      ← mkTextD (constDyn defStyle)               (T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
+
+  longStaticTextD  ← mkTextD (constDyn defStyle) (constDyn "0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100")
+
+  let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
+
+  styleEntryD      ← mkTextEntryValidatedD styleB editE "defaultSans" $
+                     (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
+  let styleOfD'     = fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
+  styleD'          ← trackStyle styleOfD'
+  let styleB        = current styleD'
+  -- styleD'          ← delayDyn 0 styleD
+  text2HoloQD      ← mkTextEntryD styleB editE "watch me"
+  pure $ vboxD [ frameCountD
+               , rectD
+               , fpsD
+               , longStaticTextD
+               , statsD
+               , varlenTextD
+               , (snd <$> text2HoloQD)]
+
 data Options where
   Options ∷
     { oTrace ∷ Bool
@@ -173,8 +209,7 @@ holotype win _evCtl windowFrameE inputE = mdo
   worldE ∷ Event t WorldEvent
                    ← performEvent $ inputE <&> translateEvent
 
-  let editE         = ffilter (\case Edit{..}                     → True; _ → False) worldE
-      clickE        = ffilter (\case (Click GLFW.MouseButton'1 _) → True; _ → False) worldE
+  let clickE        = ffilter (\case (Click GLFW.MouseButton'1 _) → True; _ → False) worldE
   frameE           ← newPortFrame $ portV <$ windowFrameE
 
   fpsValueD        ← fpsCounterD frameE
@@ -186,45 +221,25 @@ holotype win _evCtl windowFrameE inputE = mdo
                          pure (mem)
   statsValD        ← holdDyn 0 statsValE
 
-  fpsD             ← mkTextD (constDyn defStyle) (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
-  statsD           ← mkTextD (constDyn defStyle) $ statsValD <&>
-                     \(mem)→ T.pack $ printf "mem: %d" mem
-
-  let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
-  rectD            ← mkColorRectD rectDiD (constDyn $ co 1 0 0 1)
-  frameCountD      ← mkTextD (constDyn defStyle) (T.pack ∘ printf "frame #%04d" <$> frameNoD)
-  -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
-  varlenTextD      ← mkTextD (constDyn defStyle)               (T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
-
-  longStaticTextD  ← mkTextD (constDyn defStyle) (constDyn "0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100")
-
-  let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
-
-  styleEntryD      ← mkTextEntryValidatedD styleB editE "defaultSans" $
-                     (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-  let styleOfD'     = fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
-  styleD'          ← trackStyle styleOfD'
-  let styleB        = current styleD'
-  -- styleD'          ← delayDyn 0 styleD
-  text2HoloQD      ← mkTextEntryD styleB editE "watch me"
-
-  let vboxD xs       = Holo.vbox <$> foldr (zipDynWith (:)) (constDyn []) xs
-
   -- * SCENE
-  let sceneD = vboxD [ frameCountD
-                     , rectD
-                     , fpsD
-                     , longStaticTextD
-                     , statsD
-                     , varlenTextD
-                     , (snd <$> text2HoloQD)]
+  -- Goal: introduce focus:  direction for input events
+  -- Steps:
+  -- 0. posit that some event sinks are focus-agnostic
+  -- 1. posit that the focussed object namespace is flat, not hierarchical
+  -- 2. extend the notion of hierarchical composition to thread the focus dataflows
+  --    - outbound: ID token for picking
+  --    - inbound:  the tailored event stream
+  -- 3. derive from #0 that event stream tailoring is orthogonal to focus
+  -- 4. decide to solve tailoring first, to separate issues
+  sceneD           ← scene worldE statsValD frameNoD fpsValueD
+
   sceneQueriedE    ← performEvent $ updated sceneD <&>
                      Holo.queryHolotree portV
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
   -- * At every frame
-  let sceneLaiddTreeD ∷ Dynamic t (Item Holo.PLayout)
-      sceneLaiddTreeD = layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
-      drawE         = attachPromptlyDyn sceneLaiddTreeD frameE
+  let sceneLaidTreeD ∷ Dynamic t (Item Holo.PLayout)
+      sceneLaidTreeD = layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
+      drawE         = attachPromptlyDyn sceneLaidTreeD frameE
   -- _                ← performEvent $ clickE <&>
   --                    \(Click GLFW.MouseButton'1 (Po (V2 x y))) →
   --                      liftIO $ printf "click at %f:%f\n" x y
