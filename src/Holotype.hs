@@ -139,20 +139,27 @@ trackStyle sof = do
 
 data Options where
   Options ∷
-    {
+    { oTrace ∷ Bool
     } → Options
-parseOptions ∷ Parser Options
+parseOptions ∷ Opt.Parser Options
 parseOptions =
-  pure Options
+  Options
+  <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
 
 -- * Top level network
 --
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
 holotype win _evCtl windowFrameE inputE = mdo
-  Options ← liftIO $ execParser $ info (parseOptions <**> helper)
-                ( fullDesc
+  Options{..} ← liftIO $ Opt.execParser $ Opt.info (parseOptions <**> Opt.helper)
+                ( Opt.fullDesc
                   -- <> header   "A simple holotype."
-                  <> progDesc "A simple holotype.")
+                  <> Opt.progDesc "A simple holotype.")
+  when oTrace $
+    liftIO $ setupTracer [
+    (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
+    ,(MISSALLOC, VIS, TRACE, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
+    ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
+    ]
 
   HOS.unbufferStdout
 
