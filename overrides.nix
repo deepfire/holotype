@@ -80,6 +80,7 @@ with pkgs.haskell.lib; with self; {
       rev    = "c4231e1423e5c81f2779acf4462eea8872f6a4e6";
       sha256 = "1r82rqpjkkkwm35wrqwwqkba4nbvilf7arcwqiacvwfz5zkp2gf6";
     };
+    jailbreak       = true;
   });
 
   ## Unmerged.  PR: https://github.com/bgamari/monoidal-containers/pull/0
