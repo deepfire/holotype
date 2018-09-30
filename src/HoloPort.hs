@@ -258,8 +258,8 @@ portShutdown Port{..} = liftIO $ do
   GL.destroyWindow portWindow
 
 
-defaultSettings ∷ (MonadIO m) ⇒ m Settings
-defaultSettings = do
+defaultSettings ∷ Settings
+defaultSettings =
   let sttsDΠ ∷ DΠ         = 96
       sttsFontPreferences = Cr.FontPreferences
         [ ("default",     Left $ Cr.Alias "defaultMono" )
@@ -269,7 +269,7 @@ defaultSettings = do
         ]
       sttsScreenMode      = Windowed
       sttsScreenDim       = di 800 600
-  pure Settings{..}
+  in Settings{..}
 
 
 -- | A Pango/Cairo-capable 'Drawable' to display in a qPort.
