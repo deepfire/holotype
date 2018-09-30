@@ -19,6 +19,7 @@ executable holotype
 
   build-depends:       holotype
                      , base
+                     , generics-sop
                      , reflex-glfw
 
 library
@@ -41,6 +42,7 @@ library
                   HoloPrelude
                   HoloTypes
 
+                  MRecord
                   Reflex.Random
 
                   Holotype
@@ -71,6 +73,7 @@ library
                      , free
                      , freer-simple
                      , fsnotify
+                     , generics-sop
                      , ghc-prim
                      , gi-cairo
                      , gi-gobject
@@ -164,8 +167,14 @@ executable refstress
 
   build-depends:       holotype
                      , base
+                     , base-unicode-symbols
                      , containers
+                     , GLFW-b
+                     , lens
+                     , ref-tf
                      , reflex
+                     , reflex-glfw
+                     , time
 
 executable lcstress
   hs-source-dirs:      .
@@ -203,6 +212,7 @@ executable holostress
                      , OpenGLRaw
                      , base
                      , base-unicode-symbols
+                     , bytestring
                      , cairo
                      , containers
                      , gi-pangocairo
@@ -214,6 +224,8 @@ executable holostress
                      , vector
 
 executable holoframe
+  -- XXX: needs an API update
+  buildable:           False
   hs-source-dirs:      .
   main-is:             Holoframe.hs
   default-language:    Haskell2010
@@ -244,9 +256,11 @@ executable crstress
                      , base-unicode-symbols
                      , cairo
                      , containers
+                     , gi-cairo
                      , gi-gobject
                      , gi-pango
                      , gi-pangocairo
+                     , haskell-gi-base
                      , linear
                      , text
                      , text-zipper

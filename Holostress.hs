@@ -21,6 +21,7 @@
 
 import           HoloPrelude
 
+import qualified Data.ByteString.Char8             as SB
 import qualified Data.List
 import qualified Data.Map                          as Map
 import qualified Data.Vector                       as V
@@ -46,8 +47,6 @@ import           Flatland
 import           HoloTypes
 
 import qualified HoloCairo                         as Cr
-import           HoloCube
-import qualified HoloCube                          as HC
 import qualified HoloOS                            as HOS
 import           HoloPort
 
@@ -68,10 +67,13 @@ main = do
   GL.glEnable GL.GL_FRAMEBUFFER_SRGB
   GLFW.swapInterval 0
 
-  (_renderer, ObjectStream{..}) ← makeSimpleRenderedStream win (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))
+  let (,) osName uniName = ("portStream", "portMtl")
+      schema             = pipelineSchema [(osName, uniName)]
+  portGLStorage ← liftIO $ GL.allocStorage schema
+  let ObjectStream{..}   = ObjectStream portGLStorage osName uniName
 
   -- * Holo
-  Settings{..}        ← defaultSettings
+  let Settings{..}  = defaultSettings
 
   timeStart           ← HOS.fromSec <$> HOS.getTime
   let text n        = [ T.pack $ printf "Object #%d:" n
@@ -111,7 +113,7 @@ main = do
                                  , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                               , ("uv",        A_V2F texcoord) ] }
           dGPUMesh      ← GL.uploadMeshToGPU dMesh
-          dGLObject     ← GL.addMeshToObjectArray osStorage (HC.fromOANS osObjArray) [SB.unpack $ fromUNS osUniform, "viewProj"] dGPUMesh
+          dGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [SB.unpack $ fromUNS osUniform, "viewProj"] dGPUMesh
           GL.removeObject osStorage dGLObject
           GL.disposeMesh dGPUMesh
         -- Canvas (RRect T.Text)

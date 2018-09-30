@@ -33,7 +33,6 @@ import           HoloTypes
 
 import           HoloPrelude                       hiding ((<>))
 import qualified Holo
-import           HoloCube
 import           HoloPort
 import qualified HoloOS                            as HOS
 
@@ -60,13 +59,13 @@ main = do
 
   HOS.unbufferStdout
 
-  settingsV@Settings{..} ← defaultSettings
+  let settingsV@Settings{..} = defaultSettings
   portV@Port{..}         ← portCreate win settingsV
 
   GL.glDisable GL.GL_DEPTH_TEST
   GL.glDisable GL.GL_STENCIL_TEST
 
-  tokenV           ← newId ""
+  tokenV           ← newId
   let rectD         = di 200 200
       valD@(Holo.Rect _ _)
                     = Holo.Rect rectD (co 1 0 0 1)
@@ -93,11 +92,11 @@ main = do
         p  ← liftIO $ pickFrameBuffer scrDi $ floor <$> po x y
         liftIO $ printf "%d:%d: %x\n" (floor x ∷ Int) (floor y ∷ Int) p
 
-  rendererDrawFrame  portRenderer PipePickU
+  portDrawFrame  portPort PipePickU
   peek 399 299
   peek 401 301
 
-  rendererDrawFrame  portRenderer PipePickF
+  portDrawFrame  portPort PipePickF
   peek 399 299
   peek 401 301
 
