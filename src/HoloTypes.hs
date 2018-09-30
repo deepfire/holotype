@@ -54,7 +54,10 @@ import qualified Data.Set                          as Set
 import qualified Data.Unique                       as U
 import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
+import qualified GHC.Generics                      as GHC
 import qualified GI.Cairo                          as GIC
+import           Generics.SOP                             (Proxy)
+import qualified Generics.SOP                      as SOP
 import qualified Graphics.Rendering.Cairo.Internal as GRCI
 import           Graphics.GL.Core33                as GL
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
@@ -72,6 +75,8 @@ import           Flex                                     (Geo)
 import           Flatland
 import           HoloCairo                                (FKind(..))
 import qualified HoloCairo                         as Cr
+
+import           MRecord
 
 
 -- * Identity of what we're drawing, to allow re-use of underlying stateful resources.
@@ -106,12 +111,12 @@ data Port where
 
     , portPipelines       ∷ Map.Map PipeName GL.GLRenderer
     } → Port
-    deriving (Generic)
+    deriving (GHC.Generic)
 
 data ScreenMode
   = FullScreen
   | Windowed
-  deriving (Eq, Generic, Show)
+  deriving (Eq, GHC.Generic, Show)
 
 data Settings where
   Settings ∷
@@ -120,7 +125,9 @@ data Settings where
     , sttsScreenMode      ∷ ScreenMode
     , sttsScreenDim       ∷ Di Int
     } → Settings
-    deriving (Eq, Generic, Show)
+    deriving (Eq, GHC.Generic, Show)
+instance SOP.Generic         Settings
+instance SOP.HasDatatypeInfo Settings
 
 data Drawable where
   Drawable ∷
