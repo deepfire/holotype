@@ -55,8 +55,10 @@ import qualified LambdaCube.Compiler               as GL
 import qualified LambdaCube.GL.Mesh                as GL
 import qualified LambdaCube.GL.Type                as GL
 import qualified LambdaCube.Linear                 as LCLin
+import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW                              (ReflexGLFW, ReflexGLFWCtx, ReflexGLFWGuest, InputU(..))
 import qualified System.IO.Unsafe                  as IO
+import qualified Unsafe.Coerce                     as Co
 
 -- Local imports
 import           HoloTypes
@@ -129,34 +131,46 @@ portSetVSync x = liftIO $ GL.swapInterval $ case x of
                                               True  → 1
                                               False → 0
 
-portCreate  ∷ (MonadIO m) ⇒ GL.Window → Settings → m (Port)
-portCreate portWindow portSettings@Settings{..} = do
-  liftIO $ case sttsScreenMode of
-             Windowed   → let Di (V2 w h) = sttsScreenDim
-                          in GL.setWindowSize portWindow w h
-             FullScreen → error "XXX: implement fullscreen"
+portCreate  ∷ Dynamic t GL.Window → Dynamic t Settings → ReflexGLFW t m (Dynamic t (Maybe Port))
+portCreate winD sttsD = do
   liftIO $ blankIdToken'setup
+  portVisualTracker@(VisualTracker _) ← VisualTracker <$> mkVIOMap
 
-  portFontmap                      ← Cr.makeFontMap sttsDΠ Cr.fmDefault sttsFontPreferences
-  liftIO $ putStrLn $ printf "%s" (show portFontmap)
+  let (,) osName uniName = ("portStream", "portMtl")
+      schema             = pipelineSchema [(osName, uniName)]
+  portGLStorage ← liftIO $ GL.allocStorage schema
+  let portObjectStream   = ObjectStream portGLStorage osName uniName
+  pipeDraw      ← buildPipelineForStorage portGLStorage "PipeDraw.lc"
 
-  (portRenderer, portObjectStream) ← makeSimpleRenderedStream portWindow (("portStream", "portMtl") ∷ (ObjArrayNameS, UniformNameS))
-  rendererDrawFrame portRenderer PipeDraw
-  liftIO $ GL.swapBuffers portWindow
-  portSetVSync False
+  let winSettingsD = (zipDynWith (,) winD sttsD)
 
-  portVisualTracker@(VisualTracker _)     ← VisualTracker <$> mkVIOMap
-  pure Port{..}
+  portE ← performEvent $ updated winSettingsD <&>
+    \(portWindow, portSettings@Settings{sttsScreenDim=dim@(Di (V2 w h)),..}) → do
+      case sttsScreenMode of
+        Windowed   → liftIO $ printf "window size: %dx%d\n" w h--GL.setWindowSize win w h
+        FullScreen → error "XXX: implement fullscreen"
+      portFontmap ← Cr.makeFontMap sttsDΠ Cr.fmDefault sttsFontPreferences
+      liftIO $ putStrLn $ printf "%s" (show portFontmap)
+
+      liftIO $ SB.writeFile "lc/PipePick.lc" $ mkPipePickText osName dim
+      pipePick      ← buildPipelineForStorage portGLStorage "PipePick.lc"
+      let portPipelines = Map.fromList [(PipePick, pipePick)
+                                       ,(PipeDraw, pipeDraw)]
+
+      portSetVSync False
+      pure $ Just Port{..}
+
+  holdDyn Nothing portE
 
 portUpdateSettings ∷ (MonadIO m) ⇒ Port → Settings → m (Port)
 portUpdateSettings port portSettings = do
   pure $ port { portSettings = portSettings }
 
 portNextFrame ∷ (MonadIO m) ⇒ Port → m Frame
-portNextFrame Port{..} = do
-  rendererDrawFrame  portRenderer PipeDraw
+portNextFrame port@Port{..} = do
+  portDrawFrame  port PipeDraw
   liftIO $ GL.swapBuffers portWindow
-  rendererSetupFrame portRenderer
+  portSetupFrame port
 
 portFont  ∷ Port → Cr.FontKey → Maybe (Cr.Font Found PU)
 portFont Port{..} = Cr.lookupFont portFontmap
@@ -277,7 +291,7 @@ makeDrawable dObjectStream@ObjectStream{..} ident dDi' = liftIO $ do
   -- XXX: this is leaky -- has to be done manually
   -- SMem.addFinalizer dGPUMesh $ do
   --   GL.disposeMesh dGPUMesh
-  dGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [unameStr osUniform, "viewProj"] dGPUMesh
+  dGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [SB.unpack $ fromUNS osUniform, "viewProj"] dGPUMesh
 
   dSurfaceData  ← imageSurfaceGetPixels' dSurface
   dTexId        ← F.alloca $! \pto → glGenTextures 1 pto >> F.peek pto
@@ -453,6 +467,9 @@ withFrameBuffer rowLen format x y w h fn = F.allocaBytes (w*h*4) $ \p → do
   glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) format GL_UNSIGNED_BYTE $ F.castPtr p
   glPixelStorei GL_UNPACK_ROW_LENGTH   0
   fn p
+
+deriving instance Show (GL.GLOutput)
+deriving instance Show (GL.GLTexture)
 
 
 -- * Matrix works
