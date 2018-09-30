@@ -109,12 +109,6 @@ class Ctx ctx where
                     → ConsCtx ctx     -- ^ ..the constructor-specific context
                     → Field           -- ^ ..the field name
                     → m ()            -- ^ remove the field.
-  --hasField          ∷  ctx → ConsCtx ctx → Field → IO Bool -- useless for presenceByField
-  listFields        ∷ Monad m
-                    ⇒ ctx             -- ^ Given the record context
-                    → ConsCtx ctx     -- ^ ..the constructor-specific context
-                    → m [Field]       -- ^ action to list the constructor-specific fields.
-  -- *
   errCtxDesc _ _ (Field f) = "field '"<>f<>"'"
 
 class Record a where

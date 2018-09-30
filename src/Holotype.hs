@@ -1,9 +1,11 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -29,6 +31,7 @@ import           Data.Functor.Misc                        (Const2(..))
 import           Data.Maybe
 import           Data.Semigroup
 import           Data.Singletons
+import           Data.Text                                (Text)
 import           Data.Tuple
 import           Linear                            hiding (trace)
 import           Prelude                           hiding (id, Word)
@@ -48,6 +51,7 @@ import qualified Data.Text.Zipper                  as T
 import qualified Data.Time.Clock                   as Time
 import qualified Data.TypeMap.Dynamic              as TM
 import qualified Data.Unique                       as U
+import qualified GHC.Generics                      as GHC
 import qualified Graphics.GL.Core33                as GL
 import qualified Options.Applicative               as Opt
 import qualified Reflex.GLFW                       as GLFW
@@ -72,6 +76,9 @@ import           HoloPort
 import qualified HoloOS                            as HOS
 
 -- TEMPORARY
+import           MRecord
+import           Generics.SOP                             (Proxy)
+import qualified Generics.SOP                      as SOP
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 
@@ -268,6 +275,35 @@ parseOptions =
   Options
   <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
 
+data AnObject where
+  AnObject ∷
+    { objName   ∷ String
+    , objDPI    ∷ DΠ
+    , objDim    ∷ Di Int
+    } → AnObject
+    deriving (Eq, GHC.Generic, Show)
+instance SOP.Generic         AnObject
+instance SOP.HasDatatypeInfo AnObject
+
+data CName where
+  CName ∷ Text → ADTChoiceT → CName
+
+-- instance {-# OVERLAPPABLE #-} (SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ Record AnObject where
+-- instance {-# OVERLAPPABLE #-} (SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord AnObject AnObject where
+type instance ConsCtx a = CName
+instance Ctx AnObject where
+instance {-# OVERLAPPABLE #-} Record AnObject where
+  prefixChars = const 3
+instance {-# OVERLAPPABLE #-} CtxRecord AnObject AnObject where
+  consCtx _ _ n ix = CName n ix
+instance {-# OVERLAPPABLE #-}
+  ( CtxRecord a a
+  , Record      (Dynamic t Subscription, Dynamic t (a, HoloBlank)))
+  ⇒ CtxRecord a (Dynamic t Subscription, Dynamic t (a, HoloBlank)) where
+  consCtx _ _ n ix = CName n ix
+
+-- class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
+
 -- * Top level network
 --
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
@@ -282,6 +318,14 @@ holotype win evCtl windowFrameE inputE = mdo
     ,(MISSALLOC, VIS, TRACE, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
     ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
     ]
+
+  -- What do we want?
+  -- 1. input:
+  --    - initial value
+  -- 2. output:
+  --    - dynamic
+  --    - (,) value HoloBlank
+  x ∷ Widget t (AnObject, HoloBlank) ← recover (undefined ∷ AnObject)
 
   HOS.unbufferStdout
 
