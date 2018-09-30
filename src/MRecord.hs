@@ -100,19 +100,31 @@ x = mapFields @Show (\fi val→ fi<>": "<>pack (show val)) $ A "a" 1
 type family ConsCtx ctx ∷ Type.Type
 
 class Ctx ctx where
-  errCtxDesc    ∷ ctx → ConsCtx ctx → Field → Text
-  dropField     ∷ Monad m
-                ⇒ ctx → ConsCtx ctx → Field → m ()
-  --hasField      ∷  ctx → ConsCtx ctx → Field → IO Bool -- useless for presenceByField
-  listFields    ∷ Monad m
-                ⇒ ctx → ConsCtx ctx         → m [Field]
+  errCtxDesc        ∷ ctx             -- ^ Given the record context
+                    → ConsCtx ctx     -- ^ ..the constructor-specific context
+                    → Field           -- ^ ..the field name
+                    → Text            -- ^ produce the error message
+  dropField         ∷ Monad m         -- ^
+                    ⇒ ctx             -- ^ Given the record context
+                    → ConsCtx ctx     -- ^ ..the constructor-specific context
+                    → Field           -- ^ ..the field name
+                    → m ()            -- ^ remove the field.
+  --hasField          ∷  ctx → ConsCtx ctx → Field → IO Bool -- useless for presenceByField
+  listFields        ∷ Monad m
+                    ⇒ ctx             -- ^ Given the record context
+                    → ConsCtx ctx     -- ^ ..the constructor-specific context
+                    → m [Field]       -- ^ action to list the constructor-specific fields.
   -- *
   errCtxDesc _ _ (Field f) = "field '"<>f<>"'"
 
 class Record a where
-  prefixChars       ∷ Proxy a → Int
-  nameMap           ∷ Proxy a → [(Text, Text)]
-  toField           ∷ Proxy a → Text → Field
+  prefixChars       ∷ Proxy a         -- ^ Given the type of the record
+                    → Int             -- ^ produce the number of prefix characters to ignore.
+  nameMap           ∷ Proxy a         -- ^ Given the type of the record
+                    → [(Text, Text)]  -- ^ produce the partial field renaming map.
+  toField           ∷ Proxy a         -- ^ Given the type of the record
+                    → Text            -- ^ ..the record's field name
+                    → Field           -- ^ produce the serialised field name.
   -- *
   nameMap           = const []
   toField r x = --trace (T.unpack x <> "→" <> T.unpack (maybeRemap $ dropDetitle (prefixChars r) x)) $
@@ -130,17 +142,29 @@ type ADTChoice   m xss = m ADTChoiceT
 -- type ADTChoice   m xss = m (NS (K ()) xss)
 
 class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
-  consCtx           ∷ ctx → Proxy a → Text → ADTChoiceT → ConsCtx ctx
+  consCtx           ∷ ctx             -- ^ Given the record context
+                    → Proxy a         -- ^ ..the type of the record
+                    → Text            -- ^ ..the constructor's name
+                    → ADTChoiceT      -- ^ ..its number
+                    → ConsCtx ctx     -- ^ produce the constructor-specific context.
   -- * Defaulted methods
   presence          ∷ Monad m
-                    ⇒ ctx → Proxy a → m Bool
+                    ⇒ ctx             -- ^ Given the record context
+                    → Proxy a         -- ^ ..the type of the record
+                    → m Bool          -- ^ action to determine the record's presence.
   --presenceByField   ∷ ctx → Proxy a → IO (Maybe Field) -- not clear how to implement generically -- what constructor to look at?
   restoreChoice     ∷ (HasCallStack, Monad m)
-                    ⇒ ctx → Proxy a → ADTChoice m xss
+                    ⇒ ctx             -- ^ Given the record context
+                    → Proxy a         -- ^ ..the type of the record
+                    → ADTChoice m xss -- ^ action to determine the record's constructor index.
   saveChoice        ∷ Monad m
-                    ⇒ ctx → a → m ()
+                    ⇒ ctx             -- ^ Given the record context
+                    → a               -- ^ ..record itself
+                    → m ()            -- ^ action to save the record's constructor index.
   ctxSwitch         ∷ (HasCallStack, Monad m)
-                    ⇒ Proxy a → ctx → m ctx
+                    ⇒ Proxy a         -- ^ Given the type of the record
+                    → ctx             -- ^ ..the record context
+                    → m ctx           -- ^ action to update the context, before each field's presence test/recovery.
   -- * Method defaults
   presence      _ p = pure True
   restoreChoice _ _ = pure 0
@@ -156,9 +180,15 @@ class Interpret a where
 
 class ReadField    ctx a where
   readField            ∷ (HasCallStack, Monad m)
-                       ⇒ ctx → ConsCtx ctx → Field     → m (Maybe a)
+                       ⇒ ctx             -- ^ Given the record context
+                       → ConsCtx ctx     -- ^ ..the constructor-specific context
+                       → Field           -- ^ ..the field name
+                       → m (Maybe a)     -- ^ restore the record's field.
   default readField    ∷ (CtxRecord ctx a, Code a ~ xss, All2 (RestoreField ctx) xss, HasCallStack, Typeable a, Monad m)
-                       ⇒ ctx → ConsCtx ctx → Field     → m (Maybe a)
+                       ⇒ ctx             -- ^ Given the record context
+                       → ConsCtx ctx     -- ^ ..the constructor-specific context
+                       → Field           -- ^ ..the field name
+                       → m (Maybe a)     -- ^ restore the record's field.
   readField ctx _ _    = do
     let p = Proxy ∷ Proxy a
     newCtx ← ctxSwitch p ctx
@@ -166,19 +196,34 @@ class ReadField    ctx a where
 
 class WriteField   ctx a where
   writeField           ∷ (HasCallStack, Monad m)
-                       ⇒ ctx → ConsCtx ctx → Field → a → m ()
+                       ⇒ ctx             -- ^ Given the record context
+                       → ConsCtx ctx     -- ^ ..the constructor-specific context
+                       → Field           -- ^ ..the field name
+                       → a               -- ^ ..the record's field value.
+                       → m ()            -- ^ store the record's field.
   default writeField   ∷ (CtxRecord ctx a, Code a ~ xss, All2 (StoreField ctx) xss, HasCallStack, Monad m)
-                       ⇒ ctx → ConsCtx ctx → Field → a → m ()
+                       ⇒ ctx             -- ^ Given the record context
+                       → ConsCtx ctx     -- ^ ..the constructor-specific context
+                       → Field           -- ^ ..the field name
+                       → a               -- ^ ..the record's field value.
+                       → m ()            -- ^ store the record's field.
   writeField ctx _ _ x = store   ctx x
 
 class Ctx ctx ⇒
       RestoreField ctx a where
   restoreField         ∷ (HasCallStack, Monad m)
-                       ⇒ ctx → ConsCtx ctx → Field     → m a
+                       ⇒ ctx             -- ^ Given the record context
+                       → ConsCtx ctx     -- ^ ..the constructor-specific context
+                       → Field           -- ^ ..the field name
+                       → m a             -- ^ restore the record's field.
 
 class StoreField   ctx a where
   storeField           ∷ (HasCallStack, Monad m)
-                       ⇒ ctx → ConsCtx ctx → Field → a → m ()
+                       ⇒ ctx             -- ^ Given the record context
+                       → ConsCtx ctx     -- ^ ..the constructor-specific context
+                       → Field           -- ^ ..the field name
+                       → a               -- ^ ..the record's field value.
+                       → m ()            -- ^ store the record's field.
 
 
 
