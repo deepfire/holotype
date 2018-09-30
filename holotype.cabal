@@ -19,6 +19,7 @@ executable holotype
 
   build-depends:       holotype
                      , base
+                     , reflex-glfw
 
 library
   hs-source-dirs:      src
