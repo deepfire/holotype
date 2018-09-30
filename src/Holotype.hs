@@ -252,21 +252,6 @@ holotype win _evCtl windowFrameE inputE = mdo
                        Holo.drawHolotreeVisuals f tree'
                        pure ()
   drawnD           ← holdDyn () drawnE
-  let pickE         = attachPromptlyDyn drawnD clickE
-  _                ← performEvent $ pickE <&>
-                     \((), Click GLFW.MouseButton'1 (Po (V2 x y)))→ do
-                       -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
-                       GL.glDisable GL.GL_FRAMEBUFFER_SRGB
-                       rendererDrawFrame portRenderer PipePick
-                       let Just glRenderer = rendererPipeline portRenderer PipePick
-                           (fromIntegral → fb)
-                             = case LC.glOutputs glRenderer of
-                                 [LC.GLOutputRenderTexture fbo _rendTex] → fbo
-                                 outs → error $ "Unexpected outputs: " <> show outs
-                       raw ← liftIO $ pickFrameBuffer fb (di 800 600) $ floor <$> po x y
-                       GL.glEnable GL.GL_FRAMEBUFFER_SRGB
-                       let decoded ∷ Int = fromIntegral raw
-                       liftIO $ printf "%d:%d: %x → %x\n" (floor x ∷ Int) (floor y ∷ Int) raw decoded
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.
   waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE

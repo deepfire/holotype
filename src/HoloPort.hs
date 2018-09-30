@@ -232,6 +232,23 @@ portDrawFrame ∷ (MonadIO m) ⇒ Port → PipeName → m ()
 portDrawFrame Port{..} name = liftIO $ do
   GL.renderFrame ∘ Data.Maybe.fromJust $ Map.lookup name portPipelines
 
+portPick ∷ MonadIO m ⇒ Port → Po Int → m IdToken
+portPick port@Port{portSettings=Settings{sttsScreenDim=dim}} pos = do
+  -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
+  GL.glDisable GL.GL_FRAMEBUFFER_SRGB
+  portDrawFrame port PipePick
+  let Just glRenderer = portPipeline port PipePick
+      (fromIntegral → fb)
+        = case GL.glOutputs glRenderer of
+            [GL.GLOutputRenderTexture fbo _rendTex] → fbo
+            outs → error $ "Unexpected outputs: " <> show outs
+  raw ← liftIO $ pickFrameBuffer fb dim pos
+  GL.glEnable GL.GL_FRAMEBUFFER_SRGB
+  let decoded ∷ Integer = fromIntegral raw
+  -- XXX: we're breaking the Unique-ness here!
+  -- TODO: fix this by maintaining a map from (hashUnique → k) to Unique
+  pure $ IdToken $ Co.unsafeCoerce decoded
+
 portPipeline ∷ Port → PipeName → Maybe GL.GLRenderer
 portPipeline Port{..} = flip Map.lookup portPipelines
 
