@@ -40,8 +40,6 @@ library
                   HoloPrelude
                   HoloTypes
 
-                  Reflex.GLFW
-                  Reflex.GLFW.Instances
                   Reflex.Random
 
                   Holotype
@@ -103,6 +101,7 @@ library
                      , random
                      , ref-tf
                      , reflex
+                     , reflex-glfw
                      , semigroupoids
                      , semigroups
                      , singletons
