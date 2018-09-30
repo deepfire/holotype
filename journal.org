@@ -6,3 +6,22 @@
         - UnDrawable was thus born, as an ADT case
           - the entire draw thing now needs to be aware of it
             - Switch to maybe/employ functoriality?
+* September 26, 2018
+  - trying to get a picture of how to route events
+* September 27, 2018
+  - talked to dalaing on #reflex-frp
+* September 28, 2018
+  - talking to dalaing and alanCS helped me find light on #reflex-frp
+  - we can distribute the dumb EventSelector object everywhere, freely, and project it
+  - next question is about GLFW event masks -- a far simpler issue
+* September 29, 2018
+  - done a basic algebra for event masks,
+  - subscriptions introduced as concept -- updated leaf ctors to pass them around
+  - TODO for combinators to properly handle those
+* September 30, 2018
+  - done event masks in =reflex-glfw=
+  - completed picking-based dynamic focus that properly responds to scene changes!
+  - Port now a Dynamic
+  - framebuffer size changes driving Port
+  - picking pipeline re-generation driven by Port changes
+
