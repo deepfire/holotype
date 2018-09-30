@@ -1,9 +1,12 @@
 #!/bin/sh
 
 who=${1:-deepfire}
-shift
 
 cabal2nix . > default.nix
+
+if test -n "$1"
+then shift
+fi
 for x in "$@"
 do
 	if test ${who} = "deepfire"
