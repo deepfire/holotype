@@ -5,19 +5,12 @@
 {-# LANGUAGE LambdaCase, OverloadedStrings, PackageImports, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators, ViewPatterns #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Weverything #-}
-{-# OPTIONS_GHC -Wno-all-missed-specialisations #-}
-{-# OPTIONS_GHC -Wno-implicit-prelude #-}
-{-# OPTIONS_GHC -Wno-missing-export-lists #-}
-{-# OPTIONS_GHC -Wno-missing-import-lists #-}
-{-# OPTIONS_GHC -Wno-monomorphism-restriction #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-{-# OPTIONS_GHC -Wno-type-defaults #-}
-{-# OPTIONS_GHC -Wno-unsafe #-}
-{-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude #-}
+{-# OPTIONS_GHC -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations #-}
+{-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-unused-do-bind #-}
 
 module HoloPort where
+
 
 import           Control.Monad
 import           Data.Maybe
@@ -521,3 +514,37 @@ drawableBindFontLayout dπ Drawable{..} = Cr.bindWFontLayout dπ dGIC
 drawableDrawText ∷ (MonadIO m) ⇒ Drawable → GIP.Layout → Co Double → T.Text → m ()
 drawableDrawText Drawable{..} layout color text = do
   Cr.layDrawText dCairo dGIC layout (po 0 0) color text
+
+
+
+mkPipePickText ∷ ObjArrayNameS → Di Int → SB.ByteString
+mkPipePickText oans (Di di) = SB.unlines
+  [ "type FB = FrameBuffer 1 '[ 'Color (Vec 4 Int)]"
+  , ""
+  , "intV4I :: Int -> Vec 4 Int"
+  , "intV4I x = V4"
+  , "  ((x)            % 256) -- XXX: this is suboptimal, but we can't use shifts"
+  , "  ((x / 256)      % 256) --      because of the shifts not supported by WebGL 1"
+  , "  ((x / 65536)    % 256)"
+  , "  ((x / 16777216) % 256)"
+  , ""
+  , "scene :: String -> FB -> FB"
+  , "scene name prevFB ="
+  , "  Accumulate    ((ColorOp NoBlending (one :: Vec 4 Bool)))"
+  , "  (mapFragments (\\(uv, rgba) -> ((rgba)))"
+  , "   $ rasterizePrimitives (TriangleCtx CullFront PolygonFill NoOffset LastVertex) (Flat, Flat)"
+  , "   $ mapPrimitives"
+  , "    (\\(pos, _, id)->"
+  , "      ( (Uniform \"viewProj\" :: Mat 4 4 Float) *. (V4 pos%x pos%y 0 1)"
+  , "      , V2 0.0 0.0"
+  , "      , intV4I id))"
+  , "    $ fetch name ( Attribute \"position\"   :: Vec 3 Float"
+  , "                 , Attribute \"uv\"         :: Vec 2 Float"
+  , "                 , Attribute \"id\"         :: Int))"
+  , "  prevFB"
+  , ""
+  , "main :: Output"
+  , "main = TextureOut ("<> SB.pack (show di) <>") $"
+  , "       scene \""<> SB.pack (fromOANS oans) <>"\" $"
+  , "       FrameBuffer ((colorImage1 (V4 0 0 0 0)))"
+  ]
