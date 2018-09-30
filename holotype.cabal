@@ -42,6 +42,7 @@ library
                   HoloTypes
 
                   Reflex.GLFW
+                  Reflex.GLFW.Instances
                   Reflex.Random
 
                   Holotype
