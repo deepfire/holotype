@@ -32,6 +32,8 @@
 /dist-newstyle/
 /experiments/dist/
 
+/lc/PipePick.lc
+
 /.ghc.environment*
 .stack-work/
 nohup.out

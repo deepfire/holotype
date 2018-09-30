@@ -22,21 +22,27 @@
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports -Wno-type-defaults #-}
 module Holotype where
 
+import           Control.Arrow
 import           Control.Monad
+import           Data.Foldable
+import           Data.Functor.Misc                        (Const2(..))
+import           Data.Maybe
 import           Data.Semigroup
 import           Data.Singletons
 import           Data.Tuple
 import           Linear                            hiding (trace)
 import           Prelude                           hiding (id, Word)
 import           Reflex                            hiding (Query, Query(..))
-import           Reflex.GLFW
+import           Reflex.GLFW                              (ReflexGLFW, ReflexGLFWCtx, ReflexGLFWGuest, InputU(..))
 import qualified Codec.Picture                     as Juicy
 import qualified Codec.Picture.Saving              as Juicy
 import qualified Control.Concurrent.STM            as STM
 import qualified Control.Monad.Ref
 import qualified Data.ByteString.Lazy              as B
+import qualified Data.Map.Monoidal.Strict          as MMap
 import qualified Data.Map.Strict                   as M
-import qualified Data.Set                          as S
+import qualified Data.Sequence                     as Seq
+import qualified Data.Set                          as Set
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
 import qualified Data.Time.Clock                   as Time
@@ -44,6 +50,7 @@ import qualified Data.TypeMap.Dynamic              as TM
 import qualified Data.Unique                       as U
 import qualified Graphics.GL.Core33                as GL
 import qualified Options.Applicative               as Opt
+import qualified Reflex.GLFW                       as GLFW
 import qualified Text.Parser.Char                  as P
 import qualified Text.Parser.Combinators           as P
 import qualified Text.Parser.Token                 as P
@@ -65,13 +72,14 @@ import           HoloPort
 import qualified HoloOS                            as HOS
 
 -- TEMPORARY
-import qualified LambdaCube.GL                     as LC
-import qualified LambdaCube.GL.Type                as LC
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 
-newPortFrame ∷ ReflexGLFWCtx t m ⇒ Event t Port → ReflexGLFW t m (Event t Frame)
-newPortFrame portE = performEvent $ portNextFrame <$> portE
+newPortFrame ∷ ReflexGLFWCtx t m ⇒ Event t Port → ReflexGLFW t m (Event t (Port, Frame))
+newPortFrame portFrameE = performEvent $ portFrameE <&>
+  \port@Port{..}→ do
+    newFrame ← portNextFrame port
+    pure (port, newFrame)
 
 type Avg a = (Int, Int, [a])
 avgStep ∷ Fractional a ⇒ a → (a, Avg a) → (a, Avg a)
@@ -86,36 +94,114 @@ average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 
 
-mkColorRectD ∷ Dynamic t (Di (Unit PU)) → Dynamic t (Co Double) → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PBlank))
-mkColorRectD diD coD = do
-  tokenV       ← newId "ColorRect"
-  pure $ (\val@(Holo.Rect dim _)→
-             Holo.leaf tokenV defStyle val & size.~(Just∘fromPU <$> dim))
-         <$> zipDynWith Holo.Rect diD coD
+type HoloBlank      = Holo.Item Holo.PBlank
+type Widget   t   a =                           (Dynamic t Subscription, Dynamic t a)
+value               ∷                           (Dynamic t Subscription, Dynamic t a) → Dynamic t a
+value               = snd
+type WidgetM  t m a = Reflex t ⇒ ReflexGLFW t m (Widget t a)
+type InputMux t     = EventSelector t (Const2 IdToken Input)
 
-mkTextD ∷ Dynamic t (Style T.Text) → Dynamic t T.Text → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PBlank))
-mkTextD styleD valD = do
-  tokenV       ← newId "Text"
-  pure $ zipDynWith (Holo.leaf tokenV) styleD valD
+routeInput ∷ ∀ t m. Reflex t ⇒ Event t Input → Event t IdToken → Dynamic t Subscription → ReflexGLFW t m (InputMux t) -- Subscription → InputMux t WorldEvent
+routeInput inputE pickedE subsD = do
+  -- XXX: this accumulates the focus
+  pickeD ← holdDyn Nothing $ Just <$> pickedE
+  let inputs = zipDynWith (,) pickeD (traceDyn "===== new subs: " subsD)
+      routed ∷ Event t (M.Map IdToken Input)
+      routed = routeSingle <$> attachPromptlyDyn inputs inputE
+      routeSingle ∷ ((Maybe IdToken, Subscription), Input) → M.Map IdToken Input
+      routeSingle ((picked, Subscription ss), ev) =
+        case MMap.lookup (GLFW.eventUType $ inInput ev) ss of
+          Nothing         → --trace ("rejected type: "<>show ev<>"/"<>show (inInput ev))
+                            mempty -- no-one cares, nothing happened..
+          Just potentials →
+            let matches = flip Seq.filter potentials (flip inputMatch ev ∘ snd)
+            in case (picked, toList matches) of
+                 (_, [])               → --trace ("rejected unmatched: "<>show ev)
+                                         mempty
+                 (Just pick, matched)  → case lookup pick matched of
+                   Nothing → mempty -- XXX: mis-focus -- we allowed to focus a non-interested entity
+                   Just _  → M.singleton pick ev
+                 (Nothing, (tok, _):_) → M.singleton tok ev
+  pure $ fanMap routed
 
-mkTextEntryD ∷ Behavior t (Style T.Text) → Event t WorldEvent → T.Text → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PBlank))
-mkTextEntryD styleB editE' initialV = do
-  valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → weEdit tz) (textZipper [initialV]) editE'
+
+
+widget ∷ (IdToken → ReflexGLFW t m (InputMask, Dynamic t a)) → WidgetM t m a
+widget ctor = do
+  token ← newId
+  (,) im@(InputMask em) w ← ctor token
+  let emTypes = GLFW.eventMaskTypes em
+      mmap    = MMap.fromList $ zip emTypes $ repeat $ Seq.singleton (token, im)
+  pure $ (,) (constDyn $ Subscription mmap) w
+
+mkColorRectD ∷ Dynamic t (Di (Unit PU)) → Dynamic t (Co Double) → WidgetM t m HoloBlank
+mkColorRectD diD coD = widget $ \tokenV → pure $ (,) mempty $
+  (\val@(Holo.Rect dim _)→
+      Holo.leaf tokenV defStyle val & size.~(Just∘fromPU <$> dim))
+  <$> zipDynWith Holo.Rect diD coD
+
+mkTextD ∷ Dynamic t (Style T.Text) → Dynamic t T.Text → WidgetM t m HoloBlank
+mkTextD styleD valD = widget $ \tokenV → pure $ (,) mempty $
+  zipDynWith (Holo.leaf tokenV) styleD valD
+
+mkTextEntryD ∷ InputMux t → Behavior t (Style T.Text) → T.Text → WidgetM t m (T.Text, HoloBlank)
+mkTextEntryD mux styleB initialV = widget $ \tokenV → do
+  let editE     = select mux $ Const2 tokenV
+  valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initialV]) (translateEditEvent <$> editE)
   setupE       ← getPostBuild
   initV        ← sample $ current valD
-  tokenV       ← newId "TextEntry"
   let holoE     = attachWith (Holo.leaf tokenV) styleB $ leftmost [updated valD, initV <$ setupE]
-  holdDyn (initialV, Holo.emptyHolo) $ attachPromptlyDyn valD holoE
+  holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn valD holoE)
+   <&> (,) editMaskKeys
 
-mkTextEntryValidatedD ∷ Behavior t (Style T.Text) → Event t WorldEvent → T.Text → (T.Text → Bool) → ReflexGLFW t m (Dynamic t (T.Text, Holo.Item Holo.PBlank))
-mkTextEntryValidatedD styleB editE' initialV testF = do
+mkTextEntryValidatedD ∷ InputMux t → Behavior t (Style T.Text) → T.Text → (T.Text → Bool) → WidgetM t m (T.Text, HoloBlank)
+mkTextEntryValidatedD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
-  textD ← mkTextEntryD styleB editE' initialV
+  (subD, textD) ← mkTextEntryD mux styleB initialV
   initial ← sample $ current textD
   foldDyn (\(new, newHoloi) (oldValid, _)→
-              (if testF new then new else oldValid, newHoloi))
-    initial $ updated textD
+               (if testF new then new else oldValid, newHoloi))
+    initial (updated textD)
+    <&> (subD,)
+
+vboxD ∷ ∀ t m. Reflex t ⇒ [Widget t HoloBlank] → WidgetM t m HoloBlank
+vboxD chi = do
+  let dyn ∷ (Dynamic t Subscription, Dynamic t [HoloBlank])
+      dyn = foldr (\(s, hb) (ss, hbs)→ (zipDynWith (<>) s ss, zipDynWith (:) hb hbs))
+            (constDyn mempty, constDyn [])
+            chi
+  pure $ (id *** (Holo.vbox <$>)) dyn
+
+data EditEvent where
+  Edit ∷
+    { eeEdit ∷ T.TextZipper T.Text → T.TextZipper T.Text
+    } → EditEvent
+
+translateEditEvent ∷ Input → EditEvent
+translateEditEvent = \case
+  (Input (U (GLFW.EventChar _ c)))                                              → Edit $ T.insertChar c
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Pressed   _))) → Edit $ T.breakLine
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Pressed   _))) → Edit $ T.deletePrevChar
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Pressed   _))) → Edit $ T.deleteChar
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveLeft
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveUp
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveRight
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveDown
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Pressed   _))) → Edit $ T.gotoBOL
+  (Input (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Pressed   _))) → Edit $ T.gotoEOL
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Repeating _))) → Edit $ T.breakLine
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Repeating _))) → Edit $ T.deletePrevChar
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Repeating _))) → Edit $ T.deleteChar
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Repeating _))) → Edit $ T.moveLeft
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Repeating _))) → Edit $ T.moveUp
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _))) → Edit $ T.moveRight
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _))) → Edit $ T.moveDown
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoBOL
+  (Input (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoEOL
+  x → error $ "Unexpected event (non-edit): " <> show x
+
+
 
 fpsCounterD ∷ ∀ t m. Event t Frame → ReflexGLFW t m (Dynamic t Double)
 fpsCounterD frameE = do
@@ -136,12 +222,8 @@ trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
 
-vboxD ∷ Reflex t ⇒ [Dynamic t (Holo.Item Holo.PBlank)] → Dynamic t (Holo.Item Holo.PBlank)
-vboxD xs = Holo.vbox <$> foldr (zipDynWith (:)) (constDyn []) xs
-
-scene ∷ Event t WorldEvent → Dynamic t Integer → Dynamic t Int → Dynamic t Double → ReflexGLFW t m (Dynamic t (Holo.Item Holo.PBlank))
-scene worldE statsValD frameNoD fpsValueD = mdo
-  let editE         = ffilter (\case Edit{..}                     → True; _ → False) worldE
+scene ∷ InputMux t → Dynamic t Integer → Dynamic t Int → Dynamic t Double → WidgetM t m HoloBlank
+scene muxV statsValD frameNoD fpsValueD = mdo
 
   fpsD             ← mkTextD (constDyn defStyle) (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
   statsD           ← mkTextD (constDyn defStyle) $ statsValD <&>
@@ -157,20 +239,25 @@ scene worldE statsValD frameNoD fpsValueD = mdo
 
   let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
 
-  styleEntryD      ← mkTextEntryValidatedD styleB editE "defaultSans" $
+  styleEntryD
+                   ← mkTextEntryValidatedD muxV styleB "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-  let styleOfD'     = fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) styleEntryD)
-  styleD'          ← trackStyle styleOfD'
-  let styleB        = current styleD'
-  -- styleD'          ← delayDyn 0 styleD
-  text2HoloQD      ← mkTextEntryD styleB editE "watch me"
-  pure $ vboxD [ frameCountD
-               , rectD
-               , fpsD
-               , longStaticTextD
-               , statsD
-               , varlenTextD
-               , (snd <$> text2HoloQD)]
+
+  styleD           ← trackStyle $ fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) (value styleEntryD))
+  let styleB        = current styleD
+
+  text2HoloQD      ← mkTextEntryD muxV styleB "watch me"
+
+  vboxD [ frameCountD
+        , (snd <$>) <$> text2HoloQD
+        , (snd <$>) <$> styleEntryD
+        , rectD
+        , fpsD
+        , longStaticTextD
+        , statsD
+        , varlenTextD ]
+
+
 
 data Options where
   Options ∷
@@ -184,7 +271,7 @@ parseOptions =
 -- * Top level network
 --
 holotype ∷ ∀ t m. ReflexGLFWGuest t m
-holotype win _evCtl windowFrameE inputE = mdo
+holotype win evCtl windowFrameE inputE = mdo
   Options{..} ← liftIO $ Opt.execParser $ Opt.info (parseOptions <**> Opt.helper)
                 ( Opt.fullDesc
                   -- <> header   "A simple holotype."
@@ -198,78 +285,87 @@ holotype win _evCtl windowFrameE inputE = mdo
 
   HOS.unbufferStdout
 
-  settingsV@Settings{..} ← defaultSettings
-  portV@Port{..}         ← portCreate win settingsV
-  -- End of init-time IO.
-  --
-  -- Constructing the FRP network:
+  initE            ← getPostBuild
 
-  -- EXTERNAL INPUTS
-  worldE ∷ Event t WorldEvent
-                   ← performEvent $ inputE <&> translateEvent
+  winD             ← holdDyn win $ win <$ initE
+  (Di (V2 initW initH))
+                   ← portWindowSize win
+  let fbSizeE       = ffilter (\case (U GLFW.EventFramebufferSize{}) → True; _ → False) $
+                      leftmost [inputE, (U (GLFW.EventFramebufferSize win initW initH)) <$ initE]
+  liftIO $ GLFW.enableEvent evCtl GLFW.FramebufferSize
 
-  let clickE        = ffilter (\case (Click GLFW.MouseButton'1 _) → True; _ → False) worldE
-  frameE           ← newPortFrame $ portV <$ windowFrameE
+  settingsD        ← foldDyn (\(U (GLFW.EventFramebufferSize _ w h)) oldStts →
+                                 oldStts { sttsScreenDim = unsafe'di w h } )
+                     defaultSettings fbSizeE
 
-  fpsValueD        ← fpsCounterD frameE
+  maybePortD       ← portCreate winD settingsD
+  portFrameE       ← newPortFrame $ fmapMaybe id $ fst <$> attachPromptlyDyn maybePortD windowFrameE
+
+  -- * EXTERNAL STIMULI
+
+  fpsValueD        ← fpsCounterD  $ snd <$> portFrameE
   frameNoD ∷ Dynamic t Int
-                   ← count       frameE
-  statsValE        ← performEvent $ frameE <&>
-                     \(_)→ liftIO $ do
-                         mem ← HOS.gcKBytesUsed
-                         pure (mem)
+                   ← count       portFrameE
+  statsValE        ← performEvent $ portFrameE <&> const HOS.gcKBytesUsed
   statsValD        ← holdDyn 0 statsValE
 
   -- * SCENE
-  -- Goal: introduce focus:  direction for input events
-  -- Steps:
-  -- 0. posit that some event sinks are focus-agnostic
-  -- 1. posit that the focussed object namespace is flat, not hierarchical
-  -- 2. extend the notion of hierarchical composition to thread the focus dataflows
-  --    - outbound: ID token for picking
-  --    - inbound:  the tailored event stream
-  -- 3. derive from #0 that event stream tailoring is orthogonal to focus
-  -- 4. decide to solve tailoring first, to separate issues
-  sceneD           ← scene worldE statsValD frameNoD fpsValueD
+  inputMux         ← routeInput (Input <$> inputE) pickedE subscriptionsD
+  (,) subscriptionsD sceneD
+                   ← scene inputMux statsValD frameNoD fpsValueD
 
-  sceneQueriedE    ← performEvent $ updated sceneD <&>
-                     Holo.queryHolotree portV
+  -- * LAYOUT
+  -- needs port because of DPI and fonts
+  sceneQueriedE    ← performEvent $ (\(s, (p, _f))→ Holo.queryHolotree p s) <$>
+                     attachPromptlyDyn sceneD portFrameE
+
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
-  -- * At every frame
+
   let sceneLaidTreeD ∷ Dynamic t (Item Holo.PLayout)
       sceneLaidTreeD = layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
-      drawE         = attachPromptlyDyn sceneLaidTreeD frameE
-  -- _                ← performEvent $ clickE <&>
-  --                    \(Click GLFW.MouseButton'1 (Po (V2 x y))) →
-  --                      liftIO $ printf "click at %f:%f\n" x y
-  drawnE           ← performEvent $ drawE <&>
-                     \(tree, f@Frame{..}) → do
+
+  -- * RENDER
+      sceneDrawE     = attachPromptlyDyn sceneLaidTreeD portFrameE
+  drawnPortE       ← performEvent $ sceneDrawE <&>
+                     \(tree, (,) port f@Frame{..}) → do
                        let leaves = Holo.holotreeLeaves tree
                        -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
-                       portGarbageCollectVisuals portV leaves
-                       tree' ← Holo.visualiseHolotree portV tree
-                       Holo.renderHolotreeVisuals portV tree'
+                       portGarbageCollectVisuals port leaves
+                       tree' ← Holo.visualiseHolotree port tree
+                       Holo.renderHolotreeVisuals port tree'
                        Holo.drawHolotreeVisuals f tree'
-                       pure ()
-  drawnD           ← holdDyn () drawnE
+                       pure port
+  drawnPortD       ← holdDyn Nothing $ Just <$> drawnPortE
+
+  -- * PICKING
+  let clickE        = ffilter (\case (U GLFW.EventMouseButton{}) → True; _ → False) inputE
+      pickE         = fmapMaybe id $ attachPromptlyDyn drawnPortD clickE <&> \case
+                        (Nothing, _) → Nothing
+                        (Just x, y)  → Just (x, y)
+  pickedE          ← mousePointId $ (id *** (\(U x@GLFW.EventMouseButton{})→ x)) <$> pickE
+  performEvent_ $ pickedE <&>
+    \token→ liftIO $ printf "%x\n" (tokenHash token)
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.
+  worldE ∷ Event t WorldEvent
+                   ← performEvent $ inputE <&> translateEvent
   waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE
-  _                ← performEvent $ portSetVSync <$> updated waitForVSyncD
+  performEvent_ $ portSetVSync <$> updated waitForVSyncD
 
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
 
-deriving instance Show (LC.GLOutput)
-deriving instance Show (LC.GLTexture)
+mousePointId ∷ ∀ t m. ReflexGLFWCtx t m ⇒ Event t (Port, GLFW.Input 'GLFW.MouseButton) → ReflexGLFW t m (Event t IdToken)
+mousePointId ev = (ffilter ((≢ 0) ∘ tokenHash) <$>) <$>
+                  performEvent $ ev <&> \(port@Port{..}, GLFW.EventMouseButton _ _ _ _) → do
+                    (,) x y ← liftIO $ (GLFW.getCursorPos portWindow)
+                    portPick port $ floor <$> po x y
 
 
+
 data WorldEvent where
   Move ∷
     { weΔ ∷ Po Double
-    } → WorldEvent
-  Edit ∷
-    { weEdit ∷ T.TextZipper T.Text → T.TextZipper T.Text
     } → WorldEvent
   Click ∷
     { weMButton ∷ GLFW.MouseButton
@@ -283,32 +379,13 @@ data WorldEvent where
   NonEvent    ∷ WorldEvent
 
 translateEvent ∷ (MonadIO m) ⇒ InputU → m WorldEvent
-translateEvent (U (EventMouseButton w button GLFW.MouseButtonState'Pressed _)) = do
+translateEvent (U (GLFW.EventMouseButton w button GLFW.MouseButtonState'Pressed _)) = do
   (,) x y ← liftIO $ GLFW.getCursorPos w
   pure $ Click button (po x y)
-translateEvent (U (EventChar _ c))                                              = pure $ Edit $ T.insertChar c
-translateEvent (U (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.breakLine
-translateEvent (U (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.deletePrevChar
-translateEvent (U (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.deleteChar
-translateEvent (U (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.moveLeft
-translateEvent (U (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.moveUp
-translateEvent (U (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.moveRight
-translateEvent (U (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.moveDown
-translateEvent (U (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.gotoBOL
-translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Pressed   _)) = pure $ Edit $ T.gotoEOL
-translateEvent (U (EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.breakLine
-translateEvent (U (EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.deletePrevChar
-translateEvent (U (EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.deleteChar
-translateEvent (U (EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.moveLeft
-translateEvent (U (EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.moveUp
-translateEvent (U (EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.moveRight
-translateEvent (U (EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.moveDown
-translateEvent (U (EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.gotoBOL
-translateEvent (U (EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _)) = pure $ Edit $ T.gotoEOL
 -- how to process key chords?
-translateEvent (U (EventKey  _ GLFW.Key'F1        _ GLFW.KeyState'Pressed   _)) = pure $ ObjStream
-translateEvent (U (EventKey  _ GLFW.Key'F2        _ GLFW.KeyState'Pressed   _)) = pure $ GCing
-translateEvent (U (EventKey  _ GLFW.Key'F3        _ GLFW.KeyState'Pressed   _)) = pure $ VSyncToggle
-translateEvent (U (EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = pure $ Spawn
-translateEvent (U (EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = pure $ Shutdown
-translateEvent _                                                                = pure $ NonEvent
+translateEvent (U (GLFW.EventKey  _ GLFW.Key'F1        _ GLFW.KeyState'Pressed   _)) = pure $ ObjStream
+translateEvent (U (GLFW.EventKey  _ GLFW.Key'F2        _ GLFW.KeyState'Pressed   _)) = pure $ GCing
+translateEvent (U (GLFW.EventKey  _ GLFW.Key'F3        _ GLFW.KeyState'Pressed   _)) = pure $ VSyncToggle
+translateEvent (U (GLFW.EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = pure $ Spawn
+translateEvent (U (GLFW.EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = pure $ Shutdown
+translateEvent _                                                                     = pure $ NonEvent
