@@ -31,7 +31,7 @@
 module MRecord
 where
 
-import          Control.Exception
+import           Control.Exception
 import           Control.Lens                        ((<&>))
 import           Control.Monad                       (foldM, forM, forM_, join, liftM, when)
 import           Data.Functor.Identity
@@ -101,9 +101,11 @@ type family ConsCtx ctx ∷ Type.Type
 
 class Ctx ctx where
   errCtxDesc    ∷ ctx → ConsCtx ctx → Field → Text
-  dropField     ∷ ctx → ConsCtx ctx → Field → IO ()
+  dropField     ∷ Monad m
+                ⇒ ctx → ConsCtx ctx → Field → m ()
   --hasField      ∷  ctx → ConsCtx ctx → Field → IO Bool -- useless for presenceByField
-  listFields    ∷ ctx → ConsCtx ctx         → IO [Field]
+  listFields    ∷ Monad m
+                ⇒ ctx → ConsCtx ctx         → m [Field]
   -- *
   errCtxDesc _ _ (Field f) = "field '"<>f<>"'"
 
@@ -126,18 +128,19 @@ newtype Field = Field { fromField ∷ Text } deriving (Eq, IsString, Ord, Show)
 type ADTChoiceT        = Int
 type ADTChoice   m xss = m ADTChoiceT
 -- type ADTChoice   m xss = m (NS (K ()) xss)
-type ADTChoiceIO   xss = ADTChoice IO xss
 
 class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
   consCtx           ∷ ctx → Proxy a → Text → ADTChoiceT → ConsCtx ctx
   -- * Defaulted methods
-  presence          ∷ ctx → Proxy a → IO Bool
+  presence          ∷ Monad m
+                    ⇒ ctx → Proxy a → m Bool
   --presenceByField   ∷ ctx → Proxy a → IO (Maybe Field) -- not clear how to implement generically -- what constructor to look at?
-  restoreChoice     ∷ HasCallStack
-                    ⇒ ctx → Proxy a → ADTChoiceIO xss
-  saveChoice        ∷ ctx → a → IO ()
-  ctxSwitch         ∷ HasCallStack
-                    ⇒ Proxy a → ctx → IO ctx
+  restoreChoice     ∷ (HasCallStack, Monad m)
+                    ⇒ ctx → Proxy a → ADTChoice m xss
+  saveChoice        ∷ Monad m
+                    ⇒ ctx → a → m ()
+  ctxSwitch         ∷ (HasCallStack, Monad m)
+                    ⇒ Proxy a → ctx → m ctx
   -- * Method defaults
   presence      _ p = pure True
   restoreChoice _ _ = pure 0
@@ -152,26 +155,30 @@ class Interpret a where
   toText   ∷ a → Text
 
 class ReadField    ctx a where
-  readField            ∷ HasCallStack ⇒ ctx → ConsCtx ctx → Field     → IO (Maybe a)
-  default readField    ∷ (CtxRecord ctx a, Code a ~ xss, All2 (RestoreField ctx) xss, HasCallStack, Typeable a)
-                       ⇒ ctx → ConsCtx ctx → Field     → IO (Maybe a)
+  readField            ∷ (HasCallStack, Monad m)
+                       ⇒ ctx → ConsCtx ctx → Field     → m (Maybe a)
+  default readField    ∷ (CtxRecord ctx a, Code a ~ xss, All2 (RestoreField ctx) xss, HasCallStack, Typeable a, Monad m)
+                       ⇒ ctx → ConsCtx ctx → Field     → m (Maybe a)
   readField ctx _ _    = do
     let p = Proxy ∷ Proxy a
     newCtx ← ctxSwitch p ctx
     bool (pure Nothing) (Just <$> recover newCtx) =<< presence newCtx p
 
 class WriteField   ctx a where
-  writeField           ∷ HasCallStack ⇒ ctx → ConsCtx ctx → Field → a → IO ()
-  default writeField   ∷ (CtxRecord ctx a, Code a ~ xss, All2 (StoreField ctx) xss, HasCallStack)
-                       ⇒ ctx → ConsCtx ctx → Field → a → IO ()
+  writeField           ∷ (HasCallStack, Monad m)
+                       ⇒ ctx → ConsCtx ctx → Field → a → m ()
+  default writeField   ∷ (CtxRecord ctx a, Code a ~ xss, All2 (StoreField ctx) xss, HasCallStack, Monad m)
+                       ⇒ ctx → ConsCtx ctx → Field → a → m ()
   writeField ctx _ _ x = store   ctx x
 
 class Ctx ctx ⇒
       RestoreField ctx a where
-  restoreField         ∷ HasCallStack ⇒ ctx → ConsCtx ctx → Field     → IO a
+  restoreField         ∷ (HasCallStack, Monad m)
+                       ⇒ ctx → ConsCtx ctx → Field     → m a
 
 class StoreField   ctx a where
-  storeField           ∷ HasCallStack ⇒ ctx → ConsCtx ctx → Field → a → IO ()
+  storeField           ∷ (HasCallStack, Monad m)
+                       ⇒ ctx → ConsCtx ctx → Field → a → m ()
 
 
 
@@ -212,8 +219,8 @@ instance                      (Ctx ctx,  ReadField ctx a) ⇒ RestoreField ctx (
 -- hcliftA   ∷ (AllN (Prod h) c xs, HAp h)
 --           ⇒ proxy c → (forall a. c a ⇒ f a → f' a) → h f xs → h f' xs
 
-recover  ∷ ∀ a ctx xss. (CtxRecord ctx a, HasDatatypeInfo a, Code a ~ xss, All2 (RestoreField ctx) xss, HasCallStack)
-         ⇒ ctx → IO a
+recover  ∷ ∀ a ctx xss m. (CtxRecord ctx a, HasDatatypeInfo a, Code a ~ xss, All2 (RestoreField ctx) xss, HasCallStack, Monad m)
+         ⇒ ctx → m a
 recover ctx = do
   to <$> (hsequence =<<
           (!!)        (SOP.apInjs_POP  $ recover' p ctx $ datatypeInfo p) <$> restoreChoice ctx p)
@@ -223,26 +230,26 @@ recover ctx = do
     indexNPbyNS ∷ SListI xss ⇒ NP (K (SOP f yss)) xss → NS (K ()) xss → SOP f yss
     indexNPbyNS np ns = hcollapse $ SOP.hliftA2 (\x (K ()) → x) np ns
 
-recover' ∷ ∀ a ctx xss. (CtxRecord ctx a, All2 (RestoreField ctx) xss, All SListI xss, HasCallStack)
-         ⇒ Proxy a → ctx → DatatypeInfo xss → POP IO xss
+recover' ∷ ∀ a ctx xss m. (CtxRecord ctx a, All2 (RestoreField ctx) xss, All SListI xss, HasCallStack, Monad m)
+         ⇒ Proxy a → ctx → DatatypeInfo xss → POP m xss
 recover' proxy ctx (ADT _ name cs) = POP $ hcliftA (pAllRFields (Proxy ∷ Proxy ctx)) (recoverFor proxy ctx (pack name)) $ enumerate cs
 recover' _ _ _ = error "Non-ADTs not supported."
 
-recoverFor ∷ ∀ a ctx xs. (CtxRecord ctx a, All (RestoreField ctx) xs, HasCallStack)
-           ⇒ Proxy a → ctx → Text → NConstructorInfo xs → NP IO xs
+recoverFor ∷ ∀ a ctx xs m. (CtxRecord ctx a, All (RestoreField ctx) xs, HasCallStack, Monad m)
+           ⇒ Proxy a → ctx → Text → NConstructorInfo xs → NP m xs
 recoverFor proxy ctx _ (NC (Record consName fis) consNr) = withNames proxy ctx (pack consName) consNr $ hliftA (K ∘ pack ∘ SOP.fieldName) fis
 recoverFor _ _ name _ = error $ printf "Non-Record (plain Constructor, Infix) ADTs not supported: type %s." (unpack name)
 
-withNames ∷ ∀ a ctx xs. (CtxRecord ctx a, All (RestoreField ctx) xs, SListI xs, HasCallStack)
-          ⇒ Proxy a → ctx → Text → Int → NP (K Text) xs → NP IO xs
+withNames ∷ ∀ a ctx xs m. (CtxRecord ctx a, All (RestoreField ctx) xs, SListI xs, HasCallStack, Monad m)
+          ⇒ Proxy a → ctx → Text → Int → NP (K Text) xs → NP m xs
 withNames p ctx consName consNr (fs ∷ NP (K Text) xs) = hcliftA (pRField (Proxy ∷ Proxy ctx)) aux fs
   where
-    aux ∷ RestoreField ctx f ⇒ K Text f → IO f
+    aux ∷ RestoreField ctx f ⇒ K Text f → m f
     aux (K "") = error "Empty field names not supported."
     aux (K fi) = trace ("withNames/aux "<>unpack fi<>"/"<>unpack consName) $ restoreField ctx (consCtx ctx p consName consNr) (toField p fi)
 
-store   ∷ ∀ a ctx.     (CtxRecord ctx a, All2 (StoreField ctx) (Code a), HasCallStack)
-        ⇒ ctx → a → IO ()
+store   ∷ ∀ a ctx m.  (CtxRecord ctx a, All2 (StoreField ctx) (Code a), HasCallStack, Monad m)
+        ⇒ ctx → a → m ()
 store   ctx x = do
   let di@(ADT _ _ cs) = case datatypeInfo (Proxy ∷ Proxy a) of
         x@ADT{} → x
@@ -251,21 +258,21 @@ store   ctx x = do
   when (SOP.lengthSList cs > 1) $
     saveChoice ctx x
 
-store'  ∷              (CtxRecord ctx a, All2 (StoreField ctx) xss, All SListI xss, HasCallStack)
-        ⇒ ctx → a → DatatypeInfo xss → SOP I xss → [IO ()]
+store'  ∷              (CtxRecord ctx a, All2 (StoreField ctx) xss, All SListI xss, HasCallStack, Monad m)
+        ⇒ ctx → a → DatatypeInfo xss → SOP I xss → [m ()]
 store'  ctx x (ADT _ _ cs) = store'' ctx x (enumerate cs)
 
-store'' ∷ ∀ a ctx xss. (CtxRecord ctx a, All2 (StoreField ctx) xss, All SListI xss, HasCallStack)
-        ⇒ ctx → a → NP NConstructorInfo xss → SOP I xss → [IO ()]
+store'' ∷ ∀ a ctx xss m. (CtxRecord ctx a, All2 (StoreField ctx) xss, All SListI xss, HasCallStack, Monad m)
+        ⇒ ctx → a → NP NConstructorInfo xss → SOP I xss → [m ()]
 store'' ctx x info (SOP sop) =
   hcollapse $ hcliftA2 (pAllSFields (Proxy ∷ Proxy ctx)) (storeCtor ctx x) info sop
 
-storeCtor ∷ ∀ a ctx xs. (CtxRecord ctx a, All (StoreField ctx) xs, HasCallStack)
-          ⇒ ctx → a → NConstructorInfo xs → NP I xs → K [IO ()] xs
+storeCtor ∷ ∀ a ctx xs m. (CtxRecord ctx a, All (StoreField ctx) xs, HasCallStack, Monad m)
+          ⇒ ctx → a → NConstructorInfo xs → NP I xs → K [m ()] xs
 storeCtor ctx x (NC (Record consName fs) consNr) = K ∘ hcollapse ∘ hcliftA2 (pSField (Proxy ∷ Proxy ctx)) aux fs
   where
     p = Proxy ∷ Proxy a
-    aux ∷ StoreField ctx f ⇒ FieldInfo f → I f → K (IO ()) f
+    aux ∷ StoreField ctx f ⇒ FieldInfo f → I f → K (m ()) f
     aux (FieldInfo fi) (I a) = K $ do
       storeField ctx (consCtx ctx p (pack consName) consNr) (toField p $ pack fi) a
 
