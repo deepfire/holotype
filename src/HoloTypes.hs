@@ -20,6 +20,9 @@ module HoloTypes
   , Settings(..)
   , ScreenMode(..)
   , Port(..)
+  , PipeName(..)
+  , Frame(..)
+  , ObjectStream(..), ObjArrayNameS(..), UniformNameS(..)
   --
   , Drawable(..)
   , Visual(..)
@@ -35,9 +38,11 @@ module HoloTypes
 where
 
 import qualified Control.Concurrent.STM            as STM
+import qualified Data.ByteString.Char8             as SB
 import qualified Data.Map.Strict                   as Map
 import           Data.Typeable
 import qualified Data.TypeMap.Dynamic              as TM
+import qualified Data.Set                          as Set
 import qualified Data.Unique                       as U
 import qualified Foreign.C.Types                   as F
 import qualified Foreign                           as F
@@ -49,6 +54,7 @@ import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Mesh                as GL
 import           LambdaCube.Mesh                   as LC
 import           Linear
+import qualified Reflex.GLFW                       as GLFW
 
 -- Local imports
 import           HoloPrelude
@@ -58,7 +64,6 @@ import           Flex                                     (Geo)
 import           Flatland
 import           HoloCairo                                (FKind(..))
 import qualified HoloCairo                         as Cr
-import           HoloCube
 
 
 -- * Identity of what we're drawing, to allow re-use of underlying stateful resources.
@@ -80,11 +85,16 @@ newtype VisualTracker = VisualTracker { fromVT ∷ VIOMap }
 data Port where
   Port ∷
     { portSettings        ∷ Settings
+
     , portFontmap         ∷ Cr.FontMap PU
     , portWindow          ∷ GL.Window
-    , portObjectStream    ∷ ObjectStream
-    , portRenderer        ∷ Renderer
+
     , portVisualTracker   ∷ VisualTracker
+
+    , portGLStorage       ∷ GL.GLStorage
+    , portObjectStream    ∷ ObjectStream
+
+    , portPipelines       ∷ Map.Map PipeName GL.GLRenderer
     } → Port
     deriving (Generic)
 
@@ -116,6 +126,28 @@ data Drawable where
     , dGLObject           ∷ GL.Object
     , dTexId              ∷ GLuint
     } → Drawable
+
+data PipeName
+  = PipeDraw
+  | PipePick
+  deriving (Bounded, Enum, Eq, Ord, Show)
+
+-- | A GL 'Frame'.
+data Frame where
+  Frame ∷
+    { fDim ∷ Di Int
+    } → Frame
+
+-- | Render context for all objects with the same GL store.
+data ObjectStream where
+  ObjectStream ∷
+    { osStorage  ∷ GL.GLStorage
+    , osObjArray ∷ ObjArrayNameS
+    , osUniform  ∷ UniformNameS
+    } → ObjectStream
+
+newtype UniformNameS  = UniformNameS  { fromUNS  ∷ SB.ByteString } deriving (Eq, IsString, Ord, Show)
+newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (Eq, IsString, Ord, Show)
 
 
 -- | 'Holo': anything visualisable.

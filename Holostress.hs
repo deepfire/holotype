@@ -111,7 +111,7 @@ main = do
                                  , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                               , ("uv",        A_V2F texcoord) ] }
           dGPUMesh      ← GL.uploadMeshToGPU dMesh
-          dGLObject     ← GL.addMeshToObjectArray osStorage (HC.fromOANS osObjArray) [HC.unameStr osUniform, "viewProj"] dGPUMesh
+          dGLObject     ← GL.addMeshToObjectArray osStorage (HC.fromOANS osObjArray) [SB.unpack $ fromUNS osUniform, "viewProj"] dGPUMesh
           GL.removeObject osStorage dGLObject
           GL.disposeMesh dGPUMesh
         -- Canvas (RRect T.Text)

@@ -60,7 +60,6 @@ import           HoloTypes
 import           HoloPrelude                       hiding ((<>))
 import           Holo                                     (tsFontKey, tsSizeSpec, tsColor)
 import qualified Holo
-import           HoloCube
 import qualified HoloCairo                         as Cr
 import           HoloPort
 import qualified HoloOS                            as HOS
