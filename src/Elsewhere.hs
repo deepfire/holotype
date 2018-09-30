@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -10,6 +11,7 @@ module Elsewhere
   ( ppV2
   , textZipper, zipperText
   , everything
+  , trEv, trDyn, trDynM
   )
 where
 
@@ -25,6 +27,7 @@ import qualified Data.Text                         as T
 import qualified Data.Text.Lazy                    as TL
 import qualified Data.Text.Zipper                  as T
 import           Linear                            hiding (trace)
+import           Reflex
 
 
 -- * 'lub' + 'linear'
@@ -50,3 +53,14 @@ textZipper = flip T.textZipper Nothing
 
 zipperText ∷ T.TextZipper T.Text → T.Text
 zipperText = T.dropEnd 1 ∘ T.unlines ∘ T.getText
+
+
+-- * Reflex
+trEv ∷  Reflex t ⇒ String → Event   t a → Event t a
+trEv = traceEventWith ∘ const
+
+trDyn ∷ Reflex t ⇒ String → Dynamic t a → Dynamic t a
+trDyn = traceDynWith ∘ const
+
+trDynM ∷ Reflex t ⇒ String → String → Dynamic t (Maybe a) → Dynamic t (Maybe a)
+trDynM no ju = traceDynWith (\case; Nothing → no; Just _ → ju)
