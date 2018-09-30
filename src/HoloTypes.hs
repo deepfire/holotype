@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveGeneric, GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
-{-# LANGUAGE LambdaCase, OverloadedStrings, PackageImports, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings, PackageImports, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators, ViewPatterns #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude #-}
@@ -27,6 +27,11 @@ module HoloTypes
   , Drawable(..)
   , Visual(..)
   --
+  , Input(..)
+  , inputMatch
+  , InputMask(..), Subscription(..)
+  , inputMaskKeys, inputMaskButtons, inputMaskChars, editMaskKeys
+  --
   , Style(..)
   , DefStyleOf(..), defStyle
   , StyleGene(..), sStyle, sStyleGene, fromStyleGene
@@ -37,11 +42,14 @@ module HoloTypes
   )
 where
 
+import           Data.Foldable
 import qualified Control.Concurrent.STM            as STM
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.Map.Strict                   as Map
+import qualified Data.Map.Monoidal.Strict          as MMap
 import           Data.Typeable
 import qualified Data.TypeMap.Dynamic              as TM
+import qualified Data.Sequence                     as Seq
 import qualified Data.Set                          as Set
 import qualified Data.Unique                       as U
 import qualified Foreign.C.Types                   as F
@@ -190,6 +198,62 @@ sStyleGene f s@Style{..} = f _sStyleGene <&> \x→ s{_sStyleGene=x}
 
 defStyle ∷ Holo a ⇒ Style a
 defStyle = Style defStyleOf (StyleGene 0)
+
+
+
+data Input where
+  Input ∷
+    { inInput ∷ GLFW.InputU
+    } → Input
+  deriving (Show)
+
+data InputMask where
+  InputMask ∷
+    { inputMask ∷ GLFW.EventMask
+    } → InputMask
+  deriving (Eq, Ord)
+instance Show InputMask where
+  show InputMask{..} = ("(IM "<>) ∘ (<>")") $ show inputMask
+
+inputMatch ∷ InputMask → Input → Bool
+inputMatch InputMask{..} = \case
+  Input{inInput=GLFW.U x} → GLFW.eventMatch inputMask x
+
+instance Semigroup InputMask where
+  InputMask a <> InputMask b = InputMask $ a <> b
+instance Monoid InputMask where
+  mempty = InputMask mempty
+
+newtype Subscription = Subscription (MMap.MonoidalMap GLFW.EventType (Seq.Seq (IdToken, InputMask)))
+instance Show Subscription where
+  show (Subscription map) = ("(Subs"<>) ∘ (<>")") $ concat $
+    [ " "<>show et<>"::"<> intercalate "+" [ printf "0x%x:%s" tok (show em)
+                                           | (U.hashUnique ∘ fromIdToken' → tok,(InputMask em)) ← toList subs]
+    | (et, subs) ← MMap.toList map]
+
+instance Semigroup Subscription where
+  Subscription a <> Subscription b = Subscription $ a <> b
+
+deriving instance Monoid Subscription
+
+inputMaskKeys    ∷ Set.Set GL.Key → Set.Set GL.KeyState → GL.ModifierKeys → InputMask
+-- inputMaskKeys = InputMask ∘ GLFW.eventMaskKeys .:: GLFW.KeyEventMask
+inputMaskKeys ks kss mks = InputMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask ks kss mks
+
+inputMaskChars   ∷ InputMask
+inputMaskChars   = InputMask $ GLFW.eventMaskChars
+
+inputMaskButtons ∷ GLFW.ButtonEventMask → InputMask
+inputMaskButtons = InputMask ∘ GLFW.eventMaskButtons
+
+editMaskKeys ∷ InputMask
+editMaskKeys = (inputMaskChars <>) $ InputMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask
+  (Set.fromList
+   [ GL.Key'Up, GL.Key'Down, GL.Key'Left, GL.Key'Right, GL.Key'Home, GL.Key'End
+   , GL.Key'Backspace, GL.Key'Delete, GL.Key'Enter
+   ])
+  (Set.fromList [GL.KeyState'Pressed, GL.KeyState'Repeating])
+  (mempty)
 
 
 data Phase
