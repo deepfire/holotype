@@ -24,4 +24,5 @@
   - Port now a Dynamic
   - framebuffer size changes driving Port
   - picking pipeline re-generation driven by Port changes
-
+* TODO
+  - [ ] generics-sop to construct an interactive FRP widget for a value
