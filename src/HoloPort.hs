@@ -60,17 +60,16 @@ import qualified HoloCairo                         as Cr
 
 -- * Drawable identity support
 
-newId ∷ (HasCallStack, MonadIO m) ⇒ String → m IdToken
-newId desc = liftIO $ do
+newId ∷ (HasCallStack, MonadIO m) ⇒ m IdToken
+newId = liftIO $ do
   tok ← U.newUnique
   trev ALLOC TOK (U.hashUnique tok) (U.hashUnique tok)
-
-  pure $ IdToken (tok, desc <> "\n" <> prettyCallStack callStack)
+  pure $ IdToken tok
 
 blankIdToken'      ∷ IO.IORef IdToken
 blankIdToken'      = IO.unsafePerformIO $ IO.newIORef  undefined
 blankIdToken'setup ∷ IO ()
-blankIdToken'setup = IO.writeIORef blankIdToken' =<< newId "<blank>"
+blankIdToken'setup = IO.writeIORef blankIdToken' =<< newId
 blankIdToken       ∷ IdToken
 blankIdToken       = IO.unsafePerformIO $ IO.readIORef blankIdToken'
 {-# NOINLINE blankIdToken #-}
@@ -79,7 +78,7 @@ tokenHash ∷ IdToken → Int
 tokenHash = U.hashUnique ∘ fromIdToken
 
 tokenDesc ∷ IdToken → String
-tokenDesc = snd ∘ fromIdToken'
+tokenDesc = const ""
 
 
 -- * Could benefit from:

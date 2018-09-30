@@ -67,10 +67,12 @@ import qualified HoloCairo                         as Cr
 
 
 -- * Identity of what we're drawing, to allow re-use of underlying stateful resources.
-newtype IdToken = IdToken { fromIdToken' ∷ (U.Unique, String) } deriving (Eq, Ord)
+newtype IdToken = IdToken { fromIdToken' ∷ U.Unique } deriving (Eq, Ord)
+instance Show IdToken where
+  show (IdToken u) = printf "(IdToken 0x%x)" (U.hashUnique u)
 
 fromIdToken ∷ IdToken → U.Unique
-fromIdToken = fst ∘ fromIdToken'
+fromIdToken = fromIdToken'
 
 data                  VisualIOMap
 type instance TM.Item VisualIOMap a = Map.Map IdToken (Visual a)
