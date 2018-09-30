@@ -5,12 +5,19 @@
 {-# LANGUAGE LambdaCase, OverloadedStrings, PackageImports, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators, ViewPatterns #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Weverything #-}
-{-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude #-}
-{-# OPTIONS_GHC -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations #-}
-{-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-all-missed-specialisations #-}
+{-# OPTIONS_GHC -Wno-implicit-prelude #-}
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
+{-# OPTIONS_GHC -Wno-missing-import-lists #-}
+{-# OPTIONS_GHC -Wno-monomorphism-restriction #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-type-defaults #-}
+{-# OPTIONS_GHC -Wno-unsafe #-}
+{-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module HoloPort where
-
 
 import           Control.Monad
 import           Data.Maybe
