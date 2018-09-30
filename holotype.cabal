@@ -91,6 +91,7 @@ library
                      , lub
                      , metamorphic
                      , monadplus
+                     , monoidal-containers
                      , mono-traversable
                      , mtl
                      , optparse-applicative

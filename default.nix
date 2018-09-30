@@ -5,15 +5,16 @@
 , GLFW-b, Glob, hashable, haskell-gi-base, hedgehog, hspec, hxt
 , JuicyPixels, lambdacube-compiler, lambdacube-gl, lambdacube-ir
 , lens, linear, lub, metamorphic, MissingH, monadplus, MonadRandom
-, mono-traversable, mtl, OpenGL, OpenGLRaw, optparse-applicative
-, parsers, pretty, pretty-show, primitive, profunctors, proteaaudio
-, QuickCheck, random, ref-tf, reflex, semigroupoids, semigroups
-, singletons, spool, stdenv, stm, tasty, tasty-discover
-, tasty-expected-failure, tasty-hedgehog, tasty-hspec, tasty-hunit
-, tasty-quickcheck, tasty-smallcheck, template-haskell, text
-, text-format, text-lens, text-zipper, these, time, transformers
-, trifecta, type-map, unordered-containers, vect, vector
-, wl-pprint-extras, wl-pprint-text
+, mono-traversable, monoidal-containers, mtl, OpenGL, OpenGLRaw
+, optparse-applicative, parsers, pretty, pretty-show, primitive
+, profunctors, proteaaudio, QuickCheck, random, ref-tf, reflex
+, semigroupoids, semigroups, singletons, spool, stdenv, stm, tasty
+, tasty-discover, tasty-expected-failure, tasty-hedgehog
+, tasty-hspec, tasty-hunit, tasty-quickcheck, tasty-smallcheck
+, template-haskell, text, text-format, text-lens, text-zipper
+, these, time, transformers, trifecta, type-map
+, unordered-containers, vect, vector, wl-pprint-extras
+, wl-pprint-text
 }:
 mkDerivation {
   pname = "holotype";
@@ -28,8 +29,8 @@ mkDerivation {
     gi-gobject gi-pango gi-pangocairo GLFW-b hashable haskell-gi-base
     hedgehog hspec hxt JuicyPixels lambdacube-compiler lambdacube-gl
     lambdacube-ir lens linear lub metamorphic MissingH monadplus
-    MonadRandom mono-traversable mtl OpenGL OpenGLRaw
-    optparse-applicative parsers pretty pretty-show primitive
+    MonadRandom mono-traversable monoidal-containers mtl OpenGL
+    OpenGLRaw optparse-applicative parsers pretty pretty-show primitive
     profunctors proteaaudio QuickCheck random ref-tf reflex
     semigroupoids semigroups singletons spool stm tasty
     tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
