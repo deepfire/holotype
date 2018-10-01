@@ -1,11 +1,9 @@
 { nixpkgs     ? import <nixpkgs> {}
-, pkgs        ? nixpkgs.pkgs
-, compiler    ? "ghc843"
-, ghcOrig     ? pkgs.haskell.packages."${compiler}"
+, compiler    ? import ./default-compiler.nix
 , local       ? false
 }:
 let
-  ghc     = import ./ghc.nix { inherit nixpkgs pkgs compiler ghcOrig local; };
+  ghc     = import ./ghc.nix { inherit nixpkgs compiler local; };
   default = import ./default.nix;
 in
   ghc.callPackage default {}

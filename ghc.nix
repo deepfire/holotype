@@ -1,11 +1,10 @@
 { nixpkgs     ? import <nixpkgs> {}
-, pkgs        ? nixpkgs.pkgs
-, compiler    ? "ghc843"
-, ghcOrig     ? pkgs.haskell.packages."${compiler}"
+, compiler    ? import ./default-compiler.nix
 , local       ? false
 }:
 
 let
+  pkgs = nixpkgs.pkgs;
   lib = {
     debugBuild = pkg: pkgs.haskell.lib.overrideCabal pkg (drv: {
       configureFlags  = "--ghc-option=-g --ghc-option=-O1";
@@ -15,19 +14,27 @@ let
   };
   overlays = [
     (_: pkgs: {
-      haskellPackages = pkgs.haskellPackages.override (oldArgs: {
-        overrides = self: super:
-                    let parent = (oldArgs.overrides or (_: _: {})) self super;
-                    in parent // import ./overrides.nix         { inherit self super pkgs lib; };
-      });
+      haskell = pkgs.haskell // {
+        packages = pkgs.haskell.packages // {
+          "${compiler}" = pkgs.haskell.packages."${compiler}".override (oldArgs: {
+            overrides = self: super:
+                        let parent = (oldArgs.overrides or (_: _: {})) self super;
+                        in parent // import ./overrides.nix         { inherit self super pkgs lib; };
+          });
+        };
+      };
     })
     (_: pkgs: {
-      haskellPackages = pkgs.haskellPackages.override (oldArgs: {
-        overrides = self: super:
-                    let parent = (oldArgs.overrides or (_: _: {})) self super;
-                    in parent // (import ./manual-overrides.nix { inherit self super pkgs lib local; });
-      });
+      haskell = pkgs.haskell // {
+        packages = pkgs.haskell.packages // {
+          "${compiler}" = pkgs.haskell.packages."${compiler}".override (oldArgs: {
+            overrides = self: super:
+                        let parent = (oldArgs.overrides or (_: _: {})) self super;
+                        in parent // import ./manual-overrides.nix { inherit self super pkgs lib; };
+          });
+        };
+      };
     })
   ];
 in
-  (import <nixpkgs> { inherit overlays; }).haskellPackages
+  (import <nixpkgs> { inherit overlays; }).haskell.packages."${compiler}"

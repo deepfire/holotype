@@ -21,29 +21,6 @@ with pkgs.haskell.lib; with self; {
   });
 
   ## Upstreamed, awaiting a Hackage release
-  lambdacube-compiler = overrideCabal super.lambdacube-compiler (drv: {
-    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-compiler.src.json)) ["date"]);
-    libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (with self; [ aeson semigroups exceptions megaparsec ansi-wl-pprint pretty-show lambdacube-ir vector ]);
-    jailbreak       = true;
-    enableLibraryProfiling = false;
-  });
-
-  ## Upstreamed, awaiting a Hackage release
-  lambdacube-gl = overrideCabal super.lambdacube-gl (drv: {
-    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-gl.src.json)) ["date"]);
-    jailbreak       = true;
-    enableLibraryProfiling = false;
-  });
-
-  ## Upstreamed, awaiting a Hackage release
-  lambdacube-ir = overrideCabal super.lambdacube-ir (drv: {
-    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-ir.src.json)) ["date"]);
-    prePatch        = "cd lambdacube-ir.haskell; ";
-    jailbreak       = true;
-    enableLibraryProfiling = false;
-  });
-
-  ## Upstreamed, awaiting a Hackage release
   reflex = overrideCabal super.reflex (drv: {
     src = pkgs.fetchFromGitHub {
       owner  = "reflex-frp";
@@ -69,7 +46,6 @@ with pkgs.haskell.lib; with self; {
     jailbreak       = true;
   });
 
-
   ## Unmerged
 
   ## Unmerged.  PR: https://github.com/hanshoglund/monadplus/pull/3
@@ -91,6 +67,7 @@ with pkgs.haskell.lib; with self; {
       rev    = "79c25ac6bb469bfa92f8fd226684617b6753e955";
       sha256 = "0j2mwf5zhz7cmn01x9v51w8vpx16hrl9x9rcx8fggf21slva8lf8";
     };
+    jailbreak       = true;
     libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (with self; [ aeson these ]);
   });
 
