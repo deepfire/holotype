@@ -24,5 +24,21 @@
   - Port now a Dynamic
   - framebuffer size changes driving Port
   - picking pipeline re-generation driven by Port changes
+  - started rewriting MRecord to accomodate generic FRP widged derivation
+    - faced complexity of the holo/dynamic API
+    - started simplifying it, and mostly succeeded for simple cases
+      - complex cases are, well, involved: mkTextEntryD & mkTextEntryValidateD
+        - complicated because of Style interactivity knot tying
+          - simple cases have their default style baked in
+        - we still have the old problem of style Behavior taking effect on next redraw
+      - maybe there is still some generality to lift there
+* October 1, 2018
+  - we don't want to create a dynamic from a dynamic -- rather one from a value,
+    since our task is to lift a non-interactive value.
+  - ..and the above wish was granted, liftDyn is now a Holo class method
+* October 3, 2018
+  - so, 'readField' needs to be monadic, at least because of MonadHold, and therefore
+    'hsequence' and =<< in 'recover'
 * TODO
+  - [ ] simplify the holo/dynamic construction model
   - [ ] generics-sop to construct an interactive FRP widget for a value
