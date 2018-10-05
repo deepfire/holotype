@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -19,6 +20,8 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeInType #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports -Wno-type-defaults #-}
@@ -32,7 +35,9 @@ import           Data.Maybe
 import           Data.Semigroup
 import           Data.Singletons
 import           Data.Text                                (Text)
+import           Data.Text.Zipper                         (TextZipper)
 import           Data.Tuple
+import           Data.Typeable
 import           Linear                            hiding (trace)
 import           Prelude                           hiding (id, Word)
 import           Reflex                            hiding (Query, Query(..))
@@ -101,13 +106,6 @@ average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 
 
-type HoloBlank      = Holo.Item Holo.PBlank
-type Widget   t   a =                           (Dynamic t Subscription, Dynamic t a)
-value               ∷                           (Dynamic t Subscription, Dynamic t a) → Dynamic t a
-value               = snd
-type WidgetM  t m a = Reflex t ⇒ ReflexGLFW t m (Widget t a)
-type InputMux t     = EventSelector t (Const2 IdToken Input)
-
 routeInput ∷ ∀ t m. Reflex t ⇒ Event t Input → Event t IdToken → Dynamic t Subscription → ReflexGLFW t m (InputMux t) -- Subscription → InputMux t WorldEvent
 routeInput inputE pickedE subsD = do
   -- XXX: this accumulates the focus
@@ -133,80 +131,58 @@ routeInput inputE pickedE subsD = do
 
 
 
-widget ∷ (IdToken → ReflexGLFW t m (InputMask, Dynamic t a)) → WidgetM t m a
-widget ctor = do
-  token ← newId
-  (,) im@(InputMask em) w ← ctor token
-  let emTypes = GLFW.eventMaskTypes em
-      mmap    = MMap.fromList $ zip emTypes $ repeat $ Seq.singleton (token, im)
-  pure $ (,) (constDyn $ Subscription mmap) w
+liftDynHolo ∷ ∀ t m a. (Holo a, ReflexGLFWCtx t m) ⇒ Dynamic t a → MWidget t m a
+liftDynHolo h = do
+  tok ← newId
+  pure ( constDyn $ subscription (Proxy ∷ Proxy a) tok
+       , h <&> \x→ (,) x $ Holo.leafStyled tok (initStyle $ compStyle x) x)
 
-mkColorRectD ∷ Dynamic t (Di (Unit PU)) → Dynamic t (Co Double) → WidgetM t m HoloBlank
-mkColorRectD diD coD = widget $ \tokenV → pure $ (,) mempty $
-  (\val@(Holo.Rect dim _)→
-      Holo.leaf tokenV defStyle val & size.~(Just∘fromPU <$> dim))
-  <$> zipDynWith Holo.Rect diD coD
+liftHoloStyled ∷ ∀ t m a. (Holo a, ReflexGLFWCtx t m) ⇒ InputMux t → Behavior t (Style a) → a → MWidget t m a
+liftHoloStyled mux style initial = do
+  tok  ← newId
+  let rawD = liftDyn initial $ select mux $ Const2 tok
+  valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$> rawD
+  pure ( constDyn $ subscription (Proxy @a) tok
+       , valD)
 
-mkTextD ∷ Dynamic t (Style T.Text) → Dynamic t T.Text → WidgetM t m HoloBlank
-mkTextD styleD valD = widget $ \tokenV → pure $ (,) mempty $
-  zipDynWith (Holo.leaf tokenV) styleD valD
+liftHolo ∷ ∀ t m a. (Holo a, ReflexGLFWCtx t m) ⇒ InputMux t → a → MWidget t m a
+liftHolo mux initial = do
+  tok  ← newId
+  valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$>
+         (liftDyn initial $ select mux $ Const2 tok)
+  pure ( constDyn $ subscription (Proxy @a) tok
+       , valD)
 
-mkTextEntryD ∷ InputMux t → Behavior t (Style T.Text) → T.Text → WidgetM t m (T.Text, HoloBlank)
-mkTextEntryD mux styleB initialV = widget $ \tokenV → do
-  let editE     = select mux $ Const2 tokenV
-  valD         ← (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initialV]) (translateEditEvent <$> editE)
-  setupE       ← getPostBuild
-  initV        ← sample $ current valD
-  let holoE     = attachWith (Holo.leaf tokenV) styleB $ leftmost [updated valD, initV <$ setupE]
-  holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn valD holoE)
-   <&> (,) editMaskKeys
+-- mkTextEntryStyleD ∷ InputMux t → Behavior t (Style Text) → Text → MWidget t m (Text, HoloBlank)
+-- mkTextEntryStyleD mux styleB initialV = Holo.widget $ \tokenV → do
+--   let editE = select mux $ Const2 tokenV
+--   valD         ← textDyn initialV editE
+--   setupE       ← getPostBuild
+--   let holoE     = attachWith (Holo.leafStyled tokenV) styleB $ leftmost [updated valD, initialV <$ setupE]
+--   holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn valD holoE)
+--    <&> (,) editMaskKeys
 
-mkTextEntryValidatedD ∷ InputMux t → Behavior t (Style T.Text) → T.Text → (T.Text → Bool) → WidgetM t m (T.Text, HoloBlank)
-mkTextEntryValidatedD mux styleB initialV testF = do
+mkTextEntryValidatedStyleD ∷ InputMux t → Behavior t (Style Text) → Text → (Text → Bool) → MWidget t m Text
+mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
-  (subD, textD) ← mkTextEntryD mux styleB initialV
+  -- (subD, textD) ← mkTextEntryStyleD mux styleB initialV
+  (subD, textD) ← liftHolo mux initialV
   initial ← sample $ current textD
   foldDyn (\(new, newHoloi) (oldValid, _)→
                (if testF new then new else oldValid, newHoloi))
     initial (updated textD)
     <&> (subD,)
 
-vboxD ∷ ∀ t m. Reflex t ⇒ [Widget t HoloBlank] → WidgetM t m HoloBlank
+vboxD ∷ ∀ t m. Reflex t ⇒ [Widget' t] → MWidget' t m
 vboxD chi = do
   let dyn ∷ (Dynamic t Subscription, Dynamic t [HoloBlank])
-      dyn = foldr (\(s, hb) (ss, hbs)→ (zipDynWith (<>) s ss, zipDynWith (:) hb hbs))
+      dyn = foldr (\(s, hb) (ss, hbs)→
+                      ( zipDynWith (<>) s ss
+                      , zipDynWith (:) hb hbs ))
             (constDyn mempty, constDyn [])
             chi
   pure $ (id *** (Holo.vbox <$>)) dyn
-
-data EditEvent where
-  Edit ∷
-    { eeEdit ∷ T.TextZipper T.Text → T.TextZipper T.Text
-    } → EditEvent
-
-translateEditEvent ∷ Input → EditEvent
-translateEditEvent = \case
-  (Input (U (GLFW.EventChar _ c)))                                              → Edit $ T.insertChar c
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Pressed   _))) → Edit $ T.breakLine
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Pressed   _))) → Edit $ T.deletePrevChar
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Pressed   _))) → Edit $ T.deleteChar
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveLeft
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveUp
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveRight
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveDown
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Pressed   _))) → Edit $ T.gotoBOL
-  (Input (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Pressed   _))) → Edit $ T.gotoEOL
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Repeating _))) → Edit $ T.breakLine
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Repeating _))) → Edit $ T.deletePrevChar
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Repeating _))) → Edit $ T.deleteChar
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Repeating _))) → Edit $ T.moveLeft
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Repeating _))) → Edit $ T.moveUp
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _))) → Edit $ T.moveRight
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _))) → Edit $ T.moveDown
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoBOL
-  (Input (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoEOL
-  x → error $ "Unexpected event (non-edit): " <> show x
 
 
 
@@ -229,40 +205,44 @@ trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
 
-scene ∷ InputMux t → Dynamic t Integer → Dynamic t Int → Dynamic t Double → WidgetM t m HoloBlank
+scene ∷ InputMux t → Dynamic t Integer → Dynamic t Int → Dynamic t Double → MWidget' t m
 scene muxV statsValD frameNoD fpsValueD = mdo
 
-  fpsD             ← mkTextD (constDyn defStyle) (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
-  statsD           ← mkTextD (constDyn defStyle) $ statsValD <&>
+  fpsD             ← liftDynHolo  (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  statsD           ← liftDynHolo $ statsValD <&>
                      \(mem)→ T.pack $ printf "mem: %d" mem
 
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
-  rectD            ← mkColorRectD rectDiD (constDyn $ co 1 0 0 1)
-  frameCountD      ← mkTextD (constDyn defStyle) (T.pack ∘ printf "frame #%04d" <$> frameNoD)
+  rectD            ← liftDynHolo $ zipDynWith Holo.Rect rectDiD (constDyn $ co 1 0 0 1)
+  frameCountD      ← liftDynHolo $ T.pack ∘ printf "frame #%04d" <$> frameNoD
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
-  varlenTextD      ← mkTextD (constDyn defStyle)               (T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
+  varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  longStaticTextD  ← mkTextD (constDyn defStyle) (constDyn "0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100")
+  let action ∷ Free (WidgetM t m) Text
+      action = readField (Proxy @Text) "foo" "field"
+  xD ∷ Widget t Text ← runFWidgetM $ action
+
+  longStaticTextD  ← liftDynHolo $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
   let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
 
-  styleEntryD
-                   ← mkTextEntryValidatedD muxV styleB "defaultSans" $
+  styleEntryD      ← mkTextEntryValidatedStyleD muxV styleB "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
 
   styleD           ← trackStyle $ fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) (value styleEntryD))
   let styleB        = current styleD
 
-  text2HoloQD      ← mkTextEntryD muxV styleB "watch me"
+  -- text2HoloQD      ← mkTextEntryStyleD muxV styleB "watch me"
 
-  vboxD [ frameCountD
-        , (snd <$>) <$> text2HoloQD
+  vboxD [ trim $ frameCountD
+        -- , (snd <$>) <$> text2HoloQD
         , (snd <$>) <$> styleEntryD
-        , rectD
-        , fpsD
-        , longStaticTextD
-        , statsD
-        , varlenTextD ]
+        , trim xD
+        , trim $ rectD
+        , trim $ fpsD
+        , trim $ longStaticTextD
+        , trim $ statsD
+        , trim $ varlenTextD ]
 
 
 
@@ -275,38 +255,107 @@ parseOptions =
   Options
   <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
 
-data AnObject where
-  AnObject ∷
-    { objName   ∷ String
-    , objDPI    ∷ DΠ
-    , objDim    ∷ Di Int
-    } → AnObject
-    deriving (Eq, GHC.Generic, Show)
-instance SOP.Generic         AnObject
-instance SOP.HasDatatypeInfo AnObject
+-- newtype WidgetM t m a = WidgetM { fromWidgetM ∷ ∀ b. Holo b ⇒ (a → b) → (InputMux t → MWidget t m b) }
+newtype WidgetM t m a = WidgetM { fromWidgetM ∷ ∀ b. Holo b ⇒ (a → b) → (MWidget t m b) }
 
-data CName where
-  CName ∷ Text → ADTChoiceT → CName
+-- liftWidgetM ∷ Holo a ⇒ (InputMux t → MWidget t m a) → WidgetM t m a
+-- liftWidgetM mw = WidgetM $ \f mux → (id *** fmap (f *** id)) <$> mw mux
+liftWidgetM ∷ Holo a ⇒ (MWidget t m a) → WidgetM t m a
+liftWidgetM mw = WidgetM $ \f→ (id *** fmap (f *** id)) <$> mw
+
+-- runWidgetM ∷ Holo a ⇒ WidgetM t m a → (InputMux t → MWidget t m a)
+-- runWidgetM wm = fromWidgetM wm id
+runWidgetM ∷ Holo a ⇒ WidgetM t m a → MWidget t m a
+runWidgetM wm = fromWidgetM wm id
+
+instance Functor (WidgetM t m) where
+  fmap f (WidgetM w) = WidgetM (\acc→ w (acc ∘ f))
+
+-- liftHolo' ∷ ∀ t m a. (Holo a, ReflexGLFWCtx t m) ⇒ a → MWidget t m a
+liftHolo' ∷ ∀ t m a. (Holo a, ReflexGLFWCtx t m) ⇒ a → ReflexGLFW t m (Dynamic t Subscription, Dynamic t (a, HoloBlank))
+liftHolo' initial = do
+  tok  ← newId
+  valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$>
+         (liftDyn initial $ select (⊥) $ Const2 tok)
+  pure ( constDyn $ subscription (Proxy @a) tok
+       , valD)
+
+-- data AnObject where
+--   AnObject ∷
+--     { objName   ∷ String
+--     , objDPI    ∷ DΠ
+--     , objDim    ∷ Di Int
+--     } → AnObject
+--     deriving (Eq, GHC.Generic, Show)
+-- instance SOP.Generic         AnObject
+-- instance SOP.HasDatatypeInfo AnObject
+
+-- data CName where
+--   CName ∷ Text → ADTChoiceT → CName
 
 -- instance {-# OVERLAPPABLE #-} (SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ Record AnObject where
 -- instance {-# OVERLAPPABLE #-} (SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord AnObject AnObject where
-type instance ConsCtx a = CName
-instance Ctx AnObject where
-instance {-# OVERLAPPABLE #-} Record AnObject where
-  prefixChars = const 3
-instance {-# OVERLAPPABLE #-} CtxRecord AnObject AnObject where
-  consCtx _ _ n ix = CName n ix
-instance {-# OVERLAPPABLE #-}
-  ( CtxRecord a a
-  , Record      (Dynamic t Subscription, Dynamic t (a, HoloBlank)))
-  ⇒ CtxRecord a (Dynamic t Subscription, Dynamic t (a, HoloBlank)) where
-  consCtx _ _ n ix = CName n ix
+-- type instance ConsCtx a = CName
+-- instance Ctx AnObject where
+-- instance {-# OVERLAPPABLE #-} Record AnObject where
+--   prefixChars = const 3
+-- instance {-# OVERLAPPABLE #-} CtxRecord AnObject AnObject where
+--   consCtx _ _ n ix = CName n ix
+-- instance {-# OVERLAPPABLE #-}
+--   ( CtxRecord a a
+--   , Record      (Dynamic t Subscription, Dynamic t (a, HoloBlank)))
+--   ⇒ CtxRecord a (Dynamic t Subscription, Dynamic t (a, HoloBlank)) where
+--   consCtx _ _ n ix = CName n ix
 
--- class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
+-- *
+-- instance Holo a ⇒ Ctx a where
+-- instance Holo a ⇒ Record a where
+-- -- class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
+-- instance (Holo a, SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord a (Widget t (a, HoloBlank)) where
+-- instance Holo a ⇒ ReadField a (Widget t (a, HoloBlank)) where
+--   type ReadType a (Widget t (a, HoloBlank)) = a
+
+data Free f a where
+  Pure   :: a -> Free f a
+  Impure :: f (Free f a) -> Free f a
+  deriving Typeable
+eta :: Functor f => f a -> Free f a
+eta = Impure . fmap Pure
+instance Functor f => Functor (Free f) where
+  fmap f (Pure x)   = Pure $ f x
+  fmap f (Impure m) = Impure $ fmap (fmap f) m
+instance Functor f => Applicative (Free f) where
+  pure = Pure
+  Pure f <*> m   = fmap f m
+  Impure f <*> m = Impure $ fmap (<*> m) f
+instance Functor f => Monad (Free f) where
+  return = Pure
+  Pure a   >>= k = k a
+  Impure m >>= k = Impure (fmap (>>= k) m)
+
+instance Holo a ⇒ ReadField (Free (WidgetM t m)) a where
+  type ReadFieldCtx a = a
+  readField p initv finame = eta $ WidgetM $ \(f ∷ a → b)→
+    (id *** fmap (f *** id)) <$> liftHolo' initv ∷ 
+    PostBuildT t (TriggerEventT t (PerformEventT t m)) (Widget t b)
+
+instance (Holo a, Typeable t, Typeable m, DefStyleOf (StyleOf (Free (WidgetM t m) a)), DefStyleOf (StyleOf a)) ⇒ Holo (Free (WidgetM t m) a) where
+  data StyleOf (Free (WidgetM t m) a) = FWMStyle (StyleOf a)
+
+instance (DefStyleOf (StyleOf a)) ⇒ DefStyleOf (StyleOf (Free (WidgetM t m) a)) where
+  defStyleOf = FWMStyle $ defStyleOf @(StyleOf a)
+
+runFWidgetM ∷ (Holo a, Typeable t, Typeable m) ⇒ Free (WidgetM t m) a → MWidget t m a
+runFWidgetM (Pure x)   = liftHolo' x
+runFWidgetM (Impure ((WidgetM fa) ∷ WidgetM t m (Free (WidgetM t m) a))) =
+  do x ∷ Widget t (Free (WidgetM t m) a) ← fa id --let (m',s') = unState m s in runFState m' s'
+     pure $ (id *** _ -- (fmap _ *** id)
+            ) x
+     -- pure $ _ x
 
 -- * Top level network
 --
-holotype ∷ ∀ t m. ReflexGLFWGuest t m
+holotype ∷ ∀ t m. Typeable m ⇒ ReflexGLFWGuest t m
 holotype win evCtl windowFrameE inputE = mdo
   Options{..} ← liftIO $ Opt.execParser $ Opt.info (parseOptions <**> Opt.helper)
                 ( Opt.fullDesc
@@ -318,14 +367,6 @@ holotype win evCtl windowFrameE inputE = mdo
     ,(MISSALLOC, VIS, TRACE, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
     ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
     ]
-
-  -- What do we want?
-  -- 1. input:
-  --    - initial value
-  -- 2. output:
-  --    - dynamic
-  --    - (,) value HoloBlank
-  x ∷ Widget t (AnObject, HoloBlank) ← recover (undefined ∷ AnObject)
 
   HOS.unbufferStdout
 

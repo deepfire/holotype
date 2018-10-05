@@ -29,42 +29,50 @@ module HoloTypes
   --
   , Input(..)
   , inputMatch
-  , InputMask(..), Subscription(..)
+  , InputMask(..), Subscription(..), subSingleton
   , inputMaskKeys, inputMaskButtons, inputMaskChars, editMaskKeys
   --
-  , Style(..)
-  , DefStyleOf(..), defStyle
+  , DefStyleOf(..)
+  , Style(..), initStyle, defStyle
   , StyleGene(..), sStyle, sStyleGene, fromStyleGene
   , HIArea, HIVisual
   , Holo(..), hiStyleGene, hiHasVisual
   , Item(..)
-  , Phase(..)
+  , Phase(..), HoloBlank
+  --
+  , Widget, MWidget, value
+  , Widget', MWidget', trim
+  , InputMux
   )
 where
 
+import           Control.Arrow
 import           Data.Foldable
-import qualified Control.Concurrent.STM            as STM
-import qualified Data.ByteString.Char8             as SB
-import qualified Data.Map.Strict                   as Map
-import qualified Data.Map.Monoidal.Strict          as MMap
+import           Data.Functor.Misc                        (Const2(..))
 import           Data.Typeable
-import qualified Data.TypeMap.Dynamic              as TM
-import qualified Data.Sequence                     as Seq
-import qualified Data.Set                          as Set
-import qualified Data.Unique                       as U
-import qualified Foreign.C.Types                   as F
-import qualified Foreign                           as F
-import qualified GHC.Generics                      as GHC
-import qualified GI.Cairo                          as GIC
 import           Generics.SOP                             (Proxy)
-import qualified Generics.SOP                      as SOP
-import qualified Graphics.Rendering.Cairo.Internal as GRCI
 import           Graphics.GL.Core33                as GL
-import "GLFW-b"  Graphics.UI.GLFW                  as GL
-import qualified LambdaCube.GL                     as GL
-import qualified LambdaCube.GL.Mesh                as GL
 import           LambdaCube.Mesh                   as LC
 import           Linear
+import           Reflex                            hiding (Query, Query(..))
+import           Reflex.GLFW                              (ReflexGLFW, ReflexGLFWCtx, ReflexGLFWGuest, InputU(..))
+import "GLFW-b"  Graphics.UI.GLFW                  as GL
+import qualified Control.Concurrent.STM            as STM
+import qualified Data.ByteString.Char8             as SB
+import qualified Data.Map.Monoidal.Strict          as MMap
+import qualified Data.Map.Strict                   as Map
+import qualified Data.Sequence                     as Seq
+import qualified Data.Set                          as Set
+import qualified Data.TypeMap.Dynamic              as TM
+import qualified Data.Unique                       as U
+import qualified Foreign                           as F
+import qualified Foreign.C.Types                   as F
+import qualified GHC.Generics                      as GHC
+import qualified GI.Cairo                          as GIC
+import qualified Generics.SOP                      as SOP
+import qualified Graphics.Rendering.Cairo.Internal as GRCI
+import qualified LambdaCube.GL                     as GL
+import qualified LambdaCube.GL.Mesh                as GL
 import qualified Reflex.GLFW                       as GLFW
 
 -- Local imports
@@ -75,8 +83,6 @@ import           Flex                                     (Geo)
 import           Flatland
 import           HoloCairo                                (FKind(..))
 import qualified HoloCairo                         as Cr
-
-import           MRecord
 
 
 -- * Identity of what we're drawing, to allow re-use of underlying stateful resources.
@@ -168,15 +174,32 @@ newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (E
 
 
 -- | 'Holo': anything visualisable.
+type HoloBlank      = Item PBlank
+type Widget   t   a =                           (Dynamic t Subscription, Dynamic t (a, HoloBlank))
+type MWidget  t m a = Reflex t ⇒ ReflexGLFW t m (Widget t a)
+value               ∷                           (Dynamic t Subscription, Dynamic t a) → Dynamic t a
+value               = snd
+type Widget'  t     =                           (Dynamic t Subscription, Dynamic t HoloBlank)
+type MWidget' t m   = Reflex t ⇒ ReflexGLFW t m (Widget' t)
+
+trim ∷ Reflex t ⇒ Widget t a → Widget' t
+trim = (id *** (snd <$>))
+
 class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
   data VisualOf a
   data StyleOf  a
+  subscription    ∷                                                    Proxy a → IdToken → Subscription
+  liftDyn         ∷                                                    a → Event t Input → ReflexGLFW t m (Dynamic t a)
+  compStyle       ∷                                                                    a → StyleOf a
   query           ∷ (MonadIO m) ⇒ Port → StyleOf a →                                   a → m (Di (Maybe Double))
   hasVisual       ∷                                                                    a → Bool
   createVisual    ∷ (MonadIO m) ⇒ Port → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
   renderVisual    ∷ (MonadIO m) ⇒ Port →                            VisualOf a →       a → m ()  -- ^ Update a visualisation of 'a'.
   freeVisualOf    ∷ (MonadIO m) ⇒                                   VisualOf a → Proxy a → m ()
   --
+  liftDyn init _e = pure $ constDyn init
+  subscription    = const mempty
+  compStyle       = const defStyleOf
   hasVisual _     = False
 class DefStyleOf a where
   defStyleOf      ∷ a
@@ -203,10 +226,15 @@ sStyle     f s@Style{..} = f _sStyle     <&> \x→ s{_sStyle=x}
 sStyleGene ∷ Lens' (Style a) StyleGene
 sStyleGene f s@Style{..} = f _sStyleGene <&> \x→ s{_sStyleGene=x}
 
+initStyle ∷ Holo a ⇒ StyleOf a → Style a
+initStyle s = Style { _sStyle = s, _sStyleGene = StyleGene 0 }
+
 defStyle ∷ Holo a ⇒ Style a
-defStyle = Style defStyleOf (StyleGene 0)
+defStyle = initStyle defStyleOf
 
 
+
+type InputMux t     = EventSelector t (Const2 IdToken Input)
 
 data Input where
   Input ∷
@@ -242,6 +270,11 @@ instance Semigroup Subscription where
   Subscription a <> Subscription b = Subscription $ a <> b
 
 deriving instance Monoid Subscription
+
+subSingleton ∷ IdToken → InputMask → Subscription
+subSingleton tok im@(InputMask em) = Subscription $
+  MMap.fromList [ (evty, Seq.singleton (tok, im))
+                | evty ← GLFW.eventMaskTypes em ]
 
 inputMaskKeys    ∷ Set.Set GL.Key → Set.Set GL.KeyState → GL.ModifierKeys → InputMask
 -- inputMaskKeys = InputMask ∘ GLFW.eventMaskKeys .:: GLFW.KeyEventMask

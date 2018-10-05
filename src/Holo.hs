@@ -1,6 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes, ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
 {-# LANGUAGE DataKinds, GADTs, NoMonomorphismRestriction, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
-{-# LANGUAGE LambdaCase, OverloadedLists, OverloadedStrings, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, TypeOperators, ViewPatterns #-}
+{-# LANGUAGE LambdaCase, OverloadedLists, OverloadedStrings, PackageImports, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, TypeOperators, ViewPatterns #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
 module Holo
@@ -10,10 +10,10 @@ module Holo
   -- * Get that:
   , StyleOf(..), VisualOf(..)
   , KNode(..), Node(..)
-  , item
-  , node
   , vbox, hbox
-  , leaf
+  , item, leafStyled, leaf
+  -- , liftHolo
+  -- , widget
   , Phase(..)
   , Item, hiToken, hiArea
   , holotreeLeaves
@@ -28,35 +28,38 @@ module Holo
   , emptyHolo, emptyLayoutHolo, emptyVisualHolo
   , blankIdToken
   -- * Holo instances
-  , Rect(..), RectStyle, RectVisual
+  , Rect(..)
   , TextStyle, TextVisual
-  , TextZipperStyle, TextZipperVisual
-  , tsFontKey, tsSizeSpec, tsColor, tesTSStyle
+  , tsFontKey, tsSizeSpec, tsColor
   )
 where
 
-import           HoloPrelude
-
 import           Control.Monad
-import qualified Data.Map.Strict                   as Map
--- import qualified Data.Set                          as Set
-import qualified Data.Text                         as T
-import qualified Data.Text.Zipper                  as T
+import           Data.Text                                (Text)
+import           Data.Text.Zipper                         (TextZipper)
 import           Data.Typeable
 import           Linear
 import           Prelude                           hiding ((.), id)
-
+import           Reflex                            hiding (Query, Query(..))
+import           Reflex.GLFW                              (ReflexGLFW, ReflexGLFWCtx, ReflexGLFWGuest, InputU(..))
+import qualified Data.Map.Monoidal.Strict          as MMap
+import qualified Data.Map.Strict                   as Map
+import qualified Data.Sequence                     as Seq
+import qualified Data.Text                         as T
+import qualified Data.Text.Zipper                  as T
 import qualified GI.Pango                          as GIP
+import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
+import qualified Reflex.GLFW                       as GLFW
 
 -- Local imports
-import           HoloTypes
-
 import           Elsewhere
 import           Flatland
-import qualified Flex                              as Flex
 import           Flex                                     (Flex, Geo)
-import qualified HoloCairo                         as Cr
 import           HoloPort
+import           HoloPrelude
+import           HoloTypes
+import qualified Flex                              as Flex
+import qualified HoloCairo                         as Cr
 
 
 -- * Item
@@ -74,17 +77,18 @@ holotreeLeaves root = Map.fromList $ walk root
 
 
 -- * Minimal
-instance Holo () where
+instance DefStyleOf (StyleOf ()) where
+  defStyleOf           = UnitStyle
+instance Holo   () where
   data StyleOf  ()     = UnitStyle
   data VisualOf ()     = UnitVisual
-  query        _ _ _     = pure $ Di $ V2 Nothing Nothing
-instance DefStyleOf (StyleOf ()) where
-  defStyleOf = UnitStyle
+  compStyle        _   = UnitStyle
+  query        _ _ _   = pure $ Di $ V2 Nothing Nothing
 
 instance Semigroup (Item PBlank)  where _ <> _ = mempty
-instance Monoid    (Item PBlank)  where mempty = Item () blankIdToken defStyle mempty [] (Di $ V2 Nothing Nothing) mempty ()
+instance Monoid    (Item PBlank)  where mempty = Item () blankIdToken (initStyle UnitStyle) mempty [] (Di $ V2 Nothing Nothing) mempty ()
 instance Semigroup (Item PLayout) where _ <> _ = mempty
-instance Monoid    (Item PLayout) where mempty = Item () blankIdToken defStyle mempty [] (Di $ V2 Nothing Nothing) mempty ()
+instance Monoid    (Item PLayout) where mempty = Item () blankIdToken (initStyle UnitStyle) mempty [] (Di $ V2 Nothing Nothing) mempty ()
 
 -- instance Semigroup (Item PLayout) where
 --   l <> r = vbox [l, r]
@@ -186,12 +190,12 @@ data Node (k ∷ KNode) where
   VBoxN ∷ Node VBox
   deriving Typeable
 
+instance DefStyleOf (StyleOf (Node k)) where
+  defStyleOf             = NodeStyle
 instance Typeable k ⇒ Holo   (Node (k ∷ KNode)) where
   data StyleOf  (Node k) = NodeStyle
   data VisualOf (Node k) = NodeVisual
   query        _ _ _     = pure $ Di $ V2 Nothing Nothing
-instance DefStyleOf (StyleOf (Node k)) where
-  defStyleOf = NodeStyle
 
 nodeGeo ∷ Node k → Geo
 nodeGeo HBoxN = mempty & Flex.grow .~ 1 & Flex.direction .~ Flex.DirRow
@@ -202,45 +206,63 @@ nodeGeo VBoxN = mempty & Flex.grow .~ 1 & Flex.direction .~ Flex.DirColumn
 --
 -- XXX: this FromUnit constraint is a genuine pain.
 
-item ∷ ∀ p a. (Holo a)
+item ∷ ∀ a. (Holo a)
   ⇒ IdToken
   → Style a
   → a
   → Geo
-  → HIArea p
-  → HIVisual p a
-  → [Item p]
-  → Item p
-item hiToken hiStyle holo hiGeo hiArea hiVisual hiChildren =
-  let hiSize = Di (V2 Nothing Nothing)
+  → [Item PBlank]
+  → Item PBlank
+item hiToken hiStyle holo hiGeo hiChildren =
+  let hiSize   = Di (V2 Nothing Nothing)
+      hiArea   = ()
+      hiVisual = ()
   in Item{..}
 
-node ∷ ∀ p a k. (Holo a, a ~ Node k)
+node ∷ ∀ a k. (Holo a, a ~ Node k)
   ⇒ IdToken
   → Style a
   → a
-  → HIArea p
-  → HIVisual p a
-  → [Item p]
-  → Item p
-node idToken style holo area visual =
-  item idToken style holo (nodeGeo holo) area visual
+  → [Item PBlank]
+  → Item PBlank
+node idToken style holo =
+  item idToken style holo (nodeGeo holo)
 
-leaf ∷ ∀ a. (Holo a)
+leafStyled ∷ ∀ a. (Holo a)
   ⇒ IdToken
   → Style a
   → a
   → Item PBlank
-leaf idToken hiStyle holo =
-  item idToken hiStyle holo mempty () () []
+leafStyled tok hiStyle holo =
+  item tok hiStyle holo mempty []
+
+leaf ∷ ∀ a. (Holo a)
+  ⇒ IdToken
+  → a
+  → Item PBlank
+leaf tok holo = leafStyled tok (initStyle $ compStyle holo) holo
+
+-- liftHolo ∷ ∀ t m a. (Holo a, ReflexGLFWCtx t m) ⇒ Dynamic t a → WidgetM t m HoloBlank
+-- liftHolo h = do
+--   tok ← newId
+--   pure $ ( constDyn $ subscription (Proxy ∷ Proxy a) tok
+--          , h <&> \x→ Holo.leafStyled tok (initStyle $ compStyle x) x)
+
+-- widget ∷ (IdToken → ReflexGLFW t m (InputMask, Dynamic t a)) → WidgetM t m a
+-- widget ctor = do
+--   token ← newId
+--   (,) im@(InputMask em) w ← ctor token
+--   let emTypes = GLFW.eventMaskTypes em
+--       mmap    = MMap.fromList $ zip emTypes $ repeat $ Seq.singleton (token, im)
+--   pure $ (,) (constDyn $ Subscription mmap) w
 
 
 -- * Pre-package tree constructors
 --
 vbox, hbox ∷ [Item PBlank] → Item PBlank
 -- XXX: here's trouble -- we're using blankIdToken!
-hbox = node blankIdToken defStyle (HBoxN ∷ Node HBox) () ()
-vbox = node blankIdToken defStyle (VBoxN ∷ Node VBox) () ()
+hbox = node blankIdToken (initStyle NodeStyle) (HBoxN ∷ Node HBox)
+vbox = node blankIdToken (initStyle NodeStyle) (VBoxN ∷ Node VBox)
 
 
 -- * Leaves
@@ -252,18 +274,14 @@ data Rect where
     } → Rect
 -- makeLenses ''Rect
 
-instance Semigroup RectStyle where
-  _ <> _ = RectStyle
-instance Monoid    RectStyle where
-  mempty      = RectStyle
-
-type RectStyle  = StyleOf  Rect
-type RectVisual = VisualOf Rect
+instance DefStyleOf (StyleOf Rect) where
+  defStyleOf                = RectStyle $ Rect zero white
 instance Holo   Rect where
-  data StyleOf  Rect where RectStyle  ∷ RectStyle
-  data VisualOf Rect where RectVisual ∷ { rectDrawable ∷ Drawable } → RectVisual
-  query     port _       Rect{..} = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$> _rectDim
-  hasVisual _ = True
+  data StyleOf  Rect where RectStyle  ∷ Rect → StyleOf Rect
+  data VisualOf Rect where RectVisual ∷ { rectDrawable ∷ Drawable } → VisualOf Rect
+  query port (RectStyle Rect{..}) _ = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$> _rectDim
+  compStyle                 = RectStyle
+  hasVisual               _ = True
   createVisual port@Port{..} _ _area drw Rect{..} = do
     let dim = PUs <$> _area^.area'b.size'di
     drawableDrawRect port drw _rectColor dim
@@ -271,8 +289,6 @@ instance Holo   Rect where
   renderVisual port v@RectVisual{rectDrawable=Drawable{..}} Rect{..} =
     drawableDrawRect port (rectDrawable v) _rectColor _rectDim
   freeVisualOf _ _       = pure ()
-instance DefStyleOf (StyleOf Rect) where
-  defStyleOf = RectStyle
 
 
 -- * This is a complicated story:
@@ -311,6 +327,14 @@ instance Holo  T.Text where
       , tLayout        ∷ GIP.Layout
       , tDim           ∷ Di (Unit u)
       } → TextVisual
+  compStyle _ = TextStyle
+    { _tsFontKey     = "default"
+    , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
+    , _tsColor       = white
+    }
+  subscription _ tok = subSingleton tok editMaskKeys
+  liftDyn initial ev =
+    (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
   query port@Port{..} TextStyle{..} content = do
     let font = portFont' port _tsFontKey -- XXX: non-total
     (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (portDΠ port) _tsSizeSpec) (partial (≢ "") content)
@@ -332,45 +356,40 @@ instance Holo  T.Text where
   freeVisualOf Text{..} _ =
     Cr.unbindFontLayout tFont tLayout
 
+data EditEvent where
+  Edit ∷
+    { eeEdit ∷ TextZipper Text → TextZipper Text
+    } → EditEvent
+
+translateEditEvent ∷ Input → EditEvent
+translateEditEvent = \case
+  (Input (U (GLFW.EventChar _ c)))                                              → Edit $ T.insertChar c
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Pressed   _))) → Edit $ T.breakLine
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Pressed   _))) → Edit $ T.deletePrevChar
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Pressed   _))) → Edit $ T.deleteChar
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveLeft
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveUp
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveRight
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveDown
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Pressed   _))) → Edit $ T.gotoBOL
+  (Input (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Pressed   _))) → Edit $ T.gotoEOL
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Repeating _))) → Edit $ T.breakLine
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Repeating _))) → Edit $ T.deletePrevChar
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Repeating _))) → Edit $ T.deleteChar
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Repeating _))) → Edit $ T.moveLeft
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Repeating _))) → Edit $ T.moveUp
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _))) → Edit $ T.moveRight
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _))) → Edit $ T.moveDown
+  (Input (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoBOL
+  (Input (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoEOL
+  x → error $ "Unexpected event (non-edit): " <> show x
+
 tsFontKey   ∷ Lens' TextStyle Cr.FontKey
 tsFontKey  f ts@(TextStyle x _ _) = (\xx→ts{_tsFontKey=xx})  <$> f x
 tsSizeSpec  ∷ Lens' TextStyle (Cr.TextSizeSpec PU)
 tsSizeSpec f ts@(TextStyle _ x _) = (\xx→ts{_tsSizeSpec=xx}) <$> f x
 tsColor     ∷ Lens' TextStyle (Co Double)
 tsColor    f ts@(TextStyle _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
-
-
-type TextZipperStyle  = StyleOf  (T.TextZipper T.Text)
-type TextZipperVisual = VisualOf (T.TextZipper T.Text)
-
--- instance Semigroup TextZipperStyle where
---   TextZipperStyle l <> TextZipperStyle r = TextZipperStyle $ l <> r
-
-instance DefStyleOf (StyleOf (T.TextZipper T.Text)) where
-  defStyleOf = TextZipperStyle (defStyleOf ∷ StyleOf T.Text)
-
-instance Holo   (T.TextZipper T.Text) where
-  data StyleOf  (T.TextZipper T.Text) where
-    TextZipperStyle ∷
-      { fromTextZipperStyle ∷ TextStyle
-      } → TextZipperStyle
-  data VisualOf (T.TextZipper T.Text) where
-    TextZipper ∷
-      { teText ∷ VisualOf T.Text
-      } → TextZipperVisual
-  query port TextZipperStyle{..} tz =
-    query port fromTextZipperStyle (zipperText tz)
-  hasVisual _ = True
-  createVisual port hsty area' drw content = do
-    TextZipper <$> createVisual port (hsty & fromTextZipperStyle) area' drw (zipperText content)
-  renderVisual _ (TextZipper Text{..}) content = do
-    -- XXX: cursor position
-    drawableDrawText tDrawable tLayout (_tsColor tStyle) (zipperText content)
-  freeVisualOf TextZipper{..} _ = freeVisualOf teText Proxy
-
-tesTSStyle  ∷ Lens' TextZipperStyle TextStyle
-tesTSStyle f (TextZipperStyle x) = TextZipperStyle <$> f x
-
 
 
 -- visual ∷ (ReflexGLFWCtx t m, Holo a) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → Event t (a, b) → m (Event t (Holosome a, b))
