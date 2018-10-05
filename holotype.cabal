@@ -72,7 +72,7 @@ library
                      , filepath
                      , free
                      , freer-simple
-                     , fsnotify
+                     -- , fsnotify
                      , generics-sop
                      , ghc-prim
                      , gi-cairo

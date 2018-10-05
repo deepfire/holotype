@@ -63,7 +63,7 @@ import           Types
 -- TEMPORARY
 import qualified GI.Pango                          as GIP
 import           Numeric.Extra                            (doubleToFloat)
-import qualified System.FSNotify                   as FS
+-- import qualified System.FSNotify                   as FS
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 

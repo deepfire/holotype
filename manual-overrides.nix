@@ -21,6 +21,7 @@ with pkgs.haskell.lib; with lib; with self; {
     src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./reflex-glfw.src.json)) ["date"]);
     isLibrary = true;
     isExecutable = true;
+    jailbreak = true;
     libraryHaskellDepends = [
       base base-unicode-symbols containers dependent-sum GLFW-b lens mtl
       OpenGLRaw pretty primitive ref-tf reflex stm transformers

@@ -1,7 +1,7 @@
 { mkDerivation, aeson, aeson-pretty, base, base-unicode-symbols
 , binary, bytestring, cairo, clock, containers, dependent-sum
 , directory, dlist, exceptions, extra, filepath, free, freer-simple
-, fsnotify, generics-sop, ghc-prim, gi-cairo, gi-gobject, gi-pango
+, generics-sop, ghc-prim, gi-cairo, gi-gobject, gi-pango
 , gi-pangocairo, GLFW-b, Glob, hashable, haskell-gi-base, hedgehog
 , hspec, hxt, JuicyPixels, lambdacube-compiler, lambdacube-gl
 , lambdacube-ir, lens, linear, lub, metamorphic, MissingH
@@ -25,7 +25,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson aeson-pretty base base-unicode-symbols binary bytestring
     cairo clock containers dependent-sum directory dlist exceptions
-    extra filepath free freer-simple fsnotify generics-sop ghc-prim
+    extra filepath free freer-simple generics-sop ghc-prim
     gi-cairo gi-gobject gi-pango gi-pangocairo GLFW-b hashable
     haskell-gi-base hedgehog hspec hxt JuicyPixels lambdacube-compiler
     lambdacube-gl lambdacube-ir lens linear lub metamorphic MissingH
