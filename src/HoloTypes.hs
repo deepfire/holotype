@@ -175,12 +175,12 @@ newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (E
 
 -- | 'Holo': anything visualisable.
 type HoloBlank      = Item PBlank
-type Widget   t   a =                           (Dynamic t Subscription, Dynamic t (a, HoloBlank))
-type MWidget  t m a = Reflex t ⇒ ReflexGLFW t m (Widget t a)
-value               ∷                           (Dynamic t Subscription, Dynamic t a) → Dynamic t a
+type Widget   t   a =                (Dynamic t Subscription, Dynamic t (a, HoloBlank))
+type MWidget  t m a = ReflexGLFW t m (Widget t a)
+value               ∷                (Dynamic t Subscription, Dynamic t a) → Dynamic t a
 value               = snd
-type Widget'  t     =                           (Dynamic t Subscription, Dynamic t HoloBlank)
-type MWidget' t m   = Reflex t ⇒ ReflexGLFW t m (Widget' t)
+type Widget'  t     =                (Dynamic t Subscription, Dynamic t HoloBlank)
+type MWidget' t m   = ReflexGLFW t m (Widget' t)
 
 trim ∷ Reflex t ⇒ Widget t a → Widget' t
 trim = (id *** (snd <$>))

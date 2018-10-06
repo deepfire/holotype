@@ -3,6 +3,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -58,7 +59,7 @@ import           GHC.Generics                        (Generic)
 import qualified GHC.Generics                     as GHC
 import           GHC.Stack
 import           Generics.SOP                        (Rep, NS(..), NP(..), SOP(..), POP(..), I(..), K(..), Code, All, All2
-                                                     ,HasDatatypeInfo(..), DatatypeInfo(..), FieldName(..), FieldInfo(..), ConstructorInfo(..), SListI
+                                                     ,HasDatatypeInfo(..), DatatypeInfo(..), FieldInfo(..), ConstructorInfo(..), SListI
                                                      ,from, to, hcollapse, hcliftA2, hliftA, unI, hsequence, hcpure, hpure
                                                      , fn
                                                      , hcliftA
@@ -68,6 +69,7 @@ import           Generics.SOP                        (Rep, NS(..), NP(..), SOP(.
 import qualified Generics.SOP                     as SOP
 import qualified Generics.SOP.NS                  as SOP
 import qualified Generics.SOP.NP                  as SOP
+import qualified Generics.SOP.GGP                 as SOP
 
 import           Debug.Trace (trace)
 
@@ -109,42 +111,46 @@ type family ConsCtx ctx ∷ Type
 class Ctx ctx where
   errCtxDesc        ∷ ctx             -- ^ Given the record context
                     → ConsCtx ctx     -- ^ ..the constructor-specific context
-                    → Field           -- ^ ..the field name
+                    → FieldName           -- ^ ..the field name
                     → Text            -- ^ produce the error message
   dropField         ∷ Monad m         -- ^
                     ⇒ ctx             -- ^ Given the record context
                     → ConsCtx ctx     -- ^ ..the constructor-specific context
-                    → Field           -- ^ ..the field name
+                    → FieldName           -- ^ ..the field name
                     → m ()            -- ^ remove the field.
-  errCtxDesc _ _ (Field f) = "field '"<>f<>"'"
+  errCtxDesc _ _ (FieldName f) = "field '"<>f<>"'"
 
-class Monad m ⇒ ReadField m a where
-  type ReadFieldCtx a ∷ Type
+type family Structure a ∷ Type
+
+class Monad m ⇒ Field m a where
+  type FieldCtx   a ∷ Type              -- ^ Field recovery context
   readField         ∷ (HasCallStack)
-                    ⇒ Proxy a         -- ^ Given the type
-                    → ReadFieldCtx a  -- ^ ..the general context
-                    → Field           -- ^ ..the field name
-                    → m a             -- ^ restore the record's field.
+                    ⇒ -- Proxy a           -- ^ Given the result type
+                    -- → 
+                      FieldCtx a        -- ^ ..the recovery context
+                    → FieldName         -- ^ ..the field name
+                    → m a               -- ^ restore the point.
 
-class Record a where
+class (SOP.Generic (Structure a), SOP.HasDatatypeInfo (Structure a))
+      ⇒ Record a where
   prefixChars       ∷ Proxy a         -- ^ Given the type of the record
                     → Int             -- ^ produce the number of prefix characters to ignore.
   nameMap           ∷ Proxy a         -- ^ Given the type of the record
                     → [(Text, Text)]  -- ^ produce the partial field renaming map.
-  toField           ∷ Proxy a         -- ^ Given the type of the record
+  toFieldName       ∷ Proxy a         -- ^ Given the type of the record
                     → Text            -- ^ ..the record's field name
-                    → Field           -- ^ produce the serialised field name.
+                    → FieldName           -- ^ produce the serialised field name.
   -- *
   nameMap           = const []
-  toField r x = --trace (T.unpack x <> "→" <> T.unpack (maybeRemap $ dropDetitle (prefixChars r) x)) $
-    Field $ maybeRemap $ dropDetitle (prefixChars r) x
+  toFieldName r x = --trace (T.unpack x <> "→" <> T.unpack (maybeRemap $ dropDetitle (prefixChars r) x)) $
+    FieldName $ maybeRemap $ dropDetitle (prefixChars r) x
     where maybeRemap x = maybe x id (lookup x $ nameMap r)
           dropDetitle ∷ Int → Text → Text
           dropDetitle n (drop 2 → x) = toLower (take 1 x) <> drop 1 x
 
 
 
-newtype Field = Field { fromField ∷ Text } deriving (Eq, IsString, Ord, Show)
+newtype FieldName = FieldName { fromFieldName ∷ Text } deriving (Eq, IsString, Ord, Show)
 
 type ADTChoiceT        = Int
 type ADTChoice   m xss = m ADTChoiceT
@@ -162,7 +168,7 @@ class (SOP.HasDatatypeInfo a, SOP.Generic a, Record a) ⇒ CtxRecord a where
   --                   ⇒ ctx             -- ^ Given the record context
   --                   → Proxy a         -- ^ ..the type of the record
   --                   → m Bool          -- ^ action to determine the record's presence.
-  --presenceByField   ∷ ctx → Proxy a → IO (Maybe Field) -- not clear how to implement generically -- what constructor to look at?
+  --presenceByField   ∷ ctx → Proxy a → IO (Maybe FieldName) -- not clear how to implement generically -- what constructor to look at?
   restoreChoice     ∷ (HasCallStack, Monad m)
                     ⇒ RecordCtx a     -- ^ ..the type of the record
                     → Proxy a         -- ^ ..the type of the record
@@ -192,7 +198,7 @@ class Interpret a where
   -- default readField    ∷ (CtxRecord ctx a, Code a ~ xss, All2 (RestoreField ctx) xss, HasCallStack, Typeable a, Monad m)
   --                      ⇒ ctx                -- ^ Given the record context
   --                      → ConsCtx ctx        -- ^ ..the constructor-specific context
-  --                      → Field              -- ^ ..the field name
+  --                      → FieldName              -- ^ ..the field name
   --                      → m (ReadType ctx a) -- ^ restore the record's field.
   -- readField ctx _ _    = do
   --   let p = Proxy ∷ Proxy a
@@ -202,7 +208,7 @@ class WriteField   ctx a where
   writeField           ∷ (HasCallStack, Monad m)
                        ⇒ ctx             -- ^ Given the record context
                        → ConsCtx ctx     -- ^ ..the constructor-specific context
-                       → Field           -- ^ ..the field name
+                       → FieldName           -- ^ ..the field name
                        → a               -- ^ ..the record's field value.
                        → m ()            -- ^ store the record's field.
 
@@ -210,14 +216,14 @@ class WriteField   ctx a where
   -- default writeField   ∷ (CtxRecord ctx a, Code a ~ xss, All2 (StoreField ctx) xss, HasCallStack, Monad m)
   --                      ⇒ ctx             -- ^ Given the record context
   --                      → ConsCtx ctx     -- ^ ..the constructor-specific context
-  --                      → Field           -- ^ ..the field name
+  --                      → FieldName           -- ^ ..the field name
   --                      → a               -- ^ ..the record's field value.
   --                      → m ()            -- ^ store the record's field.
   -- writeField ctx _ _ x = store   ctx x
 
 
 
-fieldError ∷ HasCallStack ⇒ Ctx ctx ⇒ ctx → ConsCtx ctx → Field → Text → b
+fieldError ∷ HasCallStack ⇒ Ctx ctx ⇒ ctx → ConsCtx ctx → FieldName → Text → b
 fieldError ctx cc field mesg = error $ unpack $ errCtxDesc ctx cc field <> ": " <> mesg
 
 
@@ -226,7 +232,7 @@ fieldError ctx cc field mesg = error $ unpack $ errCtxDesc ctx cc field <> ": " 
 --   storeField   ctx cc fi x = writeField ctx cc fi x
 
 -- instance {-# OVERLAPPABLE #-} (Ctx ctx,  ReadField ctx a) ⇒ RestoreField ctx a where
---   restoreField ctx cc fi   = trace ("restoreFi→readFi "<>unpack (fromField fi)) $ readField  ctx cc fi
+--   restoreField ctx cc fi   = trace ("restoreFi→readFi "<>unpack (fromFieldName fi)) $ readField  ctx cc fi
 --     <&> fromMaybe (fieldError ctx cc fi "mandatory field absent")
 
 -- instance                      (Ctx ctx, WriteField ctx a) ⇒ StoreField   ctx (Maybe a) where
@@ -234,7 +240,7 @@ fieldError ctx cc field mesg = error $ unpack $ errCtxDesc ctx cc field <> ": " 
 --   storeField ctx cc fi (Just x) = writeField ctx cc fi x
 
 -- instance                      (Ctx ctx,  ReadField ctx a) ⇒ RestoreField ctx (Maybe a) where
---   restoreField a b fi = trace ("restoreFi Maybe→readFi "<>unpack (fromField fi)) $ readField a b fi
+--   restoreField a b fi = trace ("restoreFi Maybe→readFi "<>unpack (fromFieldName fi)) $ readField a b fi
 
 
 
@@ -254,43 +260,87 @@ fieldError ctx cc field mesg = error $ unpack $ errCtxDesc ctx cc field <> ": " 
 -- hcliftA   ∷ (AllN (Prod h) c xs, HAp h)
 --           ⇒ proxy c → (forall a. c a ⇒ f a → f' a) → h f xs → h f' xs
 
-recover  ∷ ∀ a ctx xss m. (CtxRecord a, HasDatatypeInfo a, Code a ~ xss, All2 (ReadField m) xss, HasCallStack, Monad m)
+-- * 1. Monadically determine the constructor #
+--   2. Get the POP of actions for the record's structure
+--   3. Select the slice of actions for the #th constructor
+--   4. Exchange the order of monad vs. the typed list
+--   5. The monadic action is then fmapped over, yielding the recovered record.
+
+-- Q:
+--   - how do we go from a list of monadic actions for a derived type
+recover  ∷ ∀ a s xss m.
+           ( Record a, CtxRecord a
+           , SOP.Generic (Structure a)
+           , SOP.HasDatatypeInfo (Structure a)
+           , SOP.GTo (Structure a)
+           , Generic (Structure a)
+           , Rep (Structure a) ~ SOP I (SOP.GCode (Structure a))
+           , Code (Structure a) ~ xss
+           , All2 (Field m) xss
+           , HasCallStack, Monad m)
          ⇒ RecordCtx a → m a
+-- type GCode (a :: Type) = ToSumCode (GHC.Rep a) '[]
+-- gSumTo :: SOP I (ToSumCode a xss) -> (a x -> r) -> (SOP I xss -> r) -> r
+-- type family ToSumCode (a :: Type -> Type) (xs :: [[Type]]) :: [[Type]]
+
+gto :: forall a sa. (sa ~ a, SOP.GTo sa, GHC.Generic sa)
+    => SOP I (SOP.ToSumCode (GHC.Rep sa) '[]) -> sa
+-- gto x = GHC.to (gSumTo x id ((\y -> case y of {}) :: SOP I '[] -> (GHC.Rep a) x))
+gto x = (GHC.to
+         ∷ GHC.Rep a x → a)
+        ((SOP.gSumTo x id ((\y → case y of {})
+                           ∷ SOP I '[]
+                           → (GHC.Rep sa) x))
+        -- ∷ SOP I (SOP.ToSumCode (GHC.Rep sa) '[]) -> ((GHC.Rep sa) x -> r) -> (SOP I '[] -> r) -> r
+        )
+     -- m (f0:f1:f2:[])
 recover ctx = do
-  to <$> (hsequence =<<
-          (!!)        (SOP.apInjs_POP  $ recover' p ctx $ datatypeInfo p) <$> restoreChoice ctx p)
+  (⊥) <$> ((hsequence =<<
+          (!!) (SOP.apInjs_POP $ recover' pRec ctx $ datatypeInfo pStr) <$> restoreChoice ctx pRec))
           -- indexNPbyNS (SOP.apInjs'_POP $ recover' p ctx $ datatypeInfo p) <$> (pure $ S(Z(K())))
   where
-    p = Proxy ∷ Proxy a
+    pRec = Proxy @a
+    pStr = Proxy @(Structure a)
     indexNPbyNS ∷ SListI xss ⇒ NP (K (SOP f yss)) xss → NS (K ()) xss → SOP f yss
     indexNPbyNS np ns = hcollapse $ SOP.hliftA2 (\x (K ()) → x) np ns
 
-recover' ∷ ∀ a ctx xss m. (CtxRecord a, All2 (ReadField m) xss, All SListI xss, HasCallStack, Monad m)
+-- * 1. Enrich the record's POP, enumerating every constructor
+--   2. Map the (NConstructorInfo → NP m) interpreter over those
+--   3. Return the resultant POP of actions
+recover' ∷ ∀ a ctx xss m. (CtxRecord a, All2 (Field m) xss, All SListI xss, HasCallStack, Monad m)
          ⇒ Proxy a → RecordCtx a → DatatypeInfo xss → POP m xss
-recover' proxy ctx (ADT _ name cs) = POP $ hcliftA (pAllRFields (Proxy @m) (Proxy @ctx)) (recoverFor proxy ctx (pack name)) $ enumerate cs
+recover' proxyR ctx (ADT _ name cs) =
+  POP $ hcliftA (pAllRFields (Proxy @m) (Proxy @ctx))
+  (recoverCtor proxyR ctx (pack name)) (enumerate cs)
 recover' _ _ _ = error "Non-ADTs not supported."
 
-recoverFor ∷ ∀ a ctx xs m. (CtxRecord a, All (ReadField m) xs, HasCallStack, Monad m)
+-- * 1. Extract the constructor's product of field names
+--   2. Feed that to the field-name→action interpreter
+recoverCtor ∷ ∀ a ctx xs m. (CtxRecord a, All (Field m) xs, HasCallStack, Monad m)
            ⇒ Proxy a → RecordCtx a → Text → NConstructorInfo xs → NP m xs
-recoverFor proxy ctx _ (NC (Record consName fis) consNr) = withNames proxy ctx (pack consName) consNr $ hliftA (K ∘ pack ∘ SOP.fieldName) fis
-recoverFor _ _ name _ = error $ printf "Non-Record (plain Constructor, Infix) ADTs not supported: type %s." (unpack name)
+recoverCtor proxy ctx _ (NC (Record consName fis) consNr) =
+  recoverFields proxy ctx (pack consName) consNr $ hliftA (K ∘ pack ∘ SOP.fieldName) fis
+recoverCtor _ _ name _ =
+  error $ printf "Non-Record (plain Constructor, Infix) ADTs not supported: type %s." (unpack name)
 
-withNames ∷ ∀ a ctx xs m. (CtxRecord a, All (ReadField m) xs, SListI xs, HasCallStack, Monad m)
+-- * Key part:  NP (K Text) xs → NP m xs
+--   convert a product of field names to a product of monadic actions yielding 'a'
+recoverFields ∷ ∀ ctx xs m a. (CtxRecord a, All (Field m) xs, SListI xs, HasCallStack, Monad m)
           ⇒ Proxy a → RecordCtx a → Text → Int → NP (K Text) xs → NP m xs
-withNames p ctx consName consNr (fs ∷ NP (K Text) xs) = hcliftA (Proxy ∷ Proxy (ReadField m)) aux fs
+recoverFields proxy ctx consName consNr (fs ∷ NP (K Text) xs) =
+  hcliftA (Proxy @(Field m)) recoverField fs
   where
-    aux ∷ ReadField m f ⇒ K Text f → m f
-    aux (K "") = error "Empty field names not supported."
-    aux (K fi) = -- trace ("withNames/aux "<>unpack fi<>"/"<>unpack consName) $
-      readField (Proxy ∷ Proxy f) undefined (toField p fi)
+    recoverField ∷ Field m fv ⇒ K Text fv → m fv
+    recoverField (K fi) = -- trace ("withNames/aux "<>unpack fi<>"/"<>unpack consName) $
+      readField undefined (toFieldName proxy fi)
 
 pRecord       ∷ Proxy ctx → Proxy (CtxRecord ctx)
 pRecord     _ = Proxy
-pRField       ∷ Proxy ctx → Proxy (ReadField ctx)
+pRField       ∷ Proxy ctx → Proxy (Field ctx)
 pRField     _ = Proxy
 pSField       ∷ Proxy ctx → Proxy (WriteField ctx)
 pSField     _ = Proxy
-pAllRFields   ∷ Proxy m → Proxy ctx → Proxy (All (ReadField m))
+pAllRFields   ∷ Proxy m → Proxy ctx → Proxy (All (Field m))
 pAllRFields _ _ = Proxy
 pAllSFields   ∷ Proxy ctx → Proxy (All (WriteField ctx))
 pAllSFields _ = Proxy

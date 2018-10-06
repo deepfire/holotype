@@ -39,6 +39,11 @@
 * October 3, 2018
   - so, 'readField' needs to be monadic, at least because of MonadHold, and therefore
     'hsequence' and =<< in 'recover'
+* October 6, 2018
+  - cue much suffering and fun from hitting dead ends & trying to upgrade to GHC
+    8.6.1, that turned into an attempt to build GHC to improve its logging, to
+    track down a compiler panic..
+  - the new generic 
 * TODO
   - [ ] simplify the holo/dynamic construction model
   - [ ] generics-sop to construct an interactive FRP widget for a value

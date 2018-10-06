@@ -12,6 +12,7 @@ module Holo
   , KNode(..), Node(..)
   , vbox, hbox
   , item, leafStyled, leaf
+  , static
   -- , liftHolo
   -- , widget
   , Phase(..)
@@ -242,19 +243,17 @@ leaf ∷ ∀ a. (Holo a)
   → Item PBlank
 leaf tok holo = leafStyled tok (initStyle $ compStyle holo) holo
 
+static ∷ ∀ a t m. (Holo a)
+  ⇒ a
+  → ReflexGLFW t m (Dynamic t HoloBlank)
+static holo =
+  constDyn ∘ flip leaf holo <$> newId
+
 -- liftHolo ∷ ∀ t m a. (Holo a, ReflexGLFWCtx t m) ⇒ Dynamic t a → WidgetM t m HoloBlank
 -- liftHolo h = do
 --   tok ← newId
 --   pure $ ( constDyn $ subscription (Proxy ∷ Proxy a) tok
 --          , h <&> \x→ Holo.leafStyled tok (initStyle $ compStyle x) x)
-
--- widget ∷ (IdToken → ReflexGLFW t m (InputMask, Dynamic t a)) → WidgetM t m a
--- widget ctor = do
---   token ← newId
---   (,) im@(InputMask em) w ← ctor token
---   let emTypes = GLFW.eventMaskTypes em
---       mmap    = MMap.fromList $ zip emTypes $ repeat $ Seq.singleton (token, im)
---   pure $ (,) (constDyn $ Subscription mmap) w
 
 
 -- * Pre-package tree constructors

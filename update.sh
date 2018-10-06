@@ -8,10 +8,10 @@ if test -n "$1"
 then shift
 fi
 for x in "$@"
-do
-	if test ${who} = "deepfire"
-	then rbase=git@github.com:
-	else rbase=https://github.com/
-        fi
-        nix-prefetch-git $rbase${who}/$x > $x.src.json
+do case ${who} in
+     # deepfire )     rbase=git@github.com:     ;;
+     local | home ) rbase=file://$HOME; who='';;
+     * )            rbase=https://github.com/ ;;
+   esac
+   nix-prefetch-git $rbase${who}/$x > $x.src.json
 done

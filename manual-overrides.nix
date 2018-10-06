@@ -14,6 +14,25 @@ with pkgs.haskell.lib; with lib; with self; {
   # OpenGLRaw         = debugBuild super.OpenGLRaw;
   # proteaaudio       = debugBuild super.proteaaudio;
 
+  sop-core = mkDerivation {
+    pname = "sop-core";
+    version = "0.4.0.0";
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./generics-sop.src.json)) ["date"]);
+    prePatch        = "cd sop-core; ";
+    libraryHaskellDepends = [ base deepseq ];
+    description = "True Sums of Products";
+    license = stdenv.lib.licenses.bsd3;
+  };
+  generics-sop = overrideCabal super.generics-sop (drv: {
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./generics-sop.src.json)) ["date"]);
+    doCheck         = false;
+    jailbreak       = true;
+    editedCabalFile = null;
+    revision        = null;
+    prePatch        = "cd generics-sop; ";
+    libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (with self; [ sop-core ]);
+  });
+
   reflex-glfw =
   mkDerivation {
     pname = "reflex-glfw";

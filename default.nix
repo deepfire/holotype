@@ -25,14 +25,14 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson aeson-pretty base base-unicode-symbols binary bytestring
     cairo clock containers dependent-sum directory dlist exceptions
-    extra filepath free freer-simple generics-sop ghc-prim
-    gi-cairo gi-gobject gi-pango gi-pangocairo GLFW-b hashable
-    haskell-gi-base hedgehog hspec hxt JuicyPixels lambdacube-compiler
-    lambdacube-gl lambdacube-ir lens linear lub metamorphic MissingH
-    monadplus MonadRandom mono-traversable monoidal-containers mtl
-    OpenGL OpenGLRaw optparse-applicative parsers pretty pretty-show
-    primitive profunctors proteaaudio QuickCheck random ref-tf reflex
-    reflex-glfw semigroupoids semigroups singletons spool stm tasty
+    extra filepath free freer-simple generics-sop ghc-prim gi-cairo
+    gi-gobject gi-pango gi-pangocairo GLFW-b hashable haskell-gi-base
+    hedgehog hspec hxt JuicyPixels lambdacube-compiler lambdacube-gl
+    lambdacube-ir lens linear lub metamorphic MissingH monadplus
+    MonadRandom mono-traversable monoidal-containers mtl OpenGL
+    OpenGLRaw optparse-applicative parsers pretty pretty-show primitive
+    profunctors proteaaudio QuickCheck random ref-tf reflex reflex-glfw
+    semigroupoids semigroups singletons spool stm tasty
     tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
     tasty-quickcheck tasty-smallcheck template-haskell text text-format
     text-lens text-zipper these time transformers trifecta type-map
@@ -40,10 +40,10 @@ mkDerivation {
   ];
   executableHaskellDepends = [
     aeson base base-unicode-symbols bytestring cairo clock containers
-    directory free gi-cairo gi-gobject gi-pango gi-pangocairo GLFW-b
-    haskell-gi-base lambdacube-compiler lambdacube-gl lambdacube-ir
-    lens linear mtl OpenGLRaw pretty-show reflex reflex-glfw text
-    text-zipper vector
+    directory free generics-sop gi-cairo gi-gobject gi-pango
+    gi-pangocairo GLFW-b haskell-gi-base lambdacube-compiler
+    lambdacube-gl lambdacube-ir lens linear mtl OpenGLRaw pretty-show
+    ref-tf reflex reflex-glfw text text-zipper time vector
   ];
   testHaskellDepends = [
     base base-unicode-symbols containers directory filepath Glob

@@ -159,7 +159,7 @@ liftHolo mux initial = do
 --   valD         ← textDyn initialV editE
 --   setupE       ← getPostBuild
 --   let holoE     = attachWith (Holo.leafStyled tokenV) styleB $ leftmost [updated valD, initialV <$ setupE]
---   holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn valD holoE)
+--   holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn nvalD holoE)
 --    <&> (,) editMaskKeys
 
 mkTextEntryValidatedStyleD ∷ InputMux t → Behavior t (Style Text) → Text → (Text → Bool) → MWidget t m Text
@@ -205,7 +205,7 @@ trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
 
-scene ∷ InputMux t → Dynamic t Integer → Dynamic t Int → Dynamic t Double → MWidget' t m
+scene ∷ ∀ t m. InputMux t → Dynamic t Integer → Dynamic t Int → Dynamic t Double → MWidget' t m
 scene muxV statsValD frameNoD fpsValueD = mdo
 
   fpsD             ← liftDynHolo  (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
@@ -218,9 +218,9 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  let action ∷ Free (WidgetM t m) Text
-      action = readField (Proxy @Text) "foo" "field"
-  xD ∷ Widget t Text ← runFWidgetM $ action
+  let action ∷ MWidget t m Text
+      action = readField (muxV, "foo") "field"
+  xD ∷ Widget t Text ← action
 
   longStaticTextD  ← liftDynHolo $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
@@ -254,22 +254,6 @@ parseOptions ∷ Opt.Parser Options
 parseOptions =
   Options
   <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
-
--- newtype WidgetM t m a = WidgetM { fromWidgetM ∷ ∀ b. Holo b ⇒ (a → b) → (InputMux t → MWidget t m b) }
-newtype WidgetM t m a = WidgetM { fromWidgetM ∷ ∀ b. Holo b ⇒ (a → b) → (MWidget t m b) }
-
--- liftWidgetM ∷ Holo a ⇒ (InputMux t → MWidget t m a) → WidgetM t m a
--- liftWidgetM mw = WidgetM $ \f mux → (id *** fmap (f *** id)) <$> mw mux
-liftWidgetM ∷ Holo a ⇒ (MWidget t m a) → WidgetM t m a
-liftWidgetM mw = WidgetM $ \f→ (id *** fmap (f *** id)) <$> mw
-
--- runWidgetM ∷ Holo a ⇒ WidgetM t m a → (InputMux t → MWidget t m a)
--- runWidgetM wm = fromWidgetM wm id
-runWidgetM ∷ Holo a ⇒ WidgetM t m a → MWidget t m a
-runWidgetM wm = fromWidgetM wm id
-
-instance Functor (WidgetM t m) where
-  fmap f (WidgetM w) = WidgetM (\acc→ w (acc ∘ f))
 
 -- liftHolo' ∷ ∀ t m a. (Holo a, ReflexGLFWCtx t m) ⇒ a → MWidget t m a
 liftHolo' ∷ ∀ t m a. (Holo a, ReflexGLFWCtx t m) ⇒ a → ReflexGLFW t m (Dynamic t Subscription, Dynamic t (a, HoloBlank))
@@ -312,46 +296,14 @@ liftHolo' initial = do
 -- instance Holo a ⇒ Record a where
 -- -- class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
 -- instance (Holo a, SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord a (Widget t (a, HoloBlank)) where
--- instance Holo a ⇒ ReadField a (Widget t (a, HoloBlank)) where
---   type ReadType a (Widget t (a, HoloBlank)) = a
 
-data Free f a where
-  Pure   :: a -> Free f a
-  Impure :: f (Free f a) -> Free f a
-  deriving Typeable
-eta :: Functor f => f a -> Free f a
-eta = Impure . fmap Pure
-instance Functor f => Functor (Free f) where
-  fmap f (Pure x)   = Pure $ f x
-  fmap f (Impure m) = Impure $ fmap (fmap f) m
-instance Functor f => Applicative (Free f) where
-  pure = Pure
-  Pure f <*> m   = fmap f m
-  Impure f <*> m = Impure $ fmap (<*> m) f
-instance Functor f => Monad (Free f) where
-  return = Pure
-  Pure a   >>= k = k a
-  Impure m >>= k = Impure (fmap (>>= k) m)
-
-instance Holo a ⇒ ReadField (Free (WidgetM t m)) a where
-  type ReadFieldCtx a = a
-  readField p initv finame = eta $ WidgetM $ \(f ∷ a → b)→
-    (id *** fmap (f *** id)) <$> liftHolo' initv ∷ 
-    PostBuildT t (TriggerEventT t (PerformEventT t m)) (Widget t b)
-
-instance (Holo a, Typeable t, Typeable m, DefStyleOf (StyleOf (Free (WidgetM t m) a)), DefStyleOf (StyleOf a)) ⇒ Holo (Free (WidgetM t m) a) where
-  data StyleOf (Free (WidgetM t m) a) = FWMStyle (StyleOf a)
-
-instance (DefStyleOf (StyleOf a)) ⇒ DefStyleOf (StyleOf (Free (WidgetM t m) a)) where
-  defStyleOf = FWMStyle $ defStyleOf @(StyleOf a)
-
-runFWidgetM ∷ (Holo a, Typeable t, Typeable m) ⇒ Free (WidgetM t m) a → MWidget t m a
-runFWidgetM (Pure x)   = liftHolo' x
-runFWidgetM (Impure ((WidgetM fa) ∷ WidgetM t m (Free (WidgetM t m) a))) =
-  do x ∷ Widget t (Free (WidgetM t m) a) ← fa id --let (m',s') = unState m s in runFState m' s'
-     pure $ (id *** _ -- (fmap _ *** id)
-            ) x
-     -- pure $ _ x
+type instance Structure (Widget t (a, HoloBlank)) = a
+instance (Holo a, ReflexGLFWCtx t m) ⇒ Field (PostBuildT t (TriggerEventT t (PerformEventT t m))) (Widget t a) where
+  type FieldCtx (Widget t a) = (InputMux t, a)
+  readField (mux, initV) (FieldName fname) = do
+    labelId ← newId
+    liftHolo mux initV <&>
+      (id *** (<&> (id *** (\x→ Holo.vbox [Holo.leaf labelId fname, x]))))
 
 -- * Top level network
 --
