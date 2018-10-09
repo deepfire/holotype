@@ -218,8 +218,10 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  let action ∷ MWidget t m Text
-      action = readField (muxV, "foo") "field"
+  let action  ∷ MWidget t m Text
+      action  = readField (muxV, "foo") "field"
+      -- action2 ∷ MWidget t m AnObject
+      -- action2 = recover2 (⊥)
   xD ∷ Widget t Text ← action
 
   longStaticTextD  ← liftDynHolo $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
@@ -264,15 +266,15 @@ liftHolo' initial = do
   pure ( constDyn $ subscription (Proxy @a) tok
        , valD)
 
--- data AnObject where
---   AnObject ∷
---     { objName   ∷ String
---     , objDPI    ∷ DΠ
---     , objDim    ∷ Di Int
---     } → AnObject
---     deriving (Eq, GHC.Generic, Show)
--- instance SOP.Generic         AnObject
--- instance SOP.HasDatatypeInfo AnObject
+data AnObject where
+  AnObject ∷
+    { objName   ∷ Text
+    -- , objDPI    ∷ DΠ
+    -- , objDim    ∷ Di Int
+    } → AnObject
+    deriving (Eq, GHC.Generic, Show)
+instance SOP.Generic         AnObject
+instance SOP.HasDatatypeInfo AnObject
 
 -- data CName where
 --   CName ∷ Text → ADTChoiceT → CName
@@ -297,13 +299,15 @@ liftHolo' initial = do
 -- -- class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
 -- instance (Holo a, SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord a (Widget t (a, HoloBlank)) where
 
-type instance Structure (Widget t (a, HoloBlank)) = a
+type instance Structure (Widget t a) = a
 instance (Holo a, ReflexGLFWCtx t m) ⇒ Field (PostBuildT t (TriggerEventT t (PerformEventT t m))) (Widget t a) where
   type FieldCtx (Widget t a) = (InputMux t, a)
   readField (mux, initV) (FieldName fname) = do
     labelId ← newId
     liftHolo mux initV <&>
       (id *** (<&> (id *** (\x→ Holo.vbox [Holo.leaf labelId fname, x]))))
+instance (SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ Record (Widget t a) where
+instance (SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord (Widget t a) where
 
 -- * Top level network
 --

@@ -130,9 +130,20 @@ class Monad m ⇒ Field m a where
                       FieldCtx a        -- ^ ..the recovery context
                     → FieldName         -- ^ ..the field name
                     → m a               -- ^ restore the point.
+  -- default readField    ∷ (CtxRecord a, Code a ~ xss, All2 (Field m) xss, HasCallStack, Monad m)
+  --                      ⇒ RecordCtx  a   -- ^ Given the record context
+  --                      -- → ConsCtx ctx    -- ^ ..the constructor-specific context
+  --                      → FieldCtx a        -- ^ ..the recovery context
+  --                      → FieldName      -- ^ ..the field name
+  --                      → m a            -- ^ restore the record's field.
+  -- readField ctx _ _    = do
+  --   let p = Proxy ∷ Proxy a
+  --   recover ctx
 
 class (SOP.Generic (Structure a), SOP.HasDatatypeInfo (Structure a))
       ⇒ Record a where
+  -- liftF             ∷ (a → b)
+  --                   → a
   prefixChars       ∷ Proxy a         -- ^ Given the type of the record
                     → Int             -- ^ produce the number of prefix characters to ignore.
   nameMap           ∷ Proxy a         -- ^ Given the type of the record
@@ -268,17 +279,6 @@ fieldError ctx cc field mesg = error $ unpack $ errCtxDesc ctx cc field <> ": " 
 
 -- Q:
 --   - how do we go from a list of monadic actions for a derived type
-recover  ∷ ∀ a s xss m.
-           ( Record a, CtxRecord a
-           , SOP.Generic (Structure a)
-           , SOP.HasDatatypeInfo (Structure a)
-           , SOP.GTo (Structure a)
-           , Generic (Structure a)
-           , Rep (Structure a) ~ SOP I (SOP.GCode (Structure a))
-           , Code (Structure a) ~ xss
-           , All2 (Field m) xss
-           , HasCallStack, Monad m)
-         ⇒ RecordCtx a → m a
 -- type GCode (a :: Type) = ToSumCode (GHC.Rep a) '[]
 -- gSumTo :: SOP I (ToSumCode a xss) -> (a x -> r) -> (SOP I xss -> r) -> r
 -- type family ToSumCode (a :: Type -> Type) (xs :: [[Type]]) :: [[Type]]
@@ -294,24 +294,36 @@ gto x = (GHC.to
         -- ∷ SOP I (SOP.ToSumCode (GHC.Rep sa) '[]) -> ((GHC.Rep sa) x -> r) -> (SOP I '[] -> r) -> r
         )
      -- m (f0:f1:f2:[])
+recover  ∷ ∀ a sa xss m.
+           ( Record a, CtxRecord a
+           , sa ~ Structure a
+           , SOP.Generic sa, SOP.HasDatatypeInfo sa , SOP.GTo sa , Generic sa , Rep sa ~ SOP I (SOP.GCode sa) , Code sa ~ xss, All2 (Field m) xss
+           , HasCallStack, Monad m)
+         ⇒ RecordCtx a → m a
 recover ctx = do
-  (⊥) <$> ((hsequence =<<
-          (!!) (SOP.apInjs_POP $ recover' pRec ctx $ datatypeInfo pStr) <$> restoreChoice ctx pRec))
-          -- indexNPbyNS (SOP.apInjs'_POP $ recover' p ctx $ datatypeInfo p) <$> (pure $ S(Z(K())))
+  ((undefined ∷ (SOP I (Code sa) -> sa)
+              →  SOP I (Code sa) ->  a)
+   SOP.gto) <$> do
+    choice ← restoreChoice ctx (Proxy @a)
+    let pop ∷ POP m xss       = recover' (Proxy @a) ctx $ datatypeInfo (Proxy @sa)
+        ct  ∷ SOP m (Code sa) = (!! choice) $ SOP.apInjs_POP pop
+    hsequence ct ∷ m (SOP I (Code sa))
+    -- We'll get a monadic lifted product of (Widget t fieldtype)
+    -- how do we turn:
+    -- 1. lifted product of (Dynamic t Subscription, Dynamic t (x, HoloBlank))
+    --  into:
+    -- 2. unlifted (Dynamic t Subscription, Dynamic t (Record, HoloBlank))
   where
-    pRec = Proxy @a
-    pStr = Proxy @(Structure a)
     indexNPbyNS ∷ SListI xss ⇒ NP (K (SOP f yss)) xss → NS (K ()) xss → SOP f yss
     indexNPbyNS np ns = hcollapse $ SOP.hliftA2 (\x (K ()) → x) np ns
 
--- * 1. Enrich the record's POP, enumerating every constructor
---   2. Map the (NConstructorInfo → NP m) interpreter over those
+-- * 1. Construct a POP, mapping the (NConstructorInfo → NP m) interpreter over its rows
 --   3. Return the resultant POP of actions
 recover' ∷ ∀ a ctx xss m. (CtxRecord a, All2 (Field m) xss, All SListI xss, HasCallStack, Monad m)
          ⇒ Proxy a → RecordCtx a → DatatypeInfo xss → POP m xss
-recover' proxyR ctx (ADT _ name cs) =
+recover' pxA ctx (ADT _ name cs) =
   POP $ hcliftA (pAllRFields (Proxy @m) (Proxy @ctx))
-  (recoverCtor proxyR ctx (pack name)) (enumerate cs)
+  (recoverCtor pxA ctx (pack name)) (enumerate cs)
 recover' _ _ _ = error "Non-ADTs not supported."
 
 -- * 1. Extract the constructor's product of field names
