@@ -43,7 +43,14 @@
   - cue much suffering and fun from hitting dead ends & trying to upgrade to GHC
     8.6.1, that turned into an attempt to build GHC to improve its logging, to
     track down a compiler panic..
-  - the new generic 
+* October 11, 2018
+  - we need readField to transform the type -- from structural to derived
+    - the argument-side type-level lists are over the structural type
+    - the return-side type needs to reflect the change of type from structural to derived
+      - (NP m xs) is current, but doesn't reflect that change
+        - it's still useful to be able to refer to the structural type
+        - if we want to keep the unmodified NP to work for us, we need to change
+          its first argument to include the aforementioned change of type
 * TODO
   - [ ] simplify the holo/dynamic construction model
   - [ ] generics-sop to construct an interactive FRP widget for a value

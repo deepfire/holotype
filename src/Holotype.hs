@@ -307,7 +307,8 @@ instance (Holo a, ReflexGLFWCtx t m) ⇒ Field (PostBuildT t (TriggerEventT t (P
     liftHolo mux initV <&>
       (id *** (<&> (id *** (\x→ Holo.vbox [Holo.leaf labelId fname, x]))))
 instance (SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ Record (Widget t a) where
-instance (SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord (Widget t a) where
+instance (SOP.Generic a, SOP.HasDatatypeInfo a, ReflexGLFWCtx t m) ⇒
+  CtxRecord m (Widget t a) where
 
 -- * Top level network
 --
