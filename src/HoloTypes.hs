@@ -40,8 +40,8 @@ module HoloTypes
   , Item(..)
   , Phase(..), HoloBlank
   --
-  , Widget, MWidget, value
-  , Widget', MWidget', trim
+  , Widget, value
+  , HWidget, trim
   , InputMux
   )
 where
@@ -55,7 +55,7 @@ import           Graphics.GL.Core33                as GL
 import           LambdaCube.Mesh                   as LC
 import           Linear
 import           Reflex                            hiding (Query, Query(..))
-import           Reflex.GLFW                              (ReflexGLFW, ReflexGLFWCtx, ReflexGLFWGuest, InputU(..))
+import           Reflex.GLFW                              (RGLCtx, RGLGuest, InputU(..))
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Control.Concurrent.STM            as STM
 import qualified Data.ByteString.Char8             as SB
@@ -176,20 +176,18 @@ newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (E
 -- | 'Holo': anything visualisable.
 type HoloBlank      = Item PBlank
 type Widget   t   a =                (Dynamic t Subscription, Dynamic t (a, HoloBlank))
-type MWidget  t m a = ReflexGLFW t m (Widget t a)
 value               ∷                (Dynamic t Subscription, Dynamic t a) → Dynamic t a
 value               = snd
-type Widget'  t     =                (Dynamic t Subscription, Dynamic t HoloBlank)
-type MWidget' t m   = ReflexGLFW t m (Widget' t)
+type HWidget  t     =                (Dynamic t Subscription, Dynamic t HoloBlank)
 
-trim ∷ Reflex t ⇒ Widget t a → Widget' t
+trim ∷ Reflex t ⇒ Widget t a → HWidget t
 trim = (id *** (snd <$>))
 
 class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
   data VisualOf a
   data StyleOf  a
   subscription    ∷                                                    Proxy a → IdToken → Subscription
-  liftDyn         ∷                                                    a → Event t Input → ReflexGLFW t m (Dynamic t a)
+  liftDyn         ∷ (RGLCtx t m) ⇒                                     a → Event t Input → m (Dynamic t a)
   compStyle       ∷                                                                    a → StyleOf a
   query           ∷ (MonadIO m) ⇒ Port → StyleOf a →                                   a → m (Di (Maybe Double))
   hasVisual       ∷                                                                    a → Bool

@@ -42,7 +42,7 @@ import           Data.Typeable
 import           Linear
 import           Prelude                           hiding ((.), id)
 import           Reflex                            hiding (Query, Query(..))
-import           Reflex.GLFW                              (ReflexGLFW, ReflexGLFWCtx, ReflexGLFWGuest, InputU(..))
+import           Reflex.GLFW                              (RGLCtx, InputU(..))
 import qualified Data.Map.Monoidal.Strict          as MMap
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Sequence                     as Seq
@@ -229,7 +229,7 @@ node ∷ ∀ a k. (Holo a, a ~ Node k)
 node idToken style holo =
   item idToken style holo (nodeGeo holo)
 
-leafStyled ∷ ∀ a. (Holo a)
+leafStyled ∷ Holo a
   ⇒ IdToken
   → Style a
   → a
@@ -237,15 +237,15 @@ leafStyled ∷ ∀ a. (Holo a)
 leafStyled tok hiStyle holo =
   item tok hiStyle holo mempty []
 
-leaf ∷ ∀ a. (Holo a)
+leaf ∷ Holo a
   ⇒ IdToken
   → a
   → Item PBlank
 leaf tok holo = leafStyled tok (initStyle $ compStyle holo) holo
 
-static ∷ ∀ a t m. (Holo a)
+static ∷ (Holo a, RGLCtx t m)
   ⇒ a
-  → ReflexGLFW t m (Dynamic t HoloBlank)
+  → m (Dynamic t HoloBlank)
 static holo =
   constDyn ∘ flip leaf holo <$> newId
 

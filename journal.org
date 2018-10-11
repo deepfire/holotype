@@ -51,6 +51,13 @@
         - it's still useful to be able to refer to the structural type
         - if we want to keep the unmodified NP to work for us, we need to change
           its first argument to include the aforementioned change of type
+* October 13, 2018
+  - the Prod m Derived needs expression to unify with regards to t, that is baked into m
+    - ergo we have m ~ ReflexGLFW t mb at the top level, to make t available for unification
+      - ..which makes GHC complain: Could not deduce: Ref mb ~ GHC.IORef.IORef
+        - ..and we have to placate it with: ReflexGLFWCtx t mb
+          - and that works
+          - but it's unwieldy, and so ReflexGLFWCtx t m mb
 * TODO
   - [ ] simplify the holo/dynamic construction model
   - [ ] generics-sop to construct an interactive FRP widget for a value

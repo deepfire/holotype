@@ -75,7 +75,7 @@ someFire ∷ Reflex t ⇒ Event t a → Event t b → Event t ()
 someFire a b = simpler a <> simpler b
 
 
-newPortFrame ∷ ReflexGLFWCtx t m ⇒ Event t Port → ReflexGLFW t m (Event t Frame)
+newPortFrame ∷ ReflexGLFWCtx t m ⇒ Event t Port → m (Event t Frame)
 newPortFrame portE = performEvent $ portNextFrame <$> portE
 
 type Avg a = (Int, Int, [a])
@@ -86,7 +86,7 @@ avgStep x (_, (lim, cur, xs)) =
                     else (lim,     x:Prelude.init xs)
   in ((sum nxs) / fromIntegral ncur, (lim, ncur, nxs))
 
-average ∷ (Fractional a, ReflexGLFWCtx t m) ⇒ Int → Event t a → ReflexGLFW t m (Dynamic t a)
+average ∷ (Fractional a, ReflexGLFWCtx t m) ⇒ Int → Event t a → m (Dynamic t a)
 average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 
