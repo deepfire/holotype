@@ -160,7 +160,7 @@ class Flex a where
 child ∷ Flex a ⇒ Int → Traversal' a a
 child n = children ∘ ix n
 
-walk ∷ ∀ a m. (Flex a, Monad m) ⇒ ([Int] → a → m ()) → a → m ()
+walk ∷ (Flex a, Monad m) ⇒ ([Int] → a → m ()) → a → m ()
 walk action f = loop [0] f
   where loop trace f = do
           action trace f

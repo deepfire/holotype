@@ -504,8 +504,8 @@ instance Lin d  ⇒ AddMax (Size d) (Size d) where
   addMax ax = Size .: on (addMax ax) (_size'di)
 
 reqt'add  ∷ Lin d ⇒ Axis → Reqt d → Reqt d → Reqt d
-reqt'add X  (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx   +   ly) (rx `max` ry)
-reqt'add  Y (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx `max` ly) (rx   +   ry)
+reqt'add X  (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx   +   rx) (ly `max` ry)
+reqt'add  Y (Reqt (Di (V2 lx ly))) (Reqt (Di (V2 rx ry))) = Reqt ∘ Di $ V2 (lx `max` rx) (ly   +   ry)
 
 orig'lu ∷ Lin d ⇒ Size d → Orig d → LU d
 orig'lu (Size (Di size)) = LU   ∘ (& po'v %~ (flip (-) (size / 2))) ∘ _orig'po
