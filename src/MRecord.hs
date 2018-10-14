@@ -135,20 +135,28 @@ class (Monad m, s ~ Structure (d s), d ~ Derived t)
   readField         ∷ ∀ c. (HasCallStack, c)
                     ⇒ Proxy t
                     → Proxy c
-                    → Proxy m             -- ^ Given the result type
-                    → Proxy s             -- ^ Given the result type
-                    → FieldCtx t m s      -- ^ ..the recovery context
-                    → FieldName           -- ^ ..the field name
+                    → Proxy m                 -- ^ Given the result type
+                    → FieldCtx t m s          -- ^ ..the recovery context
+                    → FieldName               -- ^ ..the field name
                     → (Prod m (Derived t)) s  -- ^ restore the point.
-  -- default readField    ∷ (CtxRecord a, Code a ~ xss, All2 (Field m) xss, HasCallStack, Monad m)
-  --                      ⇒ RecordCtx  a   -- ^ Given the record context
-  --                      -- → ConsCtx ctx    -- ^ ..the constructor-specific context
-  --                      → FieldCtx a        -- ^ ..the recovery context
-  --                      → FieldName      -- ^ ..the field name
-  --                      → m a            -- ^ restore the record's field.
-  -- readField ctx _ _    = do
-  --   let p = Proxy ∷ Proxy a
-  --   recover ctx
+  -- default readField    ∷ (CtxRecord ctx a, Code a ~ xss, All2 (RestoreField ctx) xss, HasCallStack, Typeable a, Monad m)
+  default readField ∷ (HasCallStack, c
+                      , CtxRecord t m d s
+                      , SOP.HasDatatypeInfo s, SOP.Generic s, GHC.Generic s
+                      , Code s ~ xss
+                      , All2 (Field t m d) xss
+                      , FieldCtx t m s ~ RecordCtx d s
+                      , Applicative (Derived t)
+                      )
+                    ⇒ Proxy t
+                    → Proxy c
+                    → Proxy m
+                    → FieldCtx t m s
+                    → FieldName
+                    → (Prod m (Derived t)) s
+  readField pT pC pM fctx _ = do
+    -- newCtx ∷ FieldCtx ← ctxSwitch p fctx
+    recover pT pC pM (Proxy @(d s)) fctx
 
 class ( Monad m, s ~ Structure (d s), d ~ Derived t
       , SOP.Generic s, SOP.HasDatatypeInfo s)
@@ -199,10 +207,9 @@ class ( Monad m, s ~ Structure (d s), d ~ Derived t
   --                   ⇒ ctx             -- ^ Given the record context
   --                   → a               -- ^ ..record itself
   --                   → m ()            -- ^ action to save the record's constructor index.
-  -- ctxSwitch         ∷ (HasCallStack, Monad m)
-  --                   ⇒ Proxy a         -- ^ Given the type of the record
-  --                   → ctx             -- ^ ..the record context
-  --                   → m ctx           -- ^ action to update the context, before each field's presence test/recovery.
+  ctxSwitch         ∷ (HasCallStack, Monad m)
+                    ⇒ RecordCtx d s      -- ^ Given the type of the record
+                    → m (RecordCtx d s)  -- ^ action to update the context, before each field's presence test/recovery.
   -- * Method defaults
   -- presence      _ p = pure True
   -- restoreChoice _ _ = pure 0
@@ -293,11 +300,24 @@ fieldError ctx cc field mesg = error $ unpack $ errCtxDesc ctx cc field <> ": " 
 --       , SOP.HasDatatypeInfo s, SOP.Generic s, Record t m d s, Monad m) ⇒
 --       CtxRecord t m d s where
 --   type RecordCtx       d ∷ Type
+    -- recover  ∷ ∀ a ctx xss.
+    --            (CtxRecord ctx a
+    --            , HasDatatypeInfo a
+    --            , Code a ~ xss
+    --            , All2 (RestoreField ctx) xss
+    --            , HasCallStack)
+    --          ⇒ ctx → IO a
 recover  ∷ ∀ (t ∷ Type) c m d s xss.
-           ( c, Record t m d s, CtxRecord t m d s
-           , SOP.Generic s, SOP.HasDatatypeInfo s, SOP.GTo s, Generic s, Rep s ~ SOP I (SOP.GCode s), Code s ~ xss
+           ( c, CtxRecord t m d s
+           , SOP.HasDatatypeInfo s
+           , Code s ~ xss
            , All2 (Field t m (Derived t)) xss
            , HasCallStack, Monad m, Applicative (Derived t))
+-- recover  ∷ ∀ (t ∷ Type) c m d s xss.
+--            ( c, Record t m d s, CtxRecord t m d s
+--            , SOP.Generic s, SOP.HasDatatypeInfo s, SOP.GTo s, Generic s, Code s ~ xss
+--            , All2 (Field t m (Derived t)) xss
+--            , HasCallStack, Monad m, Applicative (Derived t))
          ⇒ Proxy t
          → Proxy c
          → Proxy m
@@ -365,5 +385,5 @@ recoverFields pT pC pD ctx consName consNr fs =
   where
     recoverField ∷ ∀ fs. Field t m d fs ⇒ K Text fs → (Prod m (Derived t)) fs
     recoverField (K fi) = -- trace ("withNames/aux "<>unpack fi<>"/"<>unpack consName) $
-      readField pT pC (Proxy @m) (Proxy @fs) (undefined ∷ FieldCtx t m fs) (toFieldName (Proxy @(m (d s),d s,s)) fi)
+      readField pT pC (Proxy @m) (undefined ∷ FieldCtx t m fs) (toFieldName (Proxy @(m (d s),d s,s)) fi)
       

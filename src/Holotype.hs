@@ -257,7 +257,7 @@ type instance FieldCtx t m a = (InputMux t, a)
 instance ( Holo a
          , RGLFW t m) ⇒
          Field t m (Derived t) a where
-  readField _ _ _ _ (mux, initV) (FieldName fname) = Prod $ do
+  readField _ _ _ (mux, initV) (FieldName fname) = Prod $ do
     labelId ← liftIO newId
     let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]
     Derived ∘ (id *** (<&> (id *** package))) <$> liftHolo mux initV
@@ -300,7 +300,7 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  let Prod xDa  = readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @Text) (muxV, "foo" ∷ Text) "field"
+  let Prod xDa  = readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (muxV, "foo" ∷ Text) "field"
       Prod xDDa = recover   (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @(Derived t AnObject)) $ AnObject "yayyity" "zeroes"
   Derived (xD  ∷ Widget t Text) ∷ Derived t Text ← xDa
   Derived (xDD ∷ Widget t AnObject) ← xDDa
