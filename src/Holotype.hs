@@ -24,7 +24,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports -Wno-type-defaults #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports -Wno-type-defaults -Wno-orphans #-}
 module Holotype where
 
 import           Control.Arrow
@@ -111,11 +111,11 @@ average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 
 
-routeInput ∷ ∀ a t m mb. (RGLFW t m)
+routeInput ∷ ∀ t m. (RGLFW t m)
            ⇒ Event t Input
            → Event t IdToken
            → Dynamic t Subscription
-           → m (InputMux t) -- Subscription → InputMux t WorldEvent
+           → m (InputMux t)
 routeInput inputE pickedE subsD = do
   -- XXX: this accumulates the focus
   pickeD ← holdDyn Nothing $ Just <$> pickedE
@@ -140,13 +140,13 @@ routeInput inputE pickedE subsD = do
 
 
 
-liftDynHolo ∷ ∀ a t m mb. (Holo a, RGLFW t m) ⇒ Dynamic t a → m (Widget t a)
+liftDynHolo ∷ ∀ a t m. (Holo a, RGLFW t m) ⇒ Dynamic t a → m (Widget t a)
 liftDynHolo h = do
   tok ← newId
   pure ( constDyn $ subscription (Proxy @a) tok
        , h <&> \x→ (,) x $ Holo.leafStyled tok (initStyle $ compStyle x) x)
 
-liftHoloStyled ∷ ∀ t m mb a. (Holo a, RGLFW t m) ⇒ InputMux t → Behavior t (Style a) → a → m (Widget t a)
+liftHoloStyled ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputMux t → Behavior t (Style a) → a → m (Widget t a)
 liftHoloStyled mux style initial = do
   tok  ← newId
   let rawD = liftDyn initial $ select mux $ Const2 tok
@@ -154,7 +154,7 @@ liftHoloStyled mux style initial = do
   pure ( constDyn $ subscription (Proxy @a) tok
        , valD)
 
-liftHolo ∷ ∀ t m mb a. (Holo a, RGLFW t m) ⇒ InputMux t → a → m (Widget t a)
+liftHolo ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputMux t → a → m (Widget t a)
 liftHolo mux initial = do
   tok  ← newId
   valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$>
@@ -162,13 +162,14 @@ liftHolo mux initial = do
   pure ( constDyn $ subscription (Proxy @a) tok
        , valD)
 
--- mkTextEntryStyleD ∷ InputMux t → Behavior t (Style Text) → Text → MWidget t m (Text, HoloBlank)
--- mkTextEntryStyleD mux styleB initialV = Holo.widget $ \tokenV → do
+-- mkTextEntryStyleD ∷ RGLFW t m ⇒ InputMux t → Behavior t (Style Text) → Text → m (Widget t (Text, HoloBlank))
+-- mkTextEntryStyleD mux styleB initialV = do
+--   tokenV       ← newId
 --   let editE = select mux $ Const2 tokenV
---   valD         ← textDyn initialV editE
+--   valD         ← liftDyn initialV editE
 --   setupE       ← getPostBuild
 --   let holoE     = attachWith (Holo.leafStyled tokenV) styleB $ leftmost [updated valD, initialV <$ setupE]
---   holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn nvalD holoE)
+--   holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn valD holoE)
 --    <&> (,) editMaskKeys
 
 mkTextEntryValidatedStyleD ∷ RGLFW t m ⇒ InputMux t → Behavior t (Style Text) → Text → (Text → Bool) → m (Widget t Text)
@@ -183,7 +184,7 @@ mkTextEntryValidatedStyleD mux styleB initialV testF = do
     initial (updated textD)
     <&> (subD,)
 
-vboxD ∷ ∀ t m mb. (RGLFW t m) ⇒ [HWidget t] → m (HWidget t)
+vboxD ∷ ∀ t m. (RGLFW t m) ⇒ [HWidget t] → m (HWidget t)
 vboxD chi = do
   let dyn ∷ (Dynamic t Subscription, Dynamic t [HoloBlank])
       dyn = foldr (\(s, hb) (ss, hbs)→
@@ -214,86 +215,7 @@ trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
 
-scene ∷ ∀ t m. ( RGLFW t m
-               , Typeable t)
-  ⇒ InputMux   t
-  → Dynamic    t Integer
-  → Dynamic    t Int
-  → Dynamic    t Double
-  → m (HWidget t)
-scene muxV statsValD frameNoD fpsValueD = mdo
-
-  fpsD             ← liftDynHolo  (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
-  statsD           ← liftDynHolo $ statsValD <&>
-                     \(mem)→ T.pack $ printf "mem: %d" mem
-
-  let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
-  rectD            ← liftDynHolo $ zipDynWith Holo.Rect rectDiD (constDyn $ co 1 0 0 1)
-  frameCountD      ← liftDynHolo $ T.pack ∘ printf "frame #%04d" <$> frameNoD
-  -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
-  varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
-
-  -- instance (Holo a, RGLFW t m) ⇒
-  -- type FieldCtx (PostBuildT t (TriggerEventT t (PerformEventT t m))) a = (InputMux t, a)
-  -- type FieldCtx (PostBuildT t (TriggerEventT t (PerformEventT t m))) Text = (InputMux t, Text)
-  -- type FieldCtx m s ∷ Type
-  -- readField ∷ ∀ c (t ∷ Type). (HasCallStack, c)
-  --           ⇒ Proxy t
-  --           → Proxy c
-  --           → Proxy m           -- ^ Given the result type
-  --           → Proxy s           -- ^ Given the result type
-  --           → FieldCtx m s           -- ^ ..the recovery context
-  --           → FieldName              -- ^ ..the field name
-  --           → (Prod m Derived) s     -- ^ restore the point.
-  let -- act ∷ Prod m Derived Text
-      act@(Prod (action ∷ m (Derived Text)
-                )) =
-        readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @Text) (muxV, "foo" ∷ Text) "field"
-      -- action2 ∷ MWidget t m AnObject
-      -- action2 = recover2 (⊥)
-  -- xD ∷ Derived Text ← action -- CCC
-
-  longStaticTextD  ← liftDynHolo $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
-
-  let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
-
-  styleEntryD      ← mkTextEntryValidatedStyleD muxV styleB "defaultSans" $
-                     (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-
-  styleD           ← trackStyle $ fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) (value styleEntryD))
-  let styleB        = current styleD
-
-  -- text2HoloQD      ← mkTextEntryStyleD muxV styleB "watch me"
-
-  vboxD [ trim $ frameCountD
-        -- , (snd <$>) <$> text2HoloQD
-        , (snd <$>) <$> styleEntryD
-        -- , trim xD
-        , trim $ rectD
-        , trim $ fpsD
-        , trim $ longStaticTextD
-        , trim $ statsD
-        , trim $ varlenTextD ]
-
 
-
-data Options where
-  Options ∷
-    { oTrace ∷ Bool
-    } → Options
-parseOptions ∷ Opt.Parser Options
-parseOptions =
-  Options
-  <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
-
--- liftHolo' ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ a → MWidget t m a
-liftHolo' ∷ ∀ t m mb a. (Holo a, RGLFW t m) ⇒ a → m (Dynamic t Subscription, Dynamic t (a, HoloBlank))
-liftHolo' initial = do
-  tok  ← newId
-  valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$>
-         (liftDyn initial $ select (⊥) $ Const2 tok)
-  pure ( constDyn $ subscription (Proxy @a) tok
-       , valD)
 
 data AnObject where
   AnObject ∷
@@ -328,31 +250,87 @@ instance SOP.HasDatatypeInfo AnObject
 -- -- class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
 -- instance (Holo a, SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord a (Widget t (a, HoloBlank)) where
 
-type instance Structure (Derived a)       = a
-data instance Derived                   a = ∀ (t ∷ Type). Reflex t ⇒ Derived (Widget t a)
+type instance Structure (Derived t a) = a
+data instance Derived  t   a = Reflex t ⇒ Derived (Widget t a)
 type instance FieldCtx t m a = (InputMux t, a)
 instance ( Holo a
          , RGLFW t m) ⇒
-         Field t m (Derived a) a where
-
-  -- readField ∷ ∀ t c m a. (c, HasCallStack)
-  --           ⇒ Proxy (t ∷ Type)
-  --           → Proxy c
-  --           → Proxy m
-  --           → Proxy a
-  --           → FieldCtx m a
-  --           → FieldName
-  --           → (Prod m Derived) a
+         Field t m (Derived t a) a where
   readField _ _ _ _ (mux, initV) (FieldName fname) = Prod $ do
-    labelId ← liftIO newId ∷ m IdToken
-    let act x  = Holo.vbox [Holo.leaf labelId fname, x]
-    h       ← liftHolo mux initV ∷ m (Widget t a)
-    let lifted = (id *** (<&> (id *** act))) h
-    pure $ Derived lifted
+    labelId ← liftIO newId
+    let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]
+    Derived ∘ (id *** (<&> (id *** package))) <$> liftHolo mux initV
 instance (SOP.Generic a, SOP.HasDatatypeInfo a, Monad m) ⇒
-  Record m (Derived a) a where
+  Record t m (Derived t a) a where
 instance (SOP.Generic a, SOP.HasDatatypeInfo a, RGLFW t m) ⇒
-  CtxRecord m (Derived a) a where
+  CtxRecord t m (Derived t a) a where
+
+scene ∷ ∀ t m. ( RGLFW t m
+               , Typeable t)
+  ⇒ InputMux   t
+  → Dynamic    t Integer
+  → Dynamic    t Int
+  → Dynamic    t Double
+  → m (HWidget t)
+scene muxV statsValD frameNoD fpsValueD = mdo
+
+  fpsD             ← liftDynHolo  (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  statsD           ← liftDynHolo $ statsValD <&>
+                     \(mem)→ T.pack $ printf "mem: %d" mem
+
+  let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
+  rectD            ← liftDynHolo $ zipDynWith Holo.Rect rectDiD (constDyn $ co 1 0 0 1)
+  frameCountD      ← liftDynHolo $ T.pack ∘ printf "frame #%04d" <$> frameNoD
+  -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
+  varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
+
+  let act@(Prod action) =
+        readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @Text) (muxV, "foo" ∷ Text) "field"
+      -- action2 ∷ MWidget t m AnObject
+      -- action2 = recover2 (⊥)
+  Derived (xD ∷ Widget t Text) ∷ Derived t Text ← action -- CCC
+
+  longStaticTextD  ← liftDynHolo $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
+
+  let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
+
+  styleEntryD      ← mkTextEntryValidatedStyleD muxV styleB "defaultSans" $
+                     (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
+
+  styleD           ← trackStyle $ fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) (value styleEntryD))
+  let styleB        = current styleD
+
+  -- text2HoloQD      ← mkTextEntryStyleD muxV styleB "watch me"
+
+  vboxD [ trim $ frameCountD
+        -- , (snd <$>) <$> text2HoloQD
+        , (snd <$>) <$> styleEntryD
+        , trim xD
+        , trim $ rectD
+        , trim $ fpsD
+        , trim $ longStaticTextD
+        , trim $ statsD
+        , trim $ varlenTextD ]
+
+
+
+data Options where
+  Options ∷
+    { oTrace ∷ Bool
+    } → Options
+parseOptions ∷ Opt.Parser Options
+parseOptions =
+  Options
+  <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
+
+-- liftHolo' ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ a → MWidget t m a
+liftHolo' ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ a → m (Dynamic t Subscription, Dynamic t (a, HoloBlank))
+liftHolo' initial = do
+  tok  ← newId
+  valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$>
+         (liftDyn initial $ select (⊥) $ Const2 tok)
+  pure ( constDyn $ subscription (Proxy @a) tok
+       , valD)
 
 -- * Top level network
 --
@@ -406,6 +384,9 @@ holotype win evCtl windowFrameE inputE = mdo
                      attachPromptlyDyn sceneD portFrameE
 
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
+  -- _                ← performEvent $ (updated sceneQueriedD) <&>
+  --                    \tree →
+  --                      Flex.dump (\x→ "Q: "<>Flex.ppItemSize x <>" "<>Flex.ppItemArea x) tree
 
   let sceneLaidTreeD ∷ Dynamic t (Item Holo.PLayout)
       sceneLaidTreeD = layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
@@ -414,6 +395,7 @@ holotype win evCtl windowFrameE inputE = mdo
       sceneDrawE     = attachPromptlyDyn sceneLaidTreeD portFrameE
   drawnPortE       ← performEvent $ sceneDrawE <&>
                      \(tree, (,) port f@Frame{..}) → do
+                       -- Flex.dump (\x→ "L: "<>Flex.ppItemSize x <>" "<>Flex.ppItemArea x) tree
                        let leaves = Holo.holotreeLeaves tree
                        -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
                        portGarbageCollectVisuals port leaves
