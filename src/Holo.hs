@@ -84,7 +84,7 @@ instance Holo   () where
   data StyleOf  ()     = UnitStyle
   data VisualOf ()     = UnitVisual
   compStyle        _   = UnitStyle
-  query        _ _ _   = pure $ Di $ V2 Nothing Nothing
+  query        _ _ _ _ = pure $ Di $ V2 Nothing Nothing
 
 instance Semigroup (Item PBlank)  where _ <> _ = mempty
 instance Monoid    (Item PBlank)  where mempty = Item () blankIdToken (initStyle UnitStyle) mempty [] (Di $ V2 Nothing Nothing) mempty ()
@@ -142,7 +142,7 @@ queryHoloitem ∷ (MonadIO m) ⇒ Port → Item PBlank → [Item PLayout] → m 
 queryHoloitem port hoi children =
   case hoi of
     Item{..} → do
-      size ← query port (_sStyle $ hiStyle) holo
+      size ← query port (_sStyle $ hiStyle) children holo
       trev SIZE HOLO size (tokenHash hiToken)
       pure Item{hiSize=size, hiArea=mempty, hiChildren=children, ..}
 
@@ -191,16 +191,31 @@ data Node (k ∷ KNode) where
   VBoxN ∷ Node VBox
   deriving Typeable
 
+boxAxis ∷ Node a → Axis
+boxAxis = \case
+  HBoxN → X
+  VBoxN → Y
+
 instance DefStyleOf (StyleOf (Node k)) where
   defStyleOf             = NodeStyle
 instance Typeable k ⇒ Holo   (Node (k ∷ KNode)) where
   data StyleOf  (Node k) = NodeStyle
   data VisualOf (Node k) = NodeVisual
-  query        _ _ _     = pure $ Di $ V2 Nothing Nothing
+  query        _ _ xs box =
+    -- Requirement is a sum of children requirements
+    pure $ (Just <$>) $ _reqt'di $ foldl' (reqt'add $ boxAxis box) zero $ (\x→ Reqt (fromMaybe 0 <$> x^.Flex.size)) <$> xs
 
 nodeGeo ∷ Node k → Geo
-nodeGeo HBoxN = mempty & Flex.grow .~ 1 & Flex.direction .~ Flex.DirRow
-nodeGeo VBoxN = mempty & Flex.grow .~ 1 & Flex.direction .~ Flex.DirColumn
+-- nodeGeo HBoxN = mempty & Flex.grow .~ 1 & Flex.direction .~ Flex.DirRow
+-- nodeGeo VBoxN = mempty & Flex.grow .~ 1 & Flex.direction .~ Flex.DirColumn
+nodeGeo HBoxN = mempty
+                -- & Flex.grow .~ 1
+                & Flex.direction .~ Flex.DirRow
+                & Flex.align'content .~ Flex.AlignStart
+nodeGeo VBoxN = mempty
+                -- & Flex.grow .~ 1
+                & Flex.direction .~ Flex.DirColumn
+                & Flex.align'content .~ Flex.AlignStart
 
 
 -- * Layout tree Item constructors
@@ -278,7 +293,7 @@ instance DefStyleOf (StyleOf Rect) where
 instance Holo   Rect where
   data StyleOf  Rect where RectStyle  ∷ Rect → StyleOf Rect
   data VisualOf Rect where RectVisual ∷ { rectDrawable ∷ Drawable } → VisualOf Rect
-  query port (RectStyle Rect{..}) _ = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$> _rectDim
+  query port (RectStyle Rect{..}) _ _ = pure $ Just ∘ fromPU ∘ fromUnit (portDΠ port) <$> _rectDim
   compStyle                 = RectStyle
   hasVisual               _ = True
   createVisual port@Port{..} _ _area drw Rect{..} = do
@@ -334,7 +349,7 @@ instance Holo  T.Text where
   subscription _ tok = subSingleton tok editMaskKeys
   liftDyn initial ev =
     (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
-  query port@Port{..} TextStyle{..} content = do
+  query port@Port{..} TextStyle{..} _ content = do
     let font = portFont' port _tsFontKey -- XXX: non-total
     (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (portDΠ port) _tsSizeSpec) (partial (≢ "") content)
   hasVisual _ = True

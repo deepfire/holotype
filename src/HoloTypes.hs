@@ -189,7 +189,7 @@ class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
   subscription    ∷                                                    Proxy a → IdToken → Subscription
   liftDyn         ∷ (RGLFW t m) ⇒                                      a → Event t Input → m (Dynamic t a)
   compStyle       ∷                                                                    a → StyleOf a
-  query           ∷ (MonadIO m) ⇒ Port → StyleOf a →                                   a → m (Di (Maybe Double))
+  query           ∷ (MonadIO m) ⇒ Port → StyleOf a →                  [Item PLayout] → a → m (Di (Maybe Double))
   hasVisual       ∷                                                                    a → Bool
   createVisual    ∷ (MonadIO m) ⇒ Port → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
   renderVisual    ∷ (MonadIO m) ⇒ Port →                            VisualOf a →       a → m ()  -- ^ Update a visualisation of 'a'.
