@@ -42,7 +42,7 @@ import           Data.Typeable
 import           Linear
 import           Prelude                           hiding ((.), id)
 import           Reflex                            hiding (Query, Query(..))
-import           Reflex.GLFW                              (RGLCtx, InputU(..))
+import           Reflex.GLFW                              (RGLFW, InputU(..))
 import qualified Data.Map.Monoidal.Strict          as MMap
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Sequence                     as Seq
@@ -243,7 +243,7 @@ leaf ∷ Holo a
   → Item PBlank
 leaf tok holo = leafStyled tok (initStyle $ compStyle holo) holo
 
-static ∷ (Holo a, RGLCtx t m)
+static ∷ (Holo a, RGLFW t m)
   ⇒ a
   → m (Dynamic t HoloBlank)
 static holo =

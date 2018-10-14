@@ -46,7 +46,7 @@ import           Linear                            hiding (trace)
 import           Prelude                           hiding (id, Word)
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.Host.Class                        (ReflexHost, MonadReflexHost)
-import           Reflex.GLFW                              (RGLCtx, RGLGuest, RGL, InputU(..))
+import           Reflex.GLFW                              (RGLFW, RGLFWGuest, InputU(..))
 import qualified Codec.Picture                     as Juicy
 import qualified Codec.Picture.Saving              as Juicy
 import qualified Control.Concurrent.STM            as STM
@@ -92,7 +92,7 @@ import qualified Generics.SOP                      as SOP
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 
-newPortFrame ∷ RGLCtx t m ⇒ Event t Port → m (Event t (Port, Frame))
+newPortFrame ∷ RGLFW t m ⇒ Event t Port → m (Event t (Port, Frame))
 newPortFrame portFrameE = performEvent $ portFrameE <&>
   \port@Port{..}→ do
     newFrame ← portNextFrame port
@@ -106,12 +106,12 @@ avgStep x (_, (lim, cur, xs)) =
                     else (lim,     x:Prelude.init xs)
   in ((sum nxs) / fromIntegral ncur, (lim, ncur, nxs))
 
-average ∷ (Fractional a, RGLCtx t m) ⇒ Int → Event t a → m (Dynamic t a)
+average ∷ (Fractional a, RGLFW t m) ⇒ Int → Event t a → m (Dynamic t a)
 average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 
 
-routeInput ∷ ∀ a t m mb. (RGLCtx t m)
+routeInput ∷ ∀ a t m mb. (RGLFW t m)
            ⇒ Event t Input
            → Event t IdToken
            → Dynamic t Subscription
@@ -140,13 +140,13 @@ routeInput inputE pickedE subsD = do
 
 
 
-liftDynHolo ∷ ∀ a t m mb. (Holo a, RGLCtx t m) ⇒ Dynamic t a → m (Widget t a)
+liftDynHolo ∷ ∀ a t m mb. (Holo a, RGLFW t m) ⇒ Dynamic t a → m (Widget t a)
 liftDynHolo h = do
   tok ← newId
   pure ( constDyn $ subscription (Proxy @a) tok
        , h <&> \x→ (,) x $ Holo.leafStyled tok (initStyle $ compStyle x) x)
 
-liftHoloStyled ∷ ∀ t m mb a. (Holo a, RGLCtx t m) ⇒ InputMux t → Behavior t (Style a) → a → m (Widget t a)
+liftHoloStyled ∷ ∀ t m mb a. (Holo a, RGLFW t m) ⇒ InputMux t → Behavior t (Style a) → a → m (Widget t a)
 liftHoloStyled mux style initial = do
   tok  ← newId
   let rawD = liftDyn initial $ select mux $ Const2 tok
@@ -154,7 +154,7 @@ liftHoloStyled mux style initial = do
   pure ( constDyn $ subscription (Proxy @a) tok
        , valD)
 
-liftHolo ∷ ∀ t m mb a. (Holo a, RGLCtx t m) ⇒ InputMux t → a → m (Widget t a)
+liftHolo ∷ ∀ t m mb a. (Holo a, RGLFW t m) ⇒ InputMux t → a → m (Widget t a)
 liftHolo mux initial = do
   tok  ← newId
   valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$>
@@ -171,7 +171,7 @@ liftHolo mux initial = do
 --   holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn nvalD holoE)
 --    <&> (,) editMaskKeys
 
-mkTextEntryValidatedStyleD ∷ RGLCtx t m ⇒ InputMux t → Behavior t (Style Text) → Text → (Text → Bool) → m (Widget t Text)
+mkTextEntryValidatedStyleD ∷ RGLFW t m ⇒ InputMux t → Behavior t (Style Text) → Text → (Text → Bool) → m (Widget t Text)
 mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
@@ -183,7 +183,7 @@ mkTextEntryValidatedStyleD mux styleB initialV testF = do
     initial (updated textD)
     <&> (subD,)
 
-vboxD ∷ ∀ t m mb. (RGLCtx t m) ⇒ [HWidget t] → m (HWidget t)
+vboxD ∷ ∀ t m mb. (RGLFW t m) ⇒ [HWidget t] → m (HWidget t)
 vboxD chi = do
   let dyn ∷ (Dynamic t Subscription, Dynamic t [HoloBlank])
       dyn = foldr (\(s, hb) (ss, hbs)→
@@ -195,27 +195,27 @@ vboxD chi = do
 
 
 
-fpsCounterD ∷ RGLCtx t m ⇒ Event t Frame → m (Dynamic t Double)
+fpsCounterD ∷ RGLFW t m ⇒ Event t Frame → m (Dynamic t Double)
 fpsCounterD frameE = do
   frameMomentE     ← performEvent $ fmap (\_ → HOS.fromSec <$> HOS.getTime) frameE
   frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
   avgFrameΔD       ← average 20 $ updated frameΔD
   pure (recip <$> avgFrameΔD)
 
-nextFrame ∷ RGLCtx t m ⇒ GLFW.Window → Event t () → m (Event t ())
+nextFrame ∷ RGLFW t m ⇒ GLFW.Window → Event t () → m (Event t ())
 nextFrame win windowFrameE = performEvent $ windowFrameE <&>
   \_ → liftIO $ do
     GLFW.swapBuffers win
     -- GL.flush  -- not necessary, but someone recommended it
     GLFW.pollEvents
 
-trackStyle ∷ (Holo a, RGLCtx t m) ⇒ Dynamic t (StyleOf a) → m (Dynamic t (Style a))
+trackStyle ∷ (Holo a, RGLFW t m) ⇒ Dynamic t (StyleOf a) → m (Dynamic t (Style a))
 trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
 
-scene ∷ ∀ t m. ( RGLCtx t m
-               , Typeable m, Typeable t)
+scene ∷ ∀ t m. ( RGLFW t m
+               , Typeable t)
   ⇒ InputMux   t
   → Dynamic    t Integer
   → Dynamic    t Int
@@ -233,7 +233,7 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  -- instance (Holo a, RGLCtx t m) ⇒
+  -- instance (Holo a, RGLFW t m) ⇒
   -- type FieldCtx (PostBuildT t (TriggerEventT t (PerformEventT t m))) a = (InputMux t, a)
   -- type FieldCtx (PostBuildT t (TriggerEventT t (PerformEventT t m))) Text = (InputMux t, Text)
   -- type FieldCtx m s ∷ Type
@@ -248,7 +248,7 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   let -- act ∷ Prod m Derived Text
       act@(Prod (action ∷ m (Derived Text)
                 )) =
-        readField (Proxy @t) (Proxy @(RGLCtx t m)) (Proxy @m) (Proxy @Text) (muxV, "foo" ∷ Text) "field"
+        readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @Text) (muxV, "foo" ∷ Text) "field"
       -- action2 ∷ MWidget t m AnObject
       -- action2 = recover2 (⊥)
   -- xD ∷ Derived Text ← action -- CCC
@@ -286,8 +286,8 @@ parseOptions =
   Options
   <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
 
--- liftHolo' ∷ ∀ t m a. (Holo a, RGLCtx t m) ⇒ a → MWidget t m a
-liftHolo' ∷ ∀ t m mb a. (Holo a, RGLCtx t m) ⇒ a → m (Dynamic t Subscription, Dynamic t (a, HoloBlank))
+-- liftHolo' ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ a → MWidget t m a
+liftHolo' ∷ ∀ t m mb a. (Holo a, RGLFW t m) ⇒ a → m (Dynamic t Subscription, Dynamic t (a, HoloBlank))
 liftHolo' initial = do
   tok  ← newId
   valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$>
@@ -332,7 +332,7 @@ type instance Structure (Derived a)       = a
 data instance Derived                   a = ∀ (t ∷ Type). Reflex t ⇒ Derived (Widget t a)
 type instance FieldCtx t m a = (InputMux t, a)
 instance ( Holo a
-         , RGLCtx t m) ⇒
+         , RGLFW t m) ⇒
          Field t m (Derived a) a where
 
   -- readField ∷ ∀ t c m a. (c, HasCallStack)
@@ -351,12 +351,12 @@ instance ( Holo a
     pure $ Derived lifted
 instance (SOP.Generic a, SOP.HasDatatypeInfo a, Monad m) ⇒
   Record m (Derived a) a where
-instance (SOP.Generic a, SOP.HasDatatypeInfo a, RGLCtx t m) ⇒
+instance (SOP.Generic a, SOP.HasDatatypeInfo a, RGLFW t m) ⇒
   CtxRecord m (Derived a) a where
 
 -- * Top level network
 --
-holotype ∷ ∀ t m. (Typeable t, Typeable m) ⇒ RGLGuest t m
+holotype ∷ ∀ t m. (Typeable t) ⇒ RGLFWGuest t m
 holotype win evCtl windowFrameE inputE = mdo
   Options{..} ← liftIO $ Opt.execParser $ Opt.info (parseOptions <**> Opt.helper)
                 ( Opt.fullDesc
@@ -441,7 +441,7 @@ holotype win evCtl windowFrameE inputE = mdo
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
 
-mousePointId ∷ RGLCtx t m ⇒ Event t (Port, GLFW.Input 'GLFW.MouseButton) → m (Event t IdToken)
+mousePointId ∷ RGLFW t m ⇒ Event t (Port, GLFW.Input 'GLFW.MouseButton) → m (Event t IdToken)
 mousePointId ev = (ffilter ((≢ 0) ∘ tokenHash) <$>) <$>
                   performEvent $ ev <&> \(port@Port{..}, GLFW.EventMouseButton _ _ _ _) → do
                     (,) x y ← liftIO $ (GLFW.getCursorPos portWindow)

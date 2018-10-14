@@ -56,7 +56,7 @@ import qualified LambdaCube.GL.Mesh                as GL
 import qualified LambdaCube.GL.Type                as GL
 import qualified LambdaCube.Linear                 as LCLin
 import           Reflex                            hiding (Query, Query(..))
-import           Reflex.GLFW                              (RGLCtx, InputU(..))
+import           Reflex.GLFW                              (RGLFW, InputU(..))
 import qualified System.IO.Unsafe                  as IO
 import qualified Unsafe.Coerce                     as Co
 
@@ -131,7 +131,7 @@ portSetVSync x = liftIO $ GL.swapInterval $ case x of
                                               True  → 1
                                               False → 0
 
-portCreate ∷ RGLCtx t m ⇒ Dynamic t GL.Window → Dynamic t Settings → m (Dynamic t (Maybe Port))
+portCreate ∷ RGLFW t m ⇒ Dynamic t GL.Window → Dynamic t Settings → m (Dynamic t (Maybe Port))
 portCreate winD sttsD = do
   liftIO $ blankIdToken'setup
   portVisualTracker@(VisualTracker _) ← VisualTracker <$> mkVIOMap

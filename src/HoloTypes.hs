@@ -55,7 +55,7 @@ import           Graphics.GL.Core33                as GL
 import           LambdaCube.Mesh                   as LC
 import           Linear
 import           Reflex                            hiding (Query, Query(..))
-import           Reflex.GLFW                              (RGLCtx, RGLGuest, InputU(..))
+import           Reflex.GLFW                              (RGLFW, RGLFWGuest, InputU(..))
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Control.Concurrent.STM            as STM
 import qualified Data.ByteString.Char8             as SB
@@ -187,7 +187,7 @@ class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
   data VisualOf a
   data StyleOf  a
   subscription    ∷                                                    Proxy a → IdToken → Subscription
-  liftDyn         ∷ (RGLCtx t m) ⇒                                     a → Event t Input → m (Dynamic t a)
+  liftDyn         ∷ (RGLFW t m) ⇒                                      a → Event t Input → m (Dynamic t a)
   compStyle       ∷                                                                    a → StyleOf a
   query           ∷ (MonadIO m) ⇒ Port → StyleOf a →                                   a → m (Di (Maybe Double))
   hasVisual       ∷                                                                    a → Bool

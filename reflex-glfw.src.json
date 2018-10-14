@@ -1,7 +1,7 @@
 {
   "url": "https://github.com/deepfire/reflex-glfw",
-  "rev": "fae9ae05a5029dbd4520e7cf7c1f6150bb24d817",
-  "date": "2018-10-10T01:30:28+03:00",
-  "sha256": "0g0p46h8w46r86ywpjma8ikbvvjm9d8wz61iqrji7cy4ypf9wv6h",
+  "rev": "f5cffe98c0393d573919f86fdda5bb055516ee74",
+  "date": "2018-10-14T21:38:42+03:00",
+  "sha256": "02d9qx1686vrqlx04z09r6dvxiq6g72mcrlx7c55gm6aihby5ba8",
   "fetchSubmodules": false
 }
