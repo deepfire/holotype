@@ -70,7 +70,7 @@ test_scene =
           ] & geo.direction       .~ DirColumn
             & geo.align'content   .~ AlignStart
             & geo.grow            .~ 1
-            & layout
+            & layout (mkSize 400 200)
   in testGroup "scene"
      [ testCase "child 0"   $ r^.child 0.area         @?= Area (mkLU   0   0) (mkSize  50  50)
      , testCase "child 1"   $ r^.child 1.area         @?= Area (mkLU   0  50) (mkSize 400 100)
@@ -88,7 +88,7 @@ test_grow1 =
           [ leaf 60 30 & geo.grow .~ 0
           , leaf 60  0 & geo.grow .~ 1
           , leaf 60  0 & geo.grow .~ 2
-          ] & layout
+          ] & layout (mkSize 60 240)
   in testGroup "grow1: three children grow proportionally to property"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 60  30)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  30) (mkSize 60  70)
@@ -101,7 +101,7 @@ test_grow2 =
           [ leaf 100 20 & geo.grow .~ 1
           , leaf 100 20 & geo.grow .~ 0
           , leaf 100 20
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "grow2: only grow if property set to 1"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  60)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  60) (mkSize 100  20)
@@ -113,7 +113,7 @@ test_grow3 =
   let r = node 100 100
           [ leaf 100 50 & geo.grow .~ 2
           , leaf 100 50 & geo.grow .~ 3
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "grow3: growth has no effect if parent already full"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize 100  50)
@@ -125,7 +125,7 @@ test_grow4 =
           [ leaf 100 25
           , leaf 100 25
           ] & geo.grow .~ 2
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "grow4: parent growth property has no effect on children"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  25) (mkSize 100  25)
@@ -135,7 +135,7 @@ test_grow5 ∷ TestTree
 test_grow5 =
   let r = node 100 100
           [ leaf 100 25 & geo.grow .~ 1
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "grow5: single child fills parent"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  100)
      ]
@@ -145,7 +145,7 @@ test_grow6 =
   let r = node 100 100
           [ leaf 100 45 & geo.grow .~ 1
           , leaf 100 45 & geo.grow .~ 1
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "grow6: two undersized children fill at equal rate"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100   50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize 100   50)
@@ -159,7 +159,7 @@ test_grow7 =
           , leaf 250  0
           , leaf 250  0 & geo.grow .~ 1
           , leaf 250  0
-          ] & layout
+          ] & layout (mkSize 500 600)
   in testGroup "grow7: sizes of flexible items should be ignored when growing"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 250 200)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 200) (mkSize 250 200)
@@ -181,7 +181,7 @@ test_wrap1 =
           , leaf 100 150
           , leaf 100 150
           ] & geo.wrap .~ NoWrap
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "wrap1: NoWrap doesn't enable wrapping"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  75)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  75) (mkSize 100  75)
@@ -198,7 +198,7 @@ test_wrap2 =
           , leaf 50 150
           ] & geo.wrap          .~ Wrap
             & geo.align'content .~ AlignStart
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "wrap2: four non-stretching children wrap across two rows"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50 150)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 150) (mkSize  50 150)
@@ -214,7 +214,7 @@ test_wrap3 =
           , leaf 50 50
           ] & geo.wrap          .~ Wrap
             & geo.align'content .~ AlignStart
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize  50  50)
@@ -232,7 +232,7 @@ test_wrap4 =
           , leaf 25 50
           ] & geo.wrap          .~ Wrap
             & geo.align'content .~ AlignStart
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  25  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize  25  50)
@@ -251,7 +251,7 @@ test_wrap5 =
           ] & geo.wrap            .~ Wrap
             & geo.justify'content .~ AlignEnd
             & geo.align'content   .~ AlignStart
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0  20) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  70) (mkSize  50  50)
@@ -267,7 +267,7 @@ test_wrap6 =
           ] & geo.wrap            .~ Wrap
             & geo.justify'content .~ AlignCenter
             & geo.align'content   .~ AlignStart
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap6: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0  10) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  60) (mkSize  50  50)
@@ -283,7 +283,7 @@ test_wrap7 =
           ] & geo.wrap            .~ Wrap
             & geo.justify'content .~ AlignSpaceAround
             & geo.align'content   .~ AlignStart
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap7: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   5) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  65) (mkSize  50  50)
@@ -299,7 +299,7 @@ test_wrap8 =
           ] & geo.wrap            .~ Wrap
             & geo.justify'content .~ AlignSpaceBetween
             & geo.align'content   .~ AlignStart
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap8: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  70) (mkSize  50  50)
@@ -315,7 +315,7 @@ test_wrap9 =
           , leaf 50 50
           ] & geo.wrap            .~ Wrap
             & geo.align'content   .~ AlignStart
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap9: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize  50  70)
@@ -333,7 +333,7 @@ test_wrap10 =
           , leaf 50 60
           ] & geo.wrap            .~ Wrap
             & geo.align'items     .~ AlignStart
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap10: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  40)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  40) (mkSize  70  30)
@@ -353,7 +353,7 @@ test_wrap11 =
           , leaf 50 60
           ] & geo.wrap            .~ Wrap
             & geo.align'items     .~ AlignCenter
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap11: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  10   0) (mkSize  50  40)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  40) (mkSize  70  30)
@@ -372,7 +372,7 @@ test_wrap12 =
           , leaf 50 60
           ] & geo.wrap            .~ Wrap
             & geo.align'items     .~ AlignEnd
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap12: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  20   0) (mkSize  50  40)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  40) (mkSize  70  30)
@@ -391,7 +391,7 @@ test_wrap13 =
           , leaf 50 60
           , leaf 10 10 & geo.align'self .~ AlignEnd
           ] & geo.wrap .~ Wrap
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap13: potpourri"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  20   0) (mkSize  50  40)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  40) (mkSize  70  30)
@@ -409,7 +409,7 @@ test_wrap14 =
           , leaf 50 50
           ] & geo.wrap            .~ ReverseWrap
             & geo.align'content   .~ AlignStart
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap14: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  70   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  70  50) (mkSize  50  50)
@@ -427,7 +427,7 @@ test_wrap15 =
           , leaf 25 50
           ] & geo.wrap          .~ ReverseWrap
             & geo.align'content .~ AlignStart
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap15: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  95   0) (mkSize  25  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  95  50) (mkSize  25  50)
@@ -446,7 +446,7 @@ test_wrap16 =
           ] & geo.direction       .~ DirColumn
             & geo.wrap            .~ Wrap
             & geo.align'content   .~ AlignStretch
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap16: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  20  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize  20  50)
@@ -464,7 +464,7 @@ test_wrap17 =
           ] & geo.direction       .~ DirColumn
             & geo.wrap            .~ Wrap
             & geo.align'content   .~ AlignStretch
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "wrap17: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  20  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize  20  50)
@@ -482,7 +482,7 @@ test_basis1 =
   let r = node 100 100
           [ leaf' (Just 100) Nothing & geo.basis .~ 60
           , leaf        100  40
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "basis1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  60)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  60) (mkSize 100  40)
@@ -493,7 +493,7 @@ test_basis2 =
   let r = node 100 100
           [ leaf 100 40 & geo.basis .~ 60
           , leaf 100 40
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "basis2: the basis attribute has priority over width/height"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  60)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  60) (mkSize 100  40)
@@ -504,7 +504,7 @@ test_basis3 =
   let r = node 100 100
           [ leaf' (Just 100) Nothing & geo.basis .~ (-60)
           , leaf        100  40
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "basis3: the basis attribute is ignored if negative"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100   0)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0   0) (mkSize 100  40)
@@ -515,7 +515,7 @@ test_basis4 =
   let r = node 100 100
           [ leaf 100 40 & geo.basis .~ (-60)
           , leaf 100 40
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "basis4: the basis attribute is ignored if negative"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  40)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  40) (mkSize 100  40)
@@ -526,7 +526,7 @@ test_basis5 =
   let r = node 100 100
           [ leaf 100 40 & geo.basis .~ 0
           , leaf 100 40
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "basis5: the basis attribute is ignored if 0"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  40)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  40) (mkSize 100  40)
@@ -542,7 +542,7 @@ test_order1 =
           [ leaf 50 50 & geo.order .~ Just 1
           , leaf 50 50 & geo.order .~ Just 3
           , leaf 50 50 & geo.order .~ Just 2
-          ] & layout
+          ] & layout (mkSize 200 200)
   in testGroup "order1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  50)
      , expectFail $
@@ -558,7 +558,7 @@ test_order2 =
           , leaf 50 50 & geo.order .~ Just 3
           , leaf 50 50 & geo.order .~ Just 1
           ] & geo.direction .~ DirColumnReverse
-            & layout
+            & layout (mkSize 200 200)
   in testGroup "order2: "
      [ expectFail $
        testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0 100) (mkSize  50  50)
@@ -575,7 +575,7 @@ test_order3 =
           , leaf 50 50 & geo.order .~ Just (-1)
           , leaf 50 50
           ] & geo.direction .~ DirColumnReverse
-            & layout
+            & layout (mkSize 200 200)
   in testGroup "order3: "
      [ expectFail $
        testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0  50) (mkSize  50  50)
@@ -600,7 +600,7 @@ test_margin1 =
           , leaf  25 25
           ] & geo.align'items     .~ AlignStart
             & geo.justify'content .~ AlignStart
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "margin1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  25  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  15  35) (mkSize  25  25)
@@ -615,7 +615,7 @@ test_margin2 =
           , leaf  25 25
           ] & geo.align'items     .~ AlignEnd
             & geo.justify'content .~ AlignStart
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "margin2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  75   0) (mkSize  25  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  60  35) (mkSize  25  25)
@@ -630,7 +630,7 @@ test_margin3 =
           , leaf  25 25
           ] & geo.align'items     .~ AlignStart
             & geo.justify'content .~ AlignEnd
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "margin3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   5) (mkSize  25  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  15  40) (mkSize  25  25)
@@ -645,7 +645,7 @@ test_margin4 =
           , leaf  25 25
           ] & geo.align'items     .~ AlignEnd
             & geo.justify'content .~ AlignEnd
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "margin4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  75   5) (mkSize  25  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  60  40) (mkSize  25  25)
@@ -660,7 +660,7 @@ test_margin5 =
           , leaf  10 10
           ] & geo.align'items     .~ AlignCenter
             & geo.justify'content .~ AlignStart
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "margin5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  45   0) (mkSize  10  10)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  50  10) (mkSize  10  10)
@@ -674,7 +674,7 @@ test_margin6 =
           , leaf   0 10 & geo.margin     .~ LRTB 15 10 0 0
                                  & geo.align'self .~ AlignStretch
           , leaf  10 10
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "margin6 "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  10  10)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  15  10) (mkSize  75  10)
@@ -688,7 +688,7 @@ test_margin7 =
           , leaf  10 10 & geo.margin     .~ LRTB 15 10 0 0
                                  & geo.align'self .~ AlignStretch
           , leaf  10 10
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "margin7 "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  10  10)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  15  10) (mkSize  10  10)
@@ -702,7 +702,7 @@ test_margin8 =
           , leaf' Nothing (Just 10) & geo.margin .~ LRTB  0 10 0 0
           , leaf' Nothing (Just 10) & geo.margin .~ LRTB 10 20 0 0
           ] & geo.direction .~ DirColumn
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "margin8 "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  10   0) (mkSize  90  10)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  10) (mkSize  90  10)
@@ -716,7 +716,7 @@ test_margin9 =
           , leaf' (Just 10) Nothing & geo.margin .~ LRTB 0 0  0 10
           , leaf' (Just 10) Nothing & geo.margin .~ LRTB 0 0 10 20
           ] & geo.direction .~ DirRow
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "margin9 "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0  10) (mkSize  10  90)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  10   0) (mkSize  10  90)
@@ -732,7 +732,7 @@ test_shrink1 =
   let r = node 100 100
           [ leaf 100 100 & geo.shrink .~ 2
           , leaf 100 100 & geo.shrink .~ 3
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "shrink1"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  60)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  60) (mkSize 100  40)
@@ -743,7 +743,7 @@ test_shrink2 =
   let r = node 100 100
           [ leaf 100 100
           , leaf 100 100 & geo.shrink .~ 4
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "shrink2"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  80)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  80) (mkSize 100  20)
@@ -754,7 +754,7 @@ test_shrink3 =
   let r = node 100 100
           [ leaf 100 40 & geo.shrink .~ 2
           , leaf 100 40 & geo.shrink .~ 3
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "shrink3: the shrink attributes are not taken into account when there is enough flexible space available"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  40)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  40) (mkSize 100  40)
@@ -766,7 +766,7 @@ test_shrink4 =
           [ leaf 100 25
           , leaf 100 25
           ] & geo.shrink .~ 2
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "shrink4: the shrink attribute is not inherited from children"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  25) (mkSize 100  25)
@@ -776,7 +776,7 @@ test_shrink5 ∷ TestTree
 test_shrink5 =
   let r = node 100 100
           [ leaf 100 550 & geo.shrink .~ 1
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "shrink5: all the container space is used when there is only one item with a positive value for the shrink attribute"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100 100)
      ]
@@ -786,7 +786,7 @@ test_shrink6 =
   let r = node 100 100
           [ leaf 100 75 & geo.shrink .~ 1
           , leaf 100 75 & geo.shrink .~ 1
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "shrink6: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize 100  50)
@@ -804,7 +804,7 @@ test_padding1 =
             & geo.justify'content .~ AlignStart
             & geo.align'items     .~ AlignStart
             & geo.padding         .~ LRTB 10 15 15 10
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "padding1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  10  15) (mkSize  25  25)
      ]
@@ -817,7 +817,7 @@ test_padding2 =
             & geo.justify'content .~ AlignEnd
             & geo.align'items     .~ AlignStart
             & geo.padding         .~ LRTB 10 15 15 10
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "padding2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  10  65) (mkSize  25  25)
      ]
@@ -830,7 +830,7 @@ test_padding3 =
             & geo.justify'content .~ AlignEnd
             & geo.align'items     .~ AlignEnd
             & geo.padding         .~ LRTB 10 15 15 10
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "padding3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  60  65) (mkSize  25  25)
      ]
@@ -843,7 +843,7 @@ test_padding4 =
             & geo.justify'content .~ AlignStart
             & geo.align'items     .~ AlignEnd
             & geo.padding         .~ LRTB 10 15 15 10
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "padding4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  60  15) (mkSize  25  25)
      ]
@@ -856,7 +856,7 @@ test_padding5 =
             & geo.justify'content .~ AlignStart
             & geo.align'items     .~ AlignStart
             & geo.padding         .~ LRTB 10 15 15 10
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "padding5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  10  15) (mkSize  75  25)
      ]
@@ -889,7 +889,7 @@ test_children4 =
               & geo.justify'content .~ AlignCenter
           ] & geo.align'items     .~ AlignCenter
             & geo.justify'content .~ AlignCenter
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "children4: "
      [ testCase "child 0"         $ r^.child 0.area                                 @?= Area (mkLU   5   5) (mkSize  90  90)
      , testCase "child 0.0"       $ r^.child 0.child 0.area                         @?= Area (mkLU   5   5) (mkSize  80  80)
@@ -906,7 +906,7 @@ test_position1 ∷ TestTree
 test_position1 =
   let r = node 100 100
           [ leaf  10 10 & geo.positioning .~ Absolute
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "position1: items with an absolute position default to the left/top corner"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  10  10)
      ]
@@ -924,7 +924,7 @@ test_position2 =
                                  & geo.absolute    .~ LRTB (Just 10) Nothing   Nothing (Just 10)
           ] & geo.align'items     .~ AlignCenter
             & geo.justify'content .~ AlignStart
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "position2 "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  10  10) (mkSize  10  10)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  80  10) (mkSize  10  10)
@@ -939,7 +939,7 @@ test_position3 =
                                  & geo.absolute    .~ LRTB (Just 10) (Just 10) Nothing   Nothing
           , leaf  10 10 & geo.positioning .~ Absolute
                                  & geo.absolute    .~ LRTB  Nothing   Nothing (Just 10) (Just 10)
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "position3: if both left/right or top/bottom are given, left/top get the priority if the item has the appropriate size dimension set"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  10   0) (mkSize  10  10)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  10) (mkSize  10  10)
@@ -952,7 +952,7 @@ test_position4 =
                                              & geo.absolute    .~ LRTB (Just 10) (Just 10) Nothing   Nothing
           , leaf' (Just 20) Nothing & geo.positioning .~ Absolute
                                              & geo.absolute    .~ LRTB  Nothing   Nothing (Just 10) (Just 10)
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "position4: if both left/right or top/bottom are given, the item is properly resized if the appropriate size dimension hasn't been set"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  10   0) (mkSize  80  20)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  10) (mkSize  20  80)
@@ -964,7 +964,7 @@ test_position5 =
           [ leaf  10 10 & geo.positioning .~ Absolute
                                  & geo.basis       .~ 20
                                  & geo.absolute    .~ LRTB (Just 10) Nothing Nothing (Just 10)
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "position5: the `basis' property is ignored for items with an absolute position"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  10  80) (mkSize  10  10)
      ]
@@ -977,7 +977,7 @@ test_position6 =
                                  & geo.absolute    .~ LRTB Nothing (Just 0) Nothing (Just 0)
           , leaf  50 50
           ] & geo.direction .~ DirRow
-            & layout
+            & layout (mkSize 200 200)
   in testGroup "position6: items with an absolute position are separated from the other items during the layout"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU 150 150) (mkSize  50  50)
@@ -995,7 +995,7 @@ test_position7 =
           ] & geo.wrap            .~ Wrap
             & geo.justify'content .~ AlignSpaceAround
             & geo.align'content   .~ AlignStart
-            & layout
+            & layout (mkSize 120 120)
   in testGroup "position7: items with an absolute position are separated from the other items during the layout and are not taken into account when calculating spacing"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   5) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  65) (mkSize  50  50)
@@ -1015,7 +1015,7 @@ test_position8 =
             ] & geo.positioning .~ Absolute
               & geo.absolute    .~ LRTB (Just 10) (Just 10) (Just 10) (Just 10)
           ] & geo.direction .~ DirRow
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "position8: items with an absolute position can be nested"
      [ testCase "child 0" $ r^.child 0.area                 @?= Area (mkLU  10  10) (mkSize  80  80)
      , testCase "child 1" $ r^.child 0.child 0.area         @?= Area (mkLU  10  10) (mkSize  60  60)
@@ -1033,7 +1033,7 @@ test_direction1 =
           , leaf 50 50
           , leaf 50 50
           ] & geo.direction .~ DirRow
-            & layout
+            & layout (mkSize 200 200)
   in testGroup "direction1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  50   0) (mkSize  50  50)
@@ -1047,7 +1047,7 @@ test_direction2 =
           , leaf 50 50
           , leaf 50 50
           ] & geo.direction .~ DirColumn
-            & layout
+            & layout (mkSize 200 200)
   in testGroup "direction2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize  50  50)
@@ -1061,7 +1061,7 @@ test_direction3 =
           , leaf 50 50
           , leaf 50 50
           ] & geo.direction .~ DirRowReverse
-            & layout
+            & layout (mkSize 200 200)
   in testGroup "direction3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU 150   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU 100   0) (mkSize  50  50)
@@ -1075,7 +1075,7 @@ test_direction4 =
           , leaf 50 50
           , leaf 50 50
           ] & geo.direction .~ DirColumnReverse
-            & layout
+            & layout (mkSize 200 200)
   in testGroup "direction4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0 150) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 100) (mkSize  50  50)
@@ -1092,7 +1092,7 @@ test_align_self1 =
           [ leaf  50  25 & geo.align'self .~ AlignStart
           , leaf  50  25 & geo.align'self .~ AlignStart
           , leaf  50  25 & geo.align'self .~ AlignStart
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "align_self1"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  25) (mkSize  50  25)
@@ -1105,7 +1105,7 @@ test_align_self2 =
           [ leaf  50  25 & geo.align'self .~ AlignEnd
           , leaf  50  25 & geo.align'self .~ AlignEnd
           , leaf  50  25 & geo.align'self .~ AlignEnd
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "align_self2"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  50   0) (mkSize  50  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  50  25) (mkSize  50  25)
@@ -1118,7 +1118,7 @@ test_align_self3 =
           [ leaf  50  25 & geo.align'self .~ AlignCenter
           , leaf  50  25 & geo.align'self .~ AlignCenter
           , leaf  50  25 & geo.align'self .~ AlignCenter
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "align_self3"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  25   0) (mkSize  50  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  25  25) (mkSize  50  25)
@@ -1131,7 +1131,7 @@ test_align_self4 =
           [ leaf' Nothing (Just 25) & geo.align'self .~ AlignStretch
           , leaf        0       25  & geo.align'self .~ AlignStretch
           , leaf' Nothing (Just 25) & geo.align'self .~ AlignStretch
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "align_self4: stretch works if the align dimension is not set or is 0"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize 100  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  25) (mkSize 100  25)
@@ -1144,7 +1144,7 @@ test_align_self5 =
           [ leaf  50  25 & geo.align'self .~ AlignStretch
           , leaf  50  50 & geo.align'self .~ AlignStretch
           , leaf  50  25 & geo.align'self .~ AlignStretch
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "align_self5: stretch does not work if the align dimension is set"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  25) (mkSize  50  50)
@@ -1158,7 +1158,7 @@ test_align_self6 =
           , leaf  50  25 & geo.align'self .~ AlignCenter
           , leaf   0  25 & geo.align'self .~ AlignStretch
           , leaf  50  25 & geo.align'self .~ AlignEnd
-          ] & layout
+          ] & layout (mkSize 100 100)
   in testGroup "align_self6: potpourri"
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  25  25) (mkSize  50  25)
@@ -1177,7 +1177,7 @@ test_align_items1 =
           , leaf  50  25
           , leaf  50  25
           ] & geo.align'items .~ AlignStart
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "align_items1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  25) (mkSize  50  25)
@@ -1191,7 +1191,7 @@ test_align_items2 =
           , leaf  50  25
           , leaf  50  25
           ] & geo.align'items .~ AlignEnd
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "align_items2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  50   0) (mkSize  50  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  50  25) (mkSize  50  25)
@@ -1205,7 +1205,7 @@ test_align_items3 =
           , leaf  50  25
           , leaf  50  25
           ] & geo.align'items .~ AlignCenter
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "align_items3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  25   0) (mkSize  50  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  25  25) (mkSize  50  25)
@@ -1219,7 +1219,7 @@ test_align_items4 =
           , leaf        0        25
           , leaf' Nothing  (Just 25)
           ] & geo.align'items .~ AlignStretch
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "align_items4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  25) (mkSize 100  25)
@@ -1234,7 +1234,7 @@ test_align_items5 =
           , leaf 50 25 & geo.align'self .~ AlignAuto
           , leaf 50 25 & geo.align'self .~ AlignEnd
           ] & geo.align'items .~ AlignCenter
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "align_items5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  25   0) (mkSize  50  25)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  25) (mkSize  50  25)
@@ -1254,7 +1254,7 @@ test_align_content1 =
           , leaf  40  50
           ] & geo.wrap          .~ Wrap
             & geo.align'content .~ AlignStart
-            & layout
+            & layout (mkSize 200 120)
   in testGroup "align_content1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize  60  50)
@@ -1269,7 +1269,7 @@ test_align_content2 =
           , leaf  40  50
           ] & geo.wrap          .~ Wrap
             & geo.align'content .~ AlignCenter
-            & layout
+            & layout (mkSize 200 120)
   in testGroup "align_content2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  50   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  50  50) (mkSize  60  50)
@@ -1284,7 +1284,7 @@ test_align_content3 =
           , leaf  40  50
           ] & geo.wrap          .~ Wrap
             & geo.align'content .~ AlignEnd
-            & layout
+            & layout (mkSize 200 120)
   in testGroup "align_content3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU 100   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU 100  50) (mkSize  60  50)
@@ -1299,7 +1299,7 @@ test_align_content4 =
           , leaf  40  50
           ] & geo.wrap          .~ Wrap
             & geo.align'content .~ AlignSpaceBetween
-            & layout
+            & layout (mkSize 200 120)
   in testGroup "align_content4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize  60  50)
@@ -1314,7 +1314,7 @@ test_align_content5 =
           , leaf  40  50
           ] & geo.wrap          .~ Wrap
             & geo.align'content .~ AlignSpaceAround
-            & layout
+            & layout (mkSize 200 120)
   in testGroup "align_content5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  25   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  25  50) (mkSize  60  50)
@@ -1329,7 +1329,7 @@ test_align_content6 =
           , leaf  40  50
           ] & geo.wrap          .~ Wrap
             & geo.align'content .~ AlignSpaceEvenly
-            & layout
+            & layout (mkSize 250 120)
   in testGroup "align_content6: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU  50   0) (mkSize  50  50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU  50  50) (mkSize  60  50)
@@ -1349,7 +1349,7 @@ test_default_values2 =
           , leaf' Nothing   (Just 100)
           , leaf' Nothing    Nothing
           ] & geo.direction .~ DirColumn
-            & layout
+            & layout (mkSize 200 200)
   in testGroup "default_values2: if the width/height property isn't set on a child, it's frame size defaults to 0 for the main axis and the parent's size for the minor axis"
      [ testCase "child 0" $ r^.child 0.area.area'b @?= mkSize 100   0
      , testCase "child 1" $ r^.child 1.area.area'b @?= mkSize 200 100
@@ -1363,7 +1363,7 @@ test_default_values3 =
           , leaf' Nothing   (Just 100)
           , leaf' Nothing    Nothing
           ] & geo.direction .~ DirRow
-            & layout
+            & layout (mkSize 200 200)
   in testGroup "default_values3: "
      [ testCase "child 0" $ r^.child 0.area.area'b @?= mkSize 100 200
      , testCase "child 1" $ r^.child 1.area.area'b @?= mkSize   0 100
@@ -1380,7 +1380,7 @@ test_justify_content1 =
           [ leaf 50 100
           , leaf 50 100
           ] & geo.justify'content .~ AlignCenter
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content1: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0  50) (mkSize  50 100)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 150) (mkSize  50 100)
@@ -1392,7 +1392,7 @@ test_justify_content2 =
           [ leaf 50 100
           , leaf 50 100
           ] & geo.justify'content .~ AlignStart
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content2: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50 100)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 100) (mkSize  50 100)
@@ -1404,7 +1404,7 @@ test_justify_content3 =
           [ leaf 50 100
           , leaf 50 100
           ] & geo.justify'content .~ AlignEnd
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content3: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0 100) (mkSize  50 100)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 200) (mkSize  50 100)
@@ -1416,7 +1416,7 @@ test_justify_content4 =
           [ leaf 50 100
           , leaf 50 100
           ] & geo.justify'content .~ AlignSpaceBetween
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content4: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50 100)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 200) (mkSize  50 100)
@@ -1429,7 +1429,7 @@ test_justify_content5 =
           , leaf 50 50
           , leaf 50 50
           ] & geo.justify'content .~ AlignSpaceBetween
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content5: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0   0) (mkSize  50 50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 125) (mkSize  50 50)
@@ -1442,7 +1442,7 @@ test_justify_content6 =
           [ leaf 50 100
           , leaf 50 100
           ] & geo.justify'content .~ AlignSpaceAround
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content6: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0  25) (mkSize  50 100)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 175) (mkSize  50 100)
@@ -1455,7 +1455,7 @@ test_justify_content7 =
           , leaf 50 50
           , leaf 50 50
           ] & geo.justify'content .~ AlignSpaceAround
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content7: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0  25) (mkSize  50 50)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 125) (mkSize  50 50)
@@ -1468,7 +1468,7 @@ test_justify_content8 =
           [ leaf 50 105
           , leaf 50 105
           ] & geo.justify'content .~ AlignSpaceEvenly
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content8: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0  30) (mkSize  50 105)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 165) (mkSize  50 105)
@@ -1481,7 +1481,7 @@ test_justify_content9 =
           , leaf 50 40
           , leaf 50 40
           ] & geo.justify'content .~ AlignSpaceEvenly
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content9: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0  45) (mkSize  50 40)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 130) (mkSize  50 40)
@@ -1495,7 +1495,7 @@ test_justify_content10 =
           , leaf 50 100
           ] & geo.direction       .~ DirColumnReverse
             & geo.justify'content .~ AlignCenter
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content10: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0 150) (mkSize  50 100)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  50) (mkSize  50 100)
@@ -1508,7 +1508,7 @@ test_justify_content11 =
           , leaf 50 100
           ] & geo.direction       .~ DirColumnReverse
             & geo.justify'content .~ AlignStart
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content11: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0 200) (mkSize  50 100)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0 100) (mkSize  50 100)
@@ -1521,7 +1521,7 @@ test_justify_content12 =
           , leaf 50 100
           ] & geo.direction       .~ DirColumnReverse
             & geo.justify'content .~ AlignEnd
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content12: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0 100) (mkSize  50 100)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0   0) (mkSize  50 100)
@@ -1534,7 +1534,7 @@ test_justify_content13 =
           , leaf 50 100
           ] & geo.direction       .~ DirColumnReverse
             & geo.justify'content .~ AlignSpaceBetween
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content13: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0 200) (mkSize  50 100)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0   0) (mkSize  50 100)
@@ -1547,7 +1547,7 @@ test_justify_content14 =
           , leaf 50 100
           ] & geo.direction       .~ DirColumnReverse
             & geo.justify'content .~ AlignSpaceAround
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content14: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0 175) (mkSize  50 100)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  25) (mkSize  50 100)
@@ -1560,7 +1560,7 @@ test_justify_content15 =
           , leaf 50 105
           ] & geo.direction       .~ DirColumnReverse
             & geo.justify'content .~ AlignSpaceEvenly
-            & layout
+            & layout (mkSize 100 300)
   in testGroup "justify_content15: "
      [ testCase "child 0" $ r^.child 0.area @?= Area (mkLU   0 165) (mkSize  50 105)
      , testCase "child 1" $ r^.child 1.area @?= Area (mkLU   0  30) (mkSize  50 105)
@@ -1574,7 +1574,7 @@ test_justify_content16 =
           [ leaf 50 50
           , leaf 50 50
           ] & geo.justify'content .~ mode
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "justify_content16: the `justify_content' property is ignored when the children fill up all the space" $
      flip concatMap modes
        (\mode→
@@ -1592,7 +1592,7 @@ test_justify_content17 =
           , leaf 50 100
           , leaf 50 100
           ] & geo.justify'content .~ mode
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "justify_content17: the `justify_content' property is ignored when the children fill up all the space" $
      flip concatMap modes
        (\mode→
@@ -1611,7 +1611,7 @@ test_justify_content18 =
           , leaf 50 20 & geo.grow .~ 1
           , leaf 50 20
           ] & geo.justify'content .~ mode
-            & layout
+            & layout (mkSize 100 100)
   in testGroup "justify_content18: the `justify_content' property is ignored when there are flexible children" $
      flip concatMap modes
        (\mode→
