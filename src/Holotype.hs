@@ -220,6 +220,7 @@ trackStyle sof = do
 data AnObject where
   AnObject ∷
     { objName   ∷ Text
+    , objValue  ∷ Text
     -- , objDPI    ∷ DΠ
     -- , objDim    ∷ Di Int
     } → AnObject
@@ -239,10 +240,10 @@ instance SOP.HasDatatypeInfo AnObject
 -- instance {-# OVERLAPPABLE #-} CtxRecord AnObject AnObject where
 --   consCtx _ _ n ix = CName n ix
 -- instance {-# OVERLAPPABLE #-}
---   ( CtxRecord a a
---   , Record      (Dynamic t Subscription, Dynamic t (a, HoloBlank)))
---   ⇒ CtxRecord a (Dynamic t Subscription, Dynamic t (a, HoloBlank)) where
---   consCtx _ _ n ix = CName n ix
+--   (Monad m) ⇒
+--   CtxRecord  t m (Derived t AnObject) AnObject where
+--   type RecordCtx (Derived t AnObject) = AnObject
+-- --   consCtx _ _ n ix = CName n ix
 
 -- *
 -- instance Holo a ⇒ Ctx a where
@@ -255,15 +256,30 @@ data instance Derived  t   a = Reflex t ⇒ Derived (Widget t a)
 type instance FieldCtx t m a = (InputMux t, a)
 instance ( Holo a
          , RGLFW t m) ⇒
-         Field t m (Derived t a) a where
+         Field t m (Derived t) a where
   readField _ _ _ _ (mux, initV) (FieldName fname) = Prod $ do
     labelId ← liftIO newId
     let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]
     Derived ∘ (id *** (<&> (id *** package))) <$> liftHolo mux initV
 instance (SOP.Generic a, SOP.HasDatatypeInfo a, Monad m) ⇒
-  Record t m (Derived t a) a where
+  Record t m (Derived t) a where
+  prefixChars _ = 3
 instance (SOP.Generic a, SOP.HasDatatypeInfo a, RGLFW t m) ⇒
-  CtxRecord t m (Derived t a) a where
+  CtxRecord t m (Derived t) a where
+  type RecordCtx (Derived t) a = a
+  restoreChoice _ _ = pure 0
+
+instance Functor (Derived t) where
+  fmap f (Derived (subs, vals)) = Derived (subs, (f *** id) <$> vals)
+
+instance Reflex t ⇒ Applicative (Derived t) where
+  pure x = Derived (mempty, constDyn (x, mempty))
+  Derived (fsubs, fvals) <*> Derived (xsubs, xvals) =
+    Derived $ (,)
+    (zipDynWith (<>) fsubs xsubs)
+    (zipDynWith ((\(f,fhb@Item{..}) (x,xhb)→
+                   (f x, fhb { hiChildren = hiChildren <> [xhb] })))
+      fvals xvals)
 
 scene ∷ ∀ t m. ( RGLFW t m
                , Typeable t)
@@ -284,11 +300,10 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  let act@(Prod action) =
-        readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @Text) (muxV, "foo" ∷ Text) "field"
-      -- action2 ∷ MWidget t m AnObject
-      -- action2 = recover2 (⊥)
-  Derived (xD ∷ Widget t Text) ∷ Derived t Text ← action -- CCC
+  let Prod xDa  = readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @Text) (muxV, "foo" ∷ Text) "field"
+      Prod xDDa = recover   (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @(Derived t AnObject)) $ AnObject "yayyity" "zeroes"
+  Derived (xD  ∷ Widget t Text) ∷ Derived t Text ← xDa
+  Derived (xDD ∷ Widget t AnObject) ← xDDa
 
   longStaticTextD  ← liftDynHolo $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
@@ -306,6 +321,7 @@ scene muxV statsValD frameNoD fpsValueD = mdo
         -- , (snd <$>) <$> text2HoloQD
         , (snd <$>) <$> styleEntryD
         , trim xD
+        , trim xDD
         , trim $ rectD
         , trim $ fpsD
         , trim $ longStaticTextD

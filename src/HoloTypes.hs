@@ -55,7 +55,7 @@ import           Graphics.GL.Core33                as GL
 import           LambdaCube.Mesh                   as LC
 import           Linear
 import           Reflex                            hiding (Query, Query(..))
-import           Reflex.GLFW                              (RGLFW, RGLFWGuest, InputU(..))
+import           Reflex.GLFW                              (RGLFW, InputU(..))
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Control.Concurrent.STM            as STM
 import qualified Data.ByteString.Char8             as SB
