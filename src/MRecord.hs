@@ -31,7 +31,7 @@
 {-# LANGUAGE ViewPatterns #-}
 module MRecord
   ( Field(..), Record(..)
-  , Derived(..), Structure(..), FieldCtx(..), CtxRecord(..)
+  , Derived(..), Structure(..), CtxRecord(..)
   , FieldName(..)
   , recover
   , Prod(..)
@@ -112,26 +112,30 @@ x = mapFields @Show (\fi val→ fi<>": "<>pack (show val)) $ A "a" 1
 
 
 
-type family ConsCtx ctx ∷ Type
-
 class Ctx ctx where
-  errCtxDesc        ∷ ctx             -- ^ Given the record context
-                    → ConsCtx ctx     -- ^ ..the constructor-specific context
-                    → FieldName           -- ^ ..the field name
-                    → Text            -- ^ produce the error message
-  dropField         ∷ Monad m         -- ^
-                    ⇒ ctx             -- ^ Given the record context
-                    → ConsCtx ctx     -- ^ ..the constructor-specific context
-                    → FieldName           -- ^ ..the field name
-                    → m ()            -- ^ remove the field.
-  errCtxDesc _ _ (FieldName f) = "field '"<>f<>"'"
+  -- errCtxDesc        ∷ ctx             -- ^ Given the record context
+  --                   → ConsCtx ctx     -- ^ ..the constructor-specific context
+  --                   → FieldName           -- ^ ..the field name
+  --                   → Text            -- ^ produce the error message
+  -- dropField         ∷ Monad m         -- ^
+  --                   ⇒ ctx             -- ^ Given the record context
+  --                   → ConsCtx ctx     -- ^ ..the constructor-specific context
+  --                   → FieldName           -- ^ ..the field name
+  --                   → m ()            -- ^ remove the field.
+  -- errCtxDesc _ _ (FieldName f) = "field '"<>f<>"'"
 
-type family Structure d ∷ Type
-data family Derived   t s ∷ Type
-type family FieldCtx t (m ∷ Type → Type) s ∷ Type
+type family Structure (d ∷ Type → Type) ∷ Type
+data family Derived t   s ∷ Type
+type family ConsCtx   (d ∷ Type → Type) (s ∷ Type) ∷ Type
 
 class (Monad m, s ~ Structure (d s), d ~ Derived t)
   ⇒ Field t m d s where
+  type FieldCtx t (m ∷ Type → Type) s ∷ Type
+  fieldCtx          ∷ Proxy t         -- ^ ..the type of the record
+                    → Proxy m                 -- ^ Given the result type
+                    → Proxy s                 -- ^ Given the result type
+                    → ConsCtx d s
+                    → FieldCtx t m s  -- ^ produce the constructor-specific context.
   readField         ∷ ∀ c. (HasCallStack, c)
                     ⇒ Proxy t
                     → Proxy c
@@ -145,18 +149,18 @@ class (Monad m, s ~ Structure (d s), d ~ Derived t)
                       , SOP.HasDatatypeInfo s, SOP.Generic s, GHC.Generic s
                       , Code s ~ xss
                       , All2 (Field t m d) xss
-                      , FieldCtx t m s ~ RecordCtx d s
+                      , ConsCtx d s ~ RecordCtx d s
                       , Applicative (Derived t)
                       )
                     ⇒ Proxy t
                     → Proxy c
                     → Proxy m
-                    → FieldCtx t m s
+                    → FieldCtx t m s          -- ^ ..the recovery context
                     → FieldName
                     → (Prod m (Derived t)) s
   readField pT pC pM fctx _ = do
     -- newCtx ∷ FieldCtx ← ctxSwitch p fctx
-    recover pT pC pM (Proxy @(d s)) fctx
+    recover pT pC pM (Proxy @(d s)) (recordCtx pT pM (Proxy @d) (Proxy @s))
 
 class ( Monad m, s ~ Structure (d s), d ~ Derived t
       , SOP.Generic s, SOP.HasDatatypeInfo s)
@@ -188,11 +192,18 @@ class ( Monad m, s ~ Structure (d s), d ~ Derived t
       , SOP.HasDatatypeInfo s, SOP.Generic s, Record t m d s, Monad m) ⇒
       CtxRecord t m d s where
   type RecordCtx   d s ∷ Type
-  -- consCtx           ∷ ctx             -- ^ Given the record context
-  --                   → Proxy a         -- ^ ..the type of the record
-  --                   → Text            -- ^ ..the constructor's name
-  --                   → ADTChoiceT      -- ^ ..its number
-  --                   → ConsCtx ctx     -- ^ produce the constructor-specific context.
+  recordCtx         ∷ Proxy t         -- ^ ..the type of the record
+                    → Proxy m         -- ^ ..the type of the record
+                    → Proxy d         -- ^ ..the type of the record
+                    → Proxy s         -- ^ ..the type of the record
+                    → RecordCtx d s
+  consCtx           ∷ Proxy t         -- ^ ..the type of the record
+                    → Proxy m         -- ^ ..the type of the record
+                    → Proxy s         -- ^ ..the type of the record
+                    → RecordCtx d s             -- ^ Given the record context
+                    → Text            -- ^ ..the constructor's name
+                    → ADTChoiceT      -- ^ ..its number
+                    → ConsCtx   d s   -- ^ produce the constructor-specific context.
   -- * Defaulted methods
   -- presence          ∷ Monad m
   --                   ⇒ ctx             -- ^ Given the record context
@@ -233,13 +244,13 @@ class Interpret a where
   --   let p = Proxy ∷ Proxy a
   --   recover ctx
 
-class WriteField   ctx a where
-  writeField           ∷ (HasCallStack, Monad m)
-                       ⇒ ctx             -- ^ Given the record context
-                       → ConsCtx ctx     -- ^ ..the constructor-specific context
-                       → FieldName           -- ^ ..the field name
-                       → a               -- ^ ..the record's field value.
-                       → m ()            -- ^ store the record's field.
+-- class WriteField   ctx a where
+--   writeField           ∷ (HasCallStack, Monad m)
+--                        ⇒ ctx             -- ^ Given the record context
+--                        → ConsCtx ctx     -- ^ ..the constructor-specific context
+--                        → FieldName           -- ^ ..the field name
+--                        → a               -- ^ ..the record's field value.
+--                        → m ()            -- ^ store the record's field.
 
   -- XXX: the below establishes recursion
   -- default writeField   ∷ (CtxRecord ctx a, Code a ~ xss, All2 (StoreField ctx) xss, HasCallStack, Monad m)
@@ -252,8 +263,8 @@ class WriteField   ctx a where
 
 
 
-fieldError ∷ HasCallStack ⇒ Ctx ctx ⇒ ctx → ConsCtx ctx → FieldName → Text → b
-fieldError ctx cc field mesg = error $ unpack $ errCtxDesc ctx cc field <> ": " <> mesg
+-- fieldError ∷ HasCallStack ⇒ Ctx ctx ⇒ ctx → ConsCtx ctx → FieldName → Text → b
+-- fieldError ctx cc field mesg = error $ unpack $ errCtxDesc ctx cc field <> ": " <> mesg
 
 
 
@@ -340,9 +351,9 @@ recover'
     , HasCallStack, Monad m)
   ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → DatatypeInfo xss → POP (Prod m (Derived t)) xss
 
-recover' pT pC pD ctx (ADT _ name cs) =
+recover' pT pC pD ctxR (ADT _ name cs) =
   POP $ hcliftA (Proxy @(All (Field t m d)))
-  (recoverCtor pT pC pD ctx (pack name)) (enumerate cs)
+  (recoverCtor pT pC pD ctxR (pack name)) (enumerate cs)
 
 recover' _ _ _ _ _ = error "Non-ADTs not supported."
 
@@ -355,8 +366,8 @@ recoverCtor
     , HasCallStack, Monad m)
   ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → Text → NConstructorInfo xs → NP (Prod m d) xs
 
-recoverCtor pT pC pD ctx _ (NC (Record consName fis) consNr) =
-  recoverFields pT pC pD ctx (pack consName) consNr $ hliftA (K ∘ pack ∘ SOP.fieldName) fis
+recoverCtor pT pC pD ctxR _ (NC (Record consName fis) consNr) =
+  recoverFields pT pC pD ctxR (consCtx pT (Proxy @m) (Proxy @s) ctxR (pack consName) consNr) (pack consName) consNr $ hliftA (K ∘ pack ∘ SOP.fieldName) fis
 
 recoverCtor _ _ _ _ name _ =
   error $ printf "Non-Record (plain Constructor, Infix) ADTs not supported: type %s." (unpack name)
@@ -378,12 +389,12 @@ recoverFields
     ( c, CtxRecord t m d s
     , All (Field t m d) xs, SListI xs
     , HasCallStack, Monad m)
-  ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → Text → Int → NP (K Text) xs → NP (Prod m d) xs
+  ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → ConsCtx d s → Text → Int → NP (K Text) xs → NP (Prod m d) xs
 
-recoverFields pT pC pD ctx consName consNr fs =
+recoverFields pT pC pD ctxR ctxC consName consNr fs =
   hcliftA (Proxy @(Field t m d)) recoverField (fs ∷ NP (K Text) xs)
   where
     recoverField ∷ ∀ fs. Field t m d fs ⇒ K Text fs → (Prod m (Derived t)) fs
     recoverField (K fi) = -- trace ("withNames/aux "<>unpack fi<>"/"<>unpack consName) $
-      readField pT pC (Proxy @m) (undefined ∷ FieldCtx t m fs) (toFieldName (Proxy @(m (d s),d s,s)) fi)
-      
+      readField pT pC (Proxy @m) (fieldCtx pT (Proxy @m) (Proxy @fs) consName consNr ctxC) (toFieldName (Proxy @(m (d s),d s,s)) fi)
+

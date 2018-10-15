@@ -253,10 +253,11 @@ instance SOP.HasDatatypeInfo AnObject
 
 type instance Structure (Derived t a) = a
 data instance Derived  t   a = Reflex t ⇒ Derived (Widget t a)
-type instance FieldCtx t m a = (InputMux t, a)
 instance ( Holo a
          , RGLFW t m) ⇒
          Field t m (Derived t) a where
+  type FieldCtx t m a = (InputMux t, a)
+  fieldCtx _ _ _ _ name consnr (mux, x) = (mux, x)
   readField _ _ _ (mux, initV) (FieldName fname) = Prod $ do
     labelId ← liftIO newId
     let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]
