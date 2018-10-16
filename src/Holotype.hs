@@ -251,13 +251,13 @@ instance SOP.HasDatatypeInfo AnObject
 -- -- class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
 -- instance (Holo a, SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord a (Widget t (a, HoloBlank)) where
 
-type instance Structure (Derived t a) = a
+-- type instance Structure (Derived t) a = a
 data instance Derived  t   a = Reflex t ⇒ Derived (Widget t a)
 instance ( Holo a
          , RGLFW t m) ⇒
          Field t m (Derived t) a where
   type FieldCtx t m a = (InputMux t, a)
-  fieldCtx _ _ _ _ name consnr (mux, x) = (mux, x)
+  fieldCtx _ _ _ _ (mux, x) = (mux, x)
   readField _ _ _ (mux, initV) (FieldName fname) = Prod $ do
     labelId ← liftIO newId
     let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]
@@ -301,7 +301,7 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  let Prod xDa  = readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (muxV, "foo" ∷ Text) "field"
+  let --Prod xDa  = readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (muxV, "foo" ∷ Text) "field"
       Prod xDDa = recover   (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @(Derived t AnObject)) $ AnObject "yayyity" "zeroes"
   Derived (xD  ∷ Widget t Text) ∷ Derived t Text ← xDa
   Derived (xDD ∷ Widget t AnObject) ← xDDa

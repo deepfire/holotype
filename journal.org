@@ -58,6 +58,9 @@
         - ..and we have to placate it with: ReflexGLFWCtx t mb
           - and that works
           - but it's unwieldy, and so ReflexGLFWCtx t m mb
+* October 17, 2018
+  - so, the question seems to be -- how do we manage to switch from the record's
+    ConsCtx to the field's Record so smoothly.. ?
 * TODO
   - [ ] simplify the holo/dynamic construction model
   - [ ] generics-sop to construct an interactive FRP widget for a value
