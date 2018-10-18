@@ -105,6 +105,21 @@ data family Derived  t                   s ∷ Type
 type family ConsCtx    (d ∷ Type)          = (r ∷ Type) | r → d
 type family FieldCtx t (m ∷ Type → Type) s ∷ Type
 
+-- * Require that for all fields of a constructor, their field recovery context
+--   is the constructor recovery context.
+class    ConsCtx (Derived t s) ~ FieldCtxFrom t m fs ⇒
+  ConsCtxIsFieldCtx (t ∷ Type) (m ∷ Type → Type) (d ∷ Type → Type) (s ∷ Type) (fs ∷ Type) where
+instance ConsCtx (Derived t s) ~ FieldCtxFrom t m fs ⇒
+  ConsCtxIsFieldCtx t m d s fs where
+
+-- * Field's type is constrained to be:
+--   1. recoverable
+--   2. having its recovery context tied to the containing record's recovery context
+class    (Field t m d a, ConsCtxIsFieldCtx t m d s a) ⇒
+  FieldConstraint t m d s a where
+instance (Field t m d a, ConsCtxIsFieldCtx t m d s a) ⇒
+  FieldConstraint t m d s a where
+
 ---- XXX: the originals
 --class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
 --  consCtx         ∷ ctx
@@ -150,7 +165,7 @@ class (Monad m, d ~ Derived t)
                       , CtxRecord t m d s
                       , SOP.HasDatatypeInfo s, SOP.Generic s, GHC.Generic s
                       , Code s ~ xss
-                      , All2 (Field t m d) xss
+                      , All2 (FieldConstraint t m d s) xss
                       , ConsCtx (d s) ~ RecordCtx d s
                       , Applicative (Derived t)
                       )
@@ -226,7 +241,7 @@ recover  ∷ ∀ (t ∷ Type) c m d s xss.
            ( c, CtxRecord t m d s
            , SOP.HasDatatypeInfo s
            , Code s ~ xss
-           , All2 (Field t m (Derived t)) xss
+           , All2 (FieldConstraint t m (Derived t) s) xss
            , HasCallStack, Monad m, Applicative (Derived t))
          ⇒ Proxy t
          → Proxy c
@@ -246,12 +261,13 @@ recover pT pC pM pDS ctx = Prod $ do
 recover'
   ∷ ∀ (t ∷ Type) c m (d ∷ Type → Type) s xss.
     ( c, CtxRecord t m d s
-    , Code s ~ xss, All2 (Field t m d) xss, All SListI xss
+    , Code s ~ xss, All SListI xss
+    , All2 (FieldConstraint t m d s) xss
     , HasCallStack, Monad m)
   ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → DatatypeInfo xss → POP (Prod m (Derived t)) xss
 
 recover' pT pC pD ctxR (ADT _ name cs) =
-  POP $ hcliftA (Proxy @(All (Field t m d)))
+  POP $ hcliftA (Proxy @(All (FieldConstraint t m d s)))
   (recoverCtor pT pC pD ctxR (pack name)) (enumerate cs)
 
 recover' _ _ _ _ _ = error "Non-ADTs not supported."
@@ -261,7 +277,7 @@ recover' _ _ _ _ _ = error "Non-ADTs not supported."
 recoverCtor
   ∷ ∀ (t ∷ Type) c m (d ∷ Type → Type) s xs.
     ( c, CtxRecord t m d s
-    , All (Field t m d) xs
+    , All (FieldConstraint t m d s) xs
     , HasCallStack, Monad m)
   ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → Text → NConstructorInfo xs → NP (Prod m d) xs
 
@@ -283,25 +299,22 @@ instance (Applicative a, Applicative b) ⇒ Applicative (Prod a b) where
 
 -- * Key part:  NP (K Text) xs → NP m xs
 --   convert a product of field names to a product of monadic actions yielding 'a'
-
-class    ConsCtx (Derived t s) ~ FieldCtxFrom t m fs ⇒
-  Foo (t ∷ Type) (m ∷ Type → Type) (d ∷ Type → Type) (s ∷ Type) (fs ∷ Type) where
-instance ConsCtx (Derived t s) ~ FieldCtxFrom t m fs ⇒
-  Foo t m d s fs where
-
 recoverFields
   ∷ ∀ (t ∷ Type) c m (d ∷ Type → Type) s xs.
-    ( c, CtxRecord t m d s, All (Foo t m d s) xs
-    , All (Field t m d) xs, SListI xs
+    ( c, CtxRecord t m d s
+    -- , All (Field t m d) xs-- , All (ConsCtxIsFieldCtx t m d s) xs
+    , All (FieldConstraint t m d s) xs
+    , SListI xs
     , HasCallStack, Monad m)
   ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → ConsCtx (d s) → Text → Int → NP (K Text) xs → NP (Prod m d) xs
 
-recoverFields pT pC pD ctxR ctxC consName consNr fs =
-  hcliftA (Proxy @(Field t m d)) recoverField (fs ∷ NP (K Text) xs)
+
+recoverFields pT pC pD ctxR ctxC consName consNr fss =
+  hcliftA (Proxy @(FieldConstraint t m d s)) recoverField (fss ∷ NP (K Text) xs)
   where
     recoverField ∷ ∀ fs.
                    ( Field t m d fs
-                   , Foo t m d s fs)
+                   , ConsCtxIsFieldCtx t m d s fs)
                  ⇒ K Text fs
                  → (Prod m (Derived t)) fs
     recoverField (K fi) =
