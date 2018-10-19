@@ -28,6 +28,7 @@
 module Holotype where
 
 import           Control.Arrow
+import           Control.Compose
 import           Control.Monad
 import           Control.Monad.Fix
 import           Control.Monad.Primitive
@@ -251,14 +252,22 @@ instance SOP.HasDatatypeInfo AnObject
 -- -- class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
 -- instance (Holo a, SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord a (Widget t (a, HoloBlank)) where
 
+type instance ConsCtx (Derived t a) = (InputMux t, a)
+type instance FieldCtx t m a = (InputMux t, a)
+
 -- type instance Structure (Derived t) a = a
 data instance Derived  t   a = Reflex t ⇒ Derived (Widget t a)
-instance ( Holo a
+instance ( Holo a, d ~ Derived t
          , RGLFW t m) ⇒
-         Field t m (Derived t) a where
-  type FieldCtx t m a = (InputMux t, a)
-  fieldCtx _ _ _ _ (mux, x) = (mux, x)
-  readField _ _ _ (mux, initV) (FieldName fname) = Prod $ do
+         Field t m d u a where
+  type FieldCtxFrom t m u a = ConsCtx (Derived t u)
+  fieldCtx ∷ Proxy t
+           → Proxy m
+           → Proxy (u, a)
+           → FieldCtxFrom t m u a
+           → FieldCtx t m a
+  fieldCtx _ _ _ (mux, x) = (mux, x)
+  readField _ _ _ _ (mux, initV) (FieldName fname) = O $ do
     labelId ← liftIO newId
     let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]
     Derived ∘ (id *** (<&> (id *** package))) <$> liftHolo mux initV
@@ -302,7 +311,7 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
   let --Prod xDa  = readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (muxV, "foo" ∷ Text) "field"
-      Prod xDDa = recover   (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @(Derived t AnObject)) $ AnObject "yayyity" "zeroes"
+      O xDDa = recover   (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @(Derived t AnObject)) $ AnObject "yayyity" "zeroes"
   Derived (xD  ∷ Widget t Text) ∷ Derived t Text ← xDa
   Derived (xDD ∷ Widget t AnObject) ← xDDa
 
