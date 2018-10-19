@@ -1,0 +1,10 @@
+  ## Upstreamed, awaiting a Hackage release
+  TypeCompose = overrideCabal super.TypeCompose (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "conal";
+      repo   = "TypeCompose";
+      rev    = "5963b172510a970ae16dfefe42e337052d7267e4";
+      sha256 = "0n237applqls3wb2g4gc05qhbgpvwyf1hcxsm02x4z8fsqw8fmaa";
+    };
+  });
+
