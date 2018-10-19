@@ -21,6 +21,7 @@ executable holotype
                      , base
                      , generics-sop
                      , reflex-glfw
+                     , TypeCompose
 
 library
   hs-source-dirs:      src
@@ -55,6 +56,7 @@ library
                      , MonadRandom
                      , OpenGL, OpenGLRaw
                      , QuickCheck
+                     , TypeCompose
                      , aeson
                      , aeson-pretty
                      , base
