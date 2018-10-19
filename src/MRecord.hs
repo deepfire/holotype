@@ -45,7 +45,6 @@ where
 import           Control.Compose
 import           Control.Exception
 import           Control.Lens                        ((<&>))
-import           Control.Monad                       (foldM, forM, forM_, join, liftM, when)
 import           Data.Functor.Identity
 import           Data.Function                       ((&))
 import           Data.Bool
@@ -112,14 +111,12 @@ type family ConsCtx    (d ∷ Type)          = (r ∷ Type)
 type family FieldCtx t (m ∷ Type → Type) s ∷ Type
 
 class ( Monad m
-      , d ~ Derived t
-      , FieldCtxFrom t m u s ~ ConsCtx (d u))
+      , d ~ Derived t)
   ⇒ Field t m d u s where
-  type FieldCtxFrom t m u s ∷ Type
   fieldCtx          ∷ Proxy t
                     → Proxy m
                     → Proxy (u, s)
-                    → FieldCtxFrom t m u s
+                    → ConsCtx (d u)
                     → FieldCtx t m s
   readField         ∷ ∀ c. (HasCallStack, c)
                     ⇒ Proxy t
@@ -148,19 +145,12 @@ class ( Monad m
   readField pT pC pM pU fctx _ = do
     recover pT pC pM (Proxy @(d s)) (recordCtx pT pM (Proxy @d) (Proxy @s))
 
--- * Require that for all fields of a constructor, their field recovery context
---   is derived from the constructor recovery context.
-class    ConsCtx (Derived t s) ~ FieldCtxFrom t m s fs ⇒
-  ConsCtxIsFieldCtxFrom (t ∷ Type) (m ∷ Type → Type) (d ∷ Type → Type) (s ∷ Type) (fs ∷ Type) where
-instance ConsCtx (Derived t s) ~ FieldCtxFrom t m s fs ⇒
-  ConsCtxIsFieldCtxFrom t m d s fs where
-
 -- * Field's type is constrained to be:
 --   1. recoverable
 --   2. having its recovery context tied to the containing record's recovery context
-class    (Field t m d s a, ConsCtxIsFieldCtxFrom t m d s a) ⇒
+class    (Field t m d s a) ⇒
   FieldConstraint t m d s a where
-instance (Field t m d s a, ConsCtxIsFieldCtxFrom t m d s a) ⇒
+instance (Field t m d s a) ⇒
   FieldConstraint t m d s a where
 
 class ( Monad m, d ~ Derived t
@@ -285,9 +275,7 @@ recoverFields
 recoverFields pT pC pD ctxR ctxC consName consNr fss =
   hcliftA (Proxy @(FieldConstraint t m d s)) recoverField (fss ∷ NP (K Text) xs)
   where
-    recoverField ∷ ∀ fs.
-                   ( Field t m d s fs
-                   , ConsCtxIsFieldCtxFrom t m d s fs)
+    recoverField ∷ ∀ fs. (Field t m d s fs)
                  ⇒ K Text fs
                  → (m :. d) fs
     recoverField (K fi) =

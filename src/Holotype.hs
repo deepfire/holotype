@@ -260,11 +260,10 @@ data instance Derived  t   a = Reflex t ⇒ Derived (Widget t a)
 instance ( Holo a, d ~ Derived t
          , RGLFW t m) ⇒
          Field t m d u a where
-  type FieldCtxFrom t m u a = ConsCtx (Derived t u)
   fieldCtx ∷ Proxy t
            → Proxy m
            → Proxy (u, a)
-           → FieldCtxFrom t m u a
+           → ConsCtx (Derived t u)
            → FieldCtx t m a
   fieldCtx _ _ _ (mux, x) = (mux, x)
   readField _ _ _ _ (mux, initV) (FieldName fname) = O $ do
