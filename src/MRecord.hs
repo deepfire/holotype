@@ -32,7 +32,8 @@
 {-# LANGUAGE ViewPatterns #-}
 module MRecord
   ( Field(..), Record(..)
-  , Derived(..), CtxRecord(..)
+  , Derived(..)
+  , CtxRecord(..), ConsCtx(..), FieldCtx(..)
   , FieldName(..)
   , recover
 
@@ -107,21 +108,24 @@ mapFields f x = case datatypeInfo (Proxy ∷ Proxy a) of
 -- * Given 'a', a record type, recover
 
 data family Derived  t                   s ∷ Type
-type family ConsCtx    (d ∷ Type)          = (r ∷ Type) | r → d
+type family ConsCtx    (d ∷ Type)          = (r ∷ Type)
 type family FieldCtx t (m ∷ Type → Type) s ∷ Type
 
-class (Monad m, d ~ Derived t)
-  ⇒ Field t m d s where
-  type FieldCtxFrom t m s ∷ Type
+class ( Monad m
+      , d ~ Derived t
+      , FieldCtxFrom t m u s ~ ConsCtx (d u))
+  ⇒ Field t m d u s where
+  type FieldCtxFrom t m u s ∷ Type
   fieldCtx          ∷ Proxy t
                     → Proxy m
-                    → Proxy s
-                    → FieldCtxFrom t m s
+                    → Proxy (u, s)
+                    → FieldCtxFrom t m u s
                     → FieldCtx t m s
   readField         ∷ ∀ c. (HasCallStack, c)
                     ⇒ Proxy t
                     → Proxy c
                     → Proxy m                 -- ^ Given the result type
+                    → Proxy u                 -- ^ Given the result type
                     → FieldCtx t m s          -- ^ ..the recovery context
                     → FieldName               -- ^ ..the field name
                     → (m :. d) s  -- ^ restore the point.
@@ -137,25 +141,26 @@ class (Monad m, d ~ Derived t)
                     ⇒ Proxy t
                     → Proxy c
                     → Proxy m
+                    → Proxy u
                     → FieldCtx t m s          -- ^ ..the recovery context
                     → FieldName
                     → (m :. d) s
-  readField pT pC pM fctx _ = do
+  readField pT pC pM pU fctx _ = do
     recover pT pC pM (Proxy @(d s)) (recordCtx pT pM (Proxy @d) (Proxy @s))
 
 -- * Require that for all fields of a constructor, their field recovery context
 --   is derived from the constructor recovery context.
-class    ConsCtx (Derived t s) ~ FieldCtxFrom t m fs ⇒
+class    ConsCtx (Derived t s) ~ FieldCtxFrom t m s fs ⇒
   ConsCtxIsFieldCtxFrom (t ∷ Type) (m ∷ Type → Type) (d ∷ Type → Type) (s ∷ Type) (fs ∷ Type) where
-instance ConsCtx (Derived t s) ~ FieldCtxFrom t m fs ⇒
+instance ConsCtx (Derived t s) ~ FieldCtxFrom t m s fs ⇒
   ConsCtxIsFieldCtxFrom t m d s fs where
 
 -- * Field's type is constrained to be:
 --   1. recoverable
 --   2. having its recovery context tied to the containing record's recovery context
-class    (Field t m d a, ConsCtxIsFieldCtxFrom t m d s a) ⇒
+class    (Field t m d s a, ConsCtxIsFieldCtxFrom t m d s a) ⇒
   FieldConstraint t m d s a where
-instance (Field t m d a, ConsCtxIsFieldCtxFrom t m d s a) ⇒
+instance (Field t m d s a, ConsCtxIsFieldCtxFrom t m d s a) ⇒
   FieldConstraint t m d s a where
 
 class ( Monad m, d ~ Derived t
@@ -272,21 +277,19 @@ recoverCtor _ _ _ _ name _ =
 recoverFields
   ∷ ∀ (t ∷ Type) c m (d ∷ Type → Type) s xs.
     ( c, CtxRecord t m d s
-    -- , All (Field t m d) xs-- , All (ConsCtxIsFieldCtxFrom t m d s) xs
     , All (FieldConstraint t m d s) xs
     , SListI xs
     , HasCallStack, Monad m)
   ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → ConsCtx (d s) → Text → Int → NP (K Text) xs → NP (m :. d) xs
 
-
 recoverFields pT pC pD ctxR ctxC consName consNr fss =
   hcliftA (Proxy @(FieldConstraint t m d s)) recoverField (fss ∷ NP (K Text) xs)
   where
     recoverField ∷ ∀ fs.
-                   ( Field t m d fs
+                   ( Field t m d s fs
                    , ConsCtxIsFieldCtxFrom t m d s fs)
                  ⇒ K Text fs
                  → (m :. d) fs
     recoverField (K fi) =
-      readField pT pC (Proxy @m) (fieldCtx pT (Proxy @m) (Proxy @fs) ctxC) (toFieldName (Proxy @(m (d s),d s,s)) fi)
+      readField pT pC (Proxy @m) (Proxy @s) (fieldCtx pT (Proxy @m) (Proxy @(s, fs)) ctxC) (toFieldName (Proxy @(m (d s),d s,s)) fi)
 
