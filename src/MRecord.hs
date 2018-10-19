@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
@@ -110,7 +111,7 @@ data family Derived  t                   s ∷ Type
 type family ConsCtx    (d ∷ Type)          = (r ∷ Type)
 type family FieldCtx t (m ∷ Type → Type) s ∷ Type
 
-class ( Monad m
+class ( Applicative m
       , d ~ Derived t)
   ⇒ Field t m d u s where
   fieldCtx          ∷ Proxy t
@@ -126,7 +127,7 @@ class ( Monad m
                     → FieldCtx t m s          -- ^ ..the recovery context
                     → FieldName               -- ^ ..the field name
                     → (m :. d) s  -- ^ restore the point.
-  -- default readField    ∷ (CtxRecord ctx a, Code a ~ xss, All2 (RestoreField ctx) xss, HasCallStack, Typeable a, Monad m)
+  -- default readField    ∷ (CtxRecord ctx a, Code a ~ xss, All2 (RestoreField ctx) xss, HasCallStack, Typeable a, Applicative m)
   default readField ∷ (HasCallStack, c
                       , CtxRecord t m d s
                       , SOP.HasDatatypeInfo s, SOP.Generic s, GHC.Generic s
@@ -153,7 +154,7 @@ class    (Field t m d s a) ⇒
 instance (Field t m d s a) ⇒
   FieldConstraint t m d s a where
 
-class ( Monad m, d ~ Derived t
+class ( Applicative m, d ~ Derived t
       , SOP.Generic s, SOP.HasDatatypeInfo s)
       ⇒ Record t m d s where
   prefixChars     ∷ Proxy (m (d s),d s,s) -- ^ Given the type of the record
@@ -178,8 +179,8 @@ newtype FieldName = FieldName { fromFieldName ∷ Text } deriving (Eq, IsString,
 type ADTChoiceT        = Int
 type ADTChoice   m xss = m ADTChoiceT
 
-class ( Monad m, d ~ Derived t
-      , SOP.HasDatatypeInfo s, SOP.Generic s, Record t m d s, Monad m) ⇒
+class ( Applicative m, d ~ Derived t
+      , SOP.HasDatatypeInfo s, SOP.Generic s, Record t m d s, Applicative m) ⇒
       CtxRecord t m d s where
   type RecordCtx   d s ∷ Type
   recordCtx         ∷ Proxy t         -- ^ ..the type of the record
@@ -195,11 +196,11 @@ class ( Monad m, d ~ Derived t
                     → ADTChoiceT      -- ^ ..its number
                     → ConsCtx   (d s) -- ^ produce the constructor-specific context.
   -- * Defaulted methods
-  restoreChoice     ∷ (HasCallStack, Monad m)
+  restoreChoice     ∷ (HasCallStack, Applicative m)
                     ⇒ RecordCtx d s     -- ^ Givent the record context
                     → Proxy (d s)     -- ^ ..the type of the record
                     → ADTChoice m xss -- ^ action to determine the record's constructor index.
-  ctxSwitch         ∷ (HasCallStack, Monad m)
+  ctxSwitch         ∷ (HasCallStack, Applicative m)
                     ⇒ RecordCtx d s      -- ^ Given the type of the record
                     → m (RecordCtx d s)  -- ^ action to update the context, before each field's presence test/recovery.
 
@@ -217,7 +218,7 @@ recover  ∷ ∀ (t ∷ Type) c m d s xss.
            , SOP.HasDatatypeInfo s
            , Code s ~ xss
            , All2 (FieldConstraint t m d s) xss
-           , HasCallStack, Monad m, Applicative d)
+           , HasCallStack, Applicative m, Applicative d)
          ⇒ Proxy t
          → Proxy c
          → Proxy m
@@ -238,7 +239,7 @@ recover'
     ( c, CtxRecord t m d s
     , Code s ~ xss, All SListI xss
     , All2 (FieldConstraint t m d s) xss
-    , HasCallStack, Monad m)
+    , HasCallStack, Applicative m)
   ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → DatatypeInfo xss → POP (m :. d) xss
 
 recover' pT pC pD ctxR (ADT _ name cs) =
@@ -253,7 +254,7 @@ recoverCtor
   ∷ ∀ (t ∷ Type) c m (d ∷ Type → Type) s xs.
     ( c, CtxRecord t m d s
     , All (FieldConstraint t m d s) xs
-    , HasCallStack, Monad m)
+    , HasCallStack, Applicative m)
   ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → Text → NConstructorInfo xs → NP (m :. d) xs
 
 recoverCtor pT pC pD ctxR _ (NC (Record consName fis) consNr) =
@@ -269,7 +270,7 @@ recoverFields
     ( c, CtxRecord t m d s
     , All (FieldConstraint t m d s) xs
     , SListI xs
-    , HasCallStack, Monad m)
+    , HasCallStack, Applicative m)
   ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → ConsCtx (d s) → Text → Int → NP (K Text) xs → NP (m :. d) xs
 
 recoverFields pT pC pD ctxR ctxC consName consNr fss =
