@@ -40,8 +40,8 @@ module HoloTypes
   , Item(..)
   , Phase(..), HoloBlank
   --
-  , Widget, value
-  , HWidget, trim
+  , Derived(..), W, value
+  , WH, trim
   , InputMux
   )
 where
@@ -74,6 +74,8 @@ import qualified Graphics.Rendering.Cairo.Internal as GRCI
 import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Mesh                as GL
 import qualified Reflex.GLFW                       as GLFW
+
+import           MRecord
 
 -- Local imports
 import           HoloPrelude
@@ -174,14 +176,18 @@ newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (E
 
 
 -- | 'Holo': anything visualisable.
+type instance ConsCtx (Derived t a) = (InputMux t, a)
+type instance FieldCtx t m a = (InputMux t, a)
+data instance Derived  t   a = Reflex t ⇒ W { fromW ∷ (Dynamic t Subscription, Dynamic t (a, HoloBlank)) }
+
 type HoloBlank      = Item PBlank
-type Widget   t   a =                (Dynamic t Subscription, Dynamic t (a, HoloBlank))
+type W        t   a = Derived t a
 value               ∷                (Dynamic t Subscription, Dynamic t a) → Dynamic t a
 value               = snd
-type HWidget  t     =                (Dynamic t Subscription, Dynamic t HoloBlank)
+type WH       t     =        (Dynamic t Subscription, Dynamic t HoloBlank)
 
-trim ∷ Reflex t ⇒ Widget t a → HWidget t
-trim = (id *** (snd <$>))
+trim ∷ Reflex t ⇒ W t a → WH t
+trim = (id *** (snd <$>)) ∘ fromW
 
 class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
   data VisualOf a
