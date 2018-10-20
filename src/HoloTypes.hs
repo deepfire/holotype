@@ -40,8 +40,8 @@ module HoloTypes
   , Item(..)
   , Phase(..), HoloBlank
   --
-  , Widget, value
-  , HWidget, trim
+  , W(..), value
+  , WH, trim
   , InputMux
   )
 where
@@ -175,13 +175,13 @@ newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (E
 
 -- | 'Holo': anything visualisable.
 type HoloBlank      = Item PBlank
-type Widget   t   a =                (Dynamic t Subscription, Dynamic t (a, HoloBlank))
+data W        t   a = W { fromW ∷ (Dynamic t Subscription, Dynamic t (a, HoloBlank)) }
 value               ∷                (Dynamic t Subscription, Dynamic t a) → Dynamic t a
 value               = snd
-type HWidget  t     =                (Dynamic t Subscription, Dynamic t HoloBlank)
+type WH       t     =        (Dynamic t Subscription, Dynamic t HoloBlank)
 
-trim ∷ Reflex t ⇒ Widget t a → HWidget t
-trim = (id *** (snd <$>))
+trim ∷ Reflex t ⇒ W t a → WH t
+trim = (id *** (snd <$>)) ∘ fromW
 
 class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
   data VisualOf a
