@@ -259,8 +259,9 @@ instance ( Holo a, d ~ Derived t
            → Proxy m
            → Proxy (u, a)
            → ConsCtx (Derived t u)
+           → (u → a)
            → FieldCtx t m a
-  fieldCtx _ _ _ (mux, x) = (mux, x)
+  fieldCtx _ _ _ (mux, x) proj = (mux, proj x)
   readField _ _ _ _ (mux, initV) (FieldName fname) = O $ do
     labelId ← liftIO newId
     let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]

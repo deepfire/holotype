@@ -117,6 +117,7 @@ class ( Monad m
                     → Proxy m
                     → Proxy (u, s)
                     → ConsCtx (d u)
+                    → (u → s)
                     → FieldCtx t m s
   readField         ∷ ∀ c. (HasCallStack, c)
                     ⇒ Proxy t
@@ -279,5 +280,5 @@ recoverFields pT pC pD ctxR ctxC consName consNr fss =
                  ⇒ K Text fs
                  → (m :. d) fs
     recoverField (K fi) =
-      readField pT pC (Proxy @m) (Proxy @s) (fieldCtx pT (Proxy @m) (Proxy @(s, fs)) ctxC) (toFieldName (Proxy @(m (d s),d s,s)) fi)
+      readField pT pC (Proxy @m) (Proxy @s) (fieldCtx pT (Proxy @m) (Proxy @(s, fs)) ctxC (⊥)) (toFieldName (Proxy @(m (d s),d s,s)) fi)
 
