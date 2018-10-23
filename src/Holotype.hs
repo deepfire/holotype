@@ -20,6 +20,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeInType #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UnicodeSyntax #-}
@@ -42,7 +43,7 @@ import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
 import           Data.Tuple
 import           Data.Typeable
--- import           GHC.IOR
+import           GHC.IORef
 import           Linear                            hiding (trace)
 import           Prelude                           hiding (id, Word)
 import           Reflex                            hiding (Query, Query(..))
@@ -252,46 +253,97 @@ instance SOP.HasDatatypeInfo AnObject
 -- -- class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
 -- instance (Holo a, SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord a (W t (a, HoloBlank)) where
 
-type instance ConsCtx (Derived t a) = (InputMux t, a)
-type instance FieldCtx t m a = (InputMux t, a)
+type                      WM t m    = m :. W t
+type instance ConsCtx  t          a = (InputMux t, a)
+type instance FieldCtx t (WM t m) a = (InputMux t, a)
 
 -- type instance Structure (Derived t) a = a
-data instance Derived  t   a = Reflex t ⇒ Derived (Widget t a)
-instance ( Holo a, d ~ Derived t
-         , RGLFW t m) ⇒
-         Field t m d u a where
-  fieldCtx ∷ Proxy t
-           → Proxy m
-           → Proxy (u, a)
-           → ConsCtx (Derived t u)
-           → FieldCtx t m a
-  fieldCtx _ _ _ (mux, x) = (mux, x)
-  readField _ _ _ _ (mux, initV) (FieldName fname) = O $ do
+instance ( Holo a
+         , RGLFW t m           -- 1. this is necessary for the m
+         , Monad (WM t m)) ⇒   -- 2. we need this exact type for the recover
+         Field t (WM t m) u a where
+  fieldCtx          ∷ Proxy t
+                    → Proxy (WM t m)
+                    → Proxy (u, a)
+                    → ConsCtx t u
+                    → (u → a)
+                    → FieldCtx t (WM t m) a
+  fieldCtx _ _ _ (mux, u) proj = (mux, proj u)
+  readField         ∷ ∀ c. (HasCallStack, c)
+                    ⇒ Proxy t
+                    → Proxy c
+                    → Proxy (WM t m)                 -- ^ Given the result type
+                    → Proxy u                 -- ^ Given the result type
+                    → FieldCtx t (WM t m) a          -- ^ ..the recovery context
+                    → FieldName               -- ^ ..the field name
+                    → (WM t m) a  -- ^ restore the point.
+  readField _ _ _ _ (mux, initV) (FieldName fname) = O $ W <$> do
     labelId ← liftIO newId
     let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]
-    Derived ∘ (id *** (<&> (id *** package))) <$> liftHolo mux initV
+    (id *** (<&> (id *** package))) ∘ fromW <$> liftHolo mux initV
 instance (SOP.Generic a, SOP.HasDatatypeInfo a, Monad m) ⇒
-  Record t m (Derived t) a where
+  Record t m a where
   prefixChars _ = 3
-instance (SOP.Generic a, SOP.HasDatatypeInfo a, RGLFW t m) ⇒
-  CtxRecord t m (Derived t) a where
-  type RecordCtx (Derived t) a = a
+instance ( SOP.Generic a, SOP.HasDatatypeInfo a
+         , Monad (WM t m)
+         , RGLFW t m) ⇒
+  CtxRecord t (WM t m) a where
+  type RecordCtx t a = (InputMux t, a)
   restoreChoice _ _ = pure 0
 
-instance Functor (Derived t) where
-  fmap f (Derived (subs, vals)) = Derived (subs, (f *** id) <$> vals)
+instance Reflex t ⇒ Functor (W t) where
+  fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
 
-instance Reflex t ⇒ Applicative (Derived t) where
-  pure x = Derived (mempty, constDyn (x, mempty))
-  Derived (fsubs, fvals) <*> Derived (xsubs, xvals) =
-    Derived $ (,)
+instance Reflex t ⇒ Applicative (W t) where
+  pure x = W (mempty, constDyn (x, mempty))
+  W (fsubs, fvals) <*> W (xsubs, xvals) =
+    W $ (,)
     (zipDynWith (<>) fsubs xsubs)
     (zipDynWith ((\(f,fhb@Item{..}) (x,xhb)→
                    (f x, fhb { hiChildren = hiChildren <> [xhb] })))
       fvals xvals)
 
+joinWM ∷ ∀ t m a.
+  (Reflex t, Monad m) ⇒
+  WM t m (WM t m a) → WM t m a
+joinWM (O mw) = O $ do
+  W (osubs, w ∷ Dynamic t (WM t m a, HoloBlank)) ← mw
+  pure $ W $ (,)
+    (osubs)
+    (undefined)
+
+instance (Monad m, Reflex t) ⇒
+  Monad (WM t m) where
+  -- (>>=) ∷ ∀ a b. WM t m a → (a → WM t m b) → WM t m b
+  -- O mwa >>= mg = O $ do
+  --   wa@(W (asubs, avals ∷ Dynamic t (a, HoloBlank))) ∷ W t a ← mwa
+  --   -- let O r ∷ WM t m b = mg =<< (O $ pure wa)
+  --   -- W (bsubs, bvals ∷ Dynamic t (b, HoloBlank)) ← r
+  --   let O r ∷ WM t m b = mg (⊥)
+  --   W (bsubs, bvals ∷ Dynamic t (b, HoloBlank)) ← r
+  --   pure $ W $ (,)
+  --     (zipDynWith (<>) asubs bsubs)
+  --     (zipDynWith ((\(f,fhb@Item{..}) (x,xhb)→
+  --                     (⊥)))
+  --      avals bvals)
+
+-- recover  ∷ ∀ (t ∷ Type) c m s xss.
+--            ( c, CtxRecord t m s
+--            , SOP.HasDatatypeInfo s
+--            , Code s ~ xss
+--            , All2 (FieldConstraint t m s) xss
+--            , HasCallStack, Monad m)
+--          ⇒ Proxy t
+--          → Proxy c
+--          → Proxy m
+--          → Proxy s
+--          → RecordCtx s
+--          → m s
+
 scene ∷ ∀ t m. ( RGLFW t m
-               , Typeable t)
+               , Typeable t
+                 -- , Ref (WM t m) ~ GHC.IORef.IORef
+               )
   ⇒ InputMux   t
   → Dynamic    t Integer
   → Dynamic    t Int
@@ -310,9 +362,12 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
   let --Prod xDa  = readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (muxV, "foo" ∷ Text) "field"
-      O xDDa = recover   (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @(Derived t AnObject)) $ AnObject "yayyity" "zeroes"
-  Derived (xD  ∷ Widget t Text) ∷ Derived t Text ← xDa
-  Derived (xDD ∷ Widget t AnObject) ← xDDa
+      -- O xDDa = recover   (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @AnObject) $ AnObject "yayyity" "zeroes"
+  -- Derived (xD  ∷ W t Text) ∷ Derived Text ← xDa
+  -- Derived (xDD ∷ W t AnObject) ← xDDa
+  let O (xDDm ∷ m (W t AnObject)) ∷ (m :. W t) AnObject = --WM t m AnObject =
+        recover (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @(WM t m)) (Proxy @AnObject) (muxV, AnObject "yayyity" "zeroes")
+  xDD ← xDDm
 
   longStaticTextD  ← liftDynHolo $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
@@ -329,7 +384,6 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   vboxD [ trim $ frameCountD
         -- , (snd <$>) <$> text2HoloQD
         , (snd <$>) <$> styleEntryD
-        , trim xD
         , trim xDD
         , trim $ rectD
         , trim $ fpsD
