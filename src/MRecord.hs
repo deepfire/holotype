@@ -113,17 +113,13 @@ type family FieldCtx t (m ∷ Type → Type) s ∷ Type
 class ( Monad m
       , d ~ Derived t)
   ⇒ Field t m d u s where
-  fieldCtx          ∷ Proxy t
-                    → Proxy m
-                    → Proxy (u, s)
+  fieldCtx          ∷ Proxy (t, u, s, m s)
                     → ConsCtx (d u)
                     → (u → s)
                     → FieldCtx t m s
   readField         ∷ ∀ c. (HasCallStack, c)
-                    ⇒ Proxy t
-                    → Proxy c
-                    → Proxy m                 -- ^ Given the result type
-                    → Proxy u                 -- ^ Given the result type
+                    ⇒ Proxy c
+                    → Proxy (t, u)
                     → FieldCtx t m s          -- ^ ..the recovery context
                     → FieldName               -- ^ ..the field name
                     → (m :. d) s  -- ^ restore the point.
@@ -133,40 +129,38 @@ class ( Monad m
                       , SOP.HasDatatypeInfo s, SOP.Generic s, GHC.Generic s
                       , Code s ~ xss
                       , All2 (FieldConstraint t m d s) xss
-                      , ConsCtx (d s) ~ RecordCtx d s
+                      , FieldCtx t m s ~ RecordCtx d s
                       , Applicative d
                       )
-                    ⇒ Proxy t
-                    → Proxy c
-                    → Proxy m
-                    → Proxy u
+                    ⇒ Proxy c
+                    → Proxy (t, u)
                     → FieldCtx t m s          -- ^ ..the recovery context
                     → FieldName
                     → (m :. d) s
-  readField pT pC pM pU fctx _ = do
-    recover pT pC pM (Proxy @(d s)) (recordCtx pT pM (Proxy @d) (Proxy @s))
+  readField pC pTUMS fctx _ =
+    recover pC (Proxy @(t, s)) fctx
 
 -- * Field's type is constrained to be:
 --   1. recoverable
 --   2. having its recovery context tied to the containing record's recovery context
-class    (Field t m d s a) ⇒
+class     ( Field t m d s a) ⇒
   FieldConstraint t m d s a where
-instance (Field t m d s a) ⇒
+instance  ( Field t m d s a) ⇒
   FieldConstraint t m d s a where
 
 class ( Monad m, d ~ Derived t
       , SOP.Generic s, SOP.HasDatatypeInfo s)
       ⇒ Record t m d s where
-  prefixChars     ∷ Proxy (m (d s),d s,s) -- ^ Given the type of the record
-                  → Int             -- ^ ..produce the number of prefix characters to ignore.
-  nameMap         ∷ Proxy (m (d s),d s,s) -- ^ Given the type of the record
-                  → [(Text, Text)]  -- ^ produce the partial field renaming map.
-  toFieldName     ∷ Proxy (m (d s),d s,s) -- ^ Given the type of the record
-                  → Text            -- ^ ..the record's field name
-                  → FieldName       -- ^ produce the serialised field name.
+  prefixChars       ∷ Proxy (s, d s,m s) -- ^ Given the type of the record
+                    → Int                -- ^ ..produce the number of prefix characters to ignore.
+  nameMap           ∷ Proxy (s, d s,m s) -- ^ Given the type of the record
+                    → [(Text, Text)]     -- ^ produce the partial field renaming map.
+  toFieldName       ∷ Proxy (s, d s,m s) -- ^ Given the type of the record
+                    → Text               -- ^ ..the record's field name
+                    → FieldName          -- ^ produce the serialised field name.
   -- *
-  nameMap         = const []
-  toFieldName r x =
+  nameMap           = const []
+  toFieldName r x   =
     FieldName $ maybeRemap $ dropDetitle (prefixChars r) x
     where maybeRemap x = maybe x id (lookup x $ nameMap r)
           dropDetitle ∷ Int → Text → Text
@@ -183,26 +177,19 @@ class ( Monad m, d ~ Derived t
       , SOP.HasDatatypeInfo s, SOP.Generic s, Record t m d s, Monad m) ⇒
       CtxRecord t m d s where
   type RecordCtx   d s ∷ Type
-  recordCtx         ∷ Proxy t         -- ^ ..the type of the record
-                    → Proxy m         -- ^ ..the type of the record
-                    → Proxy d         -- ^ ..the type of the record
-                    → Proxy s         -- ^ ..the type of the record
-                    → RecordCtx d s
-  consCtx           ∷ Proxy t         -- ^ ..the type of the record
-                    → Proxy m         -- ^ ..the type of the record
-                    → Proxy s         -- ^ ..the type of the record
-                    → RecordCtx d s             -- ^ Given the record context
-                    → Text            -- ^ ..the constructor's name
-                    → ADTChoiceT      -- ^ ..its number
-                    → ConsCtx   (d s) -- ^ produce the constructor-specific context.
+  consCtx           ∷ Proxy (t, d s, m s)
+                    → Text                  -- ^ Given the constructor's name
+                    → ADTChoiceT            -- ^ ..its number
+                    → RecordCtx  d s        -- ^ ..the record context
+                    → ConsCtx   (d s)       -- ^ produce the constructor-specific context.
   -- * Defaulted methods
   restoreChoice     ∷ (HasCallStack, Monad m)
-                    ⇒ RecordCtx d s     -- ^ Givent the record context
-                    → Proxy (d s)     -- ^ ..the type of the record
-                    → ADTChoice m xss -- ^ action to determine the record's constructor index.
+                    ⇒ Proxy (t, s, d s)     -- ^ ..the type of the record
+                    → RecordCtx d s         -- ^ Givent the record context
+                    → ADTChoice m xss       -- ^ action to determine the record's constructor index.
   ctxSwitch         ∷ (HasCallStack, Monad m)
-                    ⇒ RecordCtx d s      -- ^ Given the type of the record
-                    → m (RecordCtx d s)  -- ^ action to update the context, before each field's presence test/recovery.
+                    ⇒ RecordCtx d s         -- ^ Given the type of the record
+                    → m (RecordCtx d s)     -- ^ action to update the context, before each field's presence test/recovery.
 
 
 
@@ -219,15 +206,13 @@ recover  ∷ ∀ (t ∷ Type) c m d s xss.
            , Code s ~ xss
            , All2 (FieldConstraint t m d s) xss
            , HasCallStack, Monad m, Applicative d)
-         ⇒ Proxy t
-         → Proxy c
-         → Proxy m
-         → Proxy (d s)
+         ⇒ Proxy c
+         → Proxy (t, s)
          → RecordCtx d s
          → (m :. d) s
-recover pT pC pM pDS ctx = O $ do
-    choice ← restoreChoice ctx pDS
-    let pop    ∷ POP (m :. d) xss          = recover' pT pC pDS ctx $ (datatypeInfo (Proxy @s) ∷ DatatypeInfo (Code s))
+recover pC pT ctx = O $ do
+    choice ← restoreChoice (Proxy @(t, s, d s)) ctx
+    let pop    ∷ POP (m :. d) xss          = recover' pC (Proxy @(t, d s)) ctx $ (datatypeInfo (Proxy @s) ∷ DatatypeInfo (Code s))
         ct     ∷ SOP (m :. d) (Code s)     = (!! choice) $ SOP.apInjs_POP pop
         O msop ∷ (m :. d) (SOP I (Code s)) = hsequence ct
     (SOP.to <$>) <$> msop
@@ -240,13 +225,12 @@ recover'
     , Code s ~ xss, All SListI xss
     , All2 (FieldConstraint t m d s) xss
     , HasCallStack, Monad m)
-  ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → DatatypeInfo xss → POP (m :. d) xss
-
-recover' pT pC pD ctxR (ADT _ name cs) =
+  ⇒ Proxy c → Proxy (t, d s) → RecordCtx d s → DatatypeInfo xss
+  → POP (m :. d) xss
+recover' pC pTDS ctxR (ADT _ name cs) =
   POP $ hcliftA (Proxy @(All (FieldConstraint t m d s)))
-  (recoverCtor pT pC pD ctxR (pack name)) (enumerate cs)
-
-recover' _ _ _ _ _ = error "Non-ADTs not supported."
+  (recoverCtor pC (Proxy @(t, d s)) ctxR (pack name)) (enumerate cs)
+recover' _ _ _ _ = error "Non-ADTs not supported."
 
 -- * 1. Extract the constructor's product of field names
 --   2. Feed that to the field-name→action interpreter
@@ -255,12 +239,12 @@ recoverCtor
     ( c, CtxRecord t m d s
     , All (FieldConstraint t m d s) xs
     , HasCallStack, Monad m)
-  ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → Text → NConstructorInfo xs → NP (m :. d) xs
+  ⇒ Proxy c → Proxy (t, d s) → RecordCtx d s → Text → NConstructorInfo xs
+  → NP (m :. d) xs
+recoverCtor pC pTDS ctxR _ (NC (Record consName fis) consNr) =
+  recoverFields pC pTDS ctxR (consCtx (Proxy @(t, d s, m s)) (pack consName) consNr ctxR) (pack consName) consNr $ hliftA (K ∘ pack ∘ SOP.fieldName) fis
 
-recoverCtor pT pC pD ctxR _ (NC (Record consName fis) consNr) =
-  recoverFields pT pC pD ctxR (consCtx pT (Proxy @m) (Proxy @s) ctxR (pack consName) consNr) (pack consName) consNr $ hliftA (K ∘ pack ∘ SOP.fieldName) fis
-
-recoverCtor _ _ _ _ name _ =
+recoverCtor _ _ _ name _ =
   error $ printf "Non-Record (plain Constructor, Infix) ADTs not supported: type %s." (unpack name)
 
 -- * Key part:  NP (K Text) xs → NP m xs
@@ -271,14 +255,16 @@ recoverFields
     , All (FieldConstraint t m d s) xs
     , SListI xs
     , HasCallStack, Monad m)
-  ⇒ Proxy t → Proxy c → Proxy (d s) → RecordCtx d s → ConsCtx (d s) → Text → Int → NP (K Text) xs → NP (m :. d) xs
-
-recoverFields pT pC pD ctxR ctxC consName consNr fss =
+  ⇒ Proxy c
+  → Proxy (t, d s)
+  → RecordCtx d s
+  → ConsCtx (d s)
+  → Text → Int → NP (K Text) xs → NP (m :. d) xs
+recoverFields pC pTDS ctxR ctxC consName consNr fss =
   hcliftA (Proxy @(FieldConstraint t m d s)) recoverField (fss ∷ NP (K Text) xs)
   where
     recoverField ∷ ∀ fs. (Field t m d s fs)
                  ⇒ K Text fs
                  → (m :. d) fs
     recoverField (K fi) =
-      readField pT pC (Proxy @m) (Proxy @s) (fieldCtx pT (Proxy @m) (Proxy @(s, fs)) ctxC (⊥)) (toFieldName (Proxy @(m (d s),d s,s)) fi)
-
+      readField pC (Proxy @(t, s)) (fieldCtx (Proxy @(t, s, fs, m fs)) ctxC (undefined)) (toFieldName (Proxy @(s, d s, m s)) fi)

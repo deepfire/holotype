@@ -255,14 +255,12 @@ instance SOP.HasDatatypeInfo AnObject
 instance ( Holo a, d ~ Derived t
          , RGLFW t m) ⇒
          Field t m d u a where
-  fieldCtx ∷ Proxy t
-           → Proxy m
-           → Proxy (u, a)
+  fieldCtx ∷ Proxy (t, u, s, m s)
            → ConsCtx (Derived t u)
            → (u → a)
            → FieldCtx t m a
-  fieldCtx _ _ _ (mux, x) proj = (mux, proj x)
-  readField _ _ _ _ (mux, initV) (FieldName fname) = O $ do
+  fieldCtx _ (mux, x) proj = (mux, proj x)
+  readField _ _ (mux, initV) (FieldName fname) = O $ do
     labelId ← liftIO newId
     let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]
     W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftHolo mux initV
@@ -271,8 +269,9 @@ instance (SOP.Generic a, SOP.HasDatatypeInfo a, Monad m) ⇒
   prefixChars _ = 3
 instance (SOP.Generic a, SOP.HasDatatypeInfo a, RGLFW t m) ⇒
   CtxRecord t m (Derived t) a where
-  type RecordCtx (Derived t) a = a
+  type RecordCtx (Derived t) a = (InputMux t, a)
   restoreChoice _ _ = pure 0
+  consCtx _ _ _ = id
 
 instance Functor (Derived t) where
   fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
@@ -305,10 +304,8 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  let --Prod xDa  = readField (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (muxV, "foo" ∷ Text) "field"
-      O xDDa = recover   (Proxy @t) (Proxy @(RGLFW t m)) (Proxy @m) (Proxy @(Derived t AnObject)) $ AnObject "yayyity" "zeroes"
-  -- Derived (xD  ∷ W t Text) ∷ Derived t Text ← xDa
-  xDD ∷ W t AnObject ← xDDa
+  xDD ∷ W t AnObject ← unO $ recover (Proxy @(RGLFW t m)) (Proxy @(t, AnObject))
+                       (muxV, AnObject "yayyity" "zeroes")
 
   longStaticTextD  ← liftDynHolo $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
@@ -349,7 +346,7 @@ liftHolo' ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ a → m (Dynamic t Subscription
 liftHolo' initial = do
   tok  ← newId
   valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$>
-         (liftDyn initial $ select (⊥) $ Const2 tok)
+         (liftDyn initial $ select (undefined) $ Const2 tok)
   pure ( constDyn $ subscription (Proxy @a) tok
        , valD)
 
