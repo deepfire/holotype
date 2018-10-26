@@ -21,6 +21,17 @@ with pkgs.haskell.lib; with self; {
   });
 
   ## Upstreamed, awaiting a Hackage release
+  lens-sop = overrideCabal super.lens-sop (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "well-typed";
+      repo   = "lens-sop";
+      rev    = "44d160557c216fd36fe40d7e6c84bc93b26568d8";
+      sha256 = "1pgzy67ddmcs1zhvan4q9xhj113gpamy4disgg9x4b6fwl3rb91l";
+    };
+    jailbreak       = true;
+  });
+
+  ## Upstreamed, awaiting a Hackage release
   reflex = overrideCabal super.reflex (drv: {
     src = pkgs.fetchFromGitHub {
       owner  = "reflex-frp";

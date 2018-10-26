@@ -4,7 +4,7 @@
 , generics-sop, ghc-prim, gi-cairo, gi-gobject, gi-pango
 , gi-pangocairo, GLFW-b, Glob, hashable, haskell-gi-base, hedgehog
 , hspec, hxt, JuicyPixels, lambdacube-compiler, lambdacube-gl
-, lambdacube-ir, lens, linear, lub, metamorphic, MissingH
+, lambdacube-ir, lens, lens-sop, linear, lub, metamorphic, MissingH
 , monadplus, MonadRandom, mono-traversable, monoidal-containers
 , mtl, OpenGL, OpenGLRaw, optparse-applicative, parsers, pretty
 , pretty-show, primitive, profunctors, proteaaudio, QuickCheck
@@ -28,11 +28,11 @@ mkDerivation {
     extra filepath free freer-simple generics-sop ghc-prim gi-cairo
     gi-gobject gi-pango gi-pangocairo GLFW-b hashable haskell-gi-base
     hedgehog hspec hxt JuicyPixels lambdacube-compiler lambdacube-gl
-    lambdacube-ir lens linear lub metamorphic MissingH monadplus
-    MonadRandom mono-traversable monoidal-containers mtl OpenGL
-    OpenGLRaw optparse-applicative parsers pretty pretty-show primitive
-    profunctors proteaaudio QuickCheck random ref-tf reflex reflex-glfw
-    semigroupoids semigroups singletons spool stm tasty
+    lambdacube-ir lens lens-sop linear lub metamorphic MissingH
+    monadplus MonadRandom mono-traversable monoidal-containers mtl
+    OpenGL OpenGLRaw optparse-applicative parsers pretty pretty-show
+    primitive profunctors proteaaudio QuickCheck random ref-tf reflex
+    reflex-glfw semigroupoids semigroups singletons spool stm tasty
     tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
     tasty-quickcheck tasty-smallcheck template-haskell text text-format
     text-lens text-zipper these time transformers trifecta type-map

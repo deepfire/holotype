@@ -90,6 +90,7 @@ library
                      , lambdacube-gl
                      , lambdacube-ir
                      , lens
+                     , lens-sop
                      , linear
                      , lub
                      , metamorphic
