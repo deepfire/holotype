@@ -304,8 +304,10 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  xDD ∷ W t AnObject ← unO $ recover (Proxy @(RGLFW t m)) (Proxy @(t, AnObject))
+  xDD@(W (_, xDDv)) ∷ W t AnObject ← unO $ recover (Proxy @(RGLFW t m)) (Proxy @(t, AnObject))
                        (muxV, AnObject "yayyity" "zeroes")
+  _                ← performEvent $ (updated xDDv) <&>
+                     \(x, _) → liftIO $ putStrLn (show x)
 
   longStaticTextD  ← liftDynHolo $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 

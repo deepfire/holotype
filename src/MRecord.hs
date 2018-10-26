@@ -167,7 +167,7 @@ class ( Monad m, d ~ Derived t
     FieldName $ maybeRemap $ dropDetitle (prefixChars r) x
     where maybeRemap x = maybe x id (lookup x $ nameMap r)
           dropDetitle ∷ Int → Text → Text
-          dropDetitle n (drop 2 → x) = toLower (take 1 x) <> drop 1 x
+          dropDetitle n (drop n → x) = toLower (take 1 x) <> drop 1 x
 
 
 
