@@ -71,6 +71,7 @@ library
                      , dlist
                      , exceptions
                      , extra
+                     , fclabels
                      , filepath
                      , free
                      , freer-simple
