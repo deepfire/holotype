@@ -48,6 +48,8 @@ import           Control.Lens                        ((<&>))
 import           Data.Functor.Identity
 import           Data.Function                       ((&))
 import           Data.Bool
+import qualified Data.Label.Mono                  as FLM
+import qualified Data.Label.Poly                  as FLP
 import qualified Data.List                        as L
 import           Data.Map                            (Map)
 import qualified Data.Map                         as Map
@@ -80,6 +82,7 @@ import qualified Generics.SOP                     as SOP
 import qualified Generics.SOP.NS                  as SOP
 import qualified Generics.SOP.NP                  as SOP
 import qualified Generics.SOP.GGP                 as SOP
+import qualified Generics.SOP.Lens                as SOP
 
 import           Debug.Trace (trace)
 
@@ -127,7 +130,7 @@ class ( Monad m
   default readField ∷ (HasCallStack, c
                       , CtxRecord t m d s
                       , SOP.HasDatatypeInfo s, SOP.Generic s, GHC.Generic s
-                      , Code s ~ xss
+                      , Code s ~ xss, xss ~ '[xs]
                       , All2 (FieldConstraint t m d s) xss
                       , FieldCtx t m s ~ RecordCtx d s
                       , Applicative d
@@ -200,43 +203,49 @@ class Interpret a where
 
 
 
-recover  ∷ ∀ (t ∷ Type) c m d s xss.
+recover  ∷ ∀ (t ∷ Type) c m d s xss xs.
            ( c, CtxRecord t m d s
            , SOP.HasDatatypeInfo s
-           , Code s ~ xss
+           , Code s ~ xss, xss ~ '[xs]
            , All2 (FieldConstraint t m d s) xss
            , HasCallStack, Monad m, Applicative d)
          ⇒ Proxy c
          → Proxy (t, s)
          → RecordCtx d s
          → (m :. d) s
-recover pC pT ctx = O $ do
-    choice ← restoreChoice (Proxy @(t, s, d s)) ctx
-    let pop    ∷ POP (m :. d) xss          = recover' pC (Proxy @(t, d s)) ctx $ (datatypeInfo (Proxy @s) ∷ DatatypeInfo (Code s))
-        ct     ∷ SOP (m :. d) (Code s)     = (!! choice) $ SOP.apInjs_POP pop
-        O msop ∷ (m :. d) (SOP I (Code s)) = hsequence ct
+recover pC pT ctxR = O $ do
+    -- choice ← restoreChoice (Proxy @(t, s, d s)) ctx
+    -- let pop    ∷ POP (m :. d) xss          = recover' pC (Proxy @(t, d s)) ctxR $ (datatypeInfo (Proxy @s) ∷ DatatypeInfo (Code s))
+    --     ct     ∷ SOP (m :. d) (Code s)     = (!! choice) $ SOP.apInjs_POP pop
+    --     O msop ∷ (m :. d) (SOP I (Code s)) = hsequence ct
+    -- case SOP.sList ∷ SList (Code s) of
+    --   SOP.SCons → (SOP.to <$>) <$> msop
+    let ADT _ name cinfos = datatypeInfo (Proxy @s) ∷ DatatypeInfo (Code s)
+        nc     ∷ NConstructorInfo xs       = SOP.hd $ enumerate cinfos
+        ct     ∷ NP (m :. d)      xs       = recoverCtor pC (Proxy @(t, d s)) ctxR (pack name) nc
+        O msop ∷ (m :. d) (SOP I (Code s)) = hsequence (SOP.SOP $ SOP.Z ct)
     (SOP.to <$>) <$> msop
 
 -- * 1. Construct a POP, mapping the (NConstructorInfo → NP m) interpreter over its rows
 --   3. Return the resultant POP of actions
-recover'
-  ∷ ∀ (t ∷ Type) c m (d ∷ Type → Type) s xss.
-    ( c, CtxRecord t m d s
-    , Code s ~ xss, All SListI xss
-    , All2 (FieldConstraint t m d s) xss
-    , HasCallStack, Monad m)
-  ⇒ Proxy c → Proxy (t, d s) → RecordCtx d s → DatatypeInfo xss
-  → POP (m :. d) xss
-recover' pC pTDS ctxR (ADT _ name cs) =
-  POP $ hcliftA (Proxy @(All (FieldConstraint t m d s)))
-  (recoverCtor pC (Proxy @(t, d s)) ctxR (pack name)) (enumerate cs)
-recover' _ _ _ _ = error "Non-ADTs not supported."
+-- recover'
+--   ∷ ∀ (t ∷ Type) c m (d ∷ Type → Type) s xss xs.
+--     ( c, CtxRecord t m d s
+--     , Code s ~ xss, xss ~ '[xs], All SListI xss
+--     , All2 (FieldConstraint t m d s) xss
+--     , HasCallStack, Monad m)
+--   ⇒ Proxy c → Proxy (t, d s) → RecordCtx d s → DatatypeInfo xss
+--   → POP (m :. d) xss
+-- recover' pC pTDS ctxR (ADT _ name cs) =
+--   POP $ hcliftA (Proxy @(All (FieldConstraint t m d s)))
+--         (recoverCtor pC (Proxy @(t, d s)) ctxR (pack name)) (enumerate cs)
+-- recover' _ _ _ _ = error "Non-ADTs not supported."
 
 -- * 1. Extract the constructor's product of field names
 --   2. Feed that to the field-name→action interpreter
 recoverCtor
   ∷ ∀ (t ∷ Type) c m (d ∷ Type → Type) s xs.
-    ( c, CtxRecord t m d s
+    ( c, CtxRecord t m d s, Code s ~ '[xs]
     , All (FieldConstraint t m d s) xs
     , HasCallStack, Monad m)
   ⇒ Proxy c → Proxy (t, d s) → RecordCtx d s → Text → NConstructorInfo xs
@@ -251,7 +260,7 @@ recoverCtor _ _ _ name _ =
 --   convert a product of field names to a product of monadic actions yielding 'a'
 recoverFields
   ∷ ∀ (t ∷ Type) c m (d ∷ Type → Type) s xs.
-    ( c, CtxRecord t m d s
+    ( c, CtxRecord t m d s, Code s ~ '[xs]
     , All (FieldConstraint t m d s) xs
     , SListI xs
     , HasCallStack, Monad m)
@@ -261,10 +270,12 @@ recoverFields
   → ConsCtx (d s)
   → Text → Int → NP (K Text) xs → NP (m :. d) xs
 recoverFields pC pTDS ctxR ctxC consName consNr fss =
-  hcliftA (Proxy @(FieldConstraint t m d s)) recoverField (fss ∷ NP (K Text) xs)
+  hcliftA2 (Proxy @(FieldConstraint t m d s)) recoverField fss SOP.glenses
   where
     recoverField ∷ ∀ fs. (Field t m d s fs)
                  ⇒ K Text fs
+                 → SOP.GLens (→) (→) s fs
                  → (m :. d) fs
-    recoverField (K fi) =
-      readField pC (Proxy @(t, s)) (fieldCtx (Proxy @(t, s, fs, m fs)) ctxC (undefined)) (toFieldName (Proxy @(s, d s, m s)) fi)
+    recoverField (K fi) glens =
+      readField pC (Proxy @(t, s)) (fieldCtx (Proxy @(t, s, fs, m fs)) ctxC (SOP.get glens ∷ s → fs))
+      (toFieldName (Proxy @(s, d s, m s)) fi)
