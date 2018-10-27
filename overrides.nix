@@ -57,16 +57,6 @@ with pkgs.haskell.lib; with self; {
     jailbreak       = true;
   });
 
-  ## Upstreamed, awaiting a Hackage release
-  TypeCompose = overrideCabal super.TypeCompose (drv: {
-    src = pkgs.fetchFromGitHub {
-      owner  = "conal";
-      repo   = "TypeCompose";
-      rev    = "5963b172510a970ae16dfefe42e337052d7267e4";
-      sha256 = "0n237applqls3wb2g4gc05qhbgpvwyf1hcxsm02x4z8fsqw8fmaa";
-    };
-  });
-
 
   ## Unmerged
 
@@ -102,6 +92,16 @@ with pkgs.haskell.lib; with self; {
       sha256 = "16b5821jfsd0lfkllpahvaq344jmhkhvl284k7k375fy1fw20bwq";
     };
     jailbreak       = true;
+  });
+
+  ## Unmerged.  PR: https://github.com/conal/TypeCompose/pull/
+  TypeCompose = overrideCabal super.TypeCompose (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "deepfire";
+      repo   = "TypeCompose";
+      rev    = "60230e6da02b74b2e593a2531acc50f706d17fc0";
+      sha256 = "0nwylsx93m0iv7rkr5m5np2cmi8p0zfpprbxwzcag6vkja3n0w5g";
+    };
   });
 
 
