@@ -229,15 +229,15 @@ data AnObject where
 instance SOP.Generic         AnObject
 instance SOP.HasDatatypeInfo AnObject
 
-instance (Holo a, d ~ Derived t, RGLFW t m) ⇒ Field t m d u a where
+instance (Holo a, d ~ Derived t, RGLFW t m) ⇒ Field t m u a where
   fieldCtx _ (mux, x) proj = (mux, proj x)
   readField _ _ (mux, initV) (FieldName fname) = O $ do
     labelId ← liftIO newId
     let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]
     W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftHolo mux initV
-instance (SOP.Generic a, SOP.HasDatatypeInfo a, RGLFW t m) ⇒ Record t m (Derived t) a where
+instance (SOP.Generic a, SOP.HasDatatypeInfo a, RGLFW t m) ⇒ Record t m a where
   prefixChars _ = 3
-  type RecordCtx (Derived t) a = (InputMux t, a)
+  type RecordCtx t a = (InputMux t, a)
   consCtx _ _ _ = id
 
 instance Functor (Derived t) where
@@ -271,7 +271,7 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  xDD@(W (_, xDDv)) ∷ W t AnObject ← unO $ recover (Proxy @(RGLFW t m)) (Proxy @(t, AnObject))
+  xDD@(W (_, xDDv)) ∷ W t AnObject ← unO $ recover (Proxy @(RGLFW t m)) (Proxy @t)
                        (muxV, AnObject "yayyity" "zeroes")
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)

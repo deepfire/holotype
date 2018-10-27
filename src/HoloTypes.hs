@@ -175,7 +175,7 @@ newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (E
 
 
 -- | 'Holo': anything visualisable.
-type instance ConsCtx (Derived t a) = (InputMux t, a)
+type instance ConsCtx  t a = (InputMux t, a)
 type instance FieldCtx t a = (InputMux t, a)
 data instance Derived  t a = Reflex t ⇒ W { fromW ∷ (Dynamic t Subscription, Dynamic t (a, HoloBlank)) }
 
