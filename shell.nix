@@ -13,6 +13,7 @@ let
                ghc.ghc-events
                ghc.graphmod
                ghc.ghcid
+               ghc.stylish-haskell
                pkgs.graphviz
              ] ++ (if intero then [ ghc.intero ] else []);
   drv'    = pkgs.haskell.lib.overrideCabal
