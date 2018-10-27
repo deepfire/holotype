@@ -45,8 +45,8 @@ ccrs: cairostress
 
 SRCS=$(wildcard *.hs src/*.hs src/*/*.hs)
 ## BUILDBASE=dist/build
-BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-8.4.3/holotype-0.0.1/x/holotype/build
-HOLOTYPE=$(BUILDBASE)/holotype/holotype
+BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-8.4.3/holotype-0.0.1/x
+HOLOTYPE=$(BUILDBASE)/holotype/build/holotype/holotype
 $(HOLOTYPE): $(SRCS)
 	cabal new-build exe:holotype
 
@@ -59,7 +59,17 @@ clean:
 cls:
 	echo -en '\ec'
 
+# Support for experiments:
 #
+define defexperiment =
+$(BUILDBASE)/$1/build/$1/$1: ./experiments/$1/Main.hs
+	@cabal -v0 new-build $1
+$1: $(BUILDBASE)/$1/build/$1/$1
+	@$(BUILDBASE)/$1/build/$1/$1
+endef
+experiments := $(shell find experiments -maxdepth 1 -mindepth 1 -type d | grep -vw dist | cut -d/ -f2)
+$(foreach x,$(experiments),$(eval $(call defexperiment,$(x))))
+# Current experiment:
 #
 n          ?= new
 exnm       := $(n)
@@ -67,15 +77,6 @@ exdir       = ./experiments/$(exnm)
 exdepsbase := base, base-unicode-symbols
 deps       ?=
 exdeps     := $(exdepsbase)$(if $(deps), $(deps))
-experiments := $(shell find experiments -maxdepth 1 -mindepth 1 -type d | grep -vw dist | cut -d/ -f2)
-define defexperiment =
-$(BUILDBASE)/$1/$1: ./experiments/$1/Main.hs
-	@cabal -v0 new-build $1
-.PHONY: $1
-$1: $(BUILDBASE)/$1/$1
-	@$(BUILDBASE)/$1/$1
-endef
-$(foreach x,$(experiments),$(eval $(call defexperiment,$(x))))
 ls:
 	@echo "experiments:"
 	@echo
@@ -105,16 +106,16 @@ tool      := $(and $(leakcheck),valgrind --leak-check=full --show-leak-kinds=all
              $(and $(pprof),pprof)
 toollog   := $(and $(leakcheck), 2>&1 | ts -s | tee leakcheck.$(shell date +%s).report) \
              $(and $(pprof),     2>&1 | ts -s | tee     pprof.$(shell date +%s).report)
-holotype: $(BUILDBASE)/holotype/holotype
+holotype: $(HOLOTYPE)
 	$(tool) $< +RTS -T -RTS $(OPTS) $(toollog)
-pholotype: $(BUILDBASE)/holotype/holotype
+pholotype: $(HOLOTYPE)
 	$(tool) $< +RTS -T -h -l $(toollog)
 	hp2ps -c holotype.hp
 	evince holotype.ps
 
 
 RESOURCE_CALLS='pango_font_map_create_context|pango_cairo_create_context|pango_layout_new|cairo_destroy|cairo_surface_destroy|cairo_create|cairo_image_surface_create'
-lholotype: $(BUILDBASE)/holotype/holotype
+lholotype: $(HOLOTYPE)
 	ltrace $(LTRACE_OPTIONS) $< +RTS -T -RTS $(OPTS) $(toollog)
 	cut -d '(' -f1 holotype.ltrace | sort | uniq -c | grep -v 'resumed>' | sort -n | tee holotype.lprof
 res resources:
