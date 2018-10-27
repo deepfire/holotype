@@ -43,7 +43,7 @@ library
                   HoloPrelude
                   HoloTypes
 
-                  MRecord
+                  Generics.SOP.Monadic
                   Reflex.Random
 
                   Holotype

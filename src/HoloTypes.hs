@@ -51,11 +51,12 @@ import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Typeable
 import           Generics.SOP                             (Proxy)
+import           Generics.SOP.Monadic
 import           Graphics.GL.Core33                as GL
 import           LambdaCube.Mesh                   as LC
 import           Linear
 import           Reflex                            hiding (Query, Query(..))
-import           Reflex.GLFW                              (RGLFW, InputU(..))
+import           Reflex.GLFW                              (RGLFW)
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Control.Concurrent.STM            as STM
 import qualified Data.ByteString.Char8             as SB
@@ -74,8 +75,6 @@ import qualified Graphics.Rendering.Cairo.Internal as GRCI
 import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Mesh                as GL
 import qualified Reflex.GLFW                       as GLFW
-
-import           MRecord
 
 -- Local imports
 import           HoloPrelude
@@ -177,8 +176,8 @@ newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (E
 
 -- | 'Holo': anything visualisable.
 type instance ConsCtx (Derived t a) = (InputMux t, a)
-type instance FieldCtx t m a = (InputMux t, a)
-data instance Derived  t   a = Reflex t ⇒ W { fromW ∷ (Dynamic t Subscription, Dynamic t (a, HoloBlank)) }
+type instance FieldCtx t a = (InputMux t, a)
+data instance Derived  t a = Reflex t ⇒ W { fromW ∷ (Dynamic t Subscription, Dynamic t (a, HoloBlank)) }
 
 type HoloBlank      = Item PBlank
 type W        t   a = Derived t a

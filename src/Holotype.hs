@@ -42,6 +42,7 @@ import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
 import           Data.Tuple
 import           Data.Typeable
+import           Generics.SOP.Monadic
 -- import           GHC.IOR
 import           Linear                            hiding (trace)
 import           Prelude                           hiding (id, Word)
@@ -87,7 +88,6 @@ import           HoloPort
 import qualified HoloOS                            as HOS
 
 -- TEMPORARY
-import           MRecord
 import           Generics.SOP                             (Proxy)
 import qualified Generics.SOP                      as SOP
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
@@ -229,48 +229,15 @@ data AnObject where
 instance SOP.Generic         AnObject
 instance SOP.HasDatatypeInfo AnObject
 
--- data CName where
---   CName ∷ Text → ADTChoiceT → CName
-
--- instance {-# OVERLAPPABLE #-} (SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ Record AnObject where
--- instance {-# OVERLAPPABLE #-} (SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord AnObject AnObject where
--- type instance ConsCtx a = CName
--- instance Ctx AnObject where
--- instance {-# OVERLAPPABLE #-} Record AnObject where
---   prefixChars = const 3
--- instance {-# OVERLAPPABLE #-} CtxRecord AnObject AnObject where
---   consCtx _ _ n ix = CName n ix
--- instance {-# OVERLAPPABLE #-}
---   (Monad m) ⇒
---   CtxRecord  t m (Derived t AnObject) AnObject where
---   type RecordCtx (Derived t AnObject) = AnObject
--- --   consCtx _ _ n ix = CName n ix
-
--- *
--- instance Holo a ⇒ Ctx a where
--- instance Holo a ⇒ Record a where
--- -- class (SOP.Generic a, SOP.HasDatatypeInfo a, Ctx ctx, Record a) ⇒ CtxRecord ctx a where
--- instance (Holo a, SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ CtxRecord a (W t (a, HoloBlank)) where
-
-instance ( Holo a, d ~ Derived t
-         , RGLFW t m) ⇒
-         Field t m d u a where
-  fieldCtx ∷ Proxy (t, u, s, m s)
-           → ConsCtx (Derived t u)
-           → (u → a)
-           → FieldCtx t m a
+instance (Holo a, d ~ Derived t, RGLFW t m) ⇒ Field t m d u a where
   fieldCtx _ (mux, x) proj = (mux, proj x)
   readField _ _ (mux, initV) (FieldName fname) = O $ do
     labelId ← liftIO newId
     let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]
     W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftHolo mux initV
-instance (SOP.Generic a, SOP.HasDatatypeInfo a, Monad m) ⇒
-  Record t m (Derived t) a where
+instance (SOP.Generic a, SOP.HasDatatypeInfo a, RGLFW t m) ⇒ Record t m (Derived t) a where
   prefixChars _ = 3
-instance (SOP.Generic a, SOP.HasDatatypeInfo a, RGLFW t m) ⇒
-  CtxRecord t m (Derived t) a where
   type RecordCtx (Derived t) a = (InputMux t, a)
-  restoreChoice _ _ = pure 0
   consCtx _ _ _ = id
 
 instance Functor (Derived t) where
