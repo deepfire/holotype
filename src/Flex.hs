@@ -52,7 +52,7 @@ import           HoloPrelude
 
 import qualified Data.Text.Lazy                    as TL
 import           Linear                            hiding (basis, trace)
-import           Prelude                           hiding (floor)
+-- import           Prelude                           hiding (floor)
 import qualified Text.PrettyPrint.Leijen.Text      as WL
 
 import           Elsewhere
@@ -172,7 +172,7 @@ ppItemSize ∷ Flex a ⇒ a → String
 ppItemSize x = TL.unpack $ rendCompact $ pretty'mdi  $ x^.size
 
 ppItemArea ∷ Flex a ⇒ a → String
-ppItemArea x = TL.unpack $ rendCompact $ pretty'Area $ x^.area
+ppItemArea x = TL.unpack $ rendCompact $ pretty'Area'Int $ x^.area
 
 showItemArea ∷ Flex a ⇒ a → String
 showItemArea x = show $ x^.area
@@ -196,15 +196,15 @@ dump ppf = walk
 
 pretty'mdouble ∷ Maybe Double → Doc
 pretty'mdouble Nothing  = WL.char '*'
-pretty'mdouble (Just x) = WL.double x
+pretty'mdouble (Just x) = WL.text $ TL.pack $ printf "%3d" (floor x ∷ Int)
 
 pretty'mdi ∷ Di (Maybe Double) → Doc
 pretty'mdi (Di (V2 ma mb)) = pretty'mdouble ma <:> pretty'mdouble mb
 
 pretty'item ∷ Flex a ⇒ a → Doc
 pretty'item item = WL.text "Item size:"
-  <>  pretty'mdi  (item^.size)
-  <+> pretty'Area (item^.area)
+  <>  pretty'mdi      (item^.size)
+  <+> pretty'Area'Int (item^.area)
 
 
 item'marginLT, item'marginRB ∷ Flex a ⇒ a → Vertical → Reverse → Double

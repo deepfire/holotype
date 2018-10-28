@@ -6,7 +6,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 module Flatland where
 
@@ -557,14 +557,14 @@ class    (Additive a, Additive b, Fractional d, Ord d, Pretty d, Show d) ⇒ NoA
 instance (Additive a, Additive b, Fractional d, Ord d, Pretty d, Show d) ⇒ NoArea a b d where
   noArea = Area zero zero
 
-pretty'Area ∷ FromArea a b LU Size d ⇒ Area' a b d → Doc
-pretty'Area a =
+pretty'Area'Int ∷ RealFrac d ⇒ FromArea a b LU Size d ⇒ Area' a b d → Doc
+pretty'Area'Int a =
   let Area (LU (Po (V2 x y))) (Size (Di d)) = from'area a
-  in (text ∘ ppV2 $ d)
-     <> char '+' <> pretty x <> char '+' <> pretty y
+  in (text ∘ ppV2 $ floor <$> d)
+     <> char '+' <> pretty (floor x ∷ Int) <> char '+' <> pretty (floor y ∷ Int)
 
-instance FromArea a b LU Size d ⇒ Pretty (Area' a b d) where
-  pretty = unreadable "Area" ∘ pretty'Area
+instance (FromArea a b LU Size d, RealFrac d) ⇒ Pretty (Area' a b d) where
+  pretty = unreadable "Area" ∘ pretty'Area'Int
 
 type Area      d = Area' Po   Di   d
 type Area'Orig d = Area' Orig Size d

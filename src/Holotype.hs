@@ -370,11 +370,7 @@ holotype win evCtl windowFrameE inputE = mdo
   -- needs port because of DPI and fonts
   sceneQueriedE    ← performEvent $ (\(s, (p, _f))→ Holo.queryHolotree p s) <$>
                      attachPromptlyDyn sceneD portFrameE
-
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
-  -- _                ← performEvent $ (updated sceneQueriedD) <&>
-  --                    \tree →
-  --                      Flex.dump (\x→ "Q: "<>Flex.ppItemSize x <>" "<>Flex.ppItemArea x) tree
 
   let sceneLaidTreeD ∷ Dynamic t (Item Holo.PLayout)
       sceneLaidTreeD = layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
@@ -383,7 +379,7 @@ holotype win evCtl windowFrameE inputE = mdo
       sceneDrawE     = attachPromptlyDyn sceneLaidTreeD portFrameE
   drawnPortE       ← performEvent $ sceneDrawE <&>
                      \(tree, (,) port f@Frame{..}) → do
-                       -- Flex.dump (\x→ "L: "<>Flex.ppItemSize x <>" "<>Flex.ppItemArea x) tree
+                       -- Flex.dump (\x→ "La: "<>Flex.ppItemArea x<>" ← "<>Flex.ppItemSize x) tree
                        let leaves = Holo.holotreeLeaves tree
                        -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
                        portGarbageCollectVisuals port leaves
