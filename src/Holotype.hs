@@ -244,12 +244,13 @@ instance Functor (Derived t) where
   fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
 
 instance Reflex t ⇒ Applicative (Derived t) where
-  pure x = W (mempty, constDyn (x, mempty))
+  pure x = W (mempty, constDyn (x, Holo.vbox []))
   W (fsubs, fvals) <*> W (xsubs, xvals) =
     W $ (,)
     (zipDynWith (<>) fsubs xsubs)
-    (zipDynWith ((\(f,fhb@Item{..}) (x,xhb)→
-                   (f x, fhb { hiChildren = hiChildren <> [xhb] })))
+    (zipDynWith ((\(f,   fhb)
+                   (  x, xhb@Item{..})→
+                   (f x, xhb { hiChildren = fhb : hiChildren })))
       fvals xvals)
 
 scene ∷ ∀ t m. ( RGLFW t m
