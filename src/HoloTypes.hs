@@ -337,30 +337,3 @@ hiStyleGene x =
 hiHasVisual ∷ Item p → Bool
 hiHasVisual x =
   case x of Item{..} → hasVisual holo
-
-
--- * Impure IO-stateful map
-
--- data IOMap k v where
---   IOMap ∷ Ord k ⇒
---     { iomap               ∷ STM.TVar (Map.Map k v)
---     } → IOMap k v
-
--- mkIOMap ∷ (MonadIO m, Ord k) ⇒ m (IOMap k v)
--- mkIOMap = IOMap
---   <$> (liftIO $ STM.newTVarIO $ Map.empty)
-
--- iomapAccess ∷ (MonadIO m) ⇒ IOMap k v → m (Map.Map k v)
--- iomapAccess IOMap{..} = liftIO $ STM.readTVarIO iomap
-
--- iomapAdd ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → v → m ()
--- iomapAdd IOMap{..} k v = liftIO $ do
---   STM.atomically $ STM.modifyTVar' iomap (Map.insert k v)
---   pure ()
-
--- iomapDrop ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → m ()
--- iomapDrop IOMap{..} x = liftIO $
---   STM.atomically $ STM.modifyTVar' iomap (Map.delete x)
-
--- iomapHas ∷ (MonadIO m, Ord k) ⇒ IOMap k v → k → m Bool
--- iomapHas iomap x = Map.member x <$> iomapAccess iomap
