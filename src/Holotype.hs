@@ -222,6 +222,7 @@ data AnObject where
   AnObject ∷
     { objName   ∷ Text
     , objValue  ∷ Text
+    , objLol    ∷ Text
     -- , objDPI    ∷ DΠ
     -- , objDim    ∷ Di Int
     } → AnObject
@@ -273,7 +274,7 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
   xDD@(W (_, xDDv)) ∷ W t AnObject ← unO $ recover (Proxy @(RGLFW t m)) (Proxy @t)
-                       (muxV, AnObject "yayyity" "zeroes")
+                       (muxV, AnObject "yayyity" "zeroes" "lol")
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
 

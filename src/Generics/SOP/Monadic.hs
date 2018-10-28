@@ -137,11 +137,11 @@ recover  ∷ ∀ (t ∷ Type) c m s xss xs.
          → RecordCtx t s
          → (m :. Derived t) s
 recover pC _pT ctxR = O $ do
-    let ADT _ name cinfos = datatypeInfo (Proxy @s) ∷ DatatypeInfo (Code s)
-        nc     ∷ ((,) Int :. ConstructorInfo) xs   = SOP.hd $ enumerate cinfos
-        ct     ∷ NP (m :. Derived t) xs            = recoverCtor pC (Proxy @(t, s)) ctxR (pack name) nc
-        O msop ∷ (m :. Derived t) (SOP I (Code s)) = hsequence (SOP.SOP $ SOP.Z ct)
-    (SOP.to <$>) <$> msop
+    let ADT _ rName cInfos                              = datatypeInfo (Proxy @s) ∷ DatatypeInfo (Code s)
+        nCInfos ∷ NP ((,) Int :. ConstructorInfo) '[xs] = enumerate cInfos
+        sop     ∷                   SOP (m :. Derived t) (Code s)  = SOP.SOP $ SOP.Z $ recoverCtor pC (Proxy @(t, s)) ctxR (pack rName) $ SOP.hd nCInfos
+        O mdsop ∷ (m :. Derived t) (SOP I                (Code s)) = hsequence sop
+    (SOP.to <$>) <$> mdsop
 
 -- * 1. Extract the constructor's product of field names
 --   2. Feed that to the field-name→action interpreter
