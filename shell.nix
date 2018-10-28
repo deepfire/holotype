@@ -6,26 +6,18 @@
 }:
 let
   pkgs    = nixpkgs.pkgs;
-  drv     = import ./package.nix  { inherit nixpkgs compiler local; };
-  ghc     = import ./ghc.nix      { inherit nixpkgs compiler local; };
+  ghc     = import ./packages.nix { inherit nixpkgs compiler local; }; # :: nixpkgs/pkgs/development/haskell-modules/make-package-set.nix
   extras  =  [
-               pkgs.cabal-install
                ghc.ghc-events
-               ghc.graphmod
                ghc.ghcid
+               ghc.graphmod
                ghc.stylish-haskell
+               pkgs.cabal-install
                pkgs.graphviz
              ] ++ (if intero then [ ghc.intero ] else []);
-  drv'    = pkgs.haskell.lib.overrideCabal
-            drv
-            (old: {
-              libraryHaskellDepends   = old.libraryHaskellDepends ++ extras;
-              libraryPkgconfigDepends = [ pkgs.cairo pkgs.pango ];
-              doHaddock               = false;
-              preCompileBuildDriver   = ''
-                PKG_CONFIG_PATH+=":${pkgs.cairo}/lib/pkgconfig"
-                setupCompileFlags+=" $(pkg-config --libs cairo-gobject)"
-              '';
-             });
 in
-  drv'.env
+  ghc.shellFor {
+    packages    = p: [p.holotype];
+    withHoogle  = true;
+    buildInputs = extras;
+  }

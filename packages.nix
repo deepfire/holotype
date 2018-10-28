@@ -30,7 +30,10 @@ let
           "${compiler}" = pkgs.haskell.packages."${compiler}".override (oldArgs: {
             overrides = self: super:
                         let parent = (oldArgs.overrides or (_: _: {})) self super;
-                        in parent // import ./manual-overrides.nix { inherit self super pkgs lib; };
+                        in parent // import ./manual-overrides.nix { inherit self super pkgs lib; }
+                        // {
+                          holotype = self.callPackage (import ./default.nix) {};
+                        };
           });
         };
       };

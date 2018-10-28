@@ -1,0 +1,4 @@
+  hoogle-index = overrideCabal super.hoogle-index (drv: {
+    jailbreak       = true;
+  });
+

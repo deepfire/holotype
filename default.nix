@@ -15,6 +15,7 @@
 , text-format, text-lens, text-zipper, these, time, transformers
 , trifecta, type-map, TypeCompose, unordered-containers, vect
 , vector, wl-pprint-extras, wl-pprint-text
+, pkgs
 }:
 mkDerivation {
   pname = "holotype";
@@ -55,4 +56,10 @@ mkDerivation {
   testToolDepends = [ tasty-discover ];
   description = "Graph-backed visual mind assistant";
   license = stdenv.lib.licenses.agpl3;
+  libraryPkgconfigDepends = [ pkgs.cairo pkgs.pango ];
+  doHaddock               = false;
+  preCompileBuildDriver   = ''
+    PKG_CONFIG_PATH+=":${pkgs.cairo}/lib/pkgconfig"
+    setupCompileFlags+=" $(pkg-config --libs cairo-gobject)"
+  '';
 }

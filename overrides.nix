@@ -107,6 +107,10 @@ with pkgs.haskell.lib; with self; {
 
   ## Non-code, configuration-only change
 
+  hoogle-index = overrideCabal super.hoogle-index (drv: {
+    jailbreak       = true;
+  });
+
   type-map = overrideCabal super.type-map (drv: {
     jailbreak       = true;
   });
