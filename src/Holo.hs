@@ -170,14 +170,16 @@ renderHolotreeVisuals port hoi@Item{..} = do
   forM_ hiChildren (renderHolotreeVisuals port)
 
 drawHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → Item PVisual → m ()
-drawHolotreeVisuals frame root = loop (luOf (hiArea root)^.lu'po) root
+drawHolotreeVisuals frame root = loop (luOf (hiArea root)^.lu'po) "" root
   where
-    loop offset Item{..} = do
+    loop parOff pfx Item{..} = do
+      -- liftIO $ putStrLn $ pfx <> show (offset ^.po'v) <> " " <> Flex.ppItemArea i
+      let ourOff = parOff + luOf hiArea^.lu'po
       case hiVisual of
         Just Visual{vDrawable=Just drw} →
-          framePutDrawable frame drw (doubleToFloat <$> (offset + luOf hiArea^.lu'po))
+          framePutDrawable frame drw (doubleToFloat <$> ourOff)
         _ → pure ()
-      forM_ hiChildren $ loop (luOf hiArea^.lu'po)
+      forM_ hiChildren $ loop ourOff (pfx <> "  ")
 
 
 -- * Internal nodes
