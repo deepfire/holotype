@@ -3,8 +3,8 @@
     src = pkgs.fetchFromGitHub {
       owner  = "reflex-frp";
       repo   = "reflex";
-      rev    = "7180ebfe283d973c5abc5ac851904f488c579a0f";
-      sha256 = "1p3gcjlkrz4vs2gsrnzlwqdpkb7wc3rz6adj65d02jdrghx81idj";
+      rev    = "59ef31edc761109dbe1fc9489af6c620e6bea31e";
+      sha256 = "16i8f2407gpr6c29bcxv5fgxlbl4qh2hb6a9d8sag355149wslmq";
     };
     doCheck         = false;
     jailbreak       = true;

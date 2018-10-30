@@ -1,0 +1,12 @@
+  ## Upstreamed, awaiting a Hackage release
+  th-desugar = overrideCabal super.th-desugar (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "goldfirere";
+      repo   = "th-desugar";
+      rev    = "1d164b669079fe57181af95bbbe4749dbf08ab78";
+      sha256 = "18ka3cwj05mr4k8w5gz1zis97qmnkasg8yx77vipi27m6mhs059i";
+    };
+    doCheck         = false;
+    jailbreak       = true;
+  });
+

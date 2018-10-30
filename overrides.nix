@@ -36,12 +36,23 @@ with pkgs.haskell.lib; with self; {
     src = pkgs.fetchFromGitHub {
       owner  = "reflex-frp";
       repo   = "reflex";
-      rev    = "7180ebfe283d973c5abc5ac851904f488c579a0f";
-      sha256 = "1p3gcjlkrz4vs2gsrnzlwqdpkb7wc3rz6adj65d02jdrghx81idj";
+      rev    = "59ef31edc761109dbe1fc9489af6c620e6bea31e";
+      sha256 = "16i8f2407gpr6c29bcxv5fgxlbl4qh2hb6a9d8sag355149wslmq";
     };
     doCheck         = false;
     jailbreak       = true;
     libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (with self; [ lens data-default hlint filemanip monad-control monoidal-containers prim-uniq unbounded-delays MemoTrie ]);
+  });
+
+  ## Upstreamed, awaiting a Hackage release
+  singletons = overrideCabal super.singletons (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "goldfirere";
+      repo   = "singletons";
+      rev    = "f535872b292a14a74a710ce05bcc782269a76793";
+      sha256 = "14438xmq795rzkdclyk8d43475xylaz41d4b2gbsv26y8ca2a027";
+    };
+    jailbreak       = true;
   });
 
   ## Upstreamed, awaiting a Hackage release
@@ -57,8 +68,31 @@ with pkgs.haskell.lib; with self; {
     jailbreak       = true;
   });
 
+  ## Upstreamed, awaiting a Hackage release
+  th-desugar = overrideCabal super.th-desugar (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "goldfirere";
+      repo   = "th-desugar";
+      rev    = "1d164b669079fe57181af95bbbe4749dbf08ab78";
+      sha256 = "18ka3cwj05mr4k8w5gz1zis97qmnkasg8yx77vipi27m6mhs059i";
+    };
+    jailbreak       = true;
+  });
+
 
   ## Unmerged
+
+  ## Unmerged.  PR: https://github.com/gtk2hs/gtk2hs/pull/255
+  gtk2hs-buildtools = overrideCabal super.gtk2hs-buildtools (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "vmchale";
+      repo   = "gtk2hs";
+      rev    = "8ebc79573158fb5265ca40a322ed9f018c42953e";
+      sha256 = "0z6bfcdm9i776bxgmzk6cfw6bpnfv47jvn84v574frbrzksm0yms";
+    };
+    prePatch        = "cd tools; ";
+    jailbreak       = true;
+  });
 
   ## Unmerged.  PR: https://github.com/hanshoglund/monadplus/pull/3
   monadplus = overrideCabal super.monadplus (drv: {
@@ -108,6 +142,14 @@ with pkgs.haskell.lib; with self; {
   ## Non-code, configuration-only change
 
   hoogle-index = overrideCabal super.hoogle-index (drv: {
+    jailbreak       = true;
+  });
+
+  ref-tf = overrideCabal super.ref-tf (drv: {
+    jailbreak       = true;
+  });
+
+  stylish-haskell = overrideCabal super.stylish-haskell (drv: {
     jailbreak       = true;
   });
 
