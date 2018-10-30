@@ -77,6 +77,8 @@ with pkgs.haskell.lib; with self; {
       sha256 = "18ka3cwj05mr4k8w5gz1zis97qmnkasg8yx77vipi27m6mhs059i";
     };
     jailbreak       = true;
+    editedCabalFile = null;
+    revision        = null;
   });
 
 
