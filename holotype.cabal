@@ -113,6 +113,7 @@ library
                      , semigroupoids
                      , semigroups
                      , singletons
+                     , sop-core
                      , spool
                      , stm
                      , tasty

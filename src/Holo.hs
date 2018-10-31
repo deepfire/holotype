@@ -1,33 +1,26 @@
-{-# LANGUAGE AllowAmbiguousTypes, ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
-{-# LANGUAGE DataKinds, GADTs, NoMonomorphismRestriction, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
-{-# LANGUAGE LambdaCase, OverloadedLists, OverloadedStrings, PackageImports, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, TypeOperators, ViewPatterns #-}
+{-# LANGUAGE AllowAmbiguousTypes, ConstraintKinds, InstanceSigs, ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
+{-# LANGUAGE DataKinds, GADTs, NoMonomorphismRestriction, TypeApplications, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
+{-# LANGUAGE LambdaCase, OverloadedLists, OverloadedStrings, PackageImports, PartialTypeSignatures, QuantifiedConstraints, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, TypeOperators, ViewPatterns #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults -fconstraint-solver-iterations=0 #-}
 module Holo
   (
   -- * Define this:
     Holo(..)
   -- * Get that:
   , StyleOf(..), VisualOf(..)
-  , KNode(..), Node(..)
-  , vbox, hbox
-  , item, leafStyled, leaf
-  , static
-  -- , liftHolo
-  -- , widget
   , Phase(..)
   , Item, hiToken, hiArea
   , holotreeLeaves
   , queryHoloitem
   , renderHoloitem
   --
+  , liftRecord
+  --
   , queryHolotree
   , visualiseHolotree
   , renderHolotreeVisuals
   , drawHolotreeVisuals
-  -- * Dirty parts
-  , emptyHolo, emptyLayoutHolo, emptyVisualHolo
-  , blankIdToken
   -- * Holo instances
   , Rect(..)
   , TextStyle, TextVisual
@@ -35,10 +28,14 @@ module Holo
   )
 where
 
+import           Control.Arrow
+import           Control.Compose
 import           Control.Monad
+import           Data.Functor.Misc                        (Const2(..))
 import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
 import           Data.Typeable
+import           Generics.SOP.Monadic
 import           Linear
 import           Prelude                           hiding ((.), id)
 import           Reflex                            hiding (Query, Query(..))
@@ -46,6 +43,7 @@ import           Reflex.GLFW                              (RGLFW, InputU(..))
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
+import qualified Generics.SOP                      as SOP
 import qualified GI.Pango                          as GIP
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 import qualified Reflex.GLFW                       as GLFW
@@ -62,71 +60,11 @@ import qualified HoloCairo                         as Cr
 
 
 -- * Item
-
-instance Eq (Item a) where
-  (==) a b = (≡) (hiToken a) (hiToken b)
-
-instance Ord (Item a) where
-  compare a b = compare (hiToken a) (hiToken b)
-
+--
 holotreeLeaves ∷ Item a → Map.Map IdToken (Item a)
 holotreeLeaves root = Map.fromList $ walk root
   where walk x@(hiChildren → []) = [(hiToken x, x)]
         walk Item{..}        = concat $ walk <$> hiChildren
-
-
--- * Minimal
-instance DefStyleOf (StyleOf ()) where
-  defStyleOf           = UnitStyle
-instance Holo   () where
-  data StyleOf  ()     = UnitStyle
-  data VisualOf ()     = UnitVisual
-  compStyle        _   = UnitStyle
-  query        _ _ _ _ = pure $ Di $ V2 Nothing Nothing
-
-instance Semigroup (Item PBlank)  where _ <> _ = mempty
-instance Monoid    (Item PBlank)  where mempty = Item () blankIdToken (initStyle UnitStyle) mempty [] (Di $ V2 Nothing Nothing) mempty ()
-instance Semigroup (Item PLayout) where _ <> _ = mempty
-instance Monoid    (Item PLayout) where mempty = Item () blankIdToken (initStyle UnitStyle) mempty [] (Di $ V2 Nothing Nothing) mempty ()
-
--- instance Semigroup (Item PLayout) where
---   l <> r = vbox [l, r]
--- instance Monoid    (Item PLayout) where
---   mempty      = Item () blankIdToken mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
--- instance Monoid (Item Visual) where
---   mappend l r = holoVBox [l, r]
---   mempty      = Item () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty UnitVisual
-
-emptyHolo ∷ (Monoid (HIArea a), Monoid (HIVisual a ())) ⇒ Item a
-emptyHolo =
-  Item () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty mempty
-
-emptyLayoutHolo ∷ Item PLayout
-emptyLayoutHolo =
-  Item () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty ()
-
-emptyVisualHolo ∷ HasCallStack ⇒ Item PVisual
-emptyVisualHolo =
-  Item () blankIdToken (Style UnitStyle (StyleGene 0)) mempty [] (Di $ V2 Nothing Nothing) mempty Nothing
-
-
-instance Flex (Item PBlank) where
-  geo      f hi@Item{..} = (\x→ hi {hiGeo=x})       <$> f hiGeo
-  size     f hi@Item{..} = (\x→ hi {hiSize=x})      <$> f hiSize
-  children f hi@Item{..} = (\x→ hi {hiChildren=x})  <$> f hiChildren
-  area     f hi@Item{..} = (\_→ hi {hiArea=mempty}) <$> f mempty
-
-instance Flex (Item PLayout) where
-  geo      f hi@Item{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
-  size     f hi@Item{..} = (\x→ hi {hiSize=x})     <$> f hiSize
-  children f hi@Item{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
-  area     f hi@Item{..} = (\x→ hi {hiArea=x})     <$> f hiArea
-
-instance Flex (Item PVisual) where
-  geo      f hi@Item{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
-  size     f hi@Item{..} = (\x→ hi {hiSize=x})     <$> f hiSize
-  children f hi@Item{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
-  area     f hi@Item{..} = (\x→ hi {hiArea=x})     <$> f hiArea
 
 
 -- | 'Item': raison d'etre: type-free payload of Flex's item tree.
@@ -180,107 +118,49 @@ drawHolotreeVisuals frame root = loop (luOf (hiArea root)^.lu'po) "" root
       forM_ hiChildren $ loop ourOff (pfx <> "  ")
 
 
--- * Internal nodes
-data KNode
-  = VBox
-  | HBox
-  deriving Typeable
-
-data Node (k ∷ KNode) where
-  HBoxN ∷ Node HBox
-  VBoxN ∷ Node VBox
-  deriving Typeable
-
-boxAxis ∷ Node a → Axis
-boxAxis = \case
-  HBoxN → X
-  VBoxN → Y
-
-instance DefStyleOf (StyleOf (Node k)) where
-  defStyleOf             = NodeStyle
-instance Typeable k ⇒ Holo   (Node (k ∷ KNode)) where
-  data StyleOf  (Node k) = NodeStyle
-  data VisualOf (Node k) = NodeVisual
-  query        _ _ xs box =
-    -- Requirement is a sum of children requirements
-    pure $ (Just <$>) $ _reqt'di $ foldl' (reqt'add $ boxAxis box) zero $ (\x→ Reqt (fromMaybe 0 <$> x^.Flex.size)) <$> xs
-
-nodeGeo ∷ Node k → Geo
--- nodeGeo HBoxN = mempty & Flex.grow .~ 1 & Flex.direction .~ Flex.DirRow
--- nodeGeo VBoxN = mempty & Flex.grow .~ 1 & Flex.direction .~ Flex.DirColumn
-nodeGeo HBoxN = mempty
-                -- & Flex.grow .~ 1
-                & Flex.direction .~ Flex.DirRow
-                & Flex.align'content .~ Flex.AlignStart
-nodeGeo VBoxN = mempty
-                -- & Flex.grow .~ 1
-                & Flex.direction .~ Flex.DirColumn
-                & Flex.align'content .~ Flex.AlignStart
-
-
--- * Layout tree Item constructors
+-- * Lifted records
 --
--- XXX: this FromUnit constraint is a genuine pain.
+liftRecord ∷ ∀ t m a. (Holo a, RGLFW t m, Record t m a) ⇒ InputMux t → a → m (W t a)
+liftRecord eventsV initialV = unO $ recover (Proxy @(RGLFW t m)) (Proxy @t) (eventsV, initialV)
 
-item ∷ ∀ a. (Holo a)
-  ⇒ IdToken
-  → Style a
-  → a
-  → Geo
-  → [Item PBlank]
-  → Item PBlank
-item hiToken hiStyle holo hiGeo hiChildren =
-  let hiSize   = Di (V2 Nothing Nothing)
-      hiArea   = ()
-      hiVisual = ()
-  in Item{..}
+-- instance {-# OVERLAPPABLE #-} (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
+--   type CLiftW t m a = MonadicRecord t m a
+--   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputMux t → a → m (W t a)
+--   liftW = liftRecord
 
-node ∷ ∀ a k. (Holo a, a ~ Node k)
-  ⇒ IdToken
-  → Style a
-  → a
-  → [Item PBlank]
-  → Item PBlank
-node idToken style holo =
-  item idToken style holo (nodeGeo holo)
+instance Functor (Derived t) where
+  fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
 
-leafStyled ∷ Holo a
-  ⇒ IdToken
-  → Style a
-  → a
-  → Item PBlank
-leafStyled tok hiStyle holo =
-  item tok hiStyle holo mempty []
+instance Reflex t ⇒ Applicative (Derived t) where
+  pure x = W (mempty, constDyn (x, vbox []))
+  W (fsubs, fvals) <*> W (xsubs, xvals) =
+    W $ (,)
+    (zipDynWith (<>) fsubs xsubs)
+    (zipDynWith ((\(f,   fhb)
+                   (  x, xhb@Item{..})→
+                   (f x, xhb { hiChildren = fhb : hiChildren })))
+      fvals xvals)
 
-leaf ∷ Holo a
-  ⇒ IdToken
-  → a
-  → Item PBlank
-leaf tok holo = leafStyled tok (initStyle $ compStyle holo) holo
+instance {-# OVERLAPPABLE #-} (Holo a, d ~ Derived t, RGLFW t m, MonadicRecord t m u) ⇒ Field t m u a where
+  fieldCtx _ (mux, x) proj = (mux, proj x)
+  readField _ _ (mux, initV) (FieldName fname) = O $ do
+    tok ← liftIO newId
+    let package x = hbox [leaf tok defStyle (fname <> ": "), x]
+    W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftW mux initV
 
-static ∷ (Holo a, RGLFW t m)
-  ⇒ a
-  → m (Dynamic t HoloBlank)
-static holo =
-  constDyn ∘ flip leaf holo <$> newId
-
--- liftHolo ∷ ∀ t m a. (Holo a, ReflexGLFWCtx t m) ⇒ Dynamic t a → WidgetM t m HoloBlank
--- liftHolo h = do
---   tok ← newId
---   pure $ ( constDyn $ subscription (Proxy ∷ Proxy a) tok
---          , h <&> \x→ Holo.leafStyled tok (initStyle $ compStyle x) x)
-
-
--- * Pre-package tree constructors
---
-vbox, hbox ∷ [Item PBlank] → Item PBlank
--- XXX: here's trouble -- we're using blankIdToken!
-hbox = node blankIdToken (initStyle NodeStyle) (HBoxN ∷ Node HBox)
-vbox = node blankIdToken (initStyle NodeStyle) (VBoxN ∷ Node VBox)
+instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
+         , (∀ xs. (SOP.Code a ~ '[xs], SOP.All (Field t m a) xs))
+         , RGLFW t m
+         ) ⇒ Record t m a where
+  type RecordCtx t a = (InputMux t, a)
+  prefixChars _ = 3
+  consCtx _ _ _ = id
+  toFieldName _ = (⊥)
+  nameMap       = (⊥)
 
 
 -- * Leaves
-
+--
 data Rect where
   Rect ∷
     { _rectDim   ∷ Di (Unit PU)
@@ -346,8 +226,8 @@ instance Holo  T.Text where
     , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
     , _tsColor       = white
     }
-  subscription _ tok = subSingleton tok editMaskKeys
-  liftDyn initial ev =
+  subscription tok _ = subSingleton tok editMaskKeys
+  liftHoloDyn initial ev =
     (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
   query port@Port{..} TextStyle{..} _ content = do
     let font = portFont' port _tsFontKey -- XXX: non-total

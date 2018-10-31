@@ -103,18 +103,19 @@ class (Monad m) ⇒ Field t m u s where
 newtype FieldName = FieldName { fromFieldName ∷ Text } deriving (Eq, IsString, Ord, Show)
 type ADTChoiceT        = Int
 
-class (Monad m, SOP.Generic s, SOP.HasDatatypeInfo s) ⇒ Record t m s where
-  type RecordCtx t s ∷ Type
-  consCtx           ∷ Proxy (t, m s)           -- ^ Given a bunch of proxies
+class ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
+      ) ⇒ Record t m a where
+  type RecordCtx t a ∷ Type
+  consCtx           ∷ Proxy (t, m a)           -- ^ Given a bunch of proxies
                     → Text                     -- ^ …the constructor's name
                     → ADTChoiceT               -- ^ …its number
-                    → RecordCtx t s            -- ^ …the record recovery context
-                    → ConsCtx   t s            -- ^ …produce the constructor recovery context.
-  prefixChars       ∷ Proxy (s, t, m s)        -- ^ Given a bunch of proxies
+                    → RecordCtx t a            -- ^ …the record recovery context
+                    → ConsCtx   t a            -- ^ …produce the constructor recovery context.
+  prefixChars       ∷ Proxy (a, t, m a)        -- ^ Given a bunch of proxies
                     → Int                      -- ^ …tell how many prefix characters to drop from field names.
-  nameMap           ∷ Proxy (s, t, m s)        -- ^ Given the type of the record
+  nameMap           ∷ Proxy (a, t, m a)        -- ^ Given the type of the record
                     → [(Text, Text)]           -- ^ …produce the partial field renaming map.
-  toFieldName       ∷ Proxy (s, t, m s)        -- ^ Given the type of the record
+  toFieldName       ∷ Proxy (a, t, m a)        -- ^ Given the type of the record
                     → Text                     -- ^ …the record's field name
                     → FieldName                -- ^ …produce the serialised field name.
   -- *

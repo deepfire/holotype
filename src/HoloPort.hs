@@ -67,29 +67,6 @@ import           Flatland
 import qualified HoloCairo                         as Cr
 
 
--- * Drawable identity support
-
-newId ∷ (HasCallStack, MonadIO m) ⇒ m IdToken
-newId = liftIO $ do
-  tok ← U.newUnique
-  trev ALLOC TOK (U.hashUnique tok) (U.hashUnique tok)
-  pure $ IdToken tok
-
-blankIdToken'      ∷ IO.IORef IdToken
-blankIdToken'      = IO.unsafePerformIO $ IO.newIORef  undefined
-blankIdToken'setup ∷ IO ()
-blankIdToken'setup = IO.writeIORef blankIdToken' =<< newId
-blankIdToken       ∷ IdToken
-blankIdToken       = IO.unsafePerformIO $ IO.readIORef blankIdToken'
-{-# NOINLINE blankIdToken #-}
-
-tokenHash ∷ IdToken → Int
-tokenHash = U.hashUnique ∘ fromIdToken
-
-tokenDesc ∷ IdToken → String
-tokenDesc = const ""
-
-
 -- * Could benefit from:
 --
 -- updateTM ∷ ∀ t x proxy. Typeable t ⇒ proxy t → (TM.Item x t → TM.Item x t) → TM.TypeMap x → TM.TypeMap x

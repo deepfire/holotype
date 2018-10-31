@@ -24,7 +24,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports -Wno-type-defaults -Wno-orphans #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports -Wno-type-defaults -Wno-orphans -fconstraint-solver-iterations=0 #-}
 module Holotype where
 
 import           Control.Arrow
@@ -140,29 +140,6 @@ routeInput inputE pickedE subsD = do
   pure $ fanMap routed
 
 
-
-liftDynHolo ∷ ∀ a t m. (Holo a, RGLFW t m) ⇒ Dynamic t a → m (W t a)
-liftDynHolo h = do
-  tok ← newId
-  pure $ W ( constDyn $ subscription (Proxy @a) tok
-           , h <&> \x→ (,) x $ Holo.leafStyled tok (initStyle $ compStyle x) x)
-
-liftHoloStyled ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputMux t → Behavior t (Style a) → a → m (W t a)
-liftHoloStyled mux styleB initial = do
-  tok  ← newId
-  let rawD = liftDyn initial $ select mux $ Const2 tok
-  valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$> rawD
-  pure $ W ( constDyn $ subscription (Proxy @a) tok
-           , valD)
-
-liftHolo ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputMux t → a → m (W t a)
-liftHolo mux initial = do
-  tok  ← newId
-  valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$>
-         (liftDyn initial $ select mux $ Const2 tok)
-  pure $ W ( constDyn $ subscription (Proxy @a) tok
-           , valD)
-
 -- mkTextEntryStyleD ∷ RGLFW t m ⇒ InputMux t → Behavior t (Style Text) → Text → m (W t (Text, HoloBlank))
 -- mkTextEntryStyleD mux styleB initialV = do
 --   tokenV       ← newId
@@ -178,7 +155,7 @@ mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
   -- (subD, textD) ← mkTextEntryStyleD mux styleB initialV
-  W (subD, textD) ← liftHolo mux initialV
+  W (subD, textD) ← liftW mux initialV
   initial ← sample $ current textD
   foldDyn (\(new, newHoloi) (oldValid, _)→
                (if testF new then new else oldValid, newHoloi))
@@ -193,7 +170,7 @@ vboxD chi = do
                       , zipDynWith (:) hb hbs ))
             (constDyn mempty, constDyn [])
             chi
-  pure $ (id *** (Holo.vbox <$>)) dyn
+  pure $ (id *** (vbox <$>)) dyn
 
 
 
@@ -218,10 +195,19 @@ trackStyle sof = do
 
 
 
+data MegaSub where
+  MegaSub ∷
+    { suSub1    ∷ Text
+    , suSub2    ∷ Text
+    } → MegaSub
+    deriving (Eq, GHC.Generic, Show)
+instance SOP.Generic         MegaSub
+instance SOP.HasDatatypeInfo MegaSub
+
 data AnObject where
   AnObject ∷
     { objName   ∷ Text
-    , objValue  ∷ Text
+    , objValue  ∷ MegaSub
     , objLol    ∷ Text
     -- , objDPI    ∷ DΠ
     -- , objDim    ∷ Di Int
@@ -229,30 +215,6 @@ data AnObject where
     deriving (Eq, GHC.Generic, Show)
 instance SOP.Generic         AnObject
 instance SOP.HasDatatypeInfo AnObject
-
-instance (Holo a, d ~ Derived t, RGLFW t m) ⇒ Field t m u a where
-  fieldCtx _ (mux, x) proj = (mux, proj x)
-  readField _ _ (mux, initV) (FieldName fname) = O $ do
-    labelId ← liftIO newId
-    let package x = Holo.hbox [Holo.leaf labelId (fname <> ": "), x]
-    W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftHolo mux initV
-instance (SOP.Generic a, SOP.HasDatatypeInfo a, RGLFW t m) ⇒ Record t m a where
-  prefixChars _ = 3
-  type RecordCtx t a = (InputMux t, a)
-  consCtx _ _ _ = id
-
-instance Functor (Derived t) where
-  fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
-
-instance Reflex t ⇒ Applicative (Derived t) where
-  pure x = W (mempty, constDyn (x, Holo.vbox []))
-  W (fsubs, fvals) <*> W (xsubs, xvals) =
-    W $ (,)
-    (zipDynWith (<>) fsubs xsubs)
-    (zipDynWith ((\(f,   fhb)
-                   (  x, xhb@Item{..})→
-                   (f x, xhb { hiChildren = fhb : hiChildren })))
-      fvals xvals)
 
 scene ∷ ∀ t m. ( RGLFW t m
                , Typeable t)
@@ -263,43 +225,63 @@ scene ∷ ∀ t m. ( RGLFW t m
   → m (WH t)
 scene muxV statsValD frameNoD fpsValueD = mdo
 
-  fpsD             ← liftDynHolo  (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
-  statsD           ← liftDynHolo $ statsValD <&>
+  fpsD             ← liftDynW'  (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  statsD           ← liftDynW' $ statsValD <&>
                      \(mem)→ T.pack $ printf "mem: %d" mem
 
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
-  rectD            ← liftDynHolo $ zipDynWith Holo.Rect rectDiD (constDyn $ co 1 0 0 1)
-  frameCountD      ← liftDynHolo $ T.pack ∘ printf "frame #%04d" <$> frameNoD
+  rectD            ← liftDynW' $ zipDynWith Holo.Rect rectDiD (constDyn $ co 1 0 0 1)
+  frameCountD      ← liftDynW' $ T.pack ∘ printf "frame #%04d" <$> frameNoD
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
-  varlenTextD      ← liftDynHolo $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
+  varlenTextD      ← liftDynW' $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  xDD@(W (_, xDDv)) ∷ W t AnObject ← unO $ recover (Proxy @(RGLFW t m)) (Proxy @t)
-                       (muxV, AnObject "yayyity" "zeroes" "lol")
+  -- * Could not deduce: SOP.Code Text
+  --                     ~ '[Data.SOP.Constraint.Head (SOP.Code Text)]
+  --     arising from a use of `Holo.liftRecord'
+  --   from the context: (RGLFW t m, Typeable t)
+  --     bound by the type signature for:
+  --                scene :: forall t (m :: * -> *).
+  --                         (RGLFW t m, Typeable t) =>
+  --                         InputMux t
+  --                         -> Dynamic t Integer
+  --                         -> Dynamic t Int
+  --                         -> Dynamic t Double
+  --                         -> m (WH t)
+  -- liftRecord ∷ ∀ t m a xs. (Holo a, RGLFW t m, Record t m a) ⇒ InputMux t → a → m (W t a)
+  -- ... which is due to:
+  -- default readField ∷ ( HasCallStack, c
+  --                     , Record t m s
+  --                     , SOP.HasDatatypeInfo s, SOP.Generic s, GHC.Generic s
+  --                     , Code s ~ xss, xss ~ '[xs]
+  --                     , All2 (Field t m s) xss
+  --                     , FieldCtx t s ~ RecordCtx t s
+  --                     , Applicative (Derived t))
+  xDD@(W (_, xDDv)) ∷ W t AnObject ← Holo.liftRecord muxV (AnObject "yayyity" (MegaSub "s0" "s1") "lol")
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
 
-  longStaticTextD  ← liftDynHolo $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
+  longStaticTextD  ← liftDynW' $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
   let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
 
   W styleEntryD ← mkTextEntryValidatedStyleD muxV styleB "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
 
-  styleD           ← trackStyle $ fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) (value styleEntryD))
+  styleD           ← trackStyle $ fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) (snd styleEntryD))
   let styleB        = current styleD
 
   -- text2HoloQD      ← mkTextEntryStyleD muxV styleB "watch me"
 
-  vboxD [ trim $ frameCountD
+  vboxD [ wWH $ frameCountD
         -- , (snd <$>) <$> text2HoloQD
         , (snd <$>) <$> styleEntryD
-        -- , trim xD
-        , trim xDD
-        , trim $ rectD
-        , trim $ fpsD
-        , trim $ longStaticTextD
-        , trim $ statsD
-        , trim $ varlenTextD ]
+        -- , wWH xD
+        , wWH xDD
+        , wWH $ rectD
+        , wWH $ fpsD
+        , wWH $ longStaticTextD
+        , wWH $ statsD
+        , wWH $ varlenTextD ]
 
 
 
@@ -311,15 +293,6 @@ parseOptions ∷ Opt.Parser Options
 parseOptions =
   Options
   <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
-
--- liftHolo' ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ a → MW t m a
-liftHolo' ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ a → m (Dynamic t Subscription, Dynamic t (a, HoloBlank))
-liftHolo' initial = do
-  tok  ← newId
-  valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$>
-         (liftDyn initial $ select (undefined) $ Const2 tok)
-  pure ( constDyn $ subscription (Proxy @a) tok
-       , valD)
 
 -- * Top level network
 --
