@@ -1,3 +1,7 @@
+GHC  ?= $(shell echo $$(cat default-compiler.nix) | tr -d '"')
+GHCD := $(shell echo $(GHC) | sed 's/ghc843/8.4.3/;s/ghc861/8.6.1/')
+$(warning Using ghc-$(GHCD))
+
 all: holotype
 
 doc:
@@ -45,7 +49,7 @@ ccrs: cairostress
 
 SRCS=$(wildcard *.hs src/*.hs src/*/*.hs)
 ## BUILDBASE=dist/build
-BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-8.4.3/holotype-0.0.1/x
+BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-$(GHCD)/holotype-0.0.1/x
 HOLOTYPE=$(BUILDBASE)/holotype/build/holotype/holotype
 $(HOLOTYPE): $(SRCS)
 	cabal new-build exe:holotype
@@ -55,7 +59,7 @@ $(HOLOTYPE): $(SRCS)
 clean:
 	cabal clean
 	rm dist dist-newstyle -rf
-	rm -f {,src/}*.{o,hi,dyn_hi,dyn_o,hs~} *~ *.json *.hp *.lprof *.bin
+	rm -f {,src/}*.{o,hi,dyn_hi,dyn_o,hs~} *~ *.hp *.lprof *.bin
 cls:
 	echo -en '\ec'
 
@@ -123,10 +127,10 @@ res resources:
 
 #
 #
-package:             GHC ?= 843
+package:
 package:
 	nix-build packages.nix -A ${NAME} --argstr compiler ghc${GHC} --show-trace --cores 0 --no-out-link
-list-shell-failures: GHC ?= 843
+list-shell-failures:
 list-shell-failures:
 	nix-shell shell.nix               --argstr compiler ghc${GHC} --show-trace --cores 1 --max-jobs 1 --keep-going
 
