@@ -127,6 +127,7 @@ pangoCairoCreateContext cr = liftIO $ do
     return $ GIP.Context $ GI.ManagedPtr
              { GI.managedForeignPtr = fPtr
              , GI.managedPtrIsDisowned = isDisownedRef
+             , GI.managedPtrAllocCallStack = Nothing
              }
 
 foreign import ccall "pango_layout_new" pango_layout_new ::
@@ -154,6 +155,7 @@ pangoLayoutNew context = liftIO $ do
     return $ GIP.Layout $ GI.ManagedPtr
              { GI.managedForeignPtr = fPtr
              , GI.managedPtrIsDisowned = isDisownedRef
+             , GI.managedPtrAllocCallStack = Nothing
              }
 
 

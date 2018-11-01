@@ -56,7 +56,7 @@ import qualified LambdaCube.GL.Mesh                as GL
 import qualified LambdaCube.GL.Type                as GL
 import qualified LambdaCube.Linear                 as LCLin
 import           Reflex                            hiding (Query, Query(..))
-import           Reflex.GLFW                              (RGLFW, InputU(..))
+import           Reflex.GLFW                              (RGLFW)
 import qualified System.IO.Unsafe                  as IO
 import qualified Unsafe.Coerce                     as Co
 
@@ -111,12 +111,12 @@ viomapAdd  (VIOMap m) p k v = liftIO $ do
     \tm→ TM.insert p (Map.insert k v $ fromMaybe Map.empty $ TM.lookup p tm) tm
     -- \tm→ update p (\idm→ Map.insert k v idm) tm
 
-viomapDrop ∷ (MonadIO m, Typeable a) ⇒ VIOMap → Proxy (a ∷ *) → IdToken → m ()
+viomapDrop ∷ (MonadIO m, Typeable a) ⇒ VIOMap → Proxy (a ∷ Type) → IdToken → m ()
 viomapDrop (VIOMap m) p k = liftIO $ do
   STM.atomically $ STM.modifyTVar' m $
     \tm→ TM.insert p (Map.delete k $ fromMaybe Map.empty $ TM.lookup p tm) tm
 
-viomapHas ∷ (MonadIO m, Typeable a) ⇒ VIOMap → Proxy (a ∷ *) → IdToken → m Bool
+viomapHas ∷ (MonadIO m, Typeable a) ⇒ VIOMap → Proxy (a ∷ Type) → IdToken → m Bool
 viomapHas iomap p k = isJust ∘ join ∘ (Map.lookup k <$>) ∘ TM.lookup p <$> viomapAccess iomap
 
 
@@ -237,7 +237,7 @@ portPick port@Port{portSettings=Settings{sttsScreenDim=dim}} pos = do
   -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
   GL.glDisable GL.GL_FRAMEBUFFER_SRGB
   portDrawFrame port PipePick
-  let Just glRenderer = portPipeline port PipePick
+  let glRenderer = fromJust $ portPipeline port PipePick
       (fromIntegral → fb)
         = case GL.glOutputs glRenderer of
             [GL.GLOutputRenderTexture fbo _rendTex] → fbo

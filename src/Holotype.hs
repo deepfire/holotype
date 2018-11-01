@@ -148,7 +148,7 @@ liftDynHolo h = do
            , h <&> \x→ (,) x $ Holo.leafStyled tok (initStyle $ compStyle x) x)
 
 liftHoloStyled ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputMux t → Behavior t (Style a) → a → m (W t a)
-liftHoloStyled mux style initial = do
+liftHoloStyled mux styleB initial = do
   tok  ← newId
   let rawD = liftDyn initial $ select mux $ Const2 tok
   valD ← ((id &&& \x→ Holo.leafStyled tok (initStyle $ compStyle x) x) <$>) <$> rawD

@@ -2,7 +2,7 @@
 {-# LANGUAGE DataKinds, GADTs, NoMonomorphismRestriction, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
 {-# LANGUAGE LambdaCase, OverloadedLists, OverloadedStrings, PackageImports, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, TypeOperators, ViewPatterns #-}
 {-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
 module Holo
   (
   -- * Define this:
@@ -43,9 +43,7 @@ import           Linear
 import           Prelude                           hiding ((.), id)
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW                              (RGLFW, InputU(..))
-import qualified Data.Map.Monoidal.Strict          as MMap
 import qualified Data.Map.Strict                   as Map
-import qualified Data.Sequence                     as Seq
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
 import qualified GI.Pango                          as GIP
