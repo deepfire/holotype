@@ -207,7 +207,6 @@ instance SOP.HasDatatypeInfo MegaSub
 data AnObject where
   AnObject ∷
     { objName   ∷ Text
-    , objValue  ∷ MegaSub
     , objLol    ∷ Text
     -- , objDPI    ∷ DΠ
     -- , objDim    ∷ Di Int
@@ -235,28 +234,7 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynW' $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  -- * Could not deduce: SOP.Code Text
-  --                     ~ '[Data.SOP.Constraint.Head (SOP.Code Text)]
-  --     arising from a use of `Holo.liftRecord'
-  --   from the context: (RGLFW t m, Typeable t)
-  --     bound by the type signature for:
-  --                scene :: forall t (m :: * -> *).
-  --                         (RGLFW t m, Typeable t) =>
-  --                         InputMux t
-  --                         -> Dynamic t Integer
-  --                         -> Dynamic t Int
-  --                         -> Dynamic t Double
-  --                         -> m (WH t)
-  -- liftRecord ∷ ∀ t m a xs. (Holo a, RGLFW t m, Record t m a) ⇒ InputMux t → a → m (W t a)
-  -- ... which is due to:
-  -- default readField ∷ ( HasCallStack, c
-  --                     , Record t m s
-  --                     , SOP.HasDatatypeInfo s, SOP.Generic s, GHC.Generic s
-  --                     , Code s ~ xss, xss ~ '[xs]
-  --                     , All2 (Field t m s) xss
-  --                     , FieldCtx t s ~ RecordCtx t s
-  --                     , Applicative (Derived t))
-  xDD@(W (_, xDDv)) ∷ W t AnObject ← Holo.liftRecord muxV (AnObject "yayyity" (MegaSub "s0" "s1") "lol")
+  xDD@(W (_, xDDv)) ←Holo.liftRecord muxV (AnObject "yayyity" "lol")
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
 

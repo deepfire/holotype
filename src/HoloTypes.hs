@@ -7,7 +7,7 @@
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude #-}
 {-# OPTIONS_GHC -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations #-}
-{-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields #-}
+{-# OPTIONS_GHC -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures #-}
 
 module HoloTypes
   ( module HoloCairo
@@ -27,6 +27,7 @@ module HoloTypes
   --
   , Drawable(..)
   , Visual(..)
+  , VisualOf(..)
   --
   , Input(..)
   , inputMatch

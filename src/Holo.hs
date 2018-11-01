@@ -31,10 +31,9 @@ where
 import           Control.Arrow
 import           Control.Compose
 import           Control.Monad
-import           Data.Functor.Misc                        (Const2(..))
+import           Data.Proxy
 import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
-import           Data.Typeable
 import           Generics.SOP.Monadic
 import           Linear
 import           Prelude                           hiding ((.), id)
@@ -51,11 +50,9 @@ import qualified Reflex.GLFW                       as GLFW
 -- Local imports
 import           Elsewhere
 import           Flatland
-import           Flex                                     (Flex, Geo)
 import           HoloPort
 import           HoloPrelude
 import           HoloTypes
-import qualified Flex                              as Flex
 import qualified HoloCairo                         as Cr
 
 
@@ -106,25 +103,33 @@ renderHolotreeVisuals port hoi@Item{..} = do
   forM_ hiChildren (renderHolotreeVisuals port)
 
 drawHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → Item PVisual → m ()
-drawHolotreeVisuals frame root = loop (luOf (hiArea root)^.lu'po) "" root
+drawHolotreeVisuals frame root = recur (luOf (hiArea root)^.lu'po) "" root
   where
-    loop parOff pfx Item{..} = do
+    recur parOff pfx Item{..} = do
       -- liftIO $ putStrLn $ pfx <> show (offset ^.po'v) <> " " <> Flex.ppItemArea i
       let ourOff = parOff + luOf hiArea^.lu'po
       case hiVisual of
         Just Visual{vDrawable=Just drw} →
           framePutDrawable frame drw (doubleToFloat <$> ourOff)
         _ → pure ()
-      forM_ hiChildren $ loop ourOff (pfx <> "  ")
+      forM_ hiChildren $ recur ourOff (pfx <> "  ")
 
 
 -- * Lifted records
 --
-liftRecord ∷ ∀ t m a. (Holo a, RGLFW t m, Record t m a) ⇒ InputMux t → a → m (W t a)
+liftRecord ∷ ∀ t m a xs.
+  ( RGLFW t m, Record t m a
+  , SOP.Code a ~ '[xs]
+  , SOP.All (Field t m a) xs
+  ) ⇒ InputMux t → a → m (W t a)
 liftRecord eventsV initialV = unO $ recover (Proxy @(RGLFW t m)) (Proxy @t) (eventsV, initialV)
 
--- instance {-# OVERLAPPABLE #-} (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
---   type CLiftW t m a = MonadicRecord t m a
+-- instance {-# OVERLAPPABLE #-}
+--   (Typeable a
+--   , DefStyleOf (StyleOf a)
+--   , ∀ xs. SOP.Code a ~ '[xs]
+--   ) ⇒ Holo a where
+--   type CLiftW t m a = ()
 --   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputMux t → a → m (W t a)
 --   liftW = liftRecord
 
@@ -141,7 +146,7 @@ instance Reflex t ⇒ Applicative (Derived t) where
                    (f x, xhb { hiChildren = fhb : hiChildren })))
       fvals xvals)
 
-instance {-# OVERLAPPABLE #-} (Holo a, d ~ Derived t, RGLFW t m, MonadicRecord t m u) ⇒ Field t m u a where
+instance {-# OVERLAPPABLE #-} (Holo a, d ~ Derived t, RGLFW t m) ⇒ Field t m u a where
   fieldCtx _ (mux, x) proj = (mux, proj x)
   readField _ _ (mux, initV) (FieldName fname) = O $ do
     tok ← liftIO newId
@@ -149,14 +154,13 @@ instance {-# OVERLAPPABLE #-} (Holo a, d ~ Derived t, RGLFW t m, MonadicRecord t
     W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftW mux initV
 
 instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
-         , (∀ xs. (SOP.Code a ~ '[xs], SOP.All (Field t m a) xs))
          , RGLFW t m
          ) ⇒ Record t m a where
   type RecordCtx t a = (InputMux t, a)
   prefixChars _ = 3
   consCtx _ _ _ = id
-  toFieldName _ = (⊥)
-  nameMap       = (⊥)
+  -- toFieldName _ = (⊥)
+  -- nameMap       = (⊥)
 
 
 -- * Leaves

@@ -36,12 +36,10 @@ import qualified Data.Aeson.Encode.Pretty          as AE
 import qualified Data.ByteString                   as B
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
-import qualified Data.IORef                        as IO
 import qualified Data.List                         as L
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Text                         as T
 import qualified Data.TypeMap.Dynamic              as TM
-import qualified Data.Unique                       as U
 import qualified Data.Vect                         as Vc
 import qualified Data.Vector                       as V
 import qualified Data.Vector.Storable.ByteString   as B
@@ -57,7 +55,6 @@ import qualified LambdaCube.GL.Type                as GL
 import qualified LambdaCube.Linear                 as LCLin
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW                              (RGLFW)
-import qualified System.IO.Unsafe                  as IO
 import qualified Unsafe.Coerce                     as Co
 
 -- Local imports
