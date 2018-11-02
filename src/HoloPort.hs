@@ -105,6 +105,19 @@ portSetVSync x = liftIO $ GL.swapInterval $ case x of
                                               True  → 1
                                               False → 0
 
+defaultSettings ∷ Settings
+defaultSettings =
+  let sttsDΠ ∷ DΠ         = 96
+      sttsFontPreferences = Cr.FontPreferences
+        [ ("default",     Left $ Cr.Alias "defaultMono" )
+        , ("defaultSans", Right $ [ Cr.FontSpec "Bitstream Charter" "Regular" $ Cr.Outline (PUs 16)
+                                  , Cr.FontSpec "Aurulent Sans"     "Regular" $ Cr.Outline (PUs 16) ])
+        , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (PUs 15) LT ])
+        ]
+      sttsScreenMode      = Windowed
+      sttsScreenDim       = di 800 600
+  in Settings{..}
+
 portCreate ∷ RGLFW t m ⇒ Dynamic t GL.Window → Dynamic t Settings → m (Dynamic t (Maybe Port))
 portCreate winD sttsD = do
   liftIO $ blankIdToken'setup
@@ -136,9 +149,63 @@ portCreate winD sttsD = do
 
   holdDyn Nothing portE
 
-portUpdateSettings ∷ (MonadIO m) ⇒ Port → Settings → m (Port)
-portUpdateSettings port portSettings = do
-  pure $ port { portSettings = portSettings }
+portShutdown ∷ (MonadIO m) ⇒ Port → m ()
+portShutdown Port{..} = liftIO $ do
+  _ ← traverse GL.disposeRenderer portPipelines
+  GL.destroyWindow portWindow
+
+mkPipePickText ∷ ObjArrayNameS → Di Int → SB.ByteString
+mkPipePickText oans (Di di) = SB.unlines
+  [ "type FB = FrameBuffer 1 '[ 'Color (Vec 4 Int)]"
+  , ""
+  , "intV4I :: Int -> Vec 4 Int"
+  , "intV4I x = V4"
+  , "  ((x)            % 256) -- XXX: this is suboptimal, but we can't use shifts"
+  , "  ((x / 256)      % 256) --      because of the shifts not supported by WebGL 1"
+  , "  ((x / 65536)    % 256)"
+  , "  ((x / 16777216) % 256)"
+  , ""
+  , "scene :: String -> FB -> FB"
+  , "scene name prevFB ="
+  , "  Accumulate    ((ColorOp NoBlending (one :: Vec 4 Bool)))"
+  , "  (mapFragments (\\(uv, rgba) -> ((rgba)))"
+  , "   $ rasterizePrimitives (TriangleCtx CullFront PolygonFill NoOffset LastVertex) (Flat, Flat)"
+  , "   $ mapPrimitives"
+  , "    (\\(pos, _, id)->"
+  , "      ( (Uniform \"viewProj\" :: Mat 4 4 Float) *. (V4 pos%x pos%y 0 1)"
+  , "      , V2 0.0 0.0"
+  , "      , intV4I id))"
+  , "    $ fetch name ( Attribute \"position\"   :: Vec 3 Float"
+  , "                 , Attribute \"uv\"         :: Vec 2 Float"
+  , "                 , Attribute \"id\"         :: Int))"
+  , "  prevFB"
+  , ""
+  , "main :: Output"
+  , "main = TextureOut ("<> SB.pack (show di) <>") $"
+  , "       scene \""<> SB.pack (fromOANS oans) <>"\" $"
+  , "       FrameBuffer ((colorImage1 (V4 0 0 0 0)))"
+  ]
+
+
+-- * Frames / framebuffers
+--
+portDrawFrame ∷ (MonadIO m) ⇒ Port → PipeName → m ()
+portDrawFrame Port{..} name = liftIO $ do
+  GL.renderFrame ∘ Data.Maybe.fromJust $ Map.lookup name portPipelines
+
+portWindowSize ∷ (MonadIO m) ⇒ GL.Window → m (Di Int)
+portWindowSize win = liftIO (GL.getFramebufferSize win)
+                     <&> uncurry (Di .: V2)
+
+portSetupFrame ∷ (MonadIO m) ⇒ Port → m Frame
+portSetupFrame Port{..} = liftIO $ do
+  let slotU           = GL.uniformSetter portGLStorage
+      overbrightBits  = 0
+  GL.uniformFloat "identityLight" slotU $ 1 / (2 ^ (overbrightBits ∷ Int)) -- used by lc:mkColor
+  -- XXX: shadow size computation
+  dim@(Di (V2 screenW screenH)) ← portWindowSize portWindow
+  GL.setScreenSize portGLStorage (fromIntegral screenW) (fromIntegral screenH)
+  pure $ Frame dim
 
 portNextFrame ∷ (MonadIO m) ⇒ Port → m Frame
 portNextFrame port@Port{..} = do
@@ -146,14 +213,74 @@ portNextFrame port@Port{..} = do
   liftIO $ GL.swapBuffers portWindow
   portSetupFrame port
 
-portFont  ∷ Port → Cr.FontKey → Maybe (Cr.Font Found PU)
-portFont Port{..} = Cr.lookupFont portFontmap
+-- | Picking is a perverse form of drawing.
+portPick ∷ MonadIO m ⇒ Port → Po Int → m IdToken
+portPick port@Port{portSettings=Settings{sttsScreenDim=dim}} pos = do
+  -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
+  GL.glDisable GL.GL_FRAMEBUFFER_SRGB
+  portDrawFrame port PipePick
+  let glRenderer = fromJust $ portPipeline port PipePick
+      (fromIntegral → fb)
+        = case GL.glOutputs glRenderer of
+            [GL.GLOutputRenderTexture fbo _rendTex] → fbo
+            outs → error $ "Unexpected outputs: " <> show outs
+  raw ← liftIO $ pickFrameBuffer fb dim pos
+  GL.glEnable GL.GL_FRAMEBUFFER_SRGB
+  let decoded ∷ Integer = fromIntegral raw
+  -- XXX: we're breaking the Unique-ness here!
+  -- TODO: fix this by maintaining a map from (hashUnique → k) to Unique
+  pure $ IdToken $ Co.unsafeCoerce decoded
 
-portFont' ∷ Port → Cr.FontKey → Cr.Font Found PU
-portFont' po fk = portFont po fk
-  & fromMaybe (Cr.errorMissingFontkey fk)
+-- The next couple of functions mostly stolen from lambdacube-gl/testclient.hs
+snapFrameBuffer ∷ (MonadIO m) ⇒ Di Int → m Juicy.DynamicImage
+snapFrameBuffer (Di (V2 w h)) = do
+  glFinish
+  glBindFramebuffer GL_READ_FRAMEBUFFER 0
+  -- glReadBuffer GL_FRONT
+  -- glBlitFramebuffer 0 0 (fromIntegral w) (fromIntegral h) 0 (fromIntegral h) (fromIntegral w) 0 GL_COLOR_BUFFER_BIT GL_NEAREST
+  glReadBuffer GL_BACK
+  bs ← liftIO $ withFrameBuffer w GL_RGBA 0 0 w h $ \p -> B.packCStringLen (F.castPtr p,w*h*4)
+  let v = B.byteStringToVector bs
+  pure $ Juicy.ImageRGBA8 $ Juicy.Image w h v
+
+pickFrameBuffer ∷ (MonadIO m)
+  ⇒ GLint       -- ^ framebuffer
+  → Di Int      -- ^ FB dimensions
+  → Po Int      -- ^ pick coordinates
+  → m F.Word32  -- ^ resultant pixel value
+pickFrameBuffer fb (Di (V2 w h)) (Po (V2 x y)) = do
+  glFinish
+  glBindFramebuffer GL_READ_FRAMEBUFFER $ fromIntegral fb
+  let (fbmode, format) =
+        if fb == 0
+        then (GL_BACK_LEFT,         GL_RGBA)
+        else (GL_COLOR_ATTACHMENT0, GL_RGBA_INTEGER)
+  glReadBuffer fbmode
+  liftIO $ withFrameBuffer w format x (h - y - 1) 1 1 $ \p -> F.peek (F.castPtr p ∷ F.Ptr F.Word32)
+
+withFrameBuffer ∷ Int → GLenum → Int → Int → Int → Int → (F.Ptr F.Word8 → IO a) → IO a
+withFrameBuffer rowLen format x y w h fn = F.allocaBytes (w*h*4) $ \p → do
+  glPixelStorei GL_UNPACK_LSB_FIRST    0
+  glPixelStorei GL_UNPACK_SWAP_BYTES   0
+  glPixelStorei GL_UNPACK_ROW_LENGTH   $ fromIntegral rowLen
+  glPixelStorei GL_UNPACK_IMAGE_HEIGHT 0
+  glPixelStorei GL_UNPACK_SKIP_ROWS    0
+  glPixelStorei GL_UNPACK_SKIP_PIXELS  0
+  glPixelStorei GL_UNPACK_SKIP_IMAGES  0
+  glPixelStorei GL_UNPACK_ALIGNMENT    1
+  glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) format GL_UNSIGNED_BYTE $ F.castPtr p
+  glPixelStorei GL_UNPACK_ROW_LENGTH   0
+  fn p
+
+deriving instance Show (GL.GLOutput)
+deriving instance Show (GL.GLTexture)
+
 
 -- * Pipelinistan
+--
+portPipeline ∷ Port → PipeName → Maybe GL.GLRenderer
+portPipeline Port{..} = flip Map.lookup portPipelines
+
 pipelineSchema ∷ [(ObjArrayNameS, UniformNameS)] → GL.PipelineSchema
 pipelineSchema schemaPairs =
   let arrays   = fromOANS ∘ view _1            <$> schemaPairs
@@ -188,65 +315,11 @@ buildPipelineForStorage storage pipelineSrc = liftIO $ do
         GL.setStorage renderer storage
       pure renderer
 
-portWindowSize ∷ (MonadIO m) ⇒ GL.Window → m (Di Int)
-portWindowSize win = liftIO (GL.getFramebufferSize win)
-                     <&> uncurry (Di .: V2)
-
-portSetupFrame ∷ (MonadIO m) ⇒ Port → m Frame
-portSetupFrame Port{..} = liftIO $ do
-  let slotU           = GL.uniformSetter portGLStorage
-      overbrightBits  = 0
-  GL.uniformFloat "identityLight" slotU $ 1 / (2 ^ (overbrightBits ∷ Int)) -- used by lc:mkColor
-  -- XXX: shadow size computation
-  dim@(Di (V2 screenW screenH)) ← portWindowSize portWindow
-  GL.setScreenSize portGLStorage (fromIntegral screenW) (fromIntegral screenH)
-  pure $ Frame dim
-
-portDrawFrame ∷ (MonadIO m) ⇒ Port → PipeName → m ()
-portDrawFrame Port{..} name = liftIO $ do
-  GL.renderFrame ∘ Data.Maybe.fromJust $ Map.lookup name portPipelines
-
-portPick ∷ MonadIO m ⇒ Port → Po Int → m IdToken
-portPick port@Port{portSettings=Settings{sttsScreenDim=dim}} pos = do
-  -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
-  GL.glDisable GL.GL_FRAMEBUFFER_SRGB
-  portDrawFrame port PipePick
-  let glRenderer = fromJust $ portPipeline port PipePick
-      (fromIntegral → fb)
-        = case GL.glOutputs glRenderer of
-            [GL.GLOutputRenderTexture fbo _rendTex] → fbo
-            outs → error $ "Unexpected outputs: " <> show outs
-  raw ← liftIO $ pickFrameBuffer fb dim pos
-  GL.glEnable GL.GL_FRAMEBUFFER_SRGB
-  let decoded ∷ Integer = fromIntegral raw
-  -- XXX: we're breaking the Unique-ness here!
-  -- TODO: fix this by maintaining a map from (hashUnique → k) to Unique
-  pure $ IdToken $ Co.unsafeCoerce decoded
-
-portPipeline ∷ Port → PipeName → Maybe GL.GLRenderer
-portPipeline Port{..} = flip Map.lookup portPipelines
-
-portShutdown ∷ (MonadIO m) ⇒ Port → m ()
-portShutdown Port{..} = liftIO $ do
-  _ ← traverse GL.disposeRenderer portPipelines
-  GL.destroyWindow portWindow
-
 
-defaultSettings ∷ Settings
-defaultSettings =
-  let sttsDΠ ∷ DΠ         = 96
-      sttsFontPreferences = Cr.FontPreferences
-        [ ("default",     Left $ Cr.Alias "defaultMono" )
-        , ("defaultSans", Right $ [ Cr.FontSpec "Bitstream Charter" "Regular" $ Cr.Outline (PUs 16)
-                                  , Cr.FontSpec "Aurulent Sans"     "Regular" $ Cr.Outline (PUs 16) ])
-        , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (PUs 15) LT ])
-        ]
-      sttsScreenMode      = Windowed
-      sttsScreenDim       = di 800 600
-  in Settings{..}
-
-
--- | A Pango/Cairo-capable 'Drawable' to display in a qPort.
+-- * A Pango/Cairo-capable 'Drawable' with an artificial identity.
+--
+portMakeDrawable ∷ (MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
+portMakeDrawable Port{..} = makeDrawable portObjectStream
 
 imageSurfaceGetPixels' :: GRC.Surface → IO (F.Ptr F.CUChar, V2 Int)
 imageSurfaceGetPixels' pb = do
@@ -256,9 +329,6 @@ imageSurfaceGetPixels' pb = do
   h ← GRC.imageSurfaceGetHeight pb
   r ← GRC.imageSurfaceGetStride pb
   return (pixPtr, V2 r h)
-
-portMakeDrawable ∷ (MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
-portMakeDrawable Port{..} = makeDrawable portObjectStream
 
 makeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → IdToken → Di Double → m Drawable
 makeDrawable dObjectStream@ObjectStream{..} ident dDi' = liftIO $ do
@@ -340,7 +410,8 @@ framePutDrawable (Frame (Di (V2 screenW screenH))) Drawable{..} (Po (V2 x y)) = 
   liftIO $ GL.uniformM44F "viewProj" (GL.objectUniformSetter $ dGLObject) $
     mat4ToM44F $! (Vc.fromProjective $! Vc.translation cvpos) Vc..*. toScreen
 
--- * From lambdacube-quake3
+
+-- * Math, some of it from lambdacube-quake3
 --
 vec4ToV4F ∷ Vec4 → LCLin.V4F
 vec4ToV4F (Vc.Vec4 x y z w) = LCLin.V4 x y z w
@@ -354,12 +425,40 @@ mat4ToM44F (Mat4 a b c d) = LCLin.V4 (vec4ToV4F a) (vec4ToV4F b) (vec4ToV4F c) (
 rotationEuler ∷ Vec3 → Vc.Proj4
 rotationEuler (Vec3 a b c) = Vc.orthogonal $ Vc.toOrthoUnsafe $ Vc.rotMatrixZ a Vc..*. Vc.rotMatrixX b Vc..*. Vc.rotMatrixY (-c)
 
+-- This one, while canonical, murders the projection.
+ortho ∷ Int → Int → Int → Int → Int → Int → Mat4
+ortho l' r' t' b' n' f' =
+  Vc.Mat4 (Vc.Vec4 (2/r-l) 0      0         (-(r+l)/(r-l)))
+          (Vc.Vec4  0     (2/t-b) 0         (-(t+b)/(t-b)))
+          (Vc.Vec4  0      0     ((-2)/f-n) (-(f+n)/(f-n)))
+          (Vc.Vec4  0      0      0         (1))
+  where (,,,,,) l r t b n f =
+          (,,,,,) (fromIntegral l') (fromIntegral r') (fromIntegral t') (fromIntegral b') (fromIntegral n') (fromIntegral f')
+
+orthoLU, orthoLB ∷ Int → Int → Mat4
+orthoLU w h = HoloPort.ortho 0 w h 0 1 (-1)
+orthoLB w h = HoloPort.ortho 0 w 0 h 1 (-1)
+
+-- | To screen space conversion matrix.
+screenM :: Int → Int → Mat4
+screenM w h = scaleM -- Vc..*. flipM
+  where (fw, fh) = (fromIntegral w, fromIntegral h)
+        scaleM = Vc.Mat4 (Vc.Vec4 (1/fw)  0     0 0)
+                         (Vc.Vec4  0     (1/fh) 0 0)
+                         (Vc.Vec4  0      0     1 0)
+                         (Vc.Vec4  0      0     0 0.5) -- where does that 0.5 factor COMEFROM?
+
+
 -- * Look up the visual and, if present, check compatibility with
 --   new requirements: style generation and size.
---   XXX: violates abstraction (fiddles with port and Holo's visual at the same time)
+--   XXX: violates abstraction:
+--     - Holo a ⇒ createVisual
+--     - portVisualTracker/viomapAccess/viomapAdd
+--     - mkVisual/freeVisualOf
+--     - newDrawable/disposeDrawable
 --   XXX: not thread-safe
-visualiseHoloitem ∷ (HasCallStack, MonadIO m) ⇒ Port → Item PLayout → [Item PVisual] → m (Item PVisual)
-visualiseHoloitem port@Port{..} hi children = case hi of
+ensureHoloVisualBacking ∷ (HasCallStack, MonadIO m) ⇒ Port → Item PLayout → [Item PVisual] → m (Item PVisual)
+ensureHoloVisualBacking port@Port{..} hi children = case hi of
   Item{..} → do
     let dim@(Di (V2 w h)) = hiArea^.area'b.size'di
         mkVisual ∷ (MonadIO m, Holo a) ⇒ a → Style a → m (Visual a)
@@ -418,78 +517,26 @@ portGarbageCollectVisuals Port{..} validLeaves = do
   visMap' ← TM.traverse gcTM visMap
   viomapReplace (fromVT portVisualTracker) visMap'
 
--- The next couple of functions mostly stolen from lambdacube-gl/testclient.hs
-snapFrameBuffer ∷ (MonadIO m) ⇒ Di Int → m Juicy.DynamicImage
-snapFrameBuffer (Di (V2 w h)) = do
-  glFinish
-  glBindFramebuffer GL_READ_FRAMEBUFFER 0
-  -- glReadBuffer GL_FRONT
-  -- glBlitFramebuffer 0 0 (fromIntegral w) (fromIntegral h) 0 (fromIntegral h) (fromIntegral w) 0 GL_COLOR_BUFFER_BIT GL_NEAREST
-  glReadBuffer GL_BACK
-  bs ← liftIO $ withFrameBuffer w GL_RGBA 0 0 w h $ \p -> B.packCStringLen (F.castPtr p,w*h*4)
-  let v = B.byteStringToVector bs
-  pure $ Juicy.ImageRGBA8 $ Juicy.Image w h v
-
-pickFrameBuffer ∷ (MonadIO m)
-  ⇒ GLint       -- ^ framebuffer
-  → Di Int      -- ^ FB dimensions
-  → Po Int      -- ^ pick coordinates
-  → m F.Word32  -- ^ resultant pixel value
-pickFrameBuffer fb (Di (V2 w h)) (Po (V2 x y)) = do
-  glFinish
-  glBindFramebuffer GL_READ_FRAMEBUFFER $ fromIntegral fb
-  let (fbmode, format) =
-        if fb == 0
-        then (GL_BACK_LEFT,         GL_RGBA)
-        else (GL_COLOR_ATTACHMENT0, GL_RGBA_INTEGER)
-  glReadBuffer fbmode
-  liftIO $ withFrameBuffer w format x (h - y - 1) 1 1 $ \p -> F.peek (F.castPtr p ∷ F.Ptr F.Word32)
-
-withFrameBuffer ∷ Int → GLenum → Int → Int → Int → Int → (F.Ptr F.Word8 → IO a) → IO a
-withFrameBuffer rowLen format x y w h fn = F.allocaBytes (w*h*4) $ \p → do
-  glPixelStorei GL_UNPACK_LSB_FIRST    0
-  glPixelStorei GL_UNPACK_SWAP_BYTES   0
-  glPixelStorei GL_UNPACK_ROW_LENGTH   $ fromIntegral rowLen
-  glPixelStorei GL_UNPACK_IMAGE_HEIGHT 0
-  glPixelStorei GL_UNPACK_SKIP_ROWS    0
-  glPixelStorei GL_UNPACK_SKIP_PIXELS  0
-  glPixelStorei GL_UNPACK_SKIP_IMAGES  0
-  glPixelStorei GL_UNPACK_ALIGNMENT    1
-  glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) format GL_UNSIGNED_BYTE $ F.castPtr p
-  glPixelStorei GL_UNPACK_ROW_LENGTH   0
-  fn p
-
-deriving instance Show (GL.GLOutput)
-deriving instance Show (GL.GLTexture)
-
 
--- * Matrix works
+-- * Fonts
 --
--- This one, while canonical, murders the projection.
-ortho ∷ Int → Int → Int → Int → Int → Int → Mat4
-ortho l' r' t' b' n' f' =
-  Vc.Mat4 (Vc.Vec4 (2/r-l) 0      0         (-(r+l)/(r-l)))
-          (Vc.Vec4  0     (2/t-b) 0         (-(t+b)/(t-b)))
-          (Vc.Vec4  0      0     ((-2)/f-n) (-(f+n)/(f-n)))
-          (Vc.Vec4  0      0      0         (1))
-  where (,,,,,) l r t b n f =
-          (,,,,,) (fromIntegral l') (fromIntegral r') (fromIntegral t') (fromIntegral b') (fromIntegral n') (fromIntegral f')
+portFont  ∷ Port → Cr.FontKey → Maybe (Cr.Font Found PU)
+portFont Port{..} = Cr.lookupFont portFontmap
 
-orthoLU, orthoLB ∷ Int → Int → Mat4
-orthoLU w h = HoloPort.ortho 0 w h 0 1 (-1)
-orthoLB w h = HoloPort.ortho 0 w 0 h 1 (-1)
+portFont' ∷ Port → Cr.FontKey → Cr.Font Found PU
+portFont' po fk = portFont po fk
+  & fromMaybe (Cr.errorMissingFontkey fk)
 
--- | To screen space conversion matrix.
-screenM :: Int → Int → Mat4
-screenM w h = scaleM -- Vc..*. flipM
-  where (fw, fh) = (fromIntegral w, fromIntegral h)
-        scaleM = Vc.Mat4 (Vc.Vec4 (1/fw)  0     0 0)
-                         (Vc.Vec4  0     (1/fh) 0 0)
-                         (Vc.Vec4  0      0     1 0)
-                         (Vc.Vec4  0      0     0 0.5) -- where does that 0.5 factor COMEFROM?
+drawableBindFontLayout ∷ (MonadIO m, FromUnit u, FromUnit v) ⇒
+  DΠ → Drawable → Cr.Font Found u → Di (Unit v) → Cr.TextSizeSpec v → m (Cr.WFont Bound, GIP.Layout)
+drawableBindFontLayout dπ Drawable{..} = Cr.bindWFontLayout dπ dGIC
+
+drawableDrawText ∷ (MonadIO m) ⇒ Drawable → GIP.Layout → Co Double → T.Text → m ()
+drawableDrawText Drawable{..} layout color text = do
+  Cr.layDrawText dCairo dGIC layout (po 0 0) color text
 
 
--- * Actual drawing
+-- * Painting
 --
 dpx ∷ Po Double → Co Double → GRCI.Render ()
 dpx (Po (V2 x y)) color = Cr.crColor color >>
@@ -521,45 +568,3 @@ drawableDrawRect Port{portSettings=Settings{..}} d@Drawable{..} color dim' = do
 --   d@Drawable{..} ← portMakeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> dim
 --   drawableDrawRect port d color dim
 --   pure d
-
-drawableBindFontLayout ∷ (MonadIO m, FromUnit u, FromUnit v) ⇒
-  DΠ → Drawable → Cr.Font Found u → Di (Unit v) → Cr.TextSizeSpec v → m (Cr.WFont Bound, GIP.Layout)
-drawableBindFontLayout dπ Drawable{..} = Cr.bindWFontLayout dπ dGIC
-
-drawableDrawText ∷ (MonadIO m) ⇒ Drawable → GIP.Layout → Co Double → T.Text → m ()
-drawableDrawText Drawable{..} layout color text = do
-  Cr.layDrawText dCairo dGIC layout (po 0 0) color text
-
-
-
-mkPipePickText ∷ ObjArrayNameS → Di Int → SB.ByteString
-mkPipePickText oans (Di di) = SB.unlines
-  [ "type FB = FrameBuffer 1 '[ 'Color (Vec 4 Int)]"
-  , ""
-  , "intV4I :: Int -> Vec 4 Int"
-  , "intV4I x = V4"
-  , "  ((x)            % 256) -- XXX: this is suboptimal, but we can't use shifts"
-  , "  ((x / 256)      % 256) --      because of the shifts not supported by WebGL 1"
-  , "  ((x / 65536)    % 256)"
-  , "  ((x / 16777216) % 256)"
-  , ""
-  , "scene :: String -> FB -> FB"
-  , "scene name prevFB ="
-  , "  Accumulate    ((ColorOp NoBlending (one :: Vec 4 Bool)))"
-  , "  (mapFragments (\\(uv, rgba) -> ((rgba)))"
-  , "   $ rasterizePrimitives (TriangleCtx CullFront PolygonFill NoOffset LastVertex) (Flat, Flat)"
-  , "   $ mapPrimitives"
-  , "    (\\(pos, _, id)->"
-  , "      ( (Uniform \"viewProj\" :: Mat 4 4 Float) *. (V4 pos%x pos%y 0 1)"
-  , "      , V2 0.0 0.0"
-  , "      , intV4I id))"
-  , "    $ fetch name ( Attribute \"position\"   :: Vec 3 Float"
-  , "                 , Attribute \"uv\"         :: Vec 2 Float"
-  , "                 , Attribute \"id\"         :: Int))"
-  , "  prevFB"
-  , ""
-  , "main :: Output"
-  , "main = TextureOut ("<> SB.pack (show di) <>") $"
-  , "       scene \""<> SB.pack (fromOANS oans) <>"\" $"
-  , "       FrameBuffer ((colorImage1 (V4 0 0 0 0)))"
-  ]

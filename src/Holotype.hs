@@ -335,7 +335,7 @@ holotype win evCtl windowFrameE inputE = mdo
                        let leaves = Holo.holotreeLeaves tree
                        -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
                        portGarbageCollectVisuals port leaves
-                       tree' ← Holo.visualiseHolotree port tree
+                       tree' ← Holo.ensureHolotreeVisualBacking port tree
                        Holo.renderHolotreeVisuals port tree'
                        Holo.drawHolotreeVisuals f tree'
                        pure port

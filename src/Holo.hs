@@ -18,7 +18,7 @@ module Holo
   , liftRecord
   --
   , queryHolotree
-  , visualiseHolotree
+  , ensureHolotreeVisualBacking
   , renderHolotreeVisuals
   , drawHolotreeVisuals
   -- * Holo instances
@@ -93,9 +93,9 @@ queryHolotree ∷ (MonadIO m) ⇒ Port → Item PBlank → m (Item PLayout)
 queryHolotree port hoi@Item{..} =
   queryHoloitem     port hoi =<< (sequence $ queryHolotree     port <$> hiChildren)
 
-visualiseHolotree ∷ (MonadIO m) ⇒ Port → Item PLayout → m (Item PVisual)
-visualiseHolotree port hoi@Item{..} =
-  visualiseHoloitem port hoi =<< (sequence $ visualiseHolotree port <$> hiChildren)
+ensureHolotreeVisualBacking ∷ (MonadIO m) ⇒ Port → Item PLayout → m (Item PVisual)
+ensureHolotreeVisualBacking port hoi@Item{..} =
+  ensureHoloVisualBacking port hoi =<< (sequence $ ensureHolotreeVisualBacking port <$> hiChildren)
 
 renderHolotreeVisuals ∷ (MonadIO m) ⇒ Port → Item PVisual → m ()
 renderHolotreeVisuals port hoi@Item{..} = do

@@ -78,7 +78,7 @@ main = do
   let tree          = layout (Size $ fromPU <$> scrDi) holoIOE
   
   -- 2. create visuals
-  tree'            ← Holo.visualiseHolotree portV tree
+  tree'            ← Holo.ensureHolotreeVisualBacking portV tree
 
   -- 3. draw into visuals
   Holo.renderHolotreeVisuals portV tree'

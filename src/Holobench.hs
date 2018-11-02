@@ -171,7 +171,7 @@ composeScene port@Port{..} dim queryTextZipper = do
   let placed = layout (sized & size .~ (Just ∘ fromPU <$> dim))
   liftIO $ putStrLn "----------( placed"
   dump ppItemArea placed
-  visual ← visualiseHolotree port placed
+  visual ← ensureHolotreeVisualBacking port placed
   pure visual
 
 updateScene ∷ PerformEvent t m ⇒ Port → QueryParseState → HoloItem Visual → m (HoloItem Visual)
