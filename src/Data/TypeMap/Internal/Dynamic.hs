@@ -60,6 +60,17 @@ insert t v (TypeMap m) = TypeMap (Map.insert (typeRep t) (coerce v) m)
     coerce :: Item x t -> Any
     coerce = unsafeCoerce
 
+-- | Update an element indexed by type @t@.
+update
+  :: forall t x proxy
+  .  Typeable t => proxy t -> (Item x t -> Maybe (Item x t)) -> TypeMap x -> TypeMap x
+update t f (TypeMap m) = TypeMap (Map.update (coerceA . f . coerceB) (typeRep t) m)
+  where
+    coerceB :: Any -> Item x t
+    coerceB = unsafeCoerce
+    coerceA :: Maybe (Item x t) -> Maybe Any
+    coerceA = unsafeCoerce
+
 -- | Lookup an element indexed by type @t@.
 lookup
   :: forall t x proxy

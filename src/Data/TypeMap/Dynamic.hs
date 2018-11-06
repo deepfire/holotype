@@ -7,6 +7,7 @@ module Data.TypeMap.Dynamic
   , null
   , size
   , insert
+  , update
   , lookup
   , delete
   , union
