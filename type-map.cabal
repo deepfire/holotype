@@ -52,7 +52,7 @@ library
   build-depends:
     containers,
     ghc-prim,
-    base >= 4.7 && < 4.11
+    base >= 4.7
   default-language:    Haskell2010
 
 test-suite type-map-test
