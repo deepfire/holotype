@@ -277,9 +277,6 @@ hiQuery port hoi@Item{..} =
               trev SIZE HOLO size (Port.tokenHash hiToken)
               pure Item{hiSize=size, hiArea=mempty, hiChildren=children, ..}
 
-proxy ∷ a → Proxy a
-proxy = const Proxy
-
 hiEnsureVisual ∷ (HasCallStack, MonadIO m) ⇒ VPort → Item PLayout → [Item PVisual] → m (Item PVisual)
 hiEnsureVisual port hi children = case hi of
   Item{..} → do

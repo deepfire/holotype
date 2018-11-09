@@ -11,6 +11,7 @@ module HoloPrelude
   , module Control.Lens
   , module Data.Function
   , module Data.List
+  , module Elsewhere
   , module GHC.Types
   , module Prelude.Unicode
   , module Tracer
@@ -23,18 +24,11 @@ module HoloPrelude
   , Pretty(..)
   --
   , (<>)
-  , (.:)
-  , flip2
   , assert
-  , catchAny
-  , everything
-  , choosePartially
   , doubleToFloat
   , either
   , filterM
   , fromMaybe
-  , goldenRatio
-  , partial
   , printf
   , trace
   , unless
@@ -47,15 +41,15 @@ module HoloPrelude
   , showT,  showTL,  showTS
   , errorT, errorTL, errorTS
   , showTime, timeDiff, printTimeDiff
+  , ppV2
   )
 where
 
 import           Control.Applicative
-import           Control.Exception                        (AsyncException, SomeException, assert, catch, fromException, throwIO)
 import           Control.Lens                      hiding (children)
 import           Control.Monad                            (unless, when, filterM)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
-import           Control.Monad.Plus                       (partial)
+import           Control.Exception                        (assert)
 import           Data.Either                              (either)
 import           Data.Function
 import           Data.List                         hiding (uncons)
@@ -71,6 +65,7 @@ import           GHC.Generics                             (Generic)
 import           GHC.Stack                                (HasCallStack)
 import           GHC.Types                         hiding (Constraint, Word)
 import           Numeric.Extra                            (doubleToFloat)
+import           Linear                            hiding (trace)
 import           Prelude                           hiding ((.), Word, words)
 import           Prelude.Unicode
 import           Text.PrettyPrint.Leijen.Text             (Doc, Pretty
@@ -79,36 +74,8 @@ import           Text.PrettyPrint.Leijen.Text             (Doc, Pretty
                                                           , (<+>))
 import           Text.Printf                              (printf)
 
+import           Elsewhere
 import           Tracer
-
--- * Pretty numbers
-goldenRatio ∷ Double
-goldenRatio = 1.61803398875
-
--- * Cool functions
-(.:) ∷ ∀ a f g b. (b → a) → (f → g → b) → f → g → a
-(.:) = (.) ∘ (.)
-
-infixr 9 .:
-
-flip2 ∷ (a → b → c → d) → b → c → a → d
-flip2 f b c a = f a b c
-
-choosePartially ∷ Eq a ⇒ a → a → a → a
-choosePartially one l r = fromMaybe one $ partial (≢ one) l <|> partial (≢ one) r
-
-everything :: (Enum a, Bounded a) => [a]
-everything = enumFromTo minBound maxBound
-
--- * Exceptions
-catchAny ∷ IO a → (SomeException → IO a) → IO a
-catchAny guarded handler = Control.Exception.catch guarded onExc
-  where onExc e | shouldCatch e = handler e
-                | otherwise = throwIO e
-        shouldCatch e
-          | show e ≡ "<<timeout>>" = False
-          | Just (_ ∷ AsyncException) ← fromException e = False
-          | otherwise = True
 
 -- * Pretty
 dumpPretty ∷ Pretty a ⇒ Int → a → IO ()
@@ -164,6 +131,10 @@ errorT = errorTS
 
 errorTL ∷ HasCallStack ⇒ TL.Text → a
 errorTL = error ∘ TL.unpack
+
+-- * Pretty
+ppV2 ∷ Show a ⇒ V2 a → TL.Text
+ppV2 x = (showTL $ x^._x) <> "x" <> (showTL $ x^._y)
 
 -- * simple benchamrking functions from lambdacube-quake3
 --

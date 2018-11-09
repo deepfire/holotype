@@ -55,7 +55,6 @@ import           Linear                            hiding (basis, trace)
 -- import           Prelude                           hiding (floor)
 import qualified Text.PrettyPrint.Leijen.Text      as WL
 
-import           Elsewhere
 import           Flatland
 
 

@@ -8,25 +8,33 @@
 {-# OPTIONS_GHC -Wno-unsafe #-}
 
 module Elsewhere
-  ( ppV2
-  , textZipper, zipperText
+  ( textZipper, zipperText
   , everything
   , trEv, trDyn, trDynM
+  , proxy
+  , goldenRatio
+  , (.:)
+  , flip2
+  , choosePartially
+  , catchAny
+  , partial
   )
 where
 
-import           HoloPrelude
-
+import           Control.Applicative
+import           Control.Exception                        (AsyncException, SomeException, catch, fromException, throwIO)
+import           Control.Monad.Plus                       (partial)
 import           Control.Monad.Random
 import           Control.Monad.State
 import           Data.Complex
+import           Data.Proxy                               (Proxy(..))
 import           Data.Glb                                 (HasGlb(..))
 import           Data.Lub                                 (HasLub(..))
-import           Data.Monoid                              ((<>))
+import           Data.Maybe                               (fromMaybe)
 import qualified Data.Text                         as T
-import qualified Data.Text.Lazy                    as TL
 import qualified Data.Text.Zipper                  as T
 import           Linear                            hiding (trace)
+import           Prelude.Unicode
 import           Reflex
 
 
@@ -42,12 +50,8 @@ instance Random a ⇒ Random (Complex a) where
   random                 = runState $ liftA2 (:+) (state $ random)         (state $ random)
 
 
--- * Pretty
-ppV2 ∷ Show a ⇒ V2 a → TL.Text
-ppV2 x = (showTL $ x^._x) <> "x" <> (showTL $ x^._y)
-
-
 -- * Text.Zipper
+--
 textZipper ∷ [T.Text] → T.TextZipper T.Text
 textZipper = flip T.textZipper Nothing
 
@@ -56,6 +60,7 @@ zipperText = T.dropEnd 1 ∘ T.unlines ∘ T.getText
 
 
 -- * Reflex
+--
 trEv ∷  Reflex t ⇒ String → Event   t a → Event t a
 trEv = traceEventWith ∘ const
 
@@ -64,3 +69,41 @@ trDyn = traceDynWith ∘ const
 
 trDynM ∷ Reflex t ⇒ String → String → Dynamic t (Maybe a) → Dynamic t (Maybe a)
 trDynM no ju = traceDynWith (\case; Nothing → no; Just _ → ju)
+
+proxy ∷ a → Proxy a
+proxy = const Proxy
+
+
+-- * Pretty numbers
+--
+goldenRatio ∷ Double
+goldenRatio = 1.61803398875
+
+
+-- * Cool functions
+--
+(.:) ∷ ∀ a f g b. (b → a) → (f → g → b) → f → g → a
+(.:) = (.) ∘ (.)
+
+infixr 9 .:
+
+flip2 ∷ (a → b → c → d) → b → c → a → d
+flip2 f b c a = f a b c
+
+choosePartially ∷ Eq a ⇒ a → a → a → a
+choosePartially one l r = fromMaybe one $ partial (≢ one) l <|> partial (≢ one) r
+
+everything :: (Enum a, Bounded a) => [a]
+everything = enumFromTo minBound maxBound
+
+
+-- * Exceptions
+--
+catchAny ∷ IO a → (SomeException → IO a) → IO a
+catchAny guarded handler = Control.Exception.catch guarded onExc
+  where onExc e | shouldCatch e = handler e
+                | otherwise = throwIO e
+        shouldCatch e
+          | show e ≡ "<<timeout>>" = False
+          | Just (_ ∷ AsyncException) ← fromException e = False
+          | otherwise = True
