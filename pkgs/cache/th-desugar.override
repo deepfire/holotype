@@ -8,5 +8,7 @@
     };
     doCheck         = false;
     jailbreak       = true;
+    editedCabalFile = null;
+    revision        = null;
   });
 

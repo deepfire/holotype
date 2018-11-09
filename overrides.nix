@@ -76,9 +76,31 @@ with pkgs.haskell.lib; with self; {
       rev    = "1d164b669079fe57181af95bbbe4749dbf08ab78";
       sha256 = "18ka3cwj05mr4k8w5gz1zis97qmnkasg8yx77vipi27m6mhs059i";
     };
+    doCheck         = false;
     jailbreak       = true;
     editedCabalFile = null;
     revision        = null;
+  });
+
+  ## Upstreamed, awaiting a Hackage release
+  TypeCompose = overrideCabal super.TypeCompose (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "conal";
+      repo   = "TypeCompose";
+      rev    = "5100cd68b68382b6b65c8c0598a3f34dc9481db3";
+      sha256 = "0kh3lncszb66agcsnnhfy6pfxv1jpm8ymrynw5dnavrialbrm9v4";
+    };
+  });
+
+  ## Upstreamed, awaiting a Hackage release
+  type-map = overrideCabal super.type-map (drv: {
+    src = pkgs.fetchFromGitHub {
+      owner  = "Lysxia";
+      repo   = "type-map";
+      rev    = "2e039e9426976a074a66a31c5750093b52ffafc1";
+      sha256 = "15jczrvqyz4alywa9mbmlbav2l4j7k9ql2gv2bxpym3809k8plvj";
+    };
+    jailbreak       = true;
   });
 
 
@@ -130,16 +152,6 @@ with pkgs.haskell.lib; with self; {
     jailbreak       = true;
   });
 
-  ## Unmerged.  PR: https://github.com/conal/TypeCompose/pull/
-  TypeCompose = overrideCabal super.TypeCompose (drv: {
-    src = pkgs.fetchFromGitHub {
-      owner  = "deepfire";
-      repo   = "TypeCompose";
-      rev    = "60230e6da02b74b2e593a2531acc50f706d17fc0";
-      sha256 = "0nwylsx93m0iv7rkr5m5np2cmi8p0zfpprbxwzcag6vkja3n0w5g";
-    };
-  });
-
 
   ## Non-code, configuration-only change
 
@@ -152,10 +164,6 @@ with pkgs.haskell.lib; with self; {
   });
 
   stylish-haskell = overrideCabal super.stylish-haskell (drv: {
-    jailbreak       = true;
-  });
-
-  type-map = overrideCabal super.type-map (drv: {
     jailbreak       = true;
   });
 

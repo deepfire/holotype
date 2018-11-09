@@ -1,10 +1,10 @@
-  ## Unmerged.  PR: https://github.com/conal/TypeCompose/pull/
+  ## Upstreamed, awaiting a Hackage release
   TypeCompose = overrideCabal super.TypeCompose (drv: {
     src = pkgs.fetchFromGitHub {
-      owner  = "deepfire";
+      owner  = "conal";
       repo   = "TypeCompose";
-      rev    = "60230e6da02b74b2e593a2531acc50f706d17fc0";
-      sha256 = "0nwylsx93m0iv7rkr5m5np2cmi8p0zfpprbxwzcag6vkja3n0w5g";
+      rev    = "5100cd68b68382b6b65c8c0598a3f34dc9481db3";
+      sha256 = "0kh3lncszb66agcsnnhfy6pfxv1jpm8ymrynw5dnavrialbrm9v4";
     };
   });
 
