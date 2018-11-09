@@ -1,9 +1,29 @@
-{-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
-{-# LANGUAGE LambdaCase, OverloadedStrings, PackageImports, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, TupleSections, TypeOperators, ViewPatterns #-}
+{-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE TypeInType #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UnicodeSyntax #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-all-missed-specialisations #-}
 {-# OPTIONS_GHC -Wno-implicit-prelude #-}
@@ -25,10 +45,13 @@ import           Data.Proxy
 import           Data.Typeable
 import           Data.Vect                                (Mat4(..), Vec3(..), Vec4(..))
 import           GHC.Stack
+import           GHC.Types
 import           Graphics.GL.Core33                as GL
 import           HoloPrelude
 import           LambdaCube.Mesh                   as LC
 import           Linear                            hiding (V3, V4)
+import           Reflex                            hiding (Query, Query(..))
+import           Reflex.GLFW                              (RGLFW)
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Codec.Picture                     as Juicy
 import qualified Control.Concurrent.STM            as STM
@@ -36,68 +59,109 @@ import qualified Data.Aeson.Encode.Pretty          as AE
 import qualified Data.ByteString                   as B
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
+import qualified Data.IORef                        as IO
 import qualified Data.List                         as L
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Text                         as T
 import qualified Data.TypeMap.Dynamic              as TM
+import qualified Data.Unique                       as U
 import qualified Data.Vect                         as Vc
 import qualified Data.Vector                       as V
 import qualified Data.Vector.Storable.ByteString   as B
 import qualified Foreign                           as F
 import qualified Foreign.C.Types                   as F
+import qualified GHC.Generics                      as GHC
+import qualified GI.Cairo                          as GIC
 import qualified GI.Pango                          as GIP
 import qualified Graphics.Rendering.Cairo          as GRC
 import qualified Graphics.Rendering.Cairo.Internal as GRCI
-import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.Compiler               as GL
+import qualified LambdaCube.GL                     as GL
 import qualified LambdaCube.GL.Mesh                as GL
 import qualified LambdaCube.GL.Type                as GL
 import qualified LambdaCube.Linear                 as LCLin
-import           Reflex                            hiding (Query, Query(..))
-import           Reflex.GLFW                              (RGLFW)
+import qualified System.IO.Unsafe                  as IO
 import qualified Unsafe.Coerce                     as Co
 
 -- Local imports
-import           HoloTypes
-
 import           Flatland
+import           HoloCairo                                (FKind(..))
 import qualified HoloCairo                         as Cr
-
-
--- * Could benefit from:
---
--- updateTM ∷ ∀ t x proxy. Typeable t ⇒ proxy t → (TM.Item x t → TM.Item x t) → TM.TypeMap x → TM.TypeMap x
--- updateTM = (⊥)
-
-mkVIOMap  ∷ (MonadIO m) ⇒ m VIOMap
-mkVIOMap  = VIOMap
-  <$> (liftIO $ STM.newTVarIO $ TM.empty)
-
-viomapAccess ∷ (MonadIO m) ⇒ VIOMap → m (TM.TypeMap VisualIOMap)
-viomapAccess (VIOMap m) = liftIO $ STM.readTVarIO m
-
-viomapReplace ∷ (MonadIO m) ⇒ VIOMap → TM.TypeMap VisualIOMap → m ()
-viomapReplace (VIOMap m) tm = liftIO $ STM.atomically $ STM.writeTVar m tm
-
-viomapAdd  ∷ (MonadIO m, Typeable a) ⇒ VIOMap → Proxy a → IdToken → Visual a → m ()
-viomapAdd  (VIOMap m) p k v = liftIO $ do
-  STM.atomically $ STM.modifyTVar' m $
-    \tm→ TM.insert p (Map.insert k v $ fromMaybe Map.empty $ TM.lookup p tm) tm
-    -- \tm→ update p (\idm→ Map.insert k v idm) tm
-
-viomapDrop ∷ (MonadIO m, Typeable a) ⇒ VIOMap → Proxy (a ∷ Type) → IdToken → m ()
-viomapDrop (VIOMap m) p k = liftIO $ do
-  STM.atomically $ STM.modifyTVar' m $
-    \tm→ TM.insert p (Map.delete k $ fromMaybe Map.empty $ TM.lookup p tm) tm
-
-viomapHas ∷ (MonadIO m, Typeable a) ⇒ VIOMap → Proxy (a ∷ Type) → IdToken → m Bool
-viomapHas iomap p k = isJust ∘ join ∘ (Map.lookup k <$>) ∘ TM.lookup p <$> viomapAccess iomap
 
 
 -- | Usher Cairo + Pango -enabled surfaces onto a GL Window,
 --   according to user-controlled Settings.
 
-portDΠ ∷ Port → DΠ
+-- | Usher Cairo + Pango -enabled surfaces onto a GL Window,
+--   according to user-controlled Settings.
+data Port f where
+  Port ∷
+    { portSettings        ∷ Settings
+
+    , portFontmap         ∷ Cr.FontMap PU
+    , portWindow          ∷ GL.Window
+
+    , portVisualTracker   ∷ TyIdMap f
+
+    , portGLStorage       ∷ GL.GLStorage
+    , portObjectStream    ∷ ObjectStream
+
+    , portPipelines       ∷ Map.Map PipeName GL.GLRenderer
+    } → Port f
+    deriving (GHC.Generic)
+
+data ScreenMode
+  = FullScreen
+  | Windowed
+  deriving (Eq, GHC.Generic, Show)
+
+data Settings where
+  Settings ∷
+    { sttsDΠ              ∷ DΠ
+    , sttsFontPreferences ∷ Cr.FontPreferences PU
+    , sttsScreenMode      ∷ ScreenMode
+    , sttsScreenDim       ∷ Di Int
+    } → Settings
+    deriving (Eq, GHC.Generic, Show)
+
+data Drawable where
+  Drawable ∷
+    { dObjectStream       ∷ ObjectStream
+    , dDi                 ∷ Di Int
+    , dSurface            ∷ GRCI.Surface
+    , dSurfaceData        ∷ (F.Ptr F.CUChar, V2 Int)
+    , dCairo              ∷ Cr.Cairo
+    , dGIC                ∷ GIC.Context
+    --
+    , dMesh               ∷ LC.Mesh
+    , dGPUMesh            ∷ GL.GPUMesh
+    , dGLObject           ∷ GL.Object
+    , dTexId              ∷ GLuint
+    } → Drawable
+
+data PipeName
+  = PipeDraw
+  | PipePick
+  deriving (Bounded, Enum, Eq, Ord, Show)
+
+-- | A GL 'Frame'.
+data Frame where
+  Frame ∷
+    { fDim ∷ Di Int
+    } → Frame
+
+-- | Render context for all objects with the same GL store.
+data ObjectStream where
+  ObjectStream ∷
+    { osStorage  ∷ GL.GLStorage
+    , osObjArray ∷ ObjArrayNameS
+    , osUniform  ∷ UniformNameS
+    } → ObjectStream
+
+newtype UniformNameS  = UniformNameS  { fromUNS  ∷ SB.ByteString } deriving (Eq, IsString, Ord, Show)
+newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (Eq, IsString, Ord, Show)
+
+portDΠ ∷ Port f → DΠ
 portDΠ = sttsDΠ ∘ portSettings
 
 portSetVSync ∷ (MonadIO m) ⇒ Bool → m ()
@@ -118,10 +182,10 @@ defaultSettings =
       sttsScreenDim       = di 800 600
   in Settings{..}
 
-portCreate ∷ RGLFW t m ⇒ Dynamic t GL.Window → Dynamic t Settings → m (Dynamic t (Maybe Port))
+portCreate ∷ (RGLFW t m) ⇒ Dynamic t GL.Window → Dynamic t Settings → m (Dynamic t (Maybe (Port f)))
 portCreate winD sttsD = do
   liftIO $ blankIdToken'setup
-  portVisualTracker@(VisualTracker _) ← VisualTracker <$> mkVIOMap
+  portVisualTracker ← mkTIMap
 
   let (,) osName uniName = ("portStream", "portMtl")
       schema             = pipelineSchema [(osName, uniName)]
@@ -149,7 +213,7 @@ portCreate winD sttsD = do
 
   holdDyn Nothing portE
 
-portShutdown ∷ (MonadIO m) ⇒ Port → m ()
+portShutdown ∷ (MonadIO m) ⇒ Port f → m ()
 portShutdown Port{..} = liftIO $ do
   _ ← traverse GL.disposeRenderer portPipelines
   GL.destroyWindow portWindow
@@ -189,7 +253,7 @@ mkPipePickText oans (Di di) = SB.unlines
 
 -- * Frames / framebuffers
 --
-portDrawFrame ∷ (MonadIO m) ⇒ Port → PipeName → m ()
+portDrawFrame ∷ (MonadIO m) ⇒ Port f → PipeName → m ()
 portDrawFrame Port{..} name = liftIO $ do
   GL.renderFrame ∘ Data.Maybe.fromJust $ Map.lookup name portPipelines
 
@@ -197,7 +261,7 @@ portWindowSize ∷ (MonadIO m) ⇒ GL.Window → m (Di Int)
 portWindowSize win = liftIO (GL.getFramebufferSize win)
                      <&> uncurry (Di .: V2)
 
-portSetupFrame ∷ (MonadIO m) ⇒ Port → m Frame
+portSetupFrame ∷ (MonadIO m) ⇒ Port f → m Frame
 portSetupFrame Port{..} = liftIO $ do
   let slotU           = GL.uniformSetter portGLStorage
       overbrightBits  = 0
@@ -207,14 +271,14 @@ portSetupFrame Port{..} = liftIO $ do
   GL.setScreenSize portGLStorage (fromIntegral screenW) (fromIntegral screenH)
   pure $ Frame dim
 
-portNextFrame ∷ (MonadIO m) ⇒ Port → m Frame
+portNextFrame ∷ (MonadIO m) ⇒ Port f → m Frame
 portNextFrame port@Port{..} = do
   portDrawFrame  port PipeDraw
   liftIO $ GL.swapBuffers portWindow
   portSetupFrame port
 
 -- | Picking is a perverse form of drawing.
-portPick ∷ MonadIO m ⇒ Port → Po Int → m IdToken
+portPick ∷ MonadIO m ⇒ Port f → Po Int → m IdToken
 portPick port@Port{portSettings=Settings{sttsScreenDim=dim}} pos = do
   -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
   GL.glDisable GL.GL_FRAMEBUFFER_SRGB
@@ -278,7 +342,7 @@ deriving instance Show (GL.GLTexture)
 
 -- * Pipelinistan
 --
-portPipeline ∷ Port → PipeName → Maybe GL.GLRenderer
+portPipeline ∷ Port f → PipeName → Maybe GL.GLRenderer
 portPipeline Port{..} = flip Map.lookup portPipelines
 
 pipelineSchema ∷ [(ObjArrayNameS, UniformNameS)] → GL.PipelineSchema
@@ -318,7 +382,7 @@ buildPipelineForStorage storage pipelineSrc = liftIO $ do
 
 -- * A Pango/Cairo-capable 'Drawable' with an artificial identity.
 --
-portMakeDrawable ∷ (MonadIO m) ⇒ Port → IdToken → Di Double → m Drawable
+portMakeDrawable ∷ (MonadIO m) ⇒ Port f → IdToken → Di Double → m Drawable
 portMakeDrawable Port{..} = makeDrawable portObjectStream
 
 imageSurfaceGetPixels' :: GRC.Surface → IO (F.Ptr F.CUChar, V2 Int)
@@ -449,6 +513,72 @@ screenM w h = scaleM -- Vc..*. flipM
                          (Vc.Vec4  0      0     0 0.5) -- where does that 0.5 factor COMEFROM?
 
 
+-- * Drawable identity support
+--
+newtype IdToken = IdToken { fromIdToken' ∷ U.Unique } deriving (Eq, Ord)
+instance Show IdToken where
+  show (IdToken u) = printf "(IdToken 0x%x)" (U.hashUnique u)
+
+fromIdToken ∷ IdToken → U.Unique
+fromIdToken = fromIdToken'
+
+newId ∷ (HasCallStack, MonadIO m) ⇒ m IdToken
+newId = liftIO $ do
+  tok ← U.newUnique
+  trev ALLOC TOK (U.hashUnique tok) (U.hashUnique tok)
+  pure $ IdToken tok
+
+blankIdToken'      ∷ IO.IORef IdToken
+blankIdToken'      = IO.unsafePerformIO $ IO.newIORef  undefined
+blankIdToken'setup ∷ IO ()
+blankIdToken'setup = IO.writeIORef blankIdToken' =<< newId
+blankIdToken       ∷ IdToken
+blankIdToken       = IO.unsafePerformIO $ IO.readIORef blankIdToken'
+{-# NOINLINE blankIdToken #-}
+
+tokenHash ∷ IdToken → Int
+tokenHash = U.hashUnique ∘ fromIdToken
+
+data IdTokenMap f
+
+data CTIMap f a where
+  CTIMap ∷ c a ⇒
+    { ctimCstr ∷ Proxy (c ∷ Type → Constraint)
+    , ctimMap  ∷ Map.Map IdToken (f a)
+    } → CTIMap f a
+
+type instance TM.Item (IdTokenMap f) a = CTIMap f a
+
+data TyIdMap (f ∷ Type → Type) where
+  TyIdMap ∷ (STM.TVar (TM.TypeMap (IdTokenMap f))) → TyIdMap f
+
+mkTIMap ∷ (MonadIO m) ⇒ m (TyIdMap f)
+mkTIMap = TyIdMap
+  <$> (liftIO $ STM.newTVarIO $ TM.empty)
+
+tiMapAccess ∷ (MonadIO m) ⇒ TyIdMap f → m (TM.TypeMap (IdTokenMap f))
+tiMapAccess (TyIdMap m) = liftIO $ STM.readTVarIO m
+
+tiMapAdd ∷ (Typeable a, MonadIO m, c a)
+  ⇒ Proxy (c ∷ Type → Constraint)
+  → Proxy (a ∷ Type)
+  → IdToken
+  → f a
+  → TyIdMap f
+  → m ()
+tiMapAdd pC pA k v (TyIdMap tm) = liftIO $ STM.atomically $ STM.modifyTVar' tm $
+  \tm → TM.insert pA (case TM.lookup pA tm of
+                        Nothing             → CTIMap pC $ Map.singleton k v
+                        Just (CTIMap _ idm) → CTIMap pC $ Map.insert    k v idm)
+        tm
+
+tiMapReplace ∷ (MonadIO m) ⇒ TyIdMap f → TM.TypeMap (IdTokenMap f) → m ()
+tiMapReplace (TyIdMap m) tm = liftIO $ STM.atomically $ STM.writeTVar m tm
+
+-- viomapHas ∷ (MonadIO m, Typeable a) ⇒ TyIdMap f → Proxy (a ∷ Type) → IdToken → m Bool
+-- viomapHas iomap p k = isJust ∘ join ∘ (Map.lookup k <$>) ∘ TM.lookup p <$> viomapAccess iomap
+
+
 -- * Look up the visual and, if present, check compatibility with
 --   new requirements: style generation and size.
 --   XXX: violates abstraction:
@@ -457,73 +587,71 @@ screenM w h = scaleM -- Vc..*. flipM
 --     - mkVisual/freeVisualOf
 --     - newDrawable/disposeDrawable
 --   XXX: not thread-safe
-ensureHoloVisualBacking ∷ (HasCallStack, MonadIO m) ⇒ Port → Item PLayout → [Item PVisual] → m (Item PVisual)
-ensureHoloVisualBacking port@Port{..} hi children = case hi of
-  Item{..} → do
-    let dim@(Di (V2 w h)) = hiArea^.area'b.size'di
-        mkVisual ∷ (MonadIO m, Holo a) ⇒ a → Style a → m (Visual a)
-        mkVisual holo hiStyle = do
-          newDrawable ← if (w * h ≢ 0)
-                        then Just <$> makeDrawable portObjectStream hiToken dim
-                        else pure Nothing
-          Visual
-                 <$> sequence ((\drw→ createVisual port (_sStyle hiStyle) hiArea drw holo) <$> newDrawable)
-                 <*> pure (_sStyleGene $ hiStyle)
-                 <*> pure newDrawable
-    visMap ← viomapAccess (fromVT portVisualTracker)
-    if not $ hiHasVisual hi
-    then pure Item{hiVisual=Nothing, hiChildren=children, ..}
-    else do
-      -- XXX:                ..why is..                ..this.. the correctly-typed Proxy?
-      (vis, updated ∷ Bool)
-            ← case join $ Map.lookup hiToken <$> TM.lookup Proxy visMap of
-              Nothing → do
-                trev MISSALLOC VIS (w, h, _fromStyleGene $ _sStyleGene $ hiStyle) (tokenHash hiToken)
-                (,True) <$> mkVisual holo hiStyle
-              Just v@Visual{..} →
-                let vDi          = fromMaybe zero $ dDi <$> vDrawable
-                    styleChanged = vStyleGene ≢ hiStyleGene hi
-                    sizeChanged  = vDi ≢ (ceiling <$> dim)
-                    update       = sizeChanged ∨ styleChanged
-                in if update
-                then do
-                  trev REALLOC VIS (w, h) (tokenHash hiToken)
-                  sequence $ flip freeVisualOf Proxy <$> vVisual
-                  sequence $ disposeDrawable portObjectStream <$> vDrawable
-                  (,True) <$> mkVisual holo hiStyle
-                else do
-                  trev REUSE   VIS (w, h) (tokenHash hiToken)
-                  pure $ (v, False)
-      when updated $
-        viomapAdd (fromVT portVisualTracker) Proxy hiToken vis
-      pure Item{hiVisual=Just vis, hiChildren=children, ..}
 
-portGarbageCollectVisuals ∷ (MonadIO m) ⇒ Port → Map.Map IdToken (Item a) → m ()
+portEnsureVisual ∷ (HasCallStack, MonadIO m, PortVisual f, Typeable a, c a)
+  ⇒ Port f
+  → Di Double
+  → Proxy (c ∷ Type → Constraint)
+  → IdToken
+  → Proxy a
+  → (f a → Bool)
+  → (Drawable → m (f a))
+  → m (f a)
+portEnsureVisual Port{..} newDim@(Di (V2 newW newH)) hiC hitok pHi keepTest hif =
+  case portVisualTracker of
+    TyIdMap _ → do
+      tm ← tiMapAccess portVisualTracker
+      (vis ∷ f x, updated ∷ Bool)
+        ← case join $ Map.lookup hitok ∘ ctimMap <$> TM.lookup pHi tm of
+            Nothing → do
+              trev MISSALLOC VIS (newW, newH) (tokenHash hitok)
+              (,True) <$> (hif =<< makeDrawable portObjectStream hitok newDim)
+            Just (pv ∷ f x) → do
+              let pvDrw  = pvDrawable pv
+              if not (keepTest pv) ∨ ((dDi <$> pvDrw) ≢ Just (ceiling <$> newDim))
+              then do
+                trev REALLOC VIS (newW, newH) (tokenHash hitok)
+                pvFree hiC pv
+                sequence $ disposeDrawable portObjectStream <$> pvDrw
+                (,True) <$> (hif =<< makeDrawable portObjectStream hitok newDim)
+              else do
+                trev REUSE   VIS (newW, newH) (tokenHash hitok)
+                pure $ (pv, False)
+      when updated $
+        tiMapAdd hiC pHi hitok vis portVisualTracker
+      pure vis
+
+class PortVisual f where
+  pvDrawable    ∷ f a → Maybe Drawable
+  pvFree        ∷ (MonadIO m, c a) ⇒ Proxy c → f a → m ()
+
+portGarbageCollectVisuals ∷ ∀ m f a. (MonadIO m, PortVisual f) ⇒ Port f → Map.Map IdToken a → m ()
 portGarbageCollectVisuals Port{..} validLeaves = do
-  visMap ← viomapAccess $ fromVT portVisualTracker
-  let gcTM ∷ MonadIO m ⇒ Proxy b -> Map.Map IdToken (Visual b) -> m (Map.Map IdToken (Visual b))
-      gcTM proxy vismap = do
-        let used   = Map.intersection vismap validLeaves
-            unused = Map.difference   vismap used
-        _ ← flip Map.traverseWithKey unused $ \_ Visual{..}→ do
-          -- printf "releasing Visual for IdToken %s\n" (show $ U.hashUnique $ fromIdToken k)
-          sequence $ flip freeVisualOf proxy <$> vVisual
-          -- flip (trev FREE VIS (tokenHash k)) $
-          --   case vDrawable of
-          --     Nothing → (0, 0)
-          --     Just vDrawable → (dDi vDrawable^.di'w, dDi vDrawable^.di'h)
-          sequence $ disposeDrawable portObjectStream <$> vDrawable
-        pure used
-  visMap' ← TM.traverse gcTM visMap
-  viomapReplace (fromVT portVisualTracker) visMap'
+  case portVisualTracker of
+    TyIdMap _ → do
+      tm ← tiMapAccess portVisualTracker
+      let gcTM ∷ Proxy b -> CTIMap f b -> m (CTIMap f b)
+          gcTM _pA (CTIMap pC vismap) = do
+            let used   = Map.intersection vismap validLeaves
+                unused = Map.difference   vismap used
+            _ ← flip Map.traverseWithKey unused $ \_tok pv→ do
+              pvFree pC pv
+              -- flip (trev FREE VIS (tokenHash k)) $
+              --   case vDrawable of
+              --     Nothing → (0, 0)
+              --     Just vDrawable → (dDi vDrawable^.di'w, dDi vDrawable^.di'h)
+              sequence $ disposeDrawable portObjectStream <$> pvDrawable pv
+            pure $ CTIMap pC used
+      tm' ← TM.traverse gcTM tm
+      tiMapReplace portVisualTracker tm'
 
 
 -- * Fonts
 --
-portFont  ∷ Port → Cr.FontKey → Maybe (Cr.Font Found PU)
+portFont  ∷ Port f → Cr.FontKey → Maybe (Cr.Font Found PU)
 portFont Port{..} = Cr.lookupFont portFontmap
 
-portFont' ∷ Port → Cr.FontKey → Cr.Font Found PU
+portFont' ∷ Port f → Cr.FontKey → Cr.Font Found PU
 portFont' po fk = portFont po fk
   & fromMaybe (Cr.errorMissingFontkey fk)
 
@@ -552,7 +680,7 @@ clearDrawable Drawable{..} = do
     GRC.paint
     GRC.restore
 
-drawableDrawRect ∷ (MonadIO m, FromUnit u) ⇒ Port → Drawable → Co Double → Di (Unit u) → m ()
+drawableDrawRect ∷ (MonadIO m, FromUnit u) ⇒ Port f → Drawable → Co Double → Di (Unit u) → m ()
 drawableDrawRect Port{portSettings=Settings{..}} d@Drawable{..} color dim' = do
   let dim = fromUnit sttsDΠ <$> dim'
   Cr.runCairo dCairo $ do
@@ -563,7 +691,7 @@ drawableDrawRect Port{portSettings=Settings{..}} d@Drawable{..} color dim' = do
   pure ()
 
 -- Render with: framePutDrawable frame px0 (doubleToFloat <$> po 0 0)
--- mkRectDrawable ∷ (MonadIO m, FromUnit u) ⇒ Port → Di (Unit u) → Co Double → m Drawable
+-- mkRectDrawable ∷ (MonadIO m, FromUnit u) ⇒ Port f → Di (Unit u) → Co Double → m Drawable
 -- mkRectDrawable port@Port{portSettings=Settings{..}} dim color = do
 --   d@Drawable{..} ← portMakeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> dim
 --   drawableDrawRect port d color dim

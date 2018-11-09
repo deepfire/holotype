@@ -37,11 +37,11 @@ library
                   Flex
 
                   Holo
+                  Holo.Instances
                   HoloCairo
                   HoloOS
                   HoloPort
                   HoloPrelude
-                  HoloTypes
 
                   Generics.SOP.Monadic
                   Reflex.Random

@@ -78,10 +78,10 @@ import           Elsewhere
 import           Flatland
 import           Flex
 
-import           HoloTypes
-
 import           HoloPrelude                       hiding ((<>))
-import           Holo                                     (tsFontKey, tsSizeSpec, tsColor)
+import           Holo.Instances
+import           Holo                                     ( Holo, HoloBlank, Input, InputMux, Item, Style(..), StyleOf, StyleGene(..), Subscription(..), VPort, WH
+                                                          , liftDynW', wWH)
 import qualified Holo
 import qualified HoloCairo                         as Cr
 import           HoloPort
@@ -93,7 +93,7 @@ import qualified Generics.SOP                      as SOP
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 
-newPortFrame ∷ RGLFW t m ⇒ Event t Port → m (Event t (Port, Frame))
+newPortFrame ∷ RGLFW t m ⇒ Event t VPort → m (Event t (VPort, Frame))
 newPortFrame portFrameE = performEvent $ portFrameE <&>
   \port@Port{..}→ do
     newFrame ← portNextFrame port
@@ -125,11 +125,11 @@ routeInput inputE pickedE subsD = do
       routed = routeSingle <$> attachPromptlyDyn inputs inputE
       routeSingle ∷ ((Maybe IdToken, Subscription), Input) → M.Map IdToken Input
       routeSingle ((picked, Subscription ss), ev) =
-        case MMap.lookup (GLFW.eventUType $ inInput ev) ss of
+        case MMap.lookup (GLFW.eventUType $ Holo.inInput ev) ss of
           Nothing         → --trace ("rejected type: "<>show ev<>"/"<>show (inInput ev))
                             mempty -- no-one cares, nothing happened..
           Just potentials →
-            let matches = flip Seq.filter potentials (flip inputMatch ev ∘ snd)
+            let matches = flip Seq.filter potentials (flip Holo.inputMatch ev ∘ snd)
             in case (picked, toList matches) of
                  (_, [])               → --trace ("rejected unmatched: "<>show ev)
                                          mempty
@@ -155,7 +155,7 @@ mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
   -- (subD, textD) ← mkTextEntryStyleD mux styleB initialV
-  W (subD, textD) ← liftW mux initialV
+  W (subD, textD) ← Holo.liftW mux initialV
   initial ← sample $ current textD
   foldDyn (\(new, newHoloi) (oldValid, _)→
                (if testF new then new else oldValid, newHoloi))
@@ -170,7 +170,7 @@ vboxD chi = do
                       , zipDynWith (:) hb hbs ))
             (constDyn mempty, constDyn [])
             chi
-  pure $ (id *** (vbox <$>)) dyn
+  pure $ (id *** (Holo.vbox <$>)) dyn
 
 
 
@@ -229,18 +229,18 @@ scene muxV statsValD frameNoD fpsValueD = mdo
                      \(mem)→ T.pack $ printf "mem: %d" mem
 
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
-  rectD            ← liftDynW' $ zipDynWith Holo.Rect rectDiD (constDyn $ co 1 0 0 1)
+  rectD            ← liftDynW' $ zipDynWith Rect rectDiD (constDyn $ co 1 0 0 1)
   frameCountD      ← liftDynW' $ T.pack ∘ printf "frame #%04d" <$> frameNoD
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynW' $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  xDD@(W (_, xDDv)) ←Holo.liftRecord muxV (AnObject "yayyity" "lol")
+  xDD@(W (_, xDDv)) ← liftRecord muxV (AnObject "yayyity" "lol")
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
 
   longStaticTextD  ← liftDynW' $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
-  let fontNameStyle name = defStyleOf & tsFontKey .~ Cr.FK name
+  let fontNameStyle name = Holo.defStyleOf & tsFontKey .~ Cr.FK name
 
   W styleEntryD ← mkTextEntryValidatedStyleD muxV styleB "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
@@ -314,13 +314,13 @@ holotype win evCtl windowFrameE inputE = mdo
   statsValD        ← holdDyn 0 statsValE
 
   -- * SCENE
-  inputMux         ← routeInput (Input <$> inputE) pickedE subscriptionsD
+  inputMux         ← routeInput (Holo.Input <$> inputE) pickedE subscriptionsD
   (,) subscriptionsD sceneD
                    ← scene inputMux statsValD frameNoD fpsValueD
 
   -- * LAYOUT
   -- needs port because of DPI and fonts
-  sceneQueriedE    ← performEvent $ (\(s, (p, _f))→ Holo.queryHolotree p s) <$>
+  sceneQueriedE    ← performEvent $ (\(s, (p, _f))→ Holo.hiQuery p s) <$>
                      attachPromptlyDyn sceneD portFrameE
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
 
@@ -332,10 +332,10 @@ holotype win evCtl windowFrameE inputE = mdo
   drawnPortE       ← performEvent $ sceneDrawE <&>
                      \(tree, (,) port f@Frame{..}) → do
                        -- Flex.dump (\x→ "La: "<>Flex.ppItemArea x<>" ← "<>Flex.ppItemSize x) tree
-                       let leaves = Holo.holotreeLeaves tree
+                       let leaves = Holo.hiLeaves tree
                        -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
                        portGarbageCollectVisuals port leaves
-                       tree' ← Holo.ensureHolotreeVisualBacking port tree
+                       tree' ← Holo.ensureHolotreeVisuals port tree
                        Holo.renderHolotreeVisuals port tree'
                        Holo.drawHolotreeVisuals f tree'
                        pure port
@@ -359,7 +359,7 @@ holotype win evCtl windowFrameE inputE = mdo
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
 
-mousePointId ∷ RGLFW t m ⇒ Event t (Port, GLFW.Input 'GLFW.MouseButton) → m (Event t IdToken)
+mousePointId ∷ RGLFW t m ⇒ Event t (VPort, GLFW.Input 'GLFW.MouseButton) → m (Event t IdToken)
 mousePointId ev = (ffilter ((≢ 0) ∘ tokenHash) <$>) <$>
                   performEvent $ ev <&> \(port@Port{..}, GLFW.EventMouseButton _ _ _ _) → do
                     (,) x y ← liftIO $ (GLFW.getCursorPos portWindow)
