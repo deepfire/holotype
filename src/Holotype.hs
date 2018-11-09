@@ -240,7 +240,7 @@ scene muxV statsValD frameNoD fpsValueD = mdo
 
   longStaticTextD  ← liftDynW' $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
-  let fontNameStyle name = Holo.defStyleOf & tsFontKey .~ Cr.FK name
+  let fontNameStyle name = Holo.defStyleOf Proxy & tsFontKey .~ Cr.FK name
 
   W styleEntryD ← mkTextEntryValidatedStyleD muxV styleB "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")

@@ -123,13 +123,12 @@ data Rect where
     } → Rect
 -- makeLenses ''Rect
 
-instance DefStyleOf (StyleOf Rect) where
-  defStyleOf                = RectStyle $ Rect zero white
 instance Holo   Rect where
   data StyleOf  Rect where RectStyle  ∷ Rect → StyleOf Rect
   data VisualOf Rect where RectVisual ∷ { rectDrawable ∷ Drawable } → VisualOf Rect
   query port (RectStyle Rect{..}) _ _ = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> _rectDim
-  compStyle                 = RectStyle
+  defStyleOf _              = RectStyle $ Rect zero white
+  compStyleOf               = RectStyle
   hasVisual               _ = True
   createVisual port _ _area drw Rect{..} = do
     let dim = PUs <$> _area^.area'b.size'di
@@ -152,13 +151,6 @@ instance Holo   Rect where
 --     , _tsSizeSpec    = TextSizeSpec (lws <|> rws) (choosePartially OneLine lhl rhl)
 --     , _tsColor       = lco <> rco
 --     }
-instance DefStyleOf (StyleOf T.Text) where
-  defStyleOf = TextStyle
-    { _tsFontKey     = "default"
-    , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
-    , _tsColor       = white
-    }
-
 type TextStyle  = StyleOf  T.Text
 type TextVisual = VisualOf T.Text
 instance Holo  T.Text where
@@ -168,6 +160,11 @@ instance Holo  T.Text where
       , _tsSizeSpec    ∷ Cr.TextSizeSpec PU
       , _tsColor       ∷ Co Double
       } → TextStyle
+  defStyleOf _ = TextStyle
+    { _tsFontKey     = "default"
+    , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
+    , _tsColor       = white
+    }
   data VisualOf T.Text where
     Text ∷
       { tStyle         ∷ TextStyle
@@ -176,7 +173,7 @@ instance Holo  T.Text where
       , tLayout        ∷ GIP.Layout
       , tDim           ∷ Di (Unit u)
       } → TextVisual
-  compStyle _ = TextStyle
+  compStyleOf _ = TextStyle
     { _tsFontKey     = "default"
     , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
     , _tsColor       = white

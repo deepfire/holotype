@@ -41,7 +41,6 @@ module Holo
   , InputMask(..), Subscription(..), subSingleton
   , inputMaskKeys, inputMaskButtons, inputMaskChars, editMaskKeys
   --
-  , DefStyleOf(..)
   , Style(..), initStyle, defStyle
   , StyleGene(..), sStyle, sStyleGene, fromStyleGene
   , HIArea, HIVisual
@@ -99,11 +98,12 @@ import qualified HoloPort                          as Port
 --   → Dynamic t (a, Item PLayout)
 --   → Dynamic t (a, Item PVisual)
 --
-class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
+class (Typeable a) ⇒ Holo a where
   data VisualOf a
   data StyleOf  a
   type CLiftW   t (m ∷ Type → Type) a ∷ Constraint
-  compStyle       ∷                                                                     a → StyleOf a
+  defStyleOf      ∷                                                               Proxy a → StyleOf a
+  compStyleOf     ∷                                                                     a → StyleOf a
   compGeo         ∷                                                                     a → Geo
   hasVisual       ∷                                                               Proxy a → Bool
   liftHoloDyn     ∷ (RGLFW t m) ⇒                                       a → Event t Input → m (Dynamic t a)
@@ -116,7 +116,7 @@ class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
   renderVisual    ∷ (MonadIO m) ⇒ VPort →                            VisualOf a →       a → m ()  -- ^ Update a visualisation of 'a'.
   freeVisualOf    ∷ (MonadIO m) ⇒                                    Proxy a → VisualOf a → m ()
   --
-  compStyle       = const defStyleOf     -- default style
+  compStyleOf     = defStyleOf ∘ proxy   -- default style
   compGeo         = const mempty         -- default geometry
   hasVisual       = const False          -- no visual by default
   liftHoloDyn     = liftHoloDynStatic    -- no value change in response to events
@@ -124,9 +124,6 @@ class (Typeable a, DefStyleOf (StyleOf a)) ⇒ Holo a where
   subscription    = const mempty         -- ignore events
   liftDynW        = liftDynWStatic       -- static subscriptions
   liftW           = liftWDynamic         -- static subscriptions
--- XXX: get rid of this separation
-class DefStyleOf a where
-  defStyleOf      ∷ a
 
 compToken ∷ ∀ m a. (Holo a, MonadIO m) ⇒ Proxy a → m IdToken
 compToken (hasVisual → True) = Port.newId
@@ -136,7 +133,7 @@ liftHoloDynStatic ∷ (RGLFW t m) ⇒ a → Event t Input → m (Dynamic t a)
 liftHoloDynStatic init _ev = pure $ constDyn init
 
 liftItemStatic ∷ ∀ a. (Holo a) ⇒ IdToken → a → Item PBlank
-liftItemStatic tok x = leaf tok (initStyle $ compStyle x) x
+liftItemStatic tok x = leaf tok (initStyle $ compStyleOf x) x
 
 liftDynWStatic ∷ ∀ t a. (Holo a, Reflex t) ⇒ IdToken → Dynamic t a → W t a
 liftDynWStatic tok valD =
@@ -177,8 +174,8 @@ sStyleGene f s@Style{..} = f _sStyleGene <&> \x→ s{_sStyleGene=x}
 initStyle ∷ Holo a ⇒ StyleOf a → Style a
 initStyle s = Style { _sStyle = s, _sStyleGene = StyleGene 0 }
 
-defStyle ∷ Holo a ⇒ Style a
-defStyle = initStyle defStyleOf
+defStyle ∷ ∀ a. Holo a ⇒ Style a
+defStyle = initStyle $ defStyleOf (Proxy @a)
 
 data Visual a where
   Visual ∷ Holo a ⇒
@@ -336,11 +333,10 @@ boxAxis ∷ Node a → Axis
 boxAxis HBoxN = X
 boxAxis VBoxN = Y
 
-instance DefStyleOf (StyleOf (Node k)) where
-  defStyleOf             = NodeStyle
 instance Typeable k ⇒ Holo   (Node (k ∷ KNode)) where
   data StyleOf  (Node k) = NodeStyle
   data VisualOf (Node k) = NodeVisual
+  defStyleOf _           = NodeStyle
   compGeo HBoxN          = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
   compGeo VBoxN          = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
   query       _ _ xs box =
@@ -465,12 +461,10 @@ wWH = (id *** (snd <$>)) ∘ fromW
 
 -- * Concrete, minimal case, to keep us in check
 --
-instance DefStyleOf (StyleOf ()) where
-  defStyleOf           = UnitStyle
 instance Holo   () where
   data StyleOf  ()     = UnitStyle
   data VisualOf ()     = UnitVisual
-  compStyle        _   = UnitStyle
+  defStyleOf   _       = UnitStyle
   query        _ _ _ _ = pure $ Di $ V2 Nothing Nothing
 
 instance Semigroup (Item PBlank)  where _ <> _ = mempty
