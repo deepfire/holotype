@@ -217,12 +217,13 @@ instance SOP.HasDatatypeInfo AnObject
 
 scene ∷ ∀ t m. ( RGLFW t m
                , Typeable t)
-  ⇒ InputMux   t
+  ⇒ Settings
+  → InputMux   t
   → Dynamic    t Integer
   → Dynamic    t Int
   → Dynamic    t Double
   → m (WH t)
-scene muxV statsValD frameNoD fpsValueD = mdo
+scene defSettingsV muxV statsValD frameNoD fpsValueD = mdo
 
   fpsD             ← liftDynW'  (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
   statsD           ← liftDynW' $ statsValD <&>
@@ -234,6 +235,7 @@ scene muxV statsValD frameNoD fpsValueD = mdo
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD      ← liftDynW' $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
+  -- xStts            ← liftRecord muxV defSettingsV
   xDD@(W (_, xDDv)) ← liftRecord muxV (AnObject "yayyity" "lol")
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
@@ -316,7 +318,7 @@ holotype win evCtl windowFrameE inputE = mdo
   -- * SCENE
   inputMux         ← routeInput (Holo.Input <$> inputE) pickedE subscriptionsD
   (,) subscriptionsD sceneD
-                   ← scene inputMux statsValD frameNoD fpsValueD
+                   ← scene defaultSettings inputMux statsValD frameNoD fpsValueD
 
   -- * LAYOUT
   -- needs port because of DPI and fonts

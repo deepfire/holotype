@@ -68,6 +68,9 @@ import qualified HoloPort                          as Port
 
 -- * Lifted records
 --
+instance SOP.Generic         Port.Settings
+instance SOP.HasDatatypeInfo Port.Settings
+
 liftRecord ∷ ∀ t m a xs.
   ( RGLFW t m, Record t m a
   , SOP.Code a ~ '[xs]
