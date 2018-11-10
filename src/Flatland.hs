@@ -8,7 +8,30 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
-module Flatland where
+module Flatland
+  ( Unit(..), UnitK(..)
+  , FromUnit, FromUnit'(..), StandardUnit(..)
+  --
+  , DΠ(..)
+  --
+  , An2(..), an2
+  , Po(..), po, po'd, po'add, po'sub
+  , Di(..), di, di'd, di'v, unsafe'di
+  , Wi(..) , He(..) , Th(..), wi'val, he'val, th'val
+  , Co(..), co, coMult
+  , LU(..), RB(..), lu'po, rb'po
+  , R(..)
+  , Cstr(..), Reqt(..), Size(..), Orig(..), reqt'add, size'd, size'di
+  , Axis(..), Minor(..), Major(..)
+  , Orient(..), OKind(..)
+  , Area, Area'(..), Area'Orig, Area'LU, Area'LURB, FromArea(..), HasArea(..)
+  , area'a, area'b
+  , pretty'Area'Int
+  --
+  , opaque, white, gray, black, red, green, blue
+  , chord'CW
+  )
+where
 
 -- Basis
 import           HoloPrelude
