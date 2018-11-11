@@ -1,21 +1,21 @@
 { mkDerivation, aeson, aeson-pretty, base, base-unicode-symbols
 , binary, bytestring, cairo, clock, containers, dependent-sum
-, directory, dlist, exceptions, extra, filepath, free, freer-simple
-, generics-sop, ghc-prim, gi-cairo, gi-gobject, gi-pango
-, gi-pangocairo, GLFW-b, Glob, hashable, haskell-gi-base, hedgehog
-, hspec, hxt, JuicyPixels, lambdacube-compiler, lambdacube-gl
-, lambdacube-ir, lens, lens-sop, linear, lub, metamorphic, MissingH
-, monadplus, MonadRandom, mono-traversable, monoidal-containers
-, mtl, OpenGL, OpenGLRaw, optparse-applicative, parsers, pretty
-, pretty-show, primitive, profunctors, proteaaudio, QuickCheck
-, random, ref-tf, reflex, reflex-glfw, semigroupoids, semigroups
-, singletons, spool, stdenv, stm, tasty, tasty-discover
-, tasty-expected-failure, tasty-hedgehog, tasty-hspec, tasty-hunit
-, tasty-quickcheck, tasty-smallcheck, template-haskell, text
-, text-format, text-lens, text-zipper, these, time, transformers
-, trifecta, type-map, TypeCompose, unordered-containers, vect
-, vector, wl-pprint-extras, wl-pprint-text
-, pkgs
+, directory, dlist, exceptions, extra, fclabels, filepath, free
+, freer-simple, generics-sop, ghc-prim, gi-cairo, gi-gobject
+, gi-pango, gi-pangocairo, GLFW-b, Glob, hashable, haskell-gi-base
+, hedgehog, hspec, hxt, JuicyPixels, lambdacube-compiler
+, lambdacube-gl, lambdacube-ir, lens, lens-sop, linear, lub
+, metamorphic, MissingH, monadplus, MonadRandom, mono-traversable
+, monoidal-containers, mtl, newtype-generics, OpenGL, OpenGLRaw
+, optparse-applicative, parsers, pretty, pretty-show, primitive
+, profunctors, proteaaudio, QuickCheck, random, ref-tf, reflex
+, reflex-glfw, semigroupoids, semigroups, singletons, sop-core
+, spool, stdenv, stm, tasty, tasty-discover, tasty-expected-failure
+, tasty-hedgehog, tasty-hspec, tasty-hunit, tasty-quickcheck
+, tasty-smallcheck, template-haskell, text, text-format, text-lens
+, text-zipper, these, time, transformers, trifecta, type-map
+, TypeCompose, unordered-containers, vect, vector, wl-pprint-extras
+, wl-pprint-text
 }:
 mkDerivation {
   pname = "holotype";
@@ -26,19 +26,19 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson aeson-pretty base base-unicode-symbols binary bytestring
     cairo clock containers dependent-sum directory dlist exceptions
-    extra filepath free freer-simple generics-sop ghc-prim gi-cairo
-    gi-gobject gi-pango gi-pangocairo GLFW-b hashable haskell-gi-base
-    hedgehog hspec hxt JuicyPixels lambdacube-compiler lambdacube-gl
-    lambdacube-ir lens lens-sop linear lub metamorphic MissingH
-    monadplus MonadRandom mono-traversable monoidal-containers mtl
-    OpenGL OpenGLRaw optparse-applicative parsers pretty pretty-show
-    primitive profunctors proteaaudio QuickCheck random ref-tf reflex
-    reflex-glfw semigroupoids semigroups singletons spool stm tasty
-    tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
-    tasty-quickcheck tasty-smallcheck template-haskell text text-format
-    text-lens text-zipper these time transformers trifecta type-map
-    TypeCompose unordered-containers vect vector wl-pprint-extras
-    wl-pprint-text
+    extra fclabels filepath free freer-simple generics-sop ghc-prim
+    gi-cairo gi-gobject gi-pango gi-pangocairo GLFW-b hashable
+    haskell-gi-base hedgehog hspec hxt JuicyPixels lambdacube-compiler
+    lambdacube-gl lambdacube-ir lens lens-sop linear lub metamorphic
+    MissingH monadplus MonadRandom mono-traversable monoidal-containers
+    mtl newtype-generics OpenGL OpenGLRaw optparse-applicative parsers
+    pretty pretty-show primitive profunctors proteaaudio QuickCheck
+    random ref-tf reflex reflex-glfw semigroupoids semigroups
+    singletons sop-core spool stm tasty tasty-expected-failure
+    tasty-hedgehog tasty-hspec tasty-hunit tasty-quickcheck
+    tasty-smallcheck template-haskell text text-format text-lens
+    text-zipper these time transformers trifecta type-map TypeCompose
+    unordered-containers vect vector wl-pprint-extras wl-pprint-text
   ];
   executableHaskellDepends = [
     aeson base base-unicode-symbols bytestring cairo clock containers
@@ -54,12 +54,8 @@ mkDerivation {
     tasty-smallcheck
   ];
   testToolDepends = [ tasty-discover ];
+  doHaddock = false;
+  doCheck = false;
   description = "Graph-backed visual mind assistant";
   license = stdenv.lib.licenses.agpl3;
-  libraryPkgconfigDepends = [ pkgs.cairo pkgs.pango ];
-  doHaddock               = false;
-  preCompileBuildDriver   = ''
-    PKG_CONFIG_PATH+=":${pkgs.cairo}/lib/pkgconfig"
-    setupCompileFlags+=" $(pkg-config --libs cairo-gobject)"
-  '';
 }

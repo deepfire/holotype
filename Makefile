@@ -7,6 +7,9 @@ all: holotype
 doc:
 	cabal haddock --hyperlink-source --hoogle --executables --hscolour=dist/doc/html/holotype/holotype/src/hscolour.css
 
+default.nix: holotype.cabal
+	cabal2nix --no-haddock --no-check . > default.nix
+
 # LTRACE_TRACE_SPEC=-o holotype.ltrace -e '*pango*@MAIN' -e '*cairo*@MAIN' -e '*g_*@MAIN-g_malloc-g_free-g_strndup'
 LTRACE_TRACE_SPEC=-o holotype.ltrace -e '-poll-write-__errno_location'
 LTRACE_OPTIONS=--no-signals $(LTRACE_TRACE_SPEC)

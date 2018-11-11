@@ -99,6 +99,7 @@ library
                      , monoidal-containers
                      , mono-traversable
                      , mtl
+                     , newtype-generics
                      , optparse-applicative
                      , parsers
                      , pretty
