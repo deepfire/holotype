@@ -33,7 +33,7 @@
 {-# OPTIONS_GHC -Wextra #-}
 module Generics.SOP.Monadic
   ( Field(..), Record(..)
-  , Derived
+  , Structure, Result
   , ConsCtx, FieldCtx
   , FieldName(..)
   , recover
@@ -54,7 +54,6 @@ import           Prelude                      hiding (read, take, drop, length)
 import           Prelude.Unicode
 import           Text.Printf
 
-import qualified GHC.Generics                     as GHC
 import           GHC.Stack
 import           Generics.SOP                        (NP(..), SOP(..), I(..), K(..), Code, All, All2
                                                      ,HasDatatypeInfo(..), DatatypeInfo(..), ConstructorInfo(..), SListI
@@ -69,41 +68,43 @@ enumerate ∷ SListI xs ⇒ NP ConstructorInfo xs → NP (((,) Int) :. Construct
 enumerate cs = SOP.hliftA2 (\c (K n)→ O (n, c)) cs (fromJust $ SOP.fromList $ L.take (SOP.lengthSList cs) [0..])
 
 
-data family Derived  t s ∷ Type
-type family ConsCtx  t s ∷ Type
-type family FieldCtx t s ∷ Type
+type family Structure   s ∷ Type
+data family Result    t s ∷ Type
+type family ConsCtx   t s ∷ Type
+type family FieldCtx  t s ∷ Type
 
-class (Monad m) ⇒ Field t m u s where
-  fieldCtx          ∷ Proxy (t, u, s, m s)
+class (Monad m) ⇒ Field t m u a where
+  fieldCtx          ∷ Proxy (t, u, a, m a)
                     → ConsCtx t u
-                    → (u → s)
-                    → FieldCtx t s
+                    → (Structure u → a)
+                    → FieldCtx t a
   readField         ∷ ∀ c. (HasCallStack, c)
                     ⇒ Proxy c
                     → Proxy (t, u)
-                    → FieldCtx t s
+                    → FieldCtx t a
                     → FieldName
-                    → (m :. Derived t) s
-  default readField ∷ ( HasCallStack, c
-                      , Record t m s
-                      , SOP.HasDatatypeInfo s, SOP.Generic s, GHC.Generic s
-                      , Code s ~ xss, xss ~ '[xs]
-                      , All2 (Field t m s) xss
-                      , FieldCtx t s ~ RecordCtx t s
-                      , Applicative (Derived t)
-                      )
-                    ⇒ Proxy c
-                    → Proxy (t, u)
-                    → FieldCtx t s
-                    → FieldName
-                    → (m :. Derived t) s
-  readField pC _pTUMS fctx _ =
-    recover pC (Proxy @t) fctx
+                    → (m :. Result t) a
+  -- default readField ∷ ( HasCallStack, c
+  --                     , s ~ Structure a
+  --                     , Record t m a
+  --                     , SOP.HasDatatypeInfo s, SOP.Generic s, GHC.Generic s
+  --                     , Code s ~ xss, xss ~ '[xs]
+  --                     , All2 (Field t m s) xss
+  --                     , FieldCtx t a ~ RecordCtx t a
+  --                     , Applicative (Result t)
+  --                     )
+  --                   ⇒ Proxy c
+  --                   → Proxy (t, u)
+  --                   → FieldCtx t a
+  --                   → FieldName
+  --                   → (m :. Result t) (Structure a)
+  -- readField pC _pTUMS fctx _ =
+  --   recover pC (Proxy @t) fctx
 
 newtype FieldName = FieldName { fromFieldName ∷ Text } deriving (Eq, IsString, Ord, Show)
 type ADTChoiceT        = Int
 
-class ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
+class ( Monad m, SOP.Generic (Structure a), SOP.HasDatatypeInfo (Structure a)
       ) ⇒ Record t m a where
   type RecordCtx t a ∷ Type
   consCtx           ∷ Proxy (t, m a)           -- ^ Given a bunch of proxies
@@ -127,34 +128,35 @@ class ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
           dropDetitle n (drop n → x) = toLower (take 1 x) <> drop 1 x
 
 
-recover  ∷ ∀ (t ∷ Type) c m s xss xs.
-           ( c, Record t m s
+recover  ∷ ∀ (t ∷ Type) c m a s xss xs.
+           ( c, Record t m a, s ~ Structure a
            , SOP.HasDatatypeInfo s
            , Code s ~ xss, xss ~ '[xs]
-           , All2 (Field t m s) xss
-           , HasCallStack, Monad m, Applicative (Derived t))
+           , All2 (Field t m a) xss
+           , HasCallStack, Monad m, Applicative (Result t))
          ⇒ Proxy c
          → Proxy t
-         → RecordCtx t s
-         → (m :. Derived t) s
+         → RecordCtx t a
+         → (m :. Result t) s
 recover pC _pT ctxR = O $ do
     let ADT _ rName cInfos                              = datatypeInfo (Proxy @s) ∷ DatatypeInfo (Code s)
         nCInfos ∷ NP ((,) Int :. ConstructorInfo) '[xs] = enumerate cInfos
-        sop     ∷                   SOP (m :. Derived t) (Code s)  = SOP.SOP $ SOP.Z $ recoverCtor pC (Proxy @(t, s)) ctxR (pack rName) $ SOP.hd nCInfos
-        O mdsop ∷ (m :. Derived t) (SOP I                (Code s)) = hsequence sop
+        sop     ∷                   SOP (m :. Result t) (Code s)  = SOP.SOP $ SOP.Z $ recoverCtor pC (Proxy @(t, a)) ctxR (pack rName) $ SOP.hd nCInfos
+        O mdsop ∷ (m :. Result t) (SOP I                (Code s)) = hsequence sop
     (SOP.to <$>) <$> mdsop
 
 -- * 1. Extract the constructor's product of field names
 --   2. Feed that to the field-name→action interpreter
 recoverCtor
-  ∷ ∀ (t ∷ Type) c m s xs.
-    ( c, Record t m s, Code s ~ '[xs]
-    , All (Field t m s) xs
+  ∷ ∀ (t ∷ Type) c m a s xs.
+    ( c, Record t m a, s ~ Structure a
+    , Code s ~ '[xs]
+    , All (Field t m a) xs
     , HasCallStack, Monad m)
-  ⇒ Proxy c → Proxy (t, s) → RecordCtx t s → Text → (((,) Int) :. ConstructorInfo) xs
-  → NP (m :. Derived t) xs
+  ⇒ Proxy c → Proxy (t, a) → RecordCtx t a → Text → (((,) Int) :. ConstructorInfo) xs
+  → NP (m :. Result t) xs
 recoverCtor pC pTS ctxR _ (O (consNr, (Record consName fis))) =
-  recoverFields pC pTS ctxR (consCtx (Proxy @(t, m s)) (pack consName) consNr ctxR) $ hliftA (K ∘ pack ∘ SOP.fieldName) fis
+  recoverFields pC pTS ctxR (consCtx (Proxy @(t, m a)) (pack consName) consNr ctxR) $ hliftA (K ∘ pack ∘ SOP.fieldName) fis
 
 recoverCtor _ _ _ name _ =
   error $ printf "Non-Record (plain Constructor, Infix) ADTs not supported: type %s." (unpack name)
@@ -162,23 +164,25 @@ recoverCtor _ _ _ name _ =
 -- * Key part:  NP (K Text) xs → NP m xs
 --   convert a product of field names to a product of monadic actions yielding 'a'
 recoverFields
-  ∷ ∀ (t ∷ Type) c m s xs.
-    ( c, Record t m s, Code s ~ '[xs]
-    , All (Field t m s) xs
+  ∷ ∀ (t ∷ Type) c m u s xs.
+    ( c, Record t m u, s ~ Structure u
+    , Code s ~ '[xs]
+    , All (Field t m u) xs
     , SListI xs
     , HasCallStack, Monad m)
   ⇒ Proxy c
-  → Proxy (t, s)
-  → RecordCtx t s
-  → ConsCtx t s
-  → NP (K Text) xs → NP (m :. Derived t) xs
+  → Proxy (t, u)
+  → RecordCtx t u
+  → ConsCtx t u
+  → NP (K Text) xs → NP (m :. Result t) xs
 recoverFields pC _pTS _ctxR ctxC fss =
-  hcliftA2 (Proxy @(Field t m s)) recoverField fss SOP.glenses
+  hcliftA2 (Proxy @(Field t m u)) recoverField fss SOP.glenses
   where
-    recoverField ∷ ∀ fs. (Field t m s fs)
-                 ⇒ K Text fs
-                 → SOP.GLens (→) (→) s fs
-                 → (m :. Derived t) fs
+    recoverField ∷ ∀ a. (Field t m u a)
+                 ⇒ K Text a
+                 → SOP.GLens (→) (→) s a
+                 → (m :. Result t) a
     recoverField (K fi) glens =
-      readField pC (Proxy @(t, s)) (fieldCtx (Proxy @(t, s, fs, m fs)) ctxC (SOP.get glens ∷ s → fs))
-      (toFieldName (Proxy @(s, t, m s)) fi)
+      readField pC (Proxy @(t, u))
+         (fieldCtx (Proxy @(t, u, a, m a)) ctxC (SOP.get glens ∷ s → a))
+      (toFieldName (Proxy @(u, t, m u)) fi)

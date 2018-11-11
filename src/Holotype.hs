@@ -80,8 +80,9 @@ import           Flex
 
 import           HoloPrelude                       hiding ((<>))
 import           Holo.Instances
-import           Holo                                     ( Holo, HoloBlank, Input, InputMux, Item, Style(..), StyleOf, StyleGene(..), Subscription(..), VPort, WH
-                                                          , liftDynW', wWH)
+import           Holo                                     ( Holo, HoloBlank, Input, InputMux, Item, Style(..), StyleOf, StyleGene(..), Subscription(..), VPort
+                                                          , W(..), liftDynW', WH, wWH
+                                                          , Result(..))
 import qualified Holo
 import qualified HoloCairo                         as Cr
 import           HoloPort
@@ -150,7 +151,7 @@ routeInput inputE pickedE subsD = do
 --   holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn valD holoE)
 --    <&> (,) editMaskKeys
 
-mkTextEntryValidatedStyleD ∷ RGLFW t m ⇒ InputMux t → Behavior t (Style Text) → Text → (Text → Bool) → m (Derived t Text)
+mkTextEntryValidatedStyleD ∷ RGLFW t m ⇒ InputMux t → Behavior t (Style Text) → Text → (Text → Bool) → m (Result t Text)
 mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV

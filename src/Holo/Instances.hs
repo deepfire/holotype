@@ -34,7 +34,7 @@ module Holo.Instances
   , Rect(..)
   , TextStyle, TextVisual
   , tsFontKey, tsSizeSpec, tsColor
-  , ConsCtx, FieldCtx, Derived(..)
+  , ConsCtx, FieldCtx
   )
 where
 
@@ -78,29 +78,7 @@ liftRecord ∷ ∀ t m a xs.
   ) ⇒ InputMux t → a → m (W t a)
 liftRecord eventsV initialV = unO $ recover (Proxy @(RGLFW t m)) (Proxy @t) (eventsV, initialV)
 
--- instance {-# OVERLAPPABLE #-}
---   (Typeable a
---   , DefStyleOf (StyleOf a)
---   , ∀ xs. SOP.Code a ~ '[xs]
---   ) ⇒ Holo a where
---   type CLiftW t m a = ()
---   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputMux t → a → m (W t a)
---   liftW = liftRecord
-
-instance Functor (Derived t) where
-  fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
-
-instance Reflex t ⇒ Applicative (Derived t) where
-  pure x = W (mempty, constDyn (x, vbox []))
-  W (fsubs, fvals) <*> W (xsubs, xvals) =
-    W $ (,)
-    (zipDynWith (<>) fsubs xsubs)
-    (zipDynWith ((\(f,   fhb)
-                   (  x, xhb@Item{..})→
-                   (f x, xhb { hiChildren = fhb : hiChildren })))
-      fvals xvals)
-
-instance {-# OVERLAPPABLE #-} (Holo a, d ~ Derived t, RGLFW t m) ⇒ Field t m u a where
+instance {-# OVERLAPPABLE #-} (Holo a, d ~ Result t, RGLFW t m) ⇒ Field t m u a where
   fieldCtx _ (mux, x) proj = (mux, proj x)
   readField _ _ (mux, initV) (FieldName fname) = O $ do
     tok ← liftIO Port.newId
@@ -115,6 +93,28 @@ instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
   consCtx _ _ _ = id
   -- toFieldName _ = (⊥)
   -- nameMap       = (⊥)
+
+-- instance {-# OVERLAPPABLE #-}
+--   (Typeable a
+--   , DefStyleOf (StyleOf a)
+--   , ∀ xs. SOP.Code a ~ '[xs]
+--   ) ⇒ Holo a where
+--   type CLiftW t m a = ()
+--   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputMux t → a → m (W t a)
+--   liftW = liftRecord
+
+instance Functor (Result t) where
+  fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
+
+instance Reflex t ⇒ Applicative (Result t) where
+  pure x = W (mempty, constDyn (x, vbox []))
+  W (fsubs, fvals) <*> W (xsubs, xvals) =
+    W $ (,)
+    (zipDynWith (<>) fsubs xsubs)
+    (zipDynWith ((\(f,   fhb)
+                   (  x, xhb@Item{..})→
+                   (f x, xhb { hiChildren = fhb : hiChildren })))
+      fvals xvals)
 
 
 -- * Leaves

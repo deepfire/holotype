@@ -55,7 +55,7 @@ module Holo
   , renderHolotreeVisuals
   , drawHolotreeVisuals
   --
-  , Derived(..), W
+  , Structure, Result(..), W
   , WH, wWH
   --
   , InputMux
@@ -447,12 +447,13 @@ editMaskKeys = (inputMaskChars <>) $ InputMask $ GLFW.eventMaskKeys $ GLFW.KeyEv
 -- * The final lift:  W(-idget)
 --
 type HoloBlank      = Item PBlank
-type W        t   a = Derived t a
+type W        t   a = Result t a
 type WH       t     = (Dynamic t Subscription, Dynamic t HoloBlank)
 
 type instance ConsCtx  t a = (InputMux t, a)
 type instance FieldCtx t a = (InputMux t, a)
-data instance Derived  t a = Reflex t ⇒ W { fromW ∷ (Dynamic t Subscription, Dynamic t (a, HoloBlank)) }
+type instance Structure  a = a
+data instance Result   t a = Reflex t ⇒ W { fromW ∷ (Dynamic t Subscription, Dynamic t (a, HoloBlank)) }
 
 wWH ∷ Reflex t ⇒ W t a → WH t
 wWH = (id *** (snd <$>)) ∘ fromW
