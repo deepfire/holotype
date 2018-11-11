@@ -51,9 +51,10 @@ ccrs: cairostress
 	./cairostress
 
 SRCS=$(wildcard *.hs src/*.hs src/*/*.hs)
-## BUILDBASE=dist/build
-BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-$(GHCD)/holotype-0.0.1/x
-HOLOTYPE=$(BUILDBASE)/holotype/build/holotype/holotype
+BUILDBASE=dist/build
+HOLOTYPE=$(BUILDBASE)/holotype/holotype
+# BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-$(GHCD)/holotype-0.0.1/x
+# HOLOTYPE=$(BUILDBASE)/holotype/build/holotype/holotype
 $(HOLOTYPE): $(SRCS)
 	cabal build -j4 exe:holotype
 
@@ -61,7 +62,7 @@ $(HOLOTYPE): $(SRCS)
 #
 clean:
 	cabal clean
-	rm dist dist-newstyle -rf
+	rm dist dist-newstyle .ghc.environment.* -rf
 	rm -f {,src/}*.{o,hi,dyn_hi,dyn_o,hs~} *~ *.hp *.lprof *.bin
 cls:
 	echo -en '\ec'
