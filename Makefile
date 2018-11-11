@@ -55,7 +55,7 @@ SRCS=$(wildcard *.hs src/*.hs src/*/*.hs)
 BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-$(GHCD)/holotype-0.0.1/x
 HOLOTYPE=$(BUILDBASE)/holotype/build/holotype/holotype
 $(HOLOTYPE): $(SRCS)
-	cabal new-build exe:holotype
+	cabal build -j4 exe:holotype
 
 #
 #
