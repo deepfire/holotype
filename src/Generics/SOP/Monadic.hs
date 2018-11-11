@@ -173,9 +173,10 @@ recoverFields
   ⇒ Proxy c
   → Proxy (t, u)
   → RecordCtx t u
-  → ConsCtx t u
-  → NP (K Text) xs → NP (m :. Result t) xs
-recoverFields pC _pTS _ctxR ctxC fss =
+  → ConsCtx t u ----------------------------v
+  → NP (K Text) xs
+  → NP (m :. Result t) xs
+recoverFields pC _pTU _ctxR cctxU fss =
   hcliftA2 (Proxy @(Field t m u)) recoverField fss SOP.glenses
   where
     recoverField ∷ ∀ a. (Field t m u a)
@@ -184,5 +185,5 @@ recoverFields pC _pTS _ctxR ctxC fss =
                  → (m :. Result t) a
     recoverField (K fi) glens =
       readField pC (Proxy @(t, u))
-         (fieldCtx (Proxy @(t, u, a, m a)) ctxC (SOP.get glens ∷ s → a))
+         (fieldCtx (Proxy @(t, u, a, m a)) cctxU (SOP.get glens ∷ s → a))
       (toFieldName (Proxy @(u, t, m u)) fi)
