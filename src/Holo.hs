@@ -25,10 +25,10 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Weverything #-}
-{-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures #-}
+{-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
 
 module Holo
-  ( liftWStatic, liftDynW'
+  ( liftWDynamic, liftWSeed, liftWStatic
   , Frame(..)
   , VPort
   --
@@ -55,18 +55,23 @@ module Holo
   , renderHolotreeVisuals
   , drawHolotreeVisuals
   --
-  , Structure, Result(..), W
+  , Structure, Result(..)
   , WH, wWH
+  , Widget
+  --
+  , Static(..)
   --
   , InputMux
   )
 where
 
 import           Control.Arrow
+import           Control.Newtype.Generics
 import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Maybe
 import           Data.Typeable
+import qualified Generics.SOP                      as SOP
 import           Generics.SOP                             (Proxy)
 import           Generics.SOP.Monadic
 import           GHC.Types                                (Constraint)
@@ -109,8 +114,8 @@ class (Typeable a) ⇒ Holo a where
   liftHoloDyn     ∷ (RGLFW t m) ⇒                                       a → Event t Input → m (Dynamic t a)
   liftHoloItem    ∷                                                           IdToken → a → Item PBlank
   subscription    ∷                                                     IdToken → Proxy a → Subscription
-  liftDynW        ∷ (Reflex t)  ⇒                                   IdToken → Dynamic t a → W t a
-  liftW           ∷ (RGLFW t m) ⇒                                          InputMux t → a → m (W t a)
+  liftDynW        ∷ (Reflex t)  ⇒                                   IdToken → Dynamic t a → Widget t a
+  liftW           ∷ (RGLFW t m) ⇒                                          InputMux t → a → m (Widget t a)
   query           ∷ (MonadIO m) ⇒ VPort → StyleOf a →                  [Item PLayout] → a → m (Di (Maybe Double))
   createVisual    ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
   renderVisual    ∷ (MonadIO m) ⇒ VPort →                            VisualOf a →       a → m ()  -- ^ Update a visualisation of 'a'.
@@ -122,12 +127,80 @@ class (Typeable a) ⇒ Holo a where
   liftHoloDyn     = liftHoloDynStatic    -- no value change in response to events
   liftHoloItem    = liftItemStatic       -- static style and geometry
   subscription    = const mempty         -- ignore events
-  liftDynW        = liftDynWStatic       -- static subscriptions
-  liftW           = liftWDynamic         -- static subscriptions
+  liftDynW        = liftDynWStaticSubs
+  liftW           = liftWSeed
 
-compToken ∷ ∀ m a. (Holo a, MonadIO m) ⇒ Proxy a → m IdToken
-compToken (hasVisual → True) = Port.newId
-compToken _                  = pure Port.blankIdToken
+
+-- * The final lift:  W(-idget)
+--
+type HoloBlank      = Item PBlank
+type WH       t     = (Dynamic t Subscription, Dynamic t HoloBlank)
+
+-- Result of the lifts -- the Widget:
+type Widget     t a = Result t a
+data instance Result t a
+  = Reflex t ⇒ W
+    { fromW ∷ (Dynamic t Subscription, Dynamic t (a, HoloBlank))
+    }
+
+instance Functor (Result t) where
+  fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
+
+instance Reflex t ⇒ Applicative (Result t) where
+  pure x = W (mempty, constDyn (x, vbox []))
+  W (fsubs, fvals) <*> W (xsubs, xvals) =
+    W $ (,)
+    (zipDynWith (<>) fsubs xsubs)
+    (zipDynWith ((\(f,   fhb)
+                   (  x, xhb@Item{..})→
+                   (f x, xhb { hiChildren = fhb : hiChildren })))
+      fvals xvals)
+
+-- record lifting for Dynamic initials
+type instance ConsCtx  t (Dynamic t a) = Dynamic t a
+type instance Structure  (Dynamic _ a) = a
+
+-- record lifting for unchanging values
+newtype Static t a = Static a -- XXX: once we're successful with the lift, let's drop the 't'
+  deriving (Newtype)
+
+newtype Seed   t a = Seed   a -- XXX: once we're successful with the lift, let's drop the 't'
+  deriving (Newtype)
+
+type instance ConsCtx  t (Static t a)  = (InputMux t, a)
+type instance Structure  (Static _ a)  = a
+
+wWH ∷ Reflex t ⇒ Result t a → WH t
+wWH = (id *** (snd <$>)) ∘ fromW
+
+
+-- * Record
+--
+
+instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
+         , RGLFW t m
+         ) ⇒ Record t m (Static t a) where
+  type RecordCtx t (Static t a) = (InputMux t, a)
+  prefixChars _ = 3
+  consCtx _ _ _ (mux, a) = (mux, a)
+
+instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
+         , RGLFW t m
+         ) ⇒ Record t m (Dynamic t a) where
+  type RecordCtx t (Dynamic t a) = Dynamic t a
+  prefixChars _ = 3
+  consCtx _ _ _ x = x
+-- toFieldName _ = (⊥)
+  -- nameMap       = (⊥)
+
+-- instance {-# OVERLAPPABLE #-}
+--   (Typeable a
+--   , DefStyleOf (StyleOf a)
+--   , ∀ xs. SOP.Code a ~ '[xs]
+--   ) ⇒ Holo a where
+--   type CLiftW t m a = ()
+--   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputMux t → a → m (W t a)
+--   liftW = liftRecord
 
 liftHoloDynStatic ∷ (RGLFW t m) ⇒ a → Event t Input → m (Dynamic t a)
 liftHoloDynStatic init _ev = pure $ constDyn init
@@ -135,27 +208,37 @@ liftHoloDynStatic init _ev = pure $ constDyn init
 liftItemStatic ∷ ∀ a. (Holo a) ⇒ IdToken → a → Item PBlank
 liftItemStatic tok x = leaf tok (initStyle $ compStyleOf x) x
 
-liftDynWStatic ∷ ∀ t a. (Holo a, Reflex t) ⇒ IdToken → Dynamic t a → W t a
-liftDynWStatic tok valD =
-  W ( constDyn $ subscription tok (Proxy @a)
-    , valD <&> (id &&& liftHoloItem tok))
-
-liftWDynamic ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputMux t → a → m (W t a)
-liftWDynamic imux initial = do
-  tok ← compToken $ Proxy @a
-  liftDynW tok <$> (liftHoloDyn initial $ select imux $ Const2 tok)
-
-liftWStatic ∷ ∀ t m a c. (Holo a, RGLFW t m) ⇒ Proxy c → InputMux t → a → m (W t a)
-liftWStatic _pC _imux initial = do
+liftWStatic ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputMux t → Static t a → m (Widget t a)
+liftWStatic _imux (Static initial) = do
   tok ← compToken $ Proxy @a
   pure $ W ( constDyn $ subscription tok (Proxy @a)
            , constDyn (initial, liftHoloItem tok initial))
 
-liftDynW' ∷ ∀ a t m. (Holo a, RGLFW t m) ⇒ Dynamic t a → m (W t a)
-liftDynW' h = do
-  tok ← Port.newId
-  pure $ liftDynWStatic tok h
+liftWSeed   ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputMux t → a → m (Widget t a)
+liftWSeed imux initial = do
+  tok ← compToken $ Proxy @a
+  liftDynW tok <$> (liftHoloDyn initial $ select imux $ Const2 tok)
 
+liftDynWStaticSubs ∷ ∀ t a. (Holo a, Reflex t) ⇒ IdToken → Dynamic t a → Widget t a
+liftDynWStaticSubs tok valD =
+  W ( constDyn $ subscription tok (Proxy @a)
+    , valD <&> (id &&& liftHoloItem tok))
+
+liftWDynamic ∷ ∀ a t m. (Holo a, RGLFW t m) ⇒ Dynamic t a → m (Widget t a)
+liftWDynamic h = do
+  tok ← compToken $ Proxy @a
+  pure $ liftDynWStaticSubs tok h
+
+
+-- * Lift stack
+--
+compToken ∷ ∀ m a. (Holo a, MonadIO m) ⇒ Proxy a → m IdToken
+compToken (hasVisual → True) = Port.newId
+compToken _                  = pure Port.blankIdToken
+
+
+-- * Style wrapper
+--
 newtype StyleGene = StyleGene { _fromStyleGene ∷ Int } deriving (Eq, Ord)
 fromStyleGene ∷ Lens' StyleGene Int
 fromStyleGene f (StyleGene x) = f x <&> StyleGene
@@ -177,6 +260,9 @@ initStyle s = Style { _sStyle = s, _sStyleGene = StyleGene 0 }
 defStyle ∷ ∀ a. Holo a ⇒ Style a
 defStyle = initStyle $ defStyleOf (Proxy @a)
 
+
+-- * Visual wrapper
+--
 data Visual a where
   Visual ∷ Holo a ⇒
     { vVisual     ∷ Maybe (VisualOf a)
@@ -442,21 +528,6 @@ editMaskKeys = (inputMaskChars <>) $ InputMask $ GLFW.eventMaskKeys $ GLFW.KeyEv
    ])
   (Set.fromList [GL.KeyState'Pressed, GL.KeyState'Repeating])
   (mempty)
-
-
--- * The final lift:  W(-idget)
---
-type HoloBlank      = Item PBlank
-type W        t   a = Result t a
-type WH       t     = (Dynamic t Subscription, Dynamic t HoloBlank)
-
-type instance ConsCtx  t a = (InputMux t, a)
-type instance FieldCtx t a = (InputMux t, a)
-type instance Structure  a = a
-data instance Result   t a = Reflex t ⇒ W { fromW ∷ (Dynamic t Subscription, Dynamic t (a, HoloBlank)) }
-
-wWH ∷ Reflex t ⇒ W t a → WH t
-wWH = (id *** (snd <$>)) ∘ fromW
 
 
 

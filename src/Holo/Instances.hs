@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -64,6 +65,7 @@ import           Holo
 import           HoloCairo                            (FKind(..))
 import qualified HoloCairo                         as Cr
 import qualified HoloPort                          as Port
+import           HoloPort                             (IdToken)
 
 
 -- * Lifted records
@@ -71,50 +73,59 @@ import qualified HoloPort                          as Port
 instance SOP.Generic         Port.Settings
 instance SOP.HasDatatypeInfo Port.Settings
 
-liftRecord ∷ ∀ t m a xs.
-  ( RGLFW t m, Record t m a
-  , SOP.Code a ~ '[xs]
-  , SOP.All (Field t m a) xs
-  ) ⇒ InputMux t → a → m (W t a)
-liftRecord eventsV initialV = unO $ recover (Proxy @(RGLFW t m)) (Proxy @t) (eventsV, initialV)
+liftRecord ∷ ∀ t m s a xs.
+  ( RGLFW t m, Record t m a, s ~ Structure a
+  , SOP.Code s ~ '[xs]
+  , SOP.All (HasReadField t m a) xs
+  ) ⇒ RecordCtx t a → m (Widget t s)
+liftRecord ctxR = unO $ recover (Proxy @(RGLFW t m)) (Proxy @(t, a)) ctxR
+-- recover  ∷ ∀ (t ∷ Type) c m a s xss xs.
+--            ( c, Record t m a, s ~ Structure a
+--            , SOP.HasDatatypeInfo s
+--            , Code s ~ xss, xss ~ '[xs]
+--            , All2 (Field t m a) xss
+--            , HasCallStack, Monad m, Applicative (Result t))
+--          ⇒ Proxy c
+--          → Proxy t
+--          → RecordCtx t a
+--          → (m :. Result t) s
 
-instance {-# OVERLAPPABLE #-} (Holo a, d ~ Result t, RGLFW t m) ⇒ Field t m u a where
+-- fieldCtx ∷ Proxy (t, u, a, m a)
+--          → ConsCtx t u
+--          → (Structure u → a)
+--          → FieldCtx t a
+-- type instance ConsCtx  t (Static t a)  = (InputMux t, a)
+-- type instance FieldCtx t (Static t a)  = (InputMux t, a)
+
+-- Design derivation for Holo lifts:
+-- 1. P: low-friction definition for structure types
+-- 2. P: low-friction definition for structure field types
+-- 3. 1+2 ?→ Field definition not proportional to structure and field types
+-- 4. …
+
+
+instance ( RGLFW t m
+         , Holo a
+         , d ~ Result t
+         , ConsCtx t u ~ (InputMux t, Structure u)) ⇒
+         HasFieldCtx t m u a where
+  type instance FieldCtx t a  = (InputMux t, a)
   fieldCtx _ (mux, x) proj = (mux, proj x)
+
+instance ( RGLFW t m
+         , Holo a
+         , d ~ Result t
+         , ConsCtx t u ~ (InputMux t, Structure u)) ⇒
+         HasReadField t m u a where
+  -- XXXXXX: why do we need to specialise on Static/Dynamic?
+  --  ..the downside is we need to add Structure handling in Monadic, which contorts things a bit
+  --    ..FieldCtx is dependent
+  --  Once again, we need a clear picture of where we're going..
+  --
   readField _ _ (mux, initV) (FieldName fname) = O $ do
     tok ← liftIO Port.newId
     let package x = hbox [leaf tok defStyle (fname <> ": "), x]
     W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftW mux initV
-
-instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
-         , RGLFW t m
-         ) ⇒ Record t m a where
-  type RecordCtx t a = (InputMux t, a)
-  prefixChars _ = 3
-  consCtx _ _ _ = id
-  -- toFieldName _ = (⊥)
-  -- nameMap       = (⊥)
-
--- instance {-# OVERLAPPABLE #-}
---   (Typeable a
---   , DefStyleOf (StyleOf a)
---   , ∀ xs. SOP.Code a ~ '[xs]
---   ) ⇒ Holo a where
---   type CLiftW t m a = ()
---   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputMux t → a → m (W t a)
---   liftW = liftRecord
-
-instance Functor (Result t) where
-  fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
-
-instance Reflex t ⇒ Applicative (Result t) where
-  pure x = W (mempty, constDyn (x, vbox []))
-  W (fsubs, fvals) <*> W (xsubs, xvals) =
-    W $ (,)
-    (zipDynWith (<>) fsubs xsubs)
-    (zipDynWith ((\(f,   fhb)
-                   (  x, xhb@Item{..})→
-                   (f x, xhb { hiChildren = fhb : hiChildren })))
-      fvals xvals)
 
 
 -- * Leaves
@@ -140,6 +151,7 @@ instance Holo   Rect where
   renderVisual port v@RectVisual{rectDrawable=Drawable{..}} Rect{..} =
     Port.drawableDrawRect port (rectDrawable v) _rectColor _rectDim
   freeVisualOf _ _       = pure ()
+
 
 
 -- * This is a complicated story:
@@ -170,11 +182,11 @@ instance Holo  T.Text where
     }
   data VisualOf T.Text where
     Text ∷
-      { tStyle         ∷ TextStyle
-      , tDrawable      ∷ Drawable
+      { tStyle         ∷ TextStyle      -- XXX
+      , tDrawable      ∷ Drawable       -- XXX
       , tFont          ∷ Cr.WFont Bound
       , tLayout        ∷ GIP.Layout
-      , tDim           ∷ Di (Unit u)
+      , tDim           ∷ Di (Unit u)    -- XXX
       } → TextVisual
   compStyleOf _ = TextStyle
     { _tsFontKey     = "default"
@@ -241,19 +253,8 @@ tsColor     ∷ Lens' TextStyle (Co Double)
 tsColor    f ts@(TextStyle _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
 
 
--- visual ∷ (ReflexGLFWCtx t m, Holo a) ⇒ Settings PU → ObjectStream → StyleOf (Visual a) → Event t (a, b) → m (Event t (Holosome a, b))
--- visual stts holoStream holoStyle holoE =
---   performEvent (holoE <&> ((\(holo, x) → liftIO $ do
---                                -- XXX/expressivity:  this threading of 'x' is..
---                                holoVisual ← createVisual stts holoStream holoStyle holo
---                                holoRef    ← IO.newIORef holo
---                                -- holoPosRef ← IO.newIORef pos
---                                pure (Holosome{..}, x))
---                           ))
+-- * Settings
+--
 
--- update ∷ (MonadIO m, Holo a) ⇒ Settings PU → Holosome a → (a → a) → m ()
--- update stts Holosome{..} f = do
---   old ← liftIO $ IO.readIORef holoRef
---   let new = f old
---   liftIO $ IO.writeIORef holoRef new
---   renderVisual stts holoStream holoVisual new
+instance Holo a ⇒ Holo (Port.ScreenDim a) where
+  subscription tok _ = subSingleton tok $ InputMask GLFW.eventMaskFramebufferSize

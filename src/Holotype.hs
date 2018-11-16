@@ -81,7 +81,9 @@ import           Flex
 import           HoloPrelude                       hiding ((<>))
 import           Holo.Instances
 import           Holo                                     ( Holo, HoloBlank, Input, InputMux, Item, Style(..), StyleOf, StyleGene(..), Subscription(..), VPort
-                                                          , W(..), liftDynW', WH, wWH
+                                                          , Static(..)
+                                                          , Widget, liftW, liftWDynamic
+                                                          , WH, wWH
                                                           , Result(..))
 import qualified Holo
 import qualified HoloCairo                         as Cr
@@ -114,16 +116,16 @@ average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 
 routeInput ∷ ∀ t m. (RGLFW t m)
-           ⇒ Event t Input
-           → Event t IdToken
-           → Dynamic t Subscription
-           → m (InputMux t)
+           ⇒ Event t Input          -- ^ Events to distribute
+           → Event t IdToken        -- ^ Carries the (possibly) new picked entity
+           → Dynamic t Subscription -- ^ The total mass of subscriptions
+           → m (InputMux t)         -- ^ Global event wire for all IdTokens
 routeInput inputE pickedE subsD = do
-  -- XXX: this accumulates the focus
-  pickeD ← holdDyn Nothing $ Just <$> pickedE
-  let inputs = zipDynWith (,) pickeD (traceDyn "===== new subs: " subsD)
-      routed ∷ Event t (M.Map IdToken Input)
-      routed = routeSingle <$> attachPromptlyDyn inputs inputE
+  pickeD ← holdDyn Nothing $ Just <$> pickedE -- Compute the latest focus
+  let inputsD = zipDynWith (,) pickeD (traceDyn "===== new subs: " subsD)
+      -- | Process the incoming events using the latest listener and total set subscriptions
+      routedE ∷ Event t (M.Map IdToken Input)
+      routedE = routeSingle <$> attachPromptlyDyn inputsD inputE
       routeSingle ∷ ((Maybe IdToken, Subscription), Input) → M.Map IdToken Input
       routeSingle ((picked, Subscription ss), ev) =
         case MMap.lookup (GLFW.eventUType $ Holo.inInput ev) ss of
@@ -138,7 +140,7 @@ routeInput inputE pickedE subsD = do
                    Nothing → mempty -- XXX: mis-focus -- we allowed to focus a non-interested entity
                    Just _  → M.singleton pick ev
                  (Nothing, (tok, _):_) → M.singleton tok ev
-  pure $ fanMap routed
+  pure $ fanMap routedE
 
 
 -- mkTextEntryStyleD ∷ RGLFW t m ⇒ InputMux t → Behavior t (Style Text) → Text → m (W t (Text, HoloBlank))
@@ -224,28 +226,28 @@ scene ∷ ∀ t m. ( RGLFW t m
   → Dynamic    t Int
   → Dynamic    t Double
   → m (WH t)
-scene defSettingsV muxV statsValD frameNoD fpsValueD = mdo
+scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
-  fpsD             ← liftDynW'  (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
-  statsD           ← liftDynW' $ statsValD <&>
+  fpsD             ← liftWDynamic (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  statsD           ← liftWDynamic $ statsValD <&>
                      \(mem)→ T.pack $ printf "mem: %d" mem
 
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
-  rectD            ← liftDynW' $ zipDynWith Rect rectDiD (constDyn $ co 1 0 0 1)
-  frameCountD      ← liftDynW' $ T.pack ∘ printf "frame #%04d" <$> frameNoD
+  rectD            ← liftWDynamic $ zipDynWith Rect rectDiD (constDyn $ co 1 0 0 1)
+  frameCountD      ← liftWDynamic $ T.pack ∘ printf "frame #%04d" <$> frameNoD
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
-  varlenTextD      ← liftDynW' $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
+  varlenTextD      ← liftWDynamic $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
   -- xStts            ← liftRecord muxV defSettingsV
-  xDD@(W (_, xDDv)) ← liftRecord muxV (AnObject "yayyity" "lol")
+  xDD@(W (_, xDDv)) ← liftRecord @t @m @AnObject @(Static t AnObject) (eV, AnObject "yayyity" "lol")
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
 
-  longStaticTextD  ← liftDynW' $ constDyn ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
+  longStaticTextD  ← liftW eV ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
   let fontNameStyle name = Holo.defStyleOf Proxy & tsFontKey .~ Cr.FK name
 
-  W styleEntryD ← mkTextEntryValidatedStyleD muxV styleB "defaultSans" $
+  W styleEntryD ← mkTextEntryValidatedStyleD eV styleB "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
 
   styleD           ← trackStyle $ fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) (snd styleEntryD))
@@ -295,14 +297,14 @@ holotype win evCtl windowFrameE inputE = mdo
   initE            ← getPostBuild
 
   winD             ← holdDyn win $ win <$ initE
+  liftIO $ GLFW.enableEvent evCtl GLFW.FramebufferSize
+
   (Di (V2 initW initH))
                    ← portWindowSize win
   let fbSizeE       = ffilter (\case (U GLFW.EventFramebufferSize{}) → True; _ → False) $
                       leftmost [inputE, (U (GLFW.EventFramebufferSize win initW initH)) <$ initE]
-  liftIO $ GLFW.enableEvent evCtl GLFW.FramebufferSize
-
   settingsD        ← foldDyn (\(U (GLFW.EventFramebufferSize _ w h)) oldStts →
-                                 oldStts { sttsScreenDim = unsafe'di w h } )
+                                 oldStts { sttsScreenDim = ScreenDim $ unsafe'di w h } )
                      defaultSettings fbSizeE
 
   maybePortD       ← portCreate winD settingsD
@@ -317,6 +319,7 @@ holotype win evCtl windowFrameE inputE = mdo
   statsValD        ← holdDyn 0 statsValE
 
   -- * SCENE
+  -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
   inputMux         ← routeInput (Holo.Input <$> inputE) pickedE subscriptionsD
   (,) subscriptionsD sceneD
                    ← scene defaultSettings inputMux statsValD frameNoD fpsValueD

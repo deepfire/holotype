@@ -40,6 +40,7 @@
 module HoloPort where
 
 import           Control.Monad
+import           Control.Newtype.Generics
 import           Data.Maybe
 import           Data.Proxy
 import           Data.Typeable
@@ -115,12 +116,15 @@ data ScreenMode
   | Windowed
   deriving (Eq, GHC.Generic, Show)
 
+newtype ScreenDim a = ScreenDim a
+  deriving (Eq, Newtype, Show)
+
 data Settings where
   Settings ∷
     { sttsDΠ              ∷ DΠ
     , sttsFontPreferences ∷ Cr.FontPreferences PU
     , sttsScreenMode      ∷ ScreenMode
-    , sttsScreenDim       ∷ Di Int
+    , sttsScreenDim       ∷ ScreenDim (Di Int)
     } → Settings
     deriving (Eq, GHC.Generic, Show)
 
@@ -179,7 +183,7 @@ defaultSettings =
         , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (PUs 15) LT ])
         ]
       sttsScreenMode      = Windowed
-      sttsScreenDim       = di 800 600
+      sttsScreenDim       = ScreenDim $ di 800 600
   in Settings{..}
 
 portCreate ∷ (RGLFW t m) ⇒ Dynamic t GL.Window → Dynamic t Settings → m (Dynamic t (Maybe (Port f)))
@@ -196,7 +200,7 @@ portCreate winD sttsD = do
   let winSettingsD = (zipDynWith (,) winD sttsD)
 
   portE ← performEvent $ updated winSettingsD <&>
-    \(portWindow, portSettings@Settings{sttsScreenDim=dim@(Di (V2 w h)),..}) → do
+    \(portWindow, portSettings@Settings{sttsScreenDim=ScreenDim dim@(Di (V2 w h)),..}) → do
       case sttsScreenMode of
         Windowed   → liftIO $ printf "window size: %dx%d\n" w h--GL.setWindowSize win w h
         FullScreen → error "XXX: implement fullscreen"
@@ -279,7 +283,7 @@ portNextFrame port@Port{..} = do
 
 -- | Picking is a perverse form of drawing.
 portPick ∷ MonadIO m ⇒ Port f → Po Int → m IdToken
-portPick port@Port{portSettings=Settings{sttsScreenDim=dim}} pos = do
+portPick port@Port{portSettings=Settings{sttsScreenDim=ScreenDim dim}} pos = do
   -- liftIO $ B.writeFile "screenshot.png" =<< Juicy.imageToPng <$> snapFrameBuffer (di 800 600)
   GL.glDisable GL.GL_FRAMEBUFFER_SRGB
   portDrawFrame port PipePick
