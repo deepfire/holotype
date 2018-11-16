@@ -33,6 +33,14 @@ with pkgs.haskell.lib; with lib; with self; {
     libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (with self; [ sop-core ]);
   });
 
+  reflex = overrideCabal super.reflex (drv: {
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./reflex.src.json)) ["date"]);
+    editedCabalFile = null;
+    revision        = null;
+    doCheck         = false;
+    jailbreak       = true;
+    libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (with self; [ lens data-default hlint filemanip monad-control monoidal-containers prim-uniq unbounded-delays MemoTrie ]);
+  });
   reflex-glfw =
   mkDerivation {
     pname = "reflex-glfw";
