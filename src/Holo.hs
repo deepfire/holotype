@@ -35,7 +35,6 @@ module Holo
   --
   , Drawable(..)
   , Visual(..)
-  , VisualOf(..)
   --
   , Input(..)
   , inputMatch
@@ -104,8 +103,8 @@ import qualified HoloPort                          as Port
 --   → Dynamic t (a, Item PVisual)
 --
 class (Typeable a) ⇒ Holo a where
-  data VisualOf a
-  data StyleOf  a
+  type VisualOf a
+  type StyleOf  a
   type CLiftW   t (m ∷ Type → Type) a ∷ Constraint
   defStyleOf      ∷                                                               Proxy a → StyleOf a
   compStyleOf     ∷                                                                     a → StyleOf a
@@ -121,6 +120,8 @@ class (Typeable a) ⇒ Holo a where
   renderVisual    ∷ (MonadIO m) ⇒ VPort →                            VisualOf a →       a → m ()  -- ^ Update a visualisation of 'a'.
   freeVisualOf    ∷ (MonadIO m) ⇒                                    Proxy a → VisualOf a → m ()
   --
+  type VisualOf a = ()
+  type StyleOf  a = ()
   compStyleOf     = defStyleOf ∘ proxy   -- default style
   compGeo         = const mempty         -- default geometry
   hasVisual       = const False          -- no visual by default
@@ -246,8 +247,8 @@ type VPort = Port.Port Visual
 
 instance Port.PortVisual Visual where
   pvDrawable = vDrawable
-  pvFree _pC = \case
-    Visual{..} → sequence_ $ freeVisualOf Proxy <$> vVisual
+  pvFree _pC pA = \case
+    Visual{..} → sequence_ $ freeVisualOf pA <$> vVisual
 
 
 -- * Item
@@ -392,9 +393,7 @@ boxAxis HBoxN = X
 boxAxis VBoxN = Y
 
 instance Typeable k ⇒ Holo   (Node (k ∷ KNode)) where
-  data StyleOf  (Node k) = NodeStyle
-  data VisualOf (Node k) = NodeVisual
-  defStyleOf _           = NodeStyle
+  defStyleOf _           = ()
   compGeo HBoxN          = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
   compGeo VBoxN          = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
   query       _ _ xs box =
@@ -434,8 +433,8 @@ leaf tok sty holo = item tok sty holo (compGeo holo) []
 
 vbox, hbox ∷ [Item PBlank] → Item PBlank
 -- XXX: here's trouble -- we're using blankIdToken!
-hbox = node Port.blankIdToken (initStyle NodeStyle) (HBoxN ∷ Node HBox)
-vbox = node Port.blankIdToken (initStyle NodeStyle) (VBoxN ∷ Node VBox)
+hbox = node Port.blankIdToken (initStyle ()) (HBoxN ∷ Node HBox)
+vbox = node Port.blankIdToken (initStyle ()) (VBoxN ∷ Node VBox)
 
 
 -- * Input & Subscription
@@ -506,15 +505,12 @@ editMaskKeys = (inputMaskChars <>) $ InputMask $ GLFW.eventMaskKeys $ GLFW.KeyEv
 -- * Concrete, minimal case, to keep us in check
 --
 instance Holo   () where
-  data StyleOf  ()     = UnitStyle
-  data VisualOf ()     = UnitVisual
-  defStyleOf   _       = UnitStyle
   query        _ _ _ _ = pure $ Di $ V2 Nothing Nothing
 
 instance Semigroup (Item PBlank)  where _ <> _ = mempty
-instance Monoid    (Item PBlank)  where mempty = Item () Port.blankIdToken (initStyle UnitStyle) mempty [] (Di $ V2 Nothing Nothing) mempty ()
+instance Monoid    (Item PBlank)  where mempty = Item () Port.blankIdToken (initStyle ()) mempty [] (Di $ V2 Nothing Nothing) mempty ()
 instance Semigroup (Item PLayout) where _ <> _ = mempty
-instance Monoid    (Item PLayout) where mempty = Item () Port.blankIdToken (initStyle UnitStyle) mempty [] (Di $ V2 Nothing Nothing) mempty ()
+instance Monoid    (Item PLayout) where mempty = Item () Port.blankIdToken (initStyle ()) mempty [] (Di $ V2 Nothing Nothing) mempty ()
 
 -- instance Semigroup (Item PLayout) where
 --   l <> r = vbox [l, r]

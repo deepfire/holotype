@@ -66,6 +66,7 @@ library
                      , cairo
                      , clock
                      , containers
+                     , data-default
                      , dependent-sum
                      , directory
                      , dlist

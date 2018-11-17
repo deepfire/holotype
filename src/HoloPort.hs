@@ -615,7 +615,7 @@ portEnsureVisual Port{..} newDim@(Di (V2 newW newH)) hiC hitok pHi keepTest hif 
               if not (keepTest pv) ∨ ((dDi <$> pvDrw) ≢ Just (ceiling <$> newDim))
               then do
                 trev REALLOC VIS (newW, newH) (tokenHash hitok)
-                pvFree hiC pv
+                pvFree hiC Proxy pv
                 sequence $ disposeDrawable portObjectStream <$> pvDrw
                 (,True) <$> (hif =<< makeDrawable portObjectStream hitok newDim)
               else do
@@ -627,7 +627,7 @@ portEnsureVisual Port{..} newDim@(Di (V2 newW newH)) hiC hitok pHi keepTest hif 
 
 class PortVisual f where
   pvDrawable    ∷ f a → Maybe Drawable
-  pvFree        ∷ (MonadIO m, c a) ⇒ Proxy c → f a → m ()
+  pvFree        ∷ (MonadIO m, c a) ⇒ Proxy c → Proxy a → f a → m ()
 
 portGarbageCollectVisuals ∷ ∀ m f a. (MonadIO m, PortVisual f) ⇒ Port f → Map.Map IdToken a → m ()
 portGarbageCollectVisuals Port{..} validLeaves = do
@@ -639,7 +639,7 @@ portGarbageCollectVisuals Port{..} validLeaves = do
             let used   = Map.intersection vismap validLeaves
                 unused = Map.difference   vismap used
             _ ← flip Map.traverseWithKey unused $ \_tok pv→ do
-              pvFree pC pv
+              pvFree pC Proxy pv
               -- flip (trev FREE VIS (tokenHash k)) $
               --   case vDrawable of
               --     Nothing → (0, 0)

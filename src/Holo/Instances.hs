@@ -136,9 +136,12 @@ data Rect where
     } → Rect
 -- makeLenses ''Rect
 
+data RectStyle  where RectStyle ∷ Rect → RectStyle
+data RectVisual where RectVisual ∷ { rectDrawable ∷ Drawable } → RectVisual
+
 instance Holo   Rect where
-  data StyleOf  Rect where RectStyle  ∷ Rect → StyleOf Rect
-  data VisualOf Rect where RectVisual ∷ { rectDrawable ∷ Drawable } → VisualOf Rect
+  type StyleOf  Rect = RectStyle
+  type VisualOf Rect = RectVisual
   query port (RectStyle Rect{..}) _ _ = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> _rectDim
   defStyleOf _              = RectStyle $ Rect zero white
   compStyleOf               = RectStyle
@@ -165,28 +168,28 @@ instance Holo   Rect where
 --     , _tsSizeSpec    = TextSizeSpec (lws <|> rws) (choosePartially OneLine lhl rhl)
 --     , _tsColor       = lco <> rco
 --     }
-type TextStyle  = StyleOf  T.Text
-type TextVisual = VisualOf T.Text
+data TextStyle where
+  TextStyle ∷
+    { _tsFontKey     ∷ Cr.FontKey
+    , _tsSizeSpec    ∷ Cr.TextSizeSpec PU
+    , _tsColor       ∷ Co Double
+    } → TextStyle
+data TextVisual where
+  TextVisual ∷
+    { tStyle         ∷ TextStyle      -- XXX
+    , tDrawable      ∷ Drawable       -- XXX
+    , tFont          ∷ Cr.WFont Bound
+    , tLayout        ∷ GIP.Layout
+    , tDim           ∷ Di (Unit u)    -- XXX
+    } → TextVisual
 instance Holo  T.Text where
-  data StyleOf T.Text where
-    TextStyle ∷
-      { _tsFontKey     ∷ Cr.FontKey
-      , _tsSizeSpec    ∷ Cr.TextSizeSpec PU
-      , _tsColor       ∷ Co Double
-      } → TextStyle
+  type StyleOf  T.Text = TextStyle
+  type VisualOf T.Text = TextVisual
   defStyleOf _ = TextStyle
     { _tsFontKey     = "default"
     , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
     , _tsColor       = white
     }
-  data VisualOf T.Text where
-    Text ∷
-      { tStyle         ∷ TextStyle      -- XXX
-      , tDrawable      ∷ Drawable       -- XXX
-      , tFont          ∷ Cr.WFont Bound
-      , tLayout        ∷ GIP.Layout
-      , tDim           ∷ Di (Unit u)    -- XXX
-      } → TextVisual
   compStyleOf _ = TextStyle
     { _tsFontKey     = "default"
     , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
@@ -209,11 +212,11 @@ instance Holo  T.Text where
     -- drawableBindFontLayout allocates:
     --   GIPC.createContext gic  -- released by FFI finalizers
     --   GIP.layoutNew      gipc -- same as above
-    pure $ Text{..}
-  renderVisual _ Text{..} text =
+    pure $ TextVisual{..}
+  renderVisual _ TextVisual{..} text =
     -- 1. execute GIP draw & GIPC composition
     Port.drawableDrawText tDrawable tLayout (_tsColor tStyle) text
-  freeVisualOf _ Text{..} =
+  freeVisualOf _ TextVisual{..} =
     Cr.unbindFontLayout tFont tLayout
 
 data EditEvent where
@@ -257,3 +260,18 @@ tsColor    f ts@(TextStyle _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
 
 instance Holo a ⇒ Holo (Port.ScreenDim a) where
   subscription tok _ = subSingleton tok $ InputMask GLFW.eventMaskFramebufferSize
+
+instance Holo Port.ScreenMode where
+  subscription tok _ = subSingleton tok editMaskKeys
+
+instance Holo (Cr.FontPreferences PU) where
+  subscription tok _ = subSingleton tok editMaskKeys
+
+instance Holo a ⇒ Holo (Di a) where
+  subscription tok _ = subSingleton tok editMaskKeys
+
+instance Holo DΠ where
+  subscription tok _ = subSingleton tok editMaskKeys
+
+instance Holo Int where
+  subscription tok _ = subSingleton tok editMaskKeys

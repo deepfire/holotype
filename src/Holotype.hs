@@ -242,10 +242,11 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
   xDD@(W (_, xDDv)) ← liftWRecord @(Static t AnObject) (eV, AnObject "yayyity" "lol")
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
+  xSD@(W (_, xSDv)) ← liftWRecord @(Static t Settings) (eV, defSettingsV)
 
   longStaticTextD  ← liftW eV ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
-  let fontNameStyle name = Holo.defStyleOf Proxy & tsFontKey .~ Cr.FK name
+  let fontNameStyle name = Holo.defStyleOf (Proxy @Text) & tsFontKey .~ Cr.FK name
 
   W styleEntryD ← mkTextEntryValidatedStyleD eV styleB "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
