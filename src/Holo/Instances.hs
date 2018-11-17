@@ -31,7 +31,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults -fconstraint-solver-iterations=0 #-}
 module Holo.Instances
-  ( liftRecord
+  ( liftWRecord
   , Rect(..)
   , TextStyle, TextVisual
   , tsFontKey, tsSizeSpec, tsColor
@@ -41,7 +41,6 @@ where
 
 import           Control.Arrow
 import           Control.Compose
-import           Control.Monad
 import           Data.Proxy
 import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
@@ -65,44 +64,25 @@ import           Holo
 import           HoloCairo                            (FKind(..))
 import qualified HoloCairo                         as Cr
 import qualified HoloPort                          as Port
-import           HoloPort                             (IdToken)
 
 
--- * Lifted records
+-- * Lifted records (depends on Holo Text instance)
 --
 instance SOP.Generic         Port.Settings
 instance SOP.HasDatatypeInfo Port.Settings
 
-liftRecord ∷ ∀ t m s a xs.
+liftWRecord ∷ ∀ a t m s xs.
   ( RGLFW t m, Record t m a, s ~ Structure a
   , SOP.Code s ~ '[xs]
   , SOP.All (HasReadField t m a) xs
   ) ⇒ RecordCtx t a → m (Widget t s)
-liftRecord ctxR = unO $ recover (Proxy @(RGLFW t m)) (Proxy @(t, a)) ctxR
--- recover  ∷ ∀ (t ∷ Type) c m a s xss xs.
---            ( c, Record t m a, s ~ Structure a
---            , SOP.HasDatatypeInfo s
---            , Code s ~ xss, xss ~ '[xs]
---            , All2 (Field t m a) xss
---            , HasCallStack, Monad m, Applicative (Result t))
---          ⇒ Proxy c
---          → Proxy t
---          → RecordCtx t a
---          → (m :. Result t) s
-
--- fieldCtx ∷ Proxy (t, u, a, m a)
---          → ConsCtx t u
---          → (Structure u → a)
---          → FieldCtx t a
--- type instance ConsCtx  t (Static t a)  = (InputMux t, a)
--- type instance FieldCtx t (Static t a)  = (InputMux t, a)
+liftWRecord ctxR = unO $ recover (Proxy @(RGLFW t m)) (Proxy @(t, a)) ctxR
 
 -- Design derivation for Holo lifts:
 -- 1. P: low-friction definition for structure types
 -- 2. P: low-friction definition for structure field types
 -- 3. 1+2 ?→ Field definition not proportional to structure and field types
 -- 4. …
-
 
 instance ( RGLFW t m
          , Holo a
@@ -117,15 +97,34 @@ instance ( RGLFW t m
          , d ~ Result t
          , ConsCtx t u ~ (InputMux t, Structure u)) ⇒
          HasReadField t m u a where
-  -- XXXXXX: why do we need to specialise on Static/Dynamic?
-  --  ..the downside is we need to add Structure handling in Monadic, which contorts things a bit
-  --    ..FieldCtx is dependent
-  --  Once again, we need a clear picture of where we're going..
-  --
   readField _ _ (mux, initV) (FieldName fname) = O $ do
     tok ← liftIO Port.newId
     let package x = hbox [leaf tok defStyle (fname <> ": "), x]
     W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftW mux initV
+
+-- record lifting for Dynamic initials
+type instance ConsCtx  t (Dynamic t a) = Dynamic t a
+type instance Structure  (Dynamic _ a) = a
+
+
+type instance ConsCtx  t (Static t a)  = (InputMux t, a)
+type instance Structure  (Static _ a)  = a
+
+instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
+         , RGLFW t m
+         ) ⇒ Record t m (Static t a) where
+  type RecordCtx t (Static t a) = (InputMux t, a)
+  prefixChars _ = 3
+  consCtx _ _ _ (mux, a) = (mux, a)
+
+instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
+         , RGLFW t m
+         ) ⇒ Record t m (Dynamic t a) where
+  type RecordCtx t (Dynamic t a) = Dynamic t a
+  prefixChars _ = 3
+  consCtx _ _ _ x = x
+  -- toFieldName _ = (⊥)
+  -- nameMap       = (⊥)
 
 
 -- * Leaves

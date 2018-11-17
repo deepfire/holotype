@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
@@ -71,7 +72,6 @@ import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Maybe
 import           Data.Typeable
-import qualified Generics.SOP                      as SOP
 import           Generics.SOP                             (Proxy)
 import           Generics.SOP.Monadic
 import           GHC.Types                                (Constraint)
@@ -143,6 +143,9 @@ data instance Result t a
     { fromW ∷ (Dynamic t Subscription, Dynamic t (a, HoloBlank))
     }
 
+wWH ∷ Reflex t ⇒ Widget t a → WH t
+wWH = (id *** (snd <$>)) ∘ fromW
+
 instance Functor (Result t) where
   fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
 
@@ -156,42 +159,11 @@ instance Reflex t ⇒ Applicative (Result t) where
                    (f x, xhb { hiChildren = fhb : hiChildren })))
       fvals xvals)
 
--- record lifting for Dynamic initials
-type instance ConsCtx  t (Dynamic t a) = Dynamic t a
-type instance Structure  (Dynamic _ a) = a
-
 -- record lifting for unchanging values
+-- type instance ConsCtx  t (Static t a)  = (InputMux t, a)
+-- type instance FieldCtx t (Static t a)  = (InputMux t, a)
 newtype Static t a = Static a -- XXX: once we're successful with the lift, let's drop the 't'
   deriving (Newtype)
-
-newtype Seed   t a = Seed   a -- XXX: once we're successful with the lift, let's drop the 't'
-  deriving (Newtype)
-
-type instance ConsCtx  t (Static t a)  = (InputMux t, a)
-type instance Structure  (Static _ a)  = a
-
-wWH ∷ Reflex t ⇒ Result t a → WH t
-wWH = (id *** (snd <$>)) ∘ fromW
-
-
--- * Record
---
-
-instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
-         , RGLFW t m
-         ) ⇒ Record t m (Static t a) where
-  type RecordCtx t (Static t a) = (InputMux t, a)
-  prefixChars _ = 3
-  consCtx _ _ _ (mux, a) = (mux, a)
-
-instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
-         , RGLFW t m
-         ) ⇒ Record t m (Dynamic t a) where
-  type RecordCtx t (Dynamic t a) = Dynamic t a
-  prefixChars _ = 3
-  consCtx _ _ _ x = x
--- toFieldName _ = (⊥)
-  -- nameMap       = (⊥)
 
 -- instance {-# OVERLAPPABLE #-}
 --   (Typeable a
