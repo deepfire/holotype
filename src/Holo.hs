@@ -116,8 +116,8 @@ class (Typeable a) ⇒ Holo a where
   liftDynW        ∷ (Reflex t)  ⇒                                   IdToken → Dynamic t a → Widget t a
   liftW           ∷ (RGLFW t m) ⇒                                          InputMux t → a → m (Widget t a)
   query           ∷ (MonadIO m) ⇒ VPort → StyleOf a →                  [Item PLayout] → a → m (Di (Maybe Double))
-  createVisual    ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
-  renderVisual    ∷ (MonadIO m) ⇒ VPort →                            VisualOf a →       a → m ()  -- ^ Update a visualisation of 'a'.
+  setupVisual    ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
+  render          ∷ (MonadIO m) ⇒ VPort →                              Visual a →       a → m ()  -- ^ Update a visualisation of 'a'.
   freeVisualOf    ∷ (MonadIO m) ⇒                                    Proxy a → VisualOf a → m ()
   --
   type VisualOf a = ()
@@ -238,9 +238,9 @@ defStyle = initStyle $ defStyleOf (Proxy @a)
 --
 data Visual a where
   Visual ∷ Holo a ⇒
-    { vVisual     ∷ Maybe (VisualOf a)
-    , vStyleGene  ∷ StyleGene
-    , vDrawable   ∷ Maybe Drawable
+    { vVisual   ∷ Maybe (VisualOf a)
+    , vStyle    ∷ Style a
+    , vDrawable ∷ Maybe Drawable
     } → Visual a
 
 type VPort = Port.Port Visual
@@ -338,19 +338,19 @@ hiEnsureVisual port hi children = case hi of
   Item{..} → do
     let dim = hiArea^.area'b.size'di
     vis ← if not $ hasVisual (proxy holo)
-      then pure $ Visual Nothing (_sStyleGene hiStyle) Nothing
-      else Port.portEnsureVisual port dim (Proxy @Holo) hiToken Proxy (\Visual{..}→ vStyleGene ≢ hiStyleGene hi) $
-           \drw→ Visual <$> (Just <$> createVisual port (_sStyle hiStyle) hiArea drw holo)
-                        <*> pure (_sStyleGene $ hiStyle)
+      then pure $ Visual Nothing hiStyle Nothing
+      else Port.portEnsureVisual port dim (Proxy @Holo) hiToken Proxy (\Visual{..}→ _sStyleGene vStyle ≢ hiStyleGene hi) $
+           \drw→ Visual <$> (Just <$> setupVisual port (_sStyle hiStyle) hiArea drw holo)
+                        <*> pure hiStyle
                         <*> (pure $ Just drw)
     pure Item{hiVisual=Just vis, hiChildren=children, ..}
 
 hiRender ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
 hiRender port Item{..} = do
   case hiVisual of
-    Just Visual{vDrawable=Just drw, vVisual=Just vis} → do
+    Just vis@Visual{vDrawable=Just drw} → do
       Port.clearDrawable drw
-      renderVisual port vis holo
+      render port vis holo
       Port.drawableContentToGPU drw
     _ → pure ()
 

@@ -136,22 +136,16 @@ data Rect where
     } → Rect
 -- makeLenses ''Rect
 
-data RectStyle  where RectStyle ∷ Rect → RectStyle
-data RectVisual where RectVisual ∷ { rectDrawable ∷ Drawable } → RectVisual
-
 instance Holo   Rect where
-  type StyleOf  Rect = RectStyle
-  type VisualOf Rect = RectVisual
-  query port (RectStyle Rect{..}) _ _ = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> _rectDim
-  defStyleOf _              = RectStyle $ Rect zero white
-  compStyleOf               = RectStyle
+  type StyleOf  Rect        = Rect
+  query port Rect{..} _ _   = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> _rectDim
+  defStyleOf _              = Rect zero white
+  compStyleOf               = id
   hasVisual               _ = True
-  createVisual port _ _area drw Rect{..} = do
-    let dim = PUs <$> _area^.area'b.size'di
-    Port.drawableDrawRect port drw _rectColor dim
-    pure $ RectVisual drw
-  renderVisual port v@RectVisual{rectDrawable=Drawable{..}} Rect{..} =
-    Port.drawableDrawRect port (rectDrawable v) _rectColor _rectDim
+  setupVisual port _ _area drw Rect{..} =
+    Port.drawableDrawRect port drw _rectColor _rectDim -- $ PUs <$> _area^.area'b.size'di
+  render port Visual{vDrawable=Just drw,..} Rect{..} =
+    Port.drawableDrawRect port drw _rectColor _rectDim
   freeVisualOf _ _       = pure ()
 
 
@@ -176,11 +170,8 @@ data TextStyle where
     } → TextStyle
 data TextVisual where
   TextVisual ∷
-    { tStyle         ∷ TextStyle      -- XXX
-    , tDrawable      ∷ Drawable       -- XXX
-    , tFont          ∷ Cr.WFont Bound
+    { tFont          ∷ Cr.WFont Bound
     , tLayout        ∷ GIP.Layout
-    , tDim           ∷ Di (Unit u)    -- XXX
     } → TextVisual
 instance Holo  T.Text where
   type StyleOf  T.Text = TextStyle
@@ -190,11 +181,7 @@ instance Holo  T.Text where
     , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
     , _tsColor       = white
     }
-  compStyleOf _ = TextStyle
-    { _tsFontKey     = "default"
-    , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
-    , _tsColor       = white
-    }
+  compStyleOf = const $ defStyleOf $ Proxy @T.Text
   subscription tok _ = subSingleton tok editMaskKeys
   liftHoloDyn initial ev =
     (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
@@ -202,20 +189,20 @@ instance Holo  T.Text where
     let font = Port.portFont' port _tsFontKey -- XXX: non-total
     (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (Port.portDΠ port) _tsSizeSpec) (partial (≢ "") content)
   hasVisual _ = True
-  createVisual port tStyle@TextStyle{..} area' tDrawable _content = do
+  setupVisual port TextStyle{..} area' drw _content = do
     -- 1. find font, 2. bind font to GIC, 3. create layout
     -- Q: why not also draw here?  Reflow?
     let font = Port.portFont' port _tsFontKey -- XXX: non-total
         tDim = fromUnit (Port.portDΠ port) ∘ PUs <$> dimOf area'
-    -- liftIO $ putStrLn $ printf "createVisual T.Text: %s → %s" (show _tsFontKey) (show font)
-    (,) tFont tLayout ← Port.drawableBindFontLayout (Port.portDΠ port) tDrawable font tDim _tsSizeSpec
+    -- liftIO $ putStrLn $ printf "setupVisual T.Text: %s → %s" (show _tsFontKey) (show font)
+    (,) tFont tLayout ← Port.drawableBindFontLayout (Port.portDΠ port) drw font tDim _tsSizeSpec
     -- drawableBindFontLayout allocates:
     --   GIPC.createContext gic  -- released by FFI finalizers
     --   GIP.layoutNew      gipc -- same as above
     pure $ TextVisual{..}
-  renderVisual _ TextVisual{..} text =
+  render _ Visual{vDrawable=Just drw,vStyle=Style{..},vVisual=Just TextVisual{..}} text =
     -- 1. execute GIP draw & GIPC composition
-    Port.drawableDrawText tDrawable tLayout (_tsColor tStyle) text
+    Port.drawableDrawText drw tLayout (_tsColor _sStyle) text
   freeVisualOf _ TextVisual{..} =
     Cr.unbindFontLayout tFont tLayout
 
