@@ -87,15 +87,15 @@ liftWRecord ctxR = unO $ recover (Proxy @(RGLFW t m)) (Proxy @(t, a)) ctxR
 instance ( RGLFW t m
          , Holo a
          , d ~ Result t
-         , ConsCtx t u ~ (InputMux t, Structure u)) ⇒
+         , ConsCtx t u ~ (InputEventMux t, Structure u)) ⇒
          HasFieldCtx t m u a where
-  type instance FieldCtx t a  = (InputMux t, a)
+  type instance FieldCtx t a  = (InputEventMux t, a)
   fieldCtx _ (mux, x) proj = (mux, proj x)
 
 instance ( RGLFW t m
          , Holo a
          , d ~ Result t
-         , ConsCtx t u ~ (InputMux t, Structure u)) ⇒
+         , ConsCtx t u ~ (InputEventMux t, Structure u)) ⇒
          HasReadField t m u a where
   readField _ _ (mux, initV) (FieldName fname) = O $ do
     tok ← liftIO Port.newId
@@ -107,13 +107,13 @@ type instance ConsCtx  t (Dynamic t a) = Dynamic t a
 type instance Structure  (Dynamic _ a) = a
 
 
-type instance ConsCtx  t (Static t a)  = (InputMux t, a)
+type instance ConsCtx  t (Static t a)  = (InputEventMux t, a)
 type instance Structure  (Static _ a)  = a
 
 instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
          , RGLFW t m
          ) ⇒ Record t m (Static t a) where
-  type RecordCtx t (Static t a) = (InputMux t, a)
+  type RecordCtx t (Static t a) = (InputEventMux t, a)
   prefixChars _ = 3
   consCtx _ _ _ (mux, a) = (mux, a)
 
@@ -136,8 +136,10 @@ data Rect where
     } → Rect
 -- makeLenses ''Rect
 
-instance Holo   Rect where
-  type StyleOf  Rect        = Rect
+type instance StyleOf  Rect = Rect
+type instance VisualOf Rect = ()
+
+instance Vis Rect where
   query port Rect{..} _ _   = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> _rectDim
   defStyleOf _              = Rect zero white
   compStyleOf               = id
@@ -148,6 +150,7 @@ instance Holo   Rect where
     Port.drawableDrawRect port drw _rectColor _rectDim
   freeVisualOf _ _       = pure ()
 
+instance Holo Rect where
 
 
 -- * This is a complicated story:
@@ -173,18 +176,17 @@ data TextVisual where
     { tFont          ∷ Cr.WFont Bound
     , tLayout        ∷ GIP.Layout
     } → TextVisual
-instance Holo  T.Text where
-  type StyleOf  T.Text = TextStyle
-  type VisualOf T.Text = TextVisual
+
+type instance StyleOf  T.Text = TextStyle
+type instance VisualOf T.Text = TextVisual
+
+instance Vis T.Text where
   defStyleOf _ = TextStyle
     { _tsFontKey     = "default"
     , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
     , _tsColor       = white
     }
   compStyleOf = const $ defStyleOf $ Proxy @T.Text
-  subscription tok _ = subSingleton tok editMaskKeys
-  liftHoloDyn initial ev =
-    (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
   query port TextStyle{..} _ content = do
     let font = Port.portFont' port _tsFontKey -- XXX: non-total
     (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (Port.portDΠ port) _tsSizeSpec) (partial (≢ "") content)
@@ -206,32 +208,37 @@ instance Holo  T.Text where
   freeVisualOf _ TextVisual{..} =
     Cr.unbindFontLayout tFont tLayout
 
+instance Holo T.Text where
+  subscription tok _ = subSingleton tok editMaskKeys
+  liftHoloDyn initial ev =
+    (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
+
 data EditEvent where
   Edit ∷
     { eeEdit ∷ TextZipper Text → TextZipper Text
     } → EditEvent
 
-translateEditEvent ∷ Input → EditEvent
+translateEditEvent ∷ InputEvent → EditEvent
 translateEditEvent = \case
-  (Input (U (GLFW.EventChar _ c)))                                              → Edit $ T.insertChar c
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Pressed   _))) → Edit $ T.breakLine
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Pressed   _))) → Edit $ T.deletePrevChar
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Pressed   _))) → Edit $ T.deleteChar
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveLeft
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveUp
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveRight
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveDown
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Pressed   _))) → Edit $ T.gotoBOL
-  (Input (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Pressed   _))) → Edit $ T.gotoEOL
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Repeating _))) → Edit $ T.breakLine
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Repeating _))) → Edit $ T.deletePrevChar
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Repeating _))) → Edit $ T.deleteChar
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Repeating _))) → Edit $ T.moveLeft
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Repeating _))) → Edit $ T.moveUp
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _))) → Edit $ T.moveRight
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _))) → Edit $ T.moveDown
-  (Input (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoBOL
-  (Input (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoEOL
+  (InputEvent (U (GLFW.EventChar _ c)))                                              → Edit $ T.insertChar c
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Pressed   _))) → Edit $ T.breakLine
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Pressed   _))) → Edit $ T.deletePrevChar
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Pressed   _))) → Edit $ T.deleteChar
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveLeft
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveUp
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveRight
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Pressed   _))) → Edit $ T.moveDown
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Pressed   _))) → Edit $ T.gotoBOL
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Pressed   _))) → Edit $ T.gotoEOL
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Enter     _ GLFW.KeyState'Repeating _))) → Edit $ T.breakLine
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Backspace _ GLFW.KeyState'Repeating _))) → Edit $ T.deletePrevChar
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Delete    _ GLFW.KeyState'Repeating _))) → Edit $ T.deleteChar
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Left      _ GLFW.KeyState'Repeating _))) → Edit $ T.moveLeft
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Up        _ GLFW.KeyState'Repeating _))) → Edit $ T.moveUp
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Right     _ GLFW.KeyState'Repeating _))) → Edit $ T.moveRight
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Down      _ GLFW.KeyState'Repeating _))) → Edit $ T.moveDown
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoBOL
+  (InputEvent (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoEOL
   x → error $ "Unexpected event (non-edit): " <> show x
 
 tsFontKey   ∷ Lens' TextStyle Cr.FontKey
@@ -244,21 +251,26 @@ tsColor    f ts@(TextStyle _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
 
 -- * Settings
 --
-
+instance Vis  a ⇒ Vis  (Port.ScreenDim a) where
 instance Holo a ⇒ Holo (Port.ScreenDim a) where
-  subscription tok _ = subSingleton tok $ InputMask GLFW.eventMaskFramebufferSize
+  subscription tok _ = subSingleton tok $ InputEventMask GLFW.eventMaskFramebufferSize
 
+instance Vis  Port.ScreenMode where
 instance Holo Port.ScreenMode where
   subscription tok _ = subSingleton tok editMaskKeys
 
+instance Vis  (Cr.FontPreferences PU) where
 instance Holo (Cr.FontPreferences PU) where
   subscription tok _ = subSingleton tok editMaskKeys
 
+instance Vis a  ⇒ Vis  (Di a) where
 instance Holo a ⇒ Holo (Di a) where
   subscription tok _ = subSingleton tok editMaskKeys
 
+instance Vis  DΠ where
 instance Holo DΠ where
   subscription tok _ = subSingleton tok editMaskKeys
 
+instance Vis  Int where
 instance Holo Int where
   subscription tok _ = subSingleton tok editMaskKeys

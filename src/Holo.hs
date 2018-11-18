@@ -1,6 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -33,16 +35,17 @@ module Holo
   , Frame(..)
   , VPort
   --
+  , Vis(..), compToken
+  , StyleOf, Style(..), initStyle, defStyle
+  , StyleGene(..), sStyle, sStyleGene, fromStyleGene
+  , VisualOf, Visual(..)
   , Drawable(..)
-  , Visual(..)
   --
-  , Input(..)
+  , InputEvent(..)
   , inputMatch
-  , InputMask(..), Subscription(..), subSingleton
+  , InputEventMask(..), Subscription(..), subSingleton
   , inputMaskKeys, inputMaskButtons, inputMaskChars, editMaskKeys
   --
-  , Style(..), initStyle, defStyle
-  , StyleGene(..), sStyle, sStyleGene, fromStyleGene
   , HIArea, HIVisual
   , Holo(..), hiStyleGene, hiHasVisual, hiLeaves
   , Item(..)
@@ -61,7 +64,7 @@ module Holo
   --
   , Static(..)
   --
-  , InputMux
+  , InputEventMux
   )
 where
 
@@ -95,36 +98,82 @@ import           HoloPort                                 (IdToken, Drawable, Fr
 import qualified HoloPort                          as Port
 
 
--- * Holo: making data types interactive.
+-- * Vis: making things visible
 --
---   Holo a ⇒ a
---   → Dynamic t (a, Item PBlank)
---   → Dynamic t (a, Item PLayout)
---   → Dynamic t (a, Item PVisual)
---
-class (Typeable a) ⇒ Holo a where
-  type VisualOf a
-  type StyleOf  a
-  type CLiftW   t (m ∷ Type → Type) a ∷ Constraint
+type family StyleOf  a ∷ Type
+type family VisualOf a ∷ Type
+
+class Typeable a ⇒ Vis a where
   defStyleOf      ∷                                                               Proxy a → StyleOf a
   compStyleOf     ∷                                                                     a → StyleOf a
   compGeo         ∷                                                                     a → Geo
-  hasVisual       ∷                                                               Proxy a → Bool
-  liftHoloDyn     ∷ (RGLFW t m) ⇒                                       a → Event t Input → m (Dynamic t a)
-  liftHoloItem    ∷                                                           IdToken → a → Item PBlank
-  subscription    ∷                                                     IdToken → Proxy a → Subscription
-  liftDynW        ∷ (Reflex t)  ⇒                                   IdToken → Dynamic t a → Widget t a
-  liftW           ∷ (RGLFW t m) ⇒                                          InputMux t → a → m (Widget t a)
   query           ∷ (MonadIO m) ⇒ VPort → StyleOf a →                  [Item PLayout] → a → m (Di (Maybe Double))
-  setupVisual    ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
+  hasVisual       ∷                                                               Proxy a → Bool
+  setupVisual     ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
   render          ∷ (MonadIO m) ⇒ VPort →                              Visual a →       a → m ()  -- ^ Update a visualisation of 'a'.
   freeVisualOf    ∷ (MonadIO m) ⇒                                    Proxy a → VisualOf a → m ()
   --
-  type VisualOf a = ()
-  type StyleOf  a = ()
   compStyleOf     = defStyleOf ∘ proxy   -- default style
   compGeo         = const mempty         -- default geometry
   hasVisual       = const False          -- no visual by default
+
+compToken ∷ ∀ m a. (Vis a, MonadIO m) ⇒ Proxy a → m IdToken
+compToken (hasVisual → True) = Port.newId
+compToken _                  = pure Port.blankIdToken
+
+
+-- * Style wrapper
+--
+newtype StyleGene = StyleGene { _fromStyleGene ∷ Int } deriving (Eq, Ord)
+fromStyleGene ∷ Lens' StyleGene Int
+fromStyleGene f (StyleGene x) = f x <&> StyleGene
+
+data Style a where
+  Style ∷ Vis a ⇒
+    { _sStyle      ∷ StyleOf a
+    , _sStyleGene  ∷ StyleGene
+    } → Style a
+
+sStyle     ∷ Lens' (Style a) (StyleOf a)
+sStyle     f s@Style{..} = f _sStyle     <&> \x→ s{_sStyle=x}
+sStyleGene ∷ Lens' (Style a) StyleGene
+sStyleGene f s@Style{..} = f _sStyleGene <&> \x→ s{_sStyleGene=x}
+
+initStyle ∷ Vis a ⇒ StyleOf a → Style a
+initStyle s = Style { _sStyle = s, _sStyleGene = StyleGene 0 }
+
+defStyle ∷ ∀ a. Vis a ⇒ Style a
+defStyle = initStyle $ defStyleOf (Proxy @a)
+
+
+-- * Visual wrapper
+--
+data Visual a where
+  Visual ∷ Vis a ⇒
+    { vVisual   ∷ Maybe (VisualOf a)
+    , vStyle    ∷ Style a
+    , vDrawable ∷ Maybe Drawable
+    } → Visual a
+
+type VPort = Port.Port Visual
+
+instance Port.PortVisual Visual where
+  pvDrawable = vDrawable
+  pvFree _pC pA = \case
+    Visual{..} → sequence_ $ freeVisualOf pA <$> vVisual
+
+
+
+class Input iv a where
+
+class (Typeable a, Vis a) ⇒ Holo a where
+  -- type CLiftW   t (m ∷ Type → Type) a ∷ Constraint
+  liftHoloDyn     ∷ (RGLFW t m) ⇒                                  a → Event t InputEvent → m (Dynamic t a)
+  liftHoloItem    ∷                                                           IdToken → a → Item PBlank
+  subscription    ∷                                                     IdToken → Proxy a → Subscription
+  liftDynW        ∷ (Reflex t)  ⇒                                   IdToken → Dynamic t a → Widget t a
+  liftW           ∷ (RGLFW t m) ⇒                                     InputEventMux t → a → m (Widget t a)
+  --
   liftHoloDyn     = liftHoloDynStatic    -- no value change in response to events
   liftHoloItem    = liftItemStatic       -- static style and geometry
   subscription    = const mempty         -- ignore events
@@ -161,10 +210,10 @@ instance Reflex t ⇒ Applicative (Result t) where
       fvals xvals)
 
 -- record lifting for unchanging values
--- type instance ConsCtx  t (Static t a)  = (InputMux t, a)
--- type instance FieldCtx t (Static t a)  = (InputMux t, a)
+-- type instance ConsCtx  t (Static t a)  = (InputEventMux t, a)
+-- type instance FieldCtx t (Static t a)  = (InputEventMux t, a)
 newtype Static t a = Static a -- XXX: once we're successful with the lift, let's drop the 't'
-  deriving (Newtype)
+  deriving newtype (Newtype)
 
 -- instance {-# OVERLAPPABLE #-}
 --   (Typeable a
@@ -172,22 +221,22 @@ newtype Static t a = Static a -- XXX: once we're successful with the lift, let's
 --   , ∀ xs. SOP.Code a ~ '[xs]
 --   ) ⇒ Holo a where
 --   type CLiftW t m a = ()
---   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputMux t → a → m (W t a)
+--   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputEventMux t → a → m (W t a)
 --   liftW = liftRecord
-
-liftHoloDynStatic ∷ (RGLFW t m) ⇒ a → Event t Input → m (Dynamic t a)
-liftHoloDynStatic init _ev = pure $ constDyn init
 
 liftItemStatic ∷ ∀ a. (Holo a) ⇒ IdToken → a → Item PBlank
 liftItemStatic tok x = leaf tok (initStyle $ compStyleOf x) x
 
-liftWStatic ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputMux t → Static t a → m (Widget t a)
+liftHoloDynStatic ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
+liftHoloDynStatic init _ev = pure $ constDyn init
+
+liftWStatic ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputEventMux t → Static t a → m (Widget t a)
 liftWStatic _imux (Static initial) = do
   tok ← compToken $ Proxy @a
   pure $ W ( constDyn $ subscription tok (Proxy @a)
            , constDyn (initial, liftHoloItem tok initial))
 
-liftWSeed   ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputMux t → a → m (Widget t a)
+liftWSeed   ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputEventMux t → a → m (Widget t a)
 liftWSeed imux initial = do
   tok ← compToken $ Proxy @a
   liftDynW tok <$> (liftHoloDyn initial $ select imux $ Const2 tok)
@@ -201,54 +250,6 @@ liftWDynamic ∷ ∀ a t m. (Holo a, RGLFW t m) ⇒ Dynamic t a → m (Widget t 
 liftWDynamic h = do
   tok ← compToken $ Proxy @a
   pure $ liftDynWStaticSubs tok h
-
-
--- * Lift stack
---
-compToken ∷ ∀ m a. (Holo a, MonadIO m) ⇒ Proxy a → m IdToken
-compToken (hasVisual → True) = Port.newId
-compToken _                  = pure Port.blankIdToken
-
-
--- * Style wrapper
---
-newtype StyleGene = StyleGene { _fromStyleGene ∷ Int } deriving (Eq, Ord)
-fromStyleGene ∷ Lens' StyleGene Int
-fromStyleGene f (StyleGene x) = f x <&> StyleGene
-
-data Style a where
-  Style ∷ Holo a ⇒
-    { _sStyle      ∷ StyleOf a
-    , _sStyleGene  ∷ StyleGene
-    } → Style a
-
-sStyle     ∷ Lens' (Style a) (StyleOf a)
-sStyle     f s@Style{..} = f _sStyle     <&> \x→ s{_sStyle=x}
-sStyleGene ∷ Lens' (Style a) StyleGene
-sStyleGene f s@Style{..} = f _sStyleGene <&> \x→ s{_sStyleGene=x}
-
-initStyle ∷ Holo a ⇒ StyleOf a → Style a
-initStyle s = Style { _sStyle = s, _sStyleGene = StyleGene 0 }
-
-defStyle ∷ ∀ a. Holo a ⇒ Style a
-defStyle = initStyle $ defStyleOf (Proxy @a)
-
-
--- * Visual wrapper
---
-data Visual a where
-  Visual ∷ Holo a ⇒
-    { vVisual   ∷ Maybe (VisualOf a)
-    , vStyle    ∷ Style a
-    , vDrawable ∷ Maybe Drawable
-    } → Visual a
-
-type VPort = Port.Port Visual
-
-instance Port.PortVisual Visual where
-  pvDrawable = vDrawable
-  pvFree _pC pA = \case
-    Visual{..} → sequence_ $ freeVisualOf pA <$> vVisual
 
 
 -- * Item
@@ -339,7 +340,7 @@ hiEnsureVisual port hi children = case hi of
     let dim = hiArea^.area'b.size'di
     vis ← if not $ hasVisual (proxy holo)
       then pure $ Visual Nothing hiStyle Nothing
-      else Port.portEnsureVisual port dim (Proxy @Holo) hiToken Proxy (\Visual{..}→ _sStyleGene vStyle ≢ hiStyleGene hi) $
+      else Port.portEnsureVisual port dim (Proxy @Vis) hiToken Proxy (\Visual{..}→ _sStyleGene vStyle ≢ hiStyleGene hi) $
            \drw→ Visual <$> (Just <$> setupVisual port (_sStyle hiStyle) hiArea drw holo)
                         <*> pure hiStyle
                         <*> (pure $ Just drw)
@@ -387,12 +388,16 @@ data KNode
 data Node (k ∷ KNode) where
   HBoxN ∷ Node HBox
   VBoxN ∷ Node VBox
+  deriving anyclass Holo
 
 boxAxis ∷ Node a → Axis
 boxAxis HBoxN = X
 boxAxis VBoxN = Y
 
-instance Typeable k ⇒ Holo   (Node (k ∷ KNode)) where
+type instance StyleOf  (Node k) = ()
+type instance VisualOf (Node k) = ()
+
+instance Typeable k ⇒ Vis (Node (k ∷ KNode)) where
   defStyleOf _           = ()
   compGeo HBoxN          = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
   compGeo VBoxN          = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
@@ -437,62 +442,62 @@ hbox = node Port.blankIdToken (initStyle ()) (HBoxN ∷ Node HBox)
 vbox = node Port.blankIdToken (initStyle ()) (VBoxN ∷ Node VBox)
 
 
--- * Input & Subscription
+-- * InputEvent & Subscription
 --
-type InputMux t     = EventSelector t (Const2 IdToken Input)
+type InputEventMux t     = EventSelector t (Const2 IdToken InputEvent)
 
-data Input where
-  Input ∷
-    { inInput ∷ GLFW.InputU
-    } → Input
+data InputEvent where
+  InputEvent ∷
+    { inInputEvent ∷ GLFW.InputU
+    } → InputEvent
   deriving (Show)
 
-data InputMask where
-  InputMask ∷
+data InputEventMask where
+  InputEventMask ∷
     { inputMask ∷ GLFW.EventMask
-    } → InputMask
+    } → InputEventMask
   deriving (Eq, Ord)
-instance Show InputMask where
-  show InputMask{..} = ("(IM "<>) ∘ (<>")") $ show inputMask
+instance Show InputEventMask where
+  show InputEventMask{..} = ("(IM "<>) ∘ (<>")") $ show inputMask
 
-inputMatch ∷ InputMask → Input → Bool
-inputMatch InputMask{..} = \case
-  Input{inInput=GLFW.U x} → GLFW.eventMatch inputMask x
+inputMatch ∷ InputEventMask → InputEvent → Bool
+inputMatch InputEventMask{..} = \case
+  InputEvent{inInputEvent=GLFW.U x} → GLFW.eventMatch inputMask x
 
-instance Semigroup InputMask where
-  InputMask a <> InputMask b = InputMask $ a <> b
-instance Monoid InputMask where
-  mempty = InputMask mempty
+instance Semigroup InputEventMask where
+  InputEventMask a <> InputEventMask b = InputEventMask $ a <> b
+instance Monoid InputEventMask where
+  mempty = InputEventMask mempty
 
-newtype Subscription = Subscription (MMap.MonoidalMap GLFW.EventType (Seq.Seq (IdToken, InputMask)))
+newtype Subscription = Subscription (MMap.MonoidalMap GLFW.EventType (Seq.Seq (IdToken, InputEventMask)))
 instance Show Subscription where
   show (Subscription map) = ("(Subs"<>) ∘ (<>")") $ concat $
     [ " "<>show et<>"::"<> intercalate "+" [ printf "0x%x:%s" tok (show em)
-                                           | (Port.tokenHash → tok,(InputMask em)) ← toList subs]
+                                           | (Port.tokenHash → tok,(InputEventMask em)) ← toList subs]
     | (et, subs) ← MMap.toList map]
 
 instance Semigroup Subscription where
   Subscription a <> Subscription b = Subscription $ a <> b
 
-deriving instance Monoid Subscription
+deriving newtype instance Monoid Subscription
 
-subSingleton ∷ IdToken → InputMask → Subscription
-subSingleton tok im@(InputMask em) = Subscription $
+subSingleton ∷ IdToken → InputEventMask → Subscription
+subSingleton tok im@(InputEventMask em) = Subscription $
   MMap.fromList [ (evty, Seq.singleton (tok, im))
                 | evty ← GLFW.eventMaskTypes em ]
 
-inputMaskKeys    ∷ Set.Set GL.Key → Set.Set GL.KeyState → GL.ModifierKeys → InputMask
--- inputMaskKeys = InputMask ∘ GLFW.eventMaskKeys .:: GLFW.KeyEventMask
-inputMaskKeys ks kss mks = InputMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask ks kss mks
+inputMaskKeys    ∷ Set.Set GL.Key → Set.Set GL.KeyState → GL.ModifierKeys → InputEventMask
+-- inputMaskKeys = InputEventMask ∘ GLFW.eventMaskKeys .:: GLFW.KeyEventMask
+inputMaskKeys ks kss mks = InputEventMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask ks kss mks
 
-inputMaskChars   ∷ InputMask
-inputMaskChars   = InputMask $ GLFW.eventMaskChars
+inputMaskChars   ∷ InputEventMask
+inputMaskChars   = InputEventMask $ GLFW.eventMaskChars
 
-inputMaskButtons ∷ GLFW.ButtonEventMask → InputMask
-inputMaskButtons = InputMask ∘ GLFW.eventMaskButtons
+inputMaskButtons ∷ GLFW.ButtonEventMask → InputEventMask
+inputMaskButtons = InputEventMask ∘ GLFW.eventMaskButtons
 
-editMaskKeys ∷ InputMask
-editMaskKeys = (inputMaskChars <>) $ InputMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask
+editMaskKeys ∷ InputEventMask
+editMaskKeys = (inputMaskChars <>) $ InputEventMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask
   (Set.fromList
    [ GL.Key'Up, GL.Key'Down, GL.Key'Left, GL.Key'Right, GL.Key'Home, GL.Key'End
    , GL.Key'Backspace, GL.Key'Delete, GL.Key'Enter
@@ -504,8 +509,10 @@ editMaskKeys = (inputMaskChars <>) $ InputMask $ GLFW.eventMaskKeys $ GLFW.KeyEv
 
 -- * Concrete, minimal case, to keep us in check
 --
-instance Holo   () where
-  query        _ _ _ _ = pure $ Di $ V2 Nothing Nothing
+type instance StyleOf () = ()
+instance Vis () where
+  query _ _ _ _ = pure $ Di $ V2 Nothing Nothing
+instance Holo () where
 
 instance Semigroup (Item PBlank)  where _ <> _ = mempty
 instance Monoid    (Item PBlank)  where mempty = Item () Port.blankIdToken (initStyle ()) mempty [] (Di $ V2 Nothing Nothing) mempty ()

@@ -80,7 +80,8 @@ import           Flex
 
 import           HoloPrelude                       hiding ((<>))
 import           Holo.Instances
-import           Holo                                     ( Holo, HoloBlank, Input, InputMux, Item, Style(..), StyleOf, StyleGene(..), Subscription(..), VPort
+import           Holo                                     ( Vis
+                                                          , Holo, HoloBlank, InputEvent, InputEventMux, Item, Style(..), StyleOf, StyleGene(..), Subscription(..), VPort
                                                           , Static(..)
                                                           , Widget, liftW, liftWDynamic
                                                           , WH, wWH
@@ -115,21 +116,21 @@ average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 
 
-routeInput ∷ ∀ t m. (RGLFW t m)
-           ⇒ Event t Input          -- ^ Events to distribute
+routeInputEvent ∷ ∀ t m. (RGLFW t m)
+           ⇒ Event t InputEvent          -- ^ Events to distribute
            → Event t IdToken        -- ^ Carries the (possibly) new picked entity
            → Dynamic t Subscription -- ^ The total mass of subscriptions
-           → m (InputMux t)         -- ^ Global event wire for all IdTokens
-routeInput inputE pickedE subsD = do
+           → m (InputEventMux t)         -- ^ Global event wire for all IdTokens
+routeInputEvent inputE pickedE subsD = do
   pickeD ← holdDyn Nothing $ Just <$> pickedE -- Compute the latest focus
   let inputsD = zipDynWith (,) pickeD (traceDyn "===== new subs: " subsD)
       -- | Process the incoming events using the latest listener and total set subscriptions
-      routedE ∷ Event t (M.Map IdToken Input)
+      routedE ∷ Event t (M.Map IdToken InputEvent)
       routedE = routeSingle <$> attachPromptlyDyn inputsD inputE
-      routeSingle ∷ ((Maybe IdToken, Subscription), Input) → M.Map IdToken Input
+      routeSingle ∷ ((Maybe IdToken, Subscription), InputEvent) → M.Map IdToken InputEvent
       routeSingle ((picked, Subscription ss), ev) =
-        case MMap.lookup (GLFW.eventUType $ Holo.inInput ev) ss of
-          Nothing         → --trace ("rejected type: "<>show ev<>"/"<>show (inInput ev))
+        case MMap.lookup (GLFW.eventUType $ Holo.inInputEvent ev) ss of
+          Nothing         → --trace ("rejected type: "<>show ev<>"/"<>show (inInputEvent ev))
                             mempty -- no-one cares, nothing happened..
           Just potentials →
             let matches = flip Seq.filter potentials (flip Holo.inputMatch ev ∘ snd)
@@ -143,7 +144,7 @@ routeInput inputE pickedE subsD = do
   pure $ fanMap routedE
 
 
--- mkTextEntryStyleD ∷ RGLFW t m ⇒ InputMux t → Behavior t (Style Text) → Text → m (W t (Text, HoloBlank))
+-- mkTextEntryStyleD ∷ RGLFW t m ⇒ InputEventMux t → Behavior t (Style Text) → Text → m (W t (Text, HoloBlank))
 -- mkTextEntryStyleD mux styleB initialV = do
 --   tokenV       ← newId
 --   let editE = select mux $ Const2 tokenV
@@ -153,7 +154,7 @@ routeInput inputE pickedE subsD = do
 --   holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn valD holoE)
 --    <&> (,) editMaskKeys
 
-mkTextEntryValidatedStyleD ∷ RGLFW t m ⇒ InputMux t → Behavior t (Style Text) → Text → (Text → Bool) → m (Result t Text)
+mkTextEntryValidatedStyleD ∷ RGLFW t m ⇒ InputEventMux t → Behavior t (Style Text) → Text → (Text → Bool) → m (Result t Text)
 mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
@@ -221,7 +222,7 @@ instance SOP.HasDatatypeInfo AnObject
 scene ∷ ∀ t m. ( RGLFW t m
                , Typeable t)
   ⇒ Settings
-  → InputMux   t
+  → InputEventMux   t
   → Dynamic    t Integer
   → Dynamic    t Int
   → Dynamic    t Double
@@ -321,7 +322,7 @@ holotype win evCtl windowFrameE inputE = mdo
 
   -- * SCENE
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
-  inputMux         ← routeInput (Holo.Input <$> inputE) pickedE subscriptionsD
+  inputMux         ← routeInputEvent (Holo.InputEvent <$> inputE) pickedE subscriptionsD
   (,) subscriptionsD sceneD
                    ← scene defaultSettings inputMux statsValD frameNoD fpsValueD
 
