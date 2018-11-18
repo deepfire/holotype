@@ -108,18 +108,12 @@ class Typeable a ⇒ Vis a where
   compStyleOf     ∷                                                                     a → StyleOf a
   compGeo         ∷                                                                     a → Geo
   sizeRequest     ∷ (MonadIO m) ⇒ VPort → StyleOf a →                  [Item PLayout] → a → m (Di (Maybe Double))
-  hasVisual       ∷                                                               Proxy a → Bool
   setupVisual     ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
   render          ∷ (MonadIO m) ⇒ VPort →                              Visual a →       a → m ()  -- ^ Update a visualisation of 'a'.
   freeVisualOf    ∷ (MonadIO m) ⇒                                    Proxy a → VisualOf a → m ()
   --
   compStyleOf     = defStyleOf ∘ proxy   -- default style
   compGeo         = const mempty         -- default geometry
-  hasVisual       = const False          -- no visual by default
-
-compToken ∷ ∀ m a. (Vis a, MonadIO m) ⇒ Proxy a → m IdToken
-compToken (hasVisual → True) = Port.newId
-compToken _                  = pure Port.blankIdToken
 
 
 -- * Style wrapper
@@ -168,17 +162,23 @@ class Input iv a where
 
 class (Typeable a, Vis a) ⇒ Holo a where
   -- type CLiftW   t (m ∷ Type → Type) a ∷ Constraint
+  hasVisual       ∷                                                               Proxy a → Bool
   liftHoloDyn     ∷ (RGLFW t m) ⇒                                  a → Event t InputEvent → m (Dynamic t a)
   liftHoloItem    ∷                                                           IdToken → a → Item PBlank
   subscription    ∷                                                     IdToken → Proxy a → Subscription
   liftDynW        ∷ (Reflex t)  ⇒                                   IdToken → Dynamic t a → Widget t a
   liftW           ∷ (RGLFW t m) ⇒                                     InputEventMux t → a → m (Widget t a)
   --
+  hasVisual       = const False          -- no visual by default
   liftHoloDyn     = liftHoloDynStatic    -- no value change in response to events
   liftHoloItem    = liftItemStatic       -- static style and geometry
   subscription    = const mempty         -- ignore events
   liftDynW        = liftDynWStaticSubs
   liftW           = liftWSeed
+
+compToken ∷ ∀ m a. (Holo a, MonadIO m) ⇒ Proxy a → m IdToken
+compToken (hasVisual → True) = Port.newId
+compToken _                  = pure Port.blankIdToken
 
 
 -- * The final lift:  W(-idget)

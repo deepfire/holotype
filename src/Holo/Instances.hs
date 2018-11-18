@@ -143,7 +143,6 @@ instance Vis Rect where
   sizeRequest port Rect{..} _ _ = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> _rectDim
   defStyleOf _              = Rect zero white
   compStyleOf               = id
-  hasVisual               _ = True
   setupVisual port _ _area drw Rect{..} =
     Port.drawableDrawRect port drw _rectColor _rectDim -- $ PUs <$> _area^.area'b.size'di
   render port Visual{vDrawable=Just drw,..} Rect{..} =
@@ -151,6 +150,7 @@ instance Vis Rect where
   freeVisualOf _ _       = pure ()
 
 instance Holo Rect where
+  hasVisual               _ = True
 
 
 -- * This is a complicated story:
@@ -190,7 +190,6 @@ instance Vis T.Text where
   sizeRequest port TextStyle{..} _ content = do
     let font = Port.portFont' port _tsFontKey -- XXX: non-total
     (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (Port.portDΠ port) _tsSizeSpec) (partial (≢ "") content)
-  hasVisual _ = True
   setupVisual port TextStyle{..} area' drw _content = do
     -- 1. find font, 2. bind font to GIC, 3. create layout
     -- Q: why not also draw here?  Reflow?
@@ -209,6 +208,7 @@ instance Vis T.Text where
     Cr.unbindFontLayout tFont tLayout
 
 instance Holo T.Text where
+  hasVisual _ = True
   subscription tok _ = subSingleton tok editMaskKeys
   liftHoloDyn initial ev =
     (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
