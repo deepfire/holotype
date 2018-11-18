@@ -88,7 +88,8 @@ import           Holo                                     ( Vis
                                                           , Result(..))
 import qualified Holo
 import qualified HoloCairo                         as Cr
-import           HoloPort
+import qualified HoloPort                          as Port
+import           HoloPort                             (Port(..), IdToken)
 import qualified HoloOS                            as HOS
 
 -- TEMPORARY
@@ -97,10 +98,10 @@ import qualified Generics.SOP                      as SOP
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
 
-newPortFrame ∷ RGLFW t m ⇒ Event t VPort → m (Event t (VPort, Frame))
+newPortFrame ∷ RGLFW t m ⇒ Event t VPort → m (Event t (VPort, Port.Frame))
 newPortFrame portFrameE = performEvent $ portFrameE <&>
   \port@Port{..}→ do
-    newFrame ← portNextFrame port
+    newFrame ← Port.portNextFrame port
     pure (port, newFrame)
 
 type Avg a = (Int, Int, [a])
@@ -118,8 +119,8 @@ average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 routeInputEvent ∷ ∀ t m. (RGLFW t m)
            ⇒ Event t InputEvent          -- ^ Events to distribute
-           → Event t IdToken        -- ^ Carries the (possibly) new picked entity
-           → Dynamic t Subscription -- ^ The total mass of subscriptions
+           → Event t IdToken             -- ^ Carries the (possibly) new picked entity
+           → Dynamic t Subscription      -- ^ The total mass of subscriptions
            → m (InputEventMux t)         -- ^ Global event wire for all IdTokens
 routeInputEvent inputE pickedE subsD = do
   pickeD ← holdDyn Nothing $ Just <$> pickedE -- Compute the latest focus
@@ -178,7 +179,7 @@ vboxD chi = do
 
 
 
-fpsCounterD ∷ RGLFW t m ⇒ Event t Frame → m (Dynamic t Double)
+fpsCounterD ∷ RGLFW t m ⇒ Event t Port.Frame → m (Dynamic t Double)
 fpsCounterD frameE = do
   frameMomentE     ← performEvent $ fmap (\_ → HOS.fromSec <$> HOS.getTime) frameE
   frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
@@ -221,7 +222,7 @@ instance SOP.HasDatatypeInfo AnObject
 
 scene ∷ ∀ t m. ( RGLFW t m
                , Typeable t)
-  ⇒ Settings
+  ⇒ Port.Settings
   → InputEventMux   t
   → Dynamic    t Integer
   → Dynamic    t Int
@@ -243,7 +244,7 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
   xDD@(W (_, xDDv)) ← liftWRecord @(Static t AnObject) (eV, AnObject "yayyity" "lol")
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
-  xSD@(W (_, xSDv)) ← liftWRecord @(Static t Settings) (eV, defSettingsV)
+  xSD@(W (_, xSDv)) ← liftWRecord @(Static t Port.Settings) (eV, defSettingsV)
 
   longStaticTextD  ← liftW eV ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
@@ -302,14 +303,14 @@ holotype win evCtl windowFrameE inputE = mdo
   liftIO $ GLFW.enableEvent evCtl GLFW.FramebufferSize
 
   (Di (V2 initW initH))
-                   ← portWindowSize win
+                   ← Port.portWindowSize win
   let fbSizeE       = ffilter (\case (U GLFW.EventFramebufferSize{}) → True; _ → False) $
                       leftmost [inputE, (U (GLFW.EventFramebufferSize win initW initH)) <$ initE]
   settingsD        ← foldDyn (\(U (GLFW.EventFramebufferSize _ w h)) oldStts →
-                                 oldStts { sttsScreenDim = ScreenDim $ unsafe'di w h } )
-                     defaultSettings fbSizeE
+                                 oldStts { Port.sttsScreenDim = Port.ScreenDim $ unsafe'di w h } )
+                     Port.defaultSettings fbSizeE
 
-  maybePortD       ← portCreate winD settingsD
+  maybePortD       ← Port.portCreate winD settingsD
   portFrameE       ← newPortFrame $ fmapMaybe id $ fst <$> attachPromptlyDyn maybePortD windowFrameE
 
   -- * EXTERNAL STIMULI
@@ -324,7 +325,7 @@ holotype win evCtl windowFrameE inputE = mdo
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
   inputMux         ← routeInputEvent (Holo.InputEvent <$> inputE) pickedE subscriptionsD
   (,) subscriptionsD sceneD
-                   ← scene defaultSettings inputMux statsValD frameNoD fpsValueD
+                   ← scene Port.defaultSettings inputMux statsValD frameNoD fpsValueD
 
   -- * LAYOUT
   -- needs port because of DPI and fonts
@@ -338,11 +339,11 @@ holotype win evCtl windowFrameE inputE = mdo
   -- * RENDER
       sceneDrawE     = attachPromptlyDyn sceneLaidTreeD portFrameE
   drawnPortE       ← performEvent $ sceneDrawE <&>
-                     \(tree, (,) port f@Frame{..}) → do
+                     \(tree, (,) port f@Port.Frame{..}) → do
                        -- Flex.dump (\x→ "La: "<>Flex.ppItemArea x<>" ← "<>Flex.ppItemSize x) tree
                        let leaves = Holo.hiLeaves tree
                        -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
-                       portGarbageCollectVisuals port leaves
+                       Port.portGarbageCollectVisuals port leaves
                        tree' ← Holo.ensureHolotreeVisuals port tree
                        -- XXX: 'render' is called every frame for everything
                        Holo.renderHolotreeVisuals port tree'
@@ -357,22 +358,22 @@ holotype win evCtl windowFrameE inputE = mdo
                         (Just x, y)  → Just (x, y)
   pickedE          ← mousePointId $ (id *** (\(U x@GLFW.EventMouseButton{})→ x)) <$> pickE
   performEvent_ $ pickedE <&>
-    \token→ liftIO $ printf "%x\n" (tokenHash token)
+    \token→ liftIO $ printf "%x\n" (Port.tokenHash token)
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.
   worldE ∷ Event t WorldEvent
                    ← performEvent $ inputE <&> translateEvent
   waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE
-  performEvent_ $ portSetVSync <$> updated waitForVSyncD
+  performEvent_ $ Port.portSetVSync <$> updated waitForVSyncD
 
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
 
 mousePointId ∷ RGLFW t m ⇒ Event t (VPort, GLFW.Input 'GLFW.MouseButton) → m (Event t IdToken)
-mousePointId ev = (ffilter ((≢ 0) ∘ tokenHash) <$>) <$>
+mousePointId ev = (ffilter ((≢ 0) ∘ Port.tokenHash) <$>) <$>
                   performEvent $ ev <&> \(port@Port{..}, GLFW.EventMouseButton _ _ _ _) → do
                     (,) x y ← liftIO $ (GLFW.getCursorPos portWindow)
-                    portPick port $ floor <$> po x y
+                    Port.portPick port $ floor <$> po x y
 
 
 
