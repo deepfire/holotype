@@ -276,12 +276,9 @@ data Item (p ∷ Phase) where
     , hiStyle     ∷ Style a
     , hiGeo       ∷ Geo
     , hiChildren  ∷ [Item p]
-    -- Problem (why we have both hiSize & hiArea):
-    -- 1. We have size for top entry, want to record it
-    -- 2. The tree is type-coherent, and children need have the same type.
-    , hiSize      ∷ Di (Maybe Double)
+    , hiSize      ∷ Di (Maybe Double) -- Flex input:  the desired size
     -- TTG-inspired phasing:
-    , hiArea      ∷ HIArea p
+    , hiArea      ∷ HIArea p          -- Flex output: the resultant size + coords
     , hiVisual    ∷ HIVisual p a
     } → Item p
 

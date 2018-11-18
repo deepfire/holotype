@@ -76,7 +76,7 @@ import qualified Text.Trifecta.Result              as P
 -- Local imports
 import           Elsewhere
 import           Flatland
-import           Flex
+import qualified Flex
 
 import           HoloPrelude                       hiding ((<>))
 import           Holo.Instances
@@ -334,7 +334,7 @@ holotype win evCtl windowFrameE inputE = mdo
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
 
   let sceneLaidTreeD ∷ Dynamic t (Item Holo.PLayout)
-      sceneLaidTreeD = layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
+      sceneLaidTreeD = Flex.layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
 
   -- * RENDER
       sceneDrawE     = attachPromptlyDyn sceneLaidTreeD portFrameE
