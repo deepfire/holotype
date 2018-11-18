@@ -350,6 +350,7 @@ hiRender ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
 hiRender port Item{..} = do
   case hiVisual of
     Just vis@Visual{vDrawable=Just drw} → do
+      -- XXX: 'render' is called every frame for everything
       Port.clearDrawable drw
       render port vis holo
       Port.drawableContentToGPU drw

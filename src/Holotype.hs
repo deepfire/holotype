@@ -344,6 +344,7 @@ holotype win evCtl windowFrameE inputE = mdo
                        -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
                        portGarbageCollectVisuals port leaves
                        tree' ← Holo.ensureHolotreeVisuals port tree
+                       -- XXX: 'render' is called every frame for everything
                        Holo.renderHolotreeVisuals port tree'
                        Holo.showHolotreeVisuals f tree'
                        pure port
