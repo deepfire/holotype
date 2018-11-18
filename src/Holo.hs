@@ -109,7 +109,7 @@ class Typeable a ⇒ Vis a where
   compGeo         ∷                                                                     a → Geo
   sizeRequest     ∷ (MonadIO m) ⇒ VPort → StyleOf a →                  [Item PLayout] → a → m (Di (Maybe Double))
   setupVisual     ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
-  render          ∷ (MonadIO m) ⇒ VPort →                              Visual a →       a → m ()  -- ^ Update a visualisation of 'a'.
+  render          ∷ (MonadIO m) ⇒ VPort → StyleOf a → VisualOf a     → Drawable →       a → m ()  -- ^ Update a visualisation of 'a'.
   freeVisualOf    ∷ (MonadIO m) ⇒                                    Proxy a → VisualOf a → m ()
   --
   compStyleOf     = defStyleOf ∘ proxy   -- default style
@@ -349,10 +349,10 @@ hiEnsureVisual port hi children = case hi of
 hiRender ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
 hiRender port Item{..} = do
   case hiVisual of
-    Just vis@Visual{vDrawable=Just drw} → do
+    Just Visual{vVisual=Just vis, vStyle=Style{..}, vDrawable=Just drw} → do
       -- XXX: 'render' is called every frame for everything
       Port.clearDrawable drw
-      render port vis holo
+      render port _sStyle vis drw holo
       Port.drawableContentToGPU drw
     _ → pure ()
 

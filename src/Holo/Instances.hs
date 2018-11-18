@@ -145,7 +145,7 @@ instance Vis Rect where
   compStyleOf               = id
   setupVisual port _ _area drw Rect{..} =
     Port.drawableDrawRect port drw _rectColor _rectDim -- $ PUs <$> _area^.area'b.size'di
-  render port Visual{vDrawable=Just drw,..} Rect{..} =
+  render port _ _ drw Rect{..} =
     Port.drawableDrawRect port drw _rectColor _rectDim
   freeVisualOf _ _       = pure ()
 
@@ -201,9 +201,9 @@ instance Vis T.Text where
     --   GIPC.createContext gic  -- released by FFI finalizers
     --   GIP.layoutNew      gipc -- same as above
     pure $ TextVisual{..}
-  render _ Visual{vDrawable=Just drw,vStyle=Style{..},vVisual=Just TextVisual{..}} text =
+  render _ TextStyle{..} TextVisual{..} drw text =
     -- 1. execute GIP draw & GIPC composition
-    Port.drawableDrawText drw tLayout (_tsColor _sStyle) text
+    Port.drawableDrawText drw tLayout _tsColor text
   freeVisualOf _ TextVisual{..} =
     Cr.unbindFontLayout tFont tLayout
 
