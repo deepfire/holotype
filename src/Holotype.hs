@@ -328,7 +328,7 @@ holotype win evCtl windowFrameE inputE = mdo
 
   -- * LAYOUT
   -- needs port because of DPI and fonts
-  sceneQueriedE    ← performEvent $ (\(s, (p, _f))→ Holo.hiQuery p s) <$>
+  sceneQueriedE    ← performEvent $ (\(s, (p, _f))→ Holo.hiSizeRequest p s) <$>
                      attachPromptlyDyn sceneD portFrameE
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
 
@@ -345,7 +345,7 @@ holotype win evCtl windowFrameE inputE = mdo
                        portGarbageCollectVisuals port leaves
                        tree' ← Holo.ensureHolotreeVisuals port tree
                        Holo.renderHolotreeVisuals port tree'
-                       Holo.drawHolotreeVisuals f tree'
+                       Holo.showHolotreeVisuals f tree'
                        pure port
   drawnPortD       ← holdDyn Nothing $ Just <$> drawnPortE
 

@@ -140,7 +140,7 @@ type instance StyleOf  Rect = Rect
 type instance VisualOf Rect = ()
 
 instance Vis Rect where
-  query port Rect{..} _ _   = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> _rectDim
+  sizeRequest port Rect{..} _ _ = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> _rectDim
   defStyleOf _              = Rect zero white
   compStyleOf               = id
   hasVisual               _ = True
@@ -187,7 +187,7 @@ instance Vis T.Text where
     , _tsColor       = white
     }
   compStyleOf = const $ defStyleOf $ Proxy @T.Text
-  query port TextStyle{..} _ content = do
+  sizeRequest port TextStyle{..} _ content = do
     let font = Port.portFont' port _tsFontKey -- XXX: non-total
     (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (Port.portDΠ port) _tsSizeSpec) (partial (≢ "") content)
   hasVisual _ = True

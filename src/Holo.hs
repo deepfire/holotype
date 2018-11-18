@@ -52,11 +52,11 @@ module Holo
   , Phase(..), HoloBlank
   , item, node, leaf
   , hbox, vbox
-  , hiQuery
+  , hiSizeRequest
   , hiRender
   , ensureHolotreeVisuals
   , renderHolotreeVisuals
-  , drawHolotreeVisuals
+  , showHolotreeVisuals
   --
   , Structure, Result(..)
   , WH, wWH
@@ -107,7 +107,7 @@ class Typeable a ⇒ Vis a where
   defStyleOf      ∷                                                               Proxy a → StyleOf a
   compStyleOf     ∷                                                                     a → StyleOf a
   compGeo         ∷                                                                     a → Geo
-  query           ∷ (MonadIO m) ⇒ VPort → StyleOf a →                  [Item PLayout] → a → m (Di (Maybe Double))
+  sizeRequest     ∷ (MonadIO m) ⇒ VPort → StyleOf a →                  [Item PLayout] → a → m (Di (Maybe Double))
   hasVisual       ∷                                                               Proxy a → Bool
   setupVisual     ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
   render          ∷ (MonadIO m) ⇒ VPort →                              Visual a →       a → m ()  -- ^ Update a visualisation of 'a'.
@@ -323,14 +323,14 @@ hiLeaves root = Map.fromList $ walk root
   where walk x@(hiChildren → []) = [(hiToken x, x)]
         walk Item{..}        = concat $ walk <$> hiChildren
 
-hiQuery ∷ ∀ m. (MonadIO m) ⇒ VPort → Item PBlank → m (Item PLayout)
-hiQuery port hoi@Item{..} =
-  queryOne port hoi =<< (sequence $ hiQuery port <$> hiChildren)
+hiSizeRequest ∷ ∀ m. (MonadIO m) ⇒ VPort → Item PBlank → m (Item PLayout)
+hiSizeRequest port hoi@Item{..} =
+  queryOne port hoi =<< (sequence $ hiSizeRequest port <$> hiChildren)
   where queryOne ∷ VPort → Item PBlank → [Item PLayout] → m (Item PLayout)
         queryOne port hoi children =
           case hoi of
             Item{..} → do
-              size ← query port (_sStyle $ hiStyle) children holo
+              size ← sizeRequest port (_sStyle $ hiStyle) children holo
               trev SIZE HOLO size (Port.tokenHash hiToken)
               pure Item{hiSize=size, hiArea=mempty, hiChildren=children, ..}
 
@@ -366,8 +366,8 @@ renderHolotreeVisuals port hoi@Item{..} = do
   hiRender port hoi
   forM_ hiChildren (renderHolotreeVisuals port)
 
-drawHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → Item PVisual → m ()
-drawHolotreeVisuals frame root = recur (luOf (hiArea root)^.lu'po) "" root
+showHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → Item PVisual → m ()
+showHolotreeVisuals frame root = recur (luOf (hiArea root)^.lu'po) "" root
   where
     recur parOff pfx Item{..} = do
       -- liftIO $ putStrLn $ pfx <> show (offset ^.po'v) <> " " <> Flex.ppItemArea i
@@ -401,7 +401,7 @@ instance Typeable k ⇒ Vis (Node (k ∷ KNode)) where
   defStyleOf _           = ()
   compGeo HBoxN          = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
   compGeo VBoxN          = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
-  query       _ _ xs box =
+  sizeRequest _ _ xs box =
     -- Requirement is a sum of children requirements
     pure $ (Just <$>) $ _reqt'di $ foldl' (reqt'add $ boxAxis box) zero $ (\x→ Reqt (fromMaybe 0 <$> x^.Flex.size)) <$> xs
 
@@ -511,7 +511,7 @@ editMaskKeys = (inputMaskChars <>) $ InputEventMask $ GLFW.eventMaskKeys $ GLFW.
 --
 type instance StyleOf () = ()
 instance Vis () where
-  query _ _ _ _ = pure $ Di $ V2 Nothing Nothing
+  sizeRequest _ _ _ _ = pure $ Di $ V2 Nothing Nothing
 instance Holo () where
 
 instance Semigroup (Item PBlank)  where _ <> _ = mempty
