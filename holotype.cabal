@@ -42,6 +42,7 @@ library
                   HoloOS
                   HoloPort
                   HoloPrelude
+                  HoloVis
 
                   Generics.SOP.Monadic
                   Reflex.Random
