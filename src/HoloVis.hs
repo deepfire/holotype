@@ -90,6 +90,48 @@ class Typeable a ⇒ Vis a where
   compStyleOf     = defStyleOf ∘ proxy   -- default style
   compGeo         = const mempty         -- default geometry
 
+-- * Concrete, minimal case, to keep us in check
+type instance StyleOf  () = ()
+type instance VisualOf () = ()
+instance Vis () where
+  defStyleOf                     _proxy = ()
+  compStyleOf                        _x = ()
+  compGeo                            _x = mempty
+  sizeRequest  _port _sty _chi       _x = pure $ Di $ V2 Nothing Nothing
+  setupVisual  _port _sty _area _drw _x = pure ()
+  render       _port _sty _vis  _drw _x = pure ()
+  freeVisualOf _proxy     _vis          = pure ()
+
+
+data Composite s a where
+  Composite ∷ (Vis a, Vis (Composite s a)) ⇒
+    { cValue     ∷ a
+    , cStyle     ∷ Style (Composite s a)
+    , cStructure ∷ Item Vis PBlank       -- internal structure
+    , cToken     ∷ IdToken               -- identity of the backing drawable
+    } → Composite s a
+-- Questions:
+-- 1. How does it integrate with the old compose/layout/render/show workflow?
+--    ..in particular, how does Query continues to work?
+-- 2. How should we supply values / obtain them?
+--    ..most every Item used to correspond to a Dynamic value,
+--      so same should be somehow true for Composite?
+
+-- * Goal
+--
+-- Minimum extension over Vis, to allow:
+-- 1. text entry
+-- 2. …as an abstract composite:
+--    - literal text entry defined by isolated code
+--    - label defined separately, yet reuses text's vis (but not necessarily style)
+--    - frame defined separately
+-- 3. a single drawable to be used
+--    …ergo, the token is per-composite
+--    …ergo, the Vis API shrinks even further
+-- 4. partial redraws, at least in cases where no internal geometry changes
+-- 5. with its own style
+-- 6. lifecycle defined as incremental changes driven by FRP Event updates, that reuse structure
+
 
 -- * Style wrapper
 --
@@ -313,11 +355,3 @@ showHolotreeVisuals frame root = recur (luOf (hiArea root)^.lu'po) "" root
           Port.framePutDrawable frame drw (doubleToFloat <$> ourOff)
         _ → pure ()
       forM_ hiChildren $ recur ourOff (pfx <> "  ")
-
-
-
--- * Concrete, minimal case, to keep us in check
---
-type instance StyleOf () = ()
-instance Vis () where
-  sizeRequest _ _ _ _ = pure $ Di $ V2 Nothing Nothing
