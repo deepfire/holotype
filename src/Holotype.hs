@@ -333,7 +333,7 @@ holotype win evCtl windowFrameE inputE = mdo
                      attachPromptlyDyn sceneD portFrameE
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
 
-  let sceneLaidTreeD ∷ Dynamic t (Item Holo.PLayout)
+  let sceneLaidTreeD ∷ Dynamic t (Item Holo Holo.PLayout)
       sceneLaidTreeD = Flex.layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
 
   -- * RENDER

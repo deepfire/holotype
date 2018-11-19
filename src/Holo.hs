@@ -107,7 +107,7 @@ class Typeable a ⇒ Vis a where
   defStyleOf      ∷                                                               Proxy a → StyleOf a
   compStyleOf     ∷                                                                     a → StyleOf a
   compGeo         ∷                                                                     a → Geo
-  sizeRequest     ∷ (MonadIO m) ⇒ VPort → StyleOf a →                  [Item PLayout] → a → m (Di (Maybe Double))
+  sizeRequest     ∷ (MonadIO m, c a) ⇒ VPort → StyleOf a →           [Item c PLayout] → a → m (Di (Maybe Double))
   setupVisual     ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
   render          ∷ (MonadIO m) ⇒ VPort → StyleOf a → VisualOf a     → Drawable →       a → m ()  -- ^ Update a visualisation of 'a'.
   freeVisualOf    ∷ (MonadIO m) ⇒                                    Proxy a → VisualOf a → m ()
@@ -164,7 +164,7 @@ class (Typeable a, Vis a) ⇒ Holo a where
   -- type CLiftW   t (m ∷ Type → Type) a ∷ Constraint
   hasVisual       ∷                                                               Proxy a → Bool
   liftHoloDyn     ∷ (RGLFW t m) ⇒                                  a → Event t InputEvent → m (Dynamic t a)
-  liftHoloItem    ∷                                                           IdToken → a → Item PBlank
+  liftHoloItem    ∷                                                           IdToken → a → Item Holo PBlank
   subscription    ∷                                                     IdToken → Proxy a → Subscription
   liftDynW        ∷ (Reflex t)  ⇒                                   IdToken → Dynamic t a → Widget t a
   liftW           ∷ (RGLFW t m) ⇒                                     InputEventMux t → a → m (Widget t a)
@@ -183,7 +183,7 @@ compToken _                  = pure Port.blankIdToken
 
 -- * The final lift:  W(-idget)
 --
-type HoloBlank      = Item PBlank
+type HoloBlank      = Item Holo PBlank
 type WH       t     = (Dynamic t Subscription, Dynamic t HoloBlank)
 
 -- Result of the lifts -- the Widget:
@@ -224,7 +224,7 @@ newtype Static t a = Static a -- XXX: once we're successful with the lift, let's
 --   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputEventMux t → a → m (W t a)
 --   liftW = liftRecord
 
-liftItemStatic ∷ ∀ a. (Holo a) ⇒ IdToken → a → Item PBlank
+liftItemStatic ∷ ∀ a. (Holo a) ⇒ IdToken → a → Item Holo PBlank
 liftItemStatic tok x = leaf tok (initStyle $ compStyleOf x) x
 
 liftHoloDynStatic ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
@@ -269,61 +269,62 @@ type family HIVisual (p ∷ Phase) a ∷ Type where
   HIVisual PLayout _ = ()
   HIVisual PVisual a = Maybe (Visual a)
 
-data Item (p ∷ Phase) where
-  Item ∷ ∀ p a. Holo a ⇒
+data Item (c ∷ Type → Constraint) (p ∷ Phase) where
+  Item ∷ ∀ p c a. (c a, Vis a) ⇒
     { holo        ∷ a
+    , hiConstr    ∷ Proxy c
     , hiToken     ∷ IdToken
     , hiStyle     ∷ Style a
     , hiGeo       ∷ Geo
-    , hiChildren  ∷ [Item p]
+    , hiChildren  ∷ [Item c p]
     , hiSize      ∷ Di (Maybe Double) -- Flex input:  the desired size
     -- TTG-inspired phasing:
     , hiArea      ∷ HIArea p          -- Flex output: the resultant size + coords
     , hiVisual    ∷ HIVisual p a
-    } → Item p
+    } → Item c p
 
-instance Eq (Item a) where
+instance Eq (Item c a) where
   (==) a b = (≡) (hiToken a) (hiToken b)
 
-instance Ord (Item a) where
+instance Ord (Item c a) where
   compare a b = compare (hiToken a) (hiToken b)
 
-instance Flex.Flex (Item PBlank) where
+instance Flex.Flex (Item c PBlank) where
   geo      f hi@Item{..} = (\x→ hi {hiGeo=x})       <$> f hiGeo
   size     f hi@Item{..} = (\x→ hi {hiSize=x})      <$> f hiSize
   children f hi@Item{..} = (\x→ hi {hiChildren=x})  <$> f hiChildren
   area     f hi@Item{..} = (\_→ hi {hiArea=mempty}) <$> f mempty
 
-instance Flex.Flex (Item PLayout) where
+instance Flex.Flex (Item c PLayout) where
   geo      f hi@Item{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
   size     f hi@Item{..} = (\x→ hi {hiSize=x})     <$> f hiSize
   children f hi@Item{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
   area     f hi@Item{..} = (\x→ hi {hiArea=x})     <$> f hiArea
 
-instance Flex.Flex (Item PVisual) where
+instance Flex.Flex (Item c PVisual) where
   geo      f hi@Item{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
   size     f hi@Item{..} = (\x→ hi {hiSize=x})     <$> f hiSize
   children f hi@Item{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
   area     f hi@Item{..} = (\x→ hi {hiArea=x})     <$> f hiArea
 
-hiStyleGene ∷ Item p → StyleGene
+hiStyleGene ∷ Item c p → StyleGene
 hiStyleGene x =
   case x of Item{..} → _sStyleGene hiStyle
 
-hiHasVisual ∷ Item p → Bool
+hiHasVisual ∷ Item Holo p → Bool
 hiHasVisual x =
   -- XXX: we're losing type safety here..
   case x of Item{holo=_holo ∷ a, ..} → hasVisual (Proxy @a)
 
-hiLeaves ∷ Item a → Map.Map IdToken (Item a)
+hiLeaves ∷ Item c a → Map.Map IdToken (Item c a)
 hiLeaves root = Map.fromList $ walk root
   where walk x@(hiChildren → []) = [(hiToken x, x)]
         walk Item{..}        = concat $ walk <$> hiChildren
 
-hiSizeRequest ∷ ∀ m. (MonadIO m) ⇒ VPort → Item PBlank → m (Item PLayout)
+hiSizeRequest ∷ ∀ c m. (MonadIO m) ⇒ VPort → Item c PBlank → m (Item c PLayout)
 hiSizeRequest port hoi@Item{..} =
   queryOne port hoi =<< (sequence $ hiSizeRequest port <$> hiChildren)
-  where queryOne ∷ VPort → Item PBlank → [Item PLayout] → m (Item PLayout)
+  where queryOne ∷ VPort → Item c PBlank → [Item c PLayout] → m (Item c PLayout)
         queryOne port hoi children =
           case hoi of
             Item{..} → do
@@ -331,7 +332,7 @@ hiSizeRequest port hoi@Item{..} =
               trev SIZE HOLO size (Port.tokenHash hiToken)
               pure Item{hiSize=size, hiArea=mempty, hiChildren=children, ..}
 
-hiEnsureVisual ∷ (HasCallStack, MonadIO m) ⇒ VPort → Item PLayout → [Item PVisual] → m (Item PVisual)
+hiEnsureVisual ∷ (HasCallStack, c ~ Holo, MonadIO m) ⇒ VPort → Item c PLayout → [Item c PVisual] → m (Item c PVisual)
 hiEnsureVisual port hi children = case hi of
   Item{..} → do
     let dim = hiArea^.area'b.size'di
@@ -343,7 +344,7 @@ hiEnsureVisual port hi children = case hi of
                         <*> (pure $ Just drw)
     pure Item{hiVisual=Just vis, hiChildren=children, ..}
 
-hiRender ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
+hiRender ∷ (MonadIO m) ⇒ VPort → Item c PVisual → m ()
 hiRender port Item{..} = do
   case hiVisual of
     Just Visual{vVisual=Just vis, vStyle=Style{..}, vDrawable=Just drw} → do
@@ -355,16 +356,16 @@ hiRender port Item{..} = do
 
 
 
-ensureHolotreeVisuals ∷ (MonadIO m) ⇒ VPort → Item PLayout → m (Item PVisual)
+ensureHolotreeVisuals ∷ (c ~ Holo, MonadIO m) ⇒ VPort → Item c PLayout → m (Item c PVisual)
 ensureHolotreeVisuals port hoi@Item{..} =
   hiEnsureVisual port hoi =<< (sequence $ ensureHolotreeVisuals port <$> hiChildren)
 
-renderHolotreeVisuals ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
+renderHolotreeVisuals ∷ (MonadIO m) ⇒ VPort → Item c PVisual → m ()
 renderHolotreeVisuals port hoi@Item{..} = do
   hiRender port hoi
   forM_ hiChildren (renderHolotreeVisuals port)
 
-showHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → Item PVisual → m ()
+showHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → Item c PVisual → m ()
 showHolotreeVisuals frame root = recur (luOf (hiArea root)^.lu'po) "" root
   where
     recur parOff pfx Item{..} = do
@@ -406,35 +407,36 @@ instance Typeable k ⇒ Vis (Node (k ∷ KNode)) where
 
 -- * Constructors
 --
-item ∷ ∀ a. (Holo a)
+item ∷ ∀ c a. (c a, Vis a)
   ⇒ IdToken
   → Style a
   → a
   → Geo
-  → [Item PBlank]
-  → Item PBlank
+  → [Item c PBlank]
+  → Item c PBlank
 item hiToken hiStyle holo hiGeo hiChildren =
   let hiSize   = Di (V2 Nothing Nothing)
       hiArea   = ()
       hiVisual = ()
   in Item{..}
 
-node ∷ ∀ a k. (Holo a, a ~ Node k)
+node ∷ ∀ a c k. (c a, a ~ Node k, Typeable k)
   ⇒ IdToken
   → Style a
   → a
-  → [Item PBlank]
-  → Item PBlank
+  → [Item c PBlank]
+  → Item c PBlank
 node tok sty holo = item tok sty holo (compGeo holo)
 
-leaf ∷ Holo a
+leaf ∷ (c a, Vis a)
   ⇒ IdToken
   → Style a
   → a
-  → Item PBlank
+  → Item c PBlank
 leaf tok sty holo = item tok sty holo (compGeo holo) []
 
-vbox, hbox ∷ [Item PBlank] → Item PBlank
+vbox, hbox ∷ (c (Node 'HBox), c (Node 'VBox))
+  ⇒ [Item c PBlank] → Item c PBlank
 -- XXX: here's trouble -- we're using blankIdToken!
 hbox = node Port.blankIdToken (initStyle ()) (HBoxN ∷ Node HBox)
 vbox = node Port.blankIdToken (initStyle ()) (VBoxN ∷ Node VBox)
@@ -512,10 +514,10 @@ instance Vis () where
   sizeRequest _ _ _ _ = pure $ Di $ V2 Nothing Nothing
 instance Holo () where
 
-instance Semigroup (Item PBlank)  where _ <> _ = mempty
-instance Monoid    (Item PBlank)  where mempty = Item () Port.blankIdToken (initStyle ()) mempty [] (Di $ V2 Nothing Nothing) mempty ()
-instance Semigroup (Item PLayout) where _ <> _ = mempty
-instance Monoid    (Item PLayout) where mempty = Item () Port.blankIdToken (initStyle ()) mempty [] (Di $ V2 Nothing Nothing) mempty ()
+instance Semigroup (Item Holo PBlank)  where _ <> _ = mempty
+instance Monoid    (Item Holo PBlank)  where mempty = Item () Proxy Port.blankIdToken (initStyle ()) mempty [] (Di $ V2 Nothing Nothing) mempty ()
+instance Semigroup (Item Holo PLayout) where _ <> _ = mempty
+instance Monoid    (Item Holo PLayout) where mempty = Item () Proxy Port.blankIdToken (initStyle ()) mempty [] (Di $ V2 Nothing Nothing) mempty ()
 
 -- instance Semigroup (Item PLayout) where
 --   l <> r = vbox [l, r]
