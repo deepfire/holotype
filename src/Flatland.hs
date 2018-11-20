@@ -9,18 +9,20 @@
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 module Flatland
-  ( Unit(..), UnitK(..)
+  ( Unit(..), UnitK(..), pu'val, pui'val, pt'val
   , FromUnit, FromUnit'(..), StandardUnit(..)
   --
   , DΠ(..)
   --
+  , An(..), an'val
   , An2(..), an2
   , Po(..), po, po'd, po'add, po'sub
   , Di(..), di, di'd, di'v, unsafe'di
-  , Wi(..) , He(..) , Th(..), wi'val, he'val, th'val
+  , Wi(..), wi'val, He(..), he'val, Th(..), th'val
+  , Pad(..), pad'val, Mgn(..), mgn'val
   , Co(..), co, coMult
   , LU(..), RB(..), lu'po, rb'po
-  , R(..)
+  , R(..), r'val
   , Cstr(..), Reqt(..), Size(..), Orig(..), reqt'add, size'd, size'di
   , Axis(..), Minor(..), Major(..)
   , Orient(..), OKind(..)
@@ -191,42 +193,56 @@ instance FromUnit' (Unit Pt) where
 infinity ∷ Double
 infinity = read "Infinity"
 
-newtype R   a = R   { _r'val  ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Radius
-newtype An  a = An  { _an'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Angle
-newtype Th  a = Th  { _th'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
-newtype He  a = He  { _he'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Height
-newtype Wi  a = Wi  { _wi'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Width
+newtype R   a = R   { _r'val  ∷ a }  deriving (Eq, Fractional, Functor, Num) -- ^ Radius
+newtype An  a = An  { _an'val ∷ a }  deriving (Eq, Fractional, Functor, Num) -- ^ Angle
+newtype Th  a = Th  { _th'val ∷ a }  deriving (Eq, Fractional, Functor, Num) -- ^ Thickness
+newtype He  a = He  { _he'val ∷ a }  deriving (Eq, Fractional, Functor, Num) -- ^ Height
+newtype Wi  a = Wi  { _wi'val ∷ a }  deriving (Eq, Fractional, Functor, Num) -- ^ Width
+newtype Pad a = Pad { _pad'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Padding
+newtype Mgn a = Mgn { _mgn'val ∷ a } deriving (Eq, Fractional, Functor, Num) -- ^ Margin
 instance Applicative R  where pure = R;  R  f <*> R  x = R  $ f x
 instance Applicative An where pure = An; An f <*> An x = An $ f x
 instance Applicative Th where pure = Th; Th f <*> Th x = Th $ f x
 instance Applicative He where pure = He; He f <*> He x = He $ f x
 instance Applicative Wi where pure = Wi; Wi f <*> Wi x = Wi $ f x
+instance Applicative Pad where pure = Pad; Pad f <*> Pad x = Pad $ f x
+instance Applicative Mgn where pure = Mgn; Mgn f <*> Mgn x = Mgn $ f x
 instance Additive R  where zero = R  0
 instance Additive An where zero = An 0
 instance Additive Th where zero = Th 0
 instance Additive He where zero = He 0
 instance Additive Wi where zero = Wi 0
+instance Additive Pad where zero = Pad 0
+instance Additive Mgn where zero = Mgn 0
 deriving instance Foldable R
 deriving instance Foldable An
 deriving instance Foldable Th
 deriving instance Foldable He
 deriving instance Foldable Wi
+deriving instance Foldable Pad
+deriving instance Foldable Mgn
 -- instance Metric …  where ?
 deriving instance Show a ⇒ Show (R  a)
 deriving instance Show a ⇒ Show (An a)
 deriving instance Show a ⇒ Show (Th a)
 deriving instance Show a ⇒ Show (He a)
 deriving instance Show a ⇒ Show (Wi a)
+deriving instance Show a ⇒ Show (Pad a)
+deriving instance Show a ⇒ Show (Mgn a)
 deriving instance Random a ⇒ Random (R a)
 deriving instance Random a ⇒ Random (An a)
 deriving instance Random a ⇒ Random (Th a)
 deriving instance Random a ⇒ Random (He a)
 deriving instance Random a ⇒ Random (Wi a)
+deriving instance Random a ⇒ Random (Pad a)
+deriving instance Random a ⇒ Random (Mgn a)
 makeLenses ''R
 makeLenses ''An
 makeLenses ''Th
 makeLenses ''He
 makeLenses ''Wi
+makeLenses ''Pad
+makeLenses ''Mgn
 
 
 -- * Pairing dimensions:
