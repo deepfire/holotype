@@ -29,414 +29,374 @@
   groundwork done, like FRP & visualisation: [[https://github.com/deepfire/reflex-glfw][reflex-glfw]], and a very basic
   [[http://www.lambdacube3d.com/][LambdaCube3d]] setup for a 2.5D UI.
 
-* UI tropes, random ideas
-
-  1. Arrows move
-     - +modifiers = ...
-  2. Space pages
-  3. Tab cycles state/mode
-  4. Escape pops
-  5. Return vs. C-Return -- a story of multi-line text input
-  6. "give me more data about this object"
-     1. scaling
-        1. points-of-interest at low scale
-     2. Alt-hold-like extension of details shown
-  7. "well-behaved":  process large datasets efficiently (lazily, if needed)
-  8. a multiple set co-reduction/co-projection model
-  9. a path language derived from above
-  10. external application embedding (WM-like)
-  11. sources & foci factoring out common information from data, which is allowed
-      to remain non-enriched -- which makes sources+foci be like functions
-      - which leads to need for "pinning" values of those projections, for those
-        values the user considered important
-  12. reify *query results* as *projection* called *stage*, that is out of sync by definition
-  13. use cases:
-      - program type structure choice explanation
-  14. be very clear about running external processes: can be very frustrating to
-      not know what happens
-
 * Goals
-*** For the DE
-    1. Map the entire resident context available in a convenient way
-    2. Facilitate context switching by introducing sub-contexts
-* Inspiration
 
-  - ECS ::
-    - conceptual intro ::
-      - https://slide-rs.github.io/specs/
-      - https://github.com/jonascarpay/apecs/blob/master/tutorials/RTS.md
-    - apecs   :: https://github.com/jonascarpay/apecs
-    - ecstasy :: http://reasonablypolymorphic.com/blog/why-take-ecstasy
-  - http://graphdrawing.org/
-    - 2010 ::
-      - doi:10.1007/978-3-642-18469-7
-      - http://www.graphdrawing.org/gd2010/accepted.html
-    - 2014 ::
-      - doi:10.1007/978-3-662-45803-7
-      -
-    - 2015 :: http://www.csun.edu/gd2015/
-      - doi:10.1007/978-3-319-27261-0
-      - http://www.csun.edu/gd2015/accepted.htm
-    - 2016 :: https://arxiv.org/html/1609.02443v1
-  - http://users.encs.concordia.ca/~haarslev/publications/
-  - flexbox layout implementations ::
-    - https://github.com/xamarin/flex/blob/master/flex.c
-      - initial re-implementation:
-        - =b77ebb29d6e9c34a4d998d3eacacde50f95ba073=
-        - 2017-10-24 17:35:55
-        - "update document to follow recent changes"
-    - https://github.com/randrew/layout/blob/master/layout.h
-  -
-    #+BEGIN_QUOTE
-    Ivan Sutherland's Sketchpad demo - Object oriented graphics using a constraint
-    based system (https://www.youtube.com/watch?v=6orsmFndx_o)
+  This is running in several directions at once, with the obvious caveats applicable.
 
-    Douglas Englebart's demo - too many innovations to list, but includes real
-    time collaboration (he demoed in a convention center while the system ran 30
-    miles away in his lab, connected by a leased line operating at 1200
-    baud!). People think he just invented the mouse, but the overarching theme in
-    his work was augmenting human
-    capabilities... http://dougengelbart.org/firsts/dougs-1968-demo.html
-    #+END_QUOTE
-* Open questions
+  1. Map the entire resident context (headspace) available in a convenient way
+  2. Facilitate context switching by introducing sub-contexts
 
-  - reliable ephemeral identification for tag overlays ::
-       How to pin overlaid metadata to source data -- there are sources we have no
-       structural (or even mutation) control over, so can't pin "within" the data.
-  - model does not cover data mutability ::
+* Ideas pipeline
+*** Inspiration material
 
-*** Text size computation
+    - ECS ::
+      - conceptual intro ::
+        - https://slide-rs.github.io/specs/
+        - https://github.com/jonascarpay/apecs/blob/master/tutorials/RTS.md
+      - apecs   :: https://github.com/jonascarpay/apecs
+      - ecstasy :: http://reasonablypolymorphic.com/blog/why-take-ecstasy
+    - http://graphdrawing.org/
+      - 2010 ::
+        - doi:10.1007/978-3-642-18469-7
+        - http://www.graphdrawing.org/gd2010/accepted.html
+      - 2014 ::
+        - doi:10.1007/978-3-662-45803-7
+        -
+      - 2015 :: http://www.csun.edu/gd2015/
+        - doi:10.1007/978-3-319-27261-0
+        - http://www.csun.edu/gd2015/accepted.htm
+      - 2016 :: https://arxiv.org/html/1609.02443v1
+    - http://users.encs.concordia.ca/~haarslev/publications/
+    - flexbox layout implementations ::
+      - https://github.com/xamarin/flex/blob/master/flex.c
+        - initial re-implementation:
+          - =b77ebb29d6e9c34a4d998d3eacacde50f95ba073=
+          - 2017-10-24 17:35:55
+          - "update document to follow recent changes"
+      - https://github.com/randrew/layout/blob/master/layout.h
+    -
+      #+BEGIN_QUOTE
+      Ivan Sutherland's Sketchpad demo - Object oriented graphics using a constraint
+      based system (https://www.youtube.com/watch?v=6orsmFndx_o)
 
-    | Text | Designer width | Meaningful | Solution                         |
-    |------+----------------+------------+----------------------------------|
-    | -    | -              | -          | error?                           |
-    | -    | +              | +          | fontQueryHeight + designer width |
-    | +    | +/-            | +          | fontQuerySize                    |
+      Douglas Englebart's demo - too many innovations to list, but includes real
+      time collaboration (he demoed in a convention center while the system ran 30
+      miles away in his lab, connected by a leased line operating at 1200
+      baud!). People think he just invented the mouse, but the overarching theme in
+      his work was augmenting human
+      capabilities... http://dougengelbart.org/firsts/dougs-1968-demo.html
+      #+END_QUOTE
+*** General random ideas
+***** UI trope: simple is powerful
 
-* Graph representation
-*** DONE DeltaGraph
+      1. Arrows move
+         - +modifiers = ...
+      2. Space pages
+      3. Tab cycles state/mode
+      4. Escape pops
+      5. Return vs. C-Return -- a story of multi-line text input
 
-    - source :: [[http://cs.binghamton.edu/~pdexter1/icfp-haskell2016-paper22.pdf][2016 Dexter, Liu, Chau - Lazy Graph Processing in Haskell]]
-    - conclusion :: not ready for consumption, according to authors
+***** UI trope: level-of-detail variance
+      
+      1. "give me more data about this object"
+         1. scaling
+            1. points-of-interest at low scale
+         2. Alt-hold-like extension of details shown
+      1. sources & foci factoring out common information from data, which is allowed
+         to remain non-enriched -- which makes sources+foci be like functions
+         - which leads to need for "pinning" values of those projections, for those
+           values the user considered important
 
-*** DONE data-reify
+***** Efficient processing of data sets
 
-    - source :: [[http://www.ittc.ku.edu/~andygill/papers/reifyGraph.pdf][2009 Gill - Type-Safe Observable Sharing in Haskell]]
-    - conclusion :: specific tool for discharging direct object references
+      1. "well-behaved":  process large datasets efficiently (lazily, if needed)
 
-*** SORTA Huet’s Zipper
+***** Principled: mathematical semantics for querying
 
-    - source :: [[http://www.cs.tufts.edu/~nr/pubs/zipcfg.pdf][2005 Ramsey, Dias - An Applicative Control-Flow Graph Based on Huet’s Zipper]]
-    - source :: [[http://www.cs.tufts.edu/~nr/pubs/hoopl10.pdf][2010 Ramsey, Dias, Peyton Jones - Hoopl: A Modular, Reusable Library for Dataflow Analysis and Transformation]]
-    - key properties ::
-      - unclear improvement over simpler encoding
+      1. a multiple set co-reduction/co-projection model
+      2. a path language derived from above
 
-*** SORTA Lazy I/O and graphs: Winterfell to King's Landing
+***** Interop
 
-    - source :: https://jaspervdj.be/posts/2017-01-17-lazy-io-graphs.html
-    - key properties ::
-      - =unsafeInterleaveIO=-driven SQL peeking
-      - direct object references
+      1. external application embedding (WM-like)
 
-*** TODO The Monad Reader #5 - Practical Graph Handling
+***** Dealing with external world / state
 
-    - source :: https://wiki.haskell.org/The_Monad.Reader/Issue5/Practical_Graph_Handling
-    - key properties ::
+      1. reify *query results* as *projection* called *stage*, that is out of sync by definition
 
-*** Current best idea
+      2. be very clear about running external processes: can be very frustrating to
+         not know what happens
 
-    A simple map of node ids to nodes.
+*** Open questions
 
-* Visual substrate
-*** START interactive development with halive
-    - [ ] fix https://github.com/lukexi/halive/issues/22
-*** START lambdacube-quake3
-***** DONE buildability
-***** START render a graph
-******* START specialize q3mapviewer
-        - factored out ::
-          - [ ] facilitate semi-automated debugging of haskell package builds
-          - [ ] debug gtk-hs-examples/gi-gtk-demo-layout: https://github.com/haskell-gi/gi-gtk-examples/issues/3
-        - [-] text rendering
-          - [X] +examine lambdacube offerings: there's none+
-          - [X] +http://zyghost.com/articles/Haskell-font-rendering-with-freetype2-and-opengl.html: freetype2 has no layout+
-          - [X] +https://hackage.haskell.org/package/SVGFonts: slow+
-          - [X] +https://hackage.haskell.org/package/FTGL: unmaintained+
-          - [X] +https://hackage.haskell.org/cobbpg/lafonten: does it do layout? no, it doesn't+
-          - [X] examine typesetting options: pretty much pangocairo, and nothing else.
-          - [X] find cmodern: [[~/Art/Assets/Fonts/]]
-          - [X] employ pango font rasterization/text layout mechanism
-            - [X] debug availability of gi-pangocairo
-              - see https://github.com/NixOS/nixpkgs/issues/21993#issuecomment-274287469
-            - [X] obtain a working example of font layout using pango/cairo/pangocairo
-          - [ ] employ cairo on a memory buffer
-            - on bridging =gi-cairo= with =cairo=, see:
-              - https://github.com/haskell-gi/haskell-gi/wiki/Using-Cairo-with-haskell-gi-generated-bindings
-              - https://github.com/haskell-gi/haskell-gi/blob/master/examples/Cairo.hs
-        - [-] integration
-          - [X] fix intero+lambdacube-quake3
-          - [ ] get an idea of the lambdacube's pipeline
-            - [ ] study the overview: [[http://lambdacube3d.com/overview]]
-            - [ ] study -quake3's pipeline: [[file:~/src/lambdacube-quake3/lc/Graphics.lc]]
-          - [ ] overlay a translucent-background canvas atop the scene
-          - [ ] apply the pangocairo magic to the canvas
-            - [ ] marry gi-pangocairo to cairo
-        - [ ] box and line drawing
-        - [-] environment assets
-          - [X] droning, [[~/Art/Assets/Audio/Loops/]]
-          - [ ] skybox
-***** TODO interact with a graph
-* Model of interaction
-*** START decide on a FRP implementation
-***** DONE Netwire
+    - reliable ephemeral identification for tag overlays ::
+         How to pin overlaid metadata to source data -- there are sources we have no
+         structural (or even mutation) control over, so can't pin "within" the data.
+    - model does not cover data mutability ::
 
-      - I used to know it..
-      - no longer maintained -- author moved to =wires=
+***** Graph representation
+******* DONE DeltaGraph
 
-***** TODO Elerea
+        - source :: [[http://cs.binghamton.edu/~pdexter1/icfp-haskell2016-paper22.pdf][2016 Dexter, Liu, Chau - Lazy Graph Processing in Haskell]]
+        - conclusion :: not ready for consumption, according to authors
 
-      - packaged into lambdacube-quake3
+******* DONE data-reify
 
-***** TODO Wires
+        - source :: [[http://www.ittc.ku.edu/~andygill/papers/reifyGraph.pdf][2009 Gill - Type-Safe Observable Sharing in Haskell]]
+        - conclusion :: specific tool for discharging direct object references
 
-      - the new library by =esoylemez=
+******* SORTA Huet’s Zipper
 
-* Data sources
-*** Properties
+        - source :: [[http://www.cs.tufts.edu/~nr/pubs/zipcfg.pdf][2005 Ramsey, Dias - An Applicative Control-Flow Graph Based on Huet’s Zipper]]
+        - source :: [[http://www.cs.tufts.edu/~nr/pubs/hoopl10.pdf][2010 Ramsey, Dias, Peyton Jones - Hoopl: A Modular, Reusable Library for Dataflow Analysis and Transformation]]
+        - key properties ::
+          - unclear improvement over simpler encoding
 
-    - type ::
-      - structure
-      - identification across persistence
-	- only for metadata-external types, to enable tag overlays
-    - rendering ::
-      - meaningful views
-    - metadata externality ::
-      - local to data sources
-      - overlaid from specialized storage
+******* SORTA Lazy I/O and graphs: Winterfell to King's Landing
 
-*** Types
+        - source :: https://jaspervdj.be/posts/2017-01-17-lazy-io-graphs.html
+        - key properties ::
+          - =unsafeInterleaveIO=-driven SQL peeking
+          - direct object references
 
-    - source types ::
-      - by structure ::
-	- tagged sets
-	- hierarchies
-	  - file system
-	- graphs
-    - element types ::
-      - by structure ::
-        - atomic :: (point with attributes)
-          - meta
-          - pdf
-          - media
-        - complex ::
-          - outlines
-            - org
-          - graph files
-            - graphml
-              - yEd graphml: find definition for https://github.com/tuura/pangraph/issues/7#issuecomment-273645083
-            - vue
+******* TODO The Monad Reader #5 - Practical Graph Handling
 
-* Storage backends
-  - should support rich semantics
-  - but in case we need stupid & reliable ACID data:
-    - https://github.com/apple/foundationdb/
-* Visualisable qualities
+        - source :: https://wiki.haskell.org/The_Monad.Reader/Issue5/Practical_Graph_Handling
+        - key properties ::
 
-  - Exhaustivity ::
-    - Explicit "unknown" remaining
-  - Variant-ness ::
-    - Simultaneous
-    - Per-choice filtering
-  - Progression ::
-  - Person-zoning ::
-  - Distinctions ::
-    - Decomposition vs. dependency
+******* Current best idea
 
-* (To be) Displayable structures
+        A simple map of node ids to nodes.
 
-  - Graphs ::
-    - Views ::
-      - Z-axis ::
-        - Classic side view ::
-             Needs root detection, for automatic layout.
-      - Arrow-aligned ::
-        - Weighted partitioning ::
+***** Interactive development
+******* START halive
 
-  - Dags ::
-    - Views ::
-      - Z-axis :: inherited from Graphs
-      - Y-axis :: inherited from Graphs
-      - Treeview, list entries, with duplication ::
-      - Treeview, icon grid, with duplication ::
-      - Treeview, space partitioning, ala Lamdu, with duplication ::
-    - Subsetting ::
-      - Viewport ::
-                   Arrow walker -- for nodes.
-                   Iterative refinement -- subsetting and context narrowing.
-                   Some kind of a shortcut-based jump language.
-                   Bookmarks.
-      - Ellipsis ::
-                   Zoomable: "everything else in this direction"
-                   What cases need it, given a proper Viewport subsetter?
+        - [ ] fix https://github.com/lukexi/halive/issues/22
 
-  - Sets ::
-    - Views ::
-      - Carousel ::
-      - Grid ::
-      - List ::
-    - Subsetting ::
-      - Viewport ::
-                   Iterative refinement makes it useful.
-                   Arrow walker -- for refinement elements and for.
+***** Data sources
+******* Properties
 
-      - Summary  ::
-                   Extracting and exposing set structure.
-      - Ellipsis ::
-                   Logic summary or an explicit summary.
+        - type ::
+          - structure
+          - identification across persistence
+	    - only for metadata-external types, to enable tag overlays
+        - rendering ::
+          - meaningful views
+        - metadata externality ::
+          - local to data sources
+          - overlaid from specialized storage
 
-* Scene composition
-*** Phases, quick overview
+******* Types
 
-    - Select                             :: filter stores through =Selector=, yield =Selection=
-    - Choose presenting engine           :: emphasize user agency, deemphasize static rules like defaulting
-      - context?
-    - Visibility constraint computation  :: engine decides on how much can be shown
-    - Viewport positioning               :: engine decides how to place the view around focus
-    - Viewport culling                   :: engine decides on what elements fit into the chosen view
-    - Layout                             :: obtain what is already covered, cover what isn't, compose;  compute scene modifiers
-    - Render                             :: ...
+        - source types ::
+          - by structure ::
+	    - tagged sets
+	    - hierarchies
+	      - file system
+	    - graphs
+        - element types ::
+          - by structure ::
+            - atomic :: (point with attributes)
+              - meta
+              - pdf
+              - media
+            - complex ::
+              - outlines
+                - org
+              - graph files
+                - graphml
+                  - yEd graphml: find definition for https://github.com/tuura/pangraph/issues/7#issuecomment-273645083
+                - vue
 
-*** Functions, quick overview
+***** Storage backends
+      - should support rich (schema-capable, version-capable) semantics
+      - in case we need stupid & reliable ACID data:
+        - https://github.com/apple/foundationdb/
+***** Scene composition
+******* Phases, quick overview
 
-    - select         :: Structure struc ⇒      Source → Selector struc → Selection struc
-    - compute_cull   :: Presenter struc eng ⇒  eng → (Granularity, MinSize) → Cull eng
-    - place_viewport :: Presenter struc eng ⇒  eng → Selection struc → Focus struc → Cull eng → Viewport eng
-    - cull_selection :: Presenter struc eng ⇒  eng → Selection struc → ViewArgs → Viewport eng → (View struc, Boundary eng
-    - layout         :: Presenter struc eng ⇒  eng → (View struc, Boundary eng) → (Layout eng, Ephemeral eng)
-    - render         :: RenderContext ren ⇒    ren → (View struc, Boundary eng) → (Layout eng, Ephemeral eng) → IO ()
-    - interact       :: InputSys is ⇒          is → (View struc, Boundary eng) → Affective → Affective
+        - Select                             :: filter stores through =Selector=, yield =Selection=
+        - Choose presenting engine           :: emphasize user agency, deemphasize static rules like defaulting
+          - context?
+        - Visibility constraint computation  :: engine decides on how much can be shown
+        - Viewport positioning               :: engine decides how to place the view around focus
+        - Viewport culling                   :: engine decides on what elements fit into the chosen view
+        - Layout                             :: obtain what is already covered, cover what isn't, compose;  compute scene modifiers
+        - Render                             :: ...
 
-*** Phases
+******* Functions, quick overview
 
-    - Select :: Source → Selector → Selection
-      - What :: select from Source
-      - =Selections= split into the following categories, by structure:
-        - General graph
-        - DAG (directed acyclic graph)
-        - Set -- with customisable ordering
-          - XXX: ordering not factored in
-      - Design considerations ::
-        - XXX: live-updating selections
-          - just carry update frequency for re-selection? (DONE)
-          - any kind of policy that would be more.. reactive?
-        - XXX: partial selections?
-          - what for?
-            - for hopelessly large data sets we can limit
-              - but a dumb cutoff isn't useful
-              - so, a smart, movable cutoff is needed
-        - does it make sense for a selector to be non-specific about what it returns?
-          - hard to say just yet, we need experience as guide
+        - select         :: Structure struc ⇒      Source → Selector struc → Selection struc
+        - compute_cull   :: Presenter struc eng ⇒  eng → (Granularity, MinSize) → Cull eng
+        - place_viewport :: Presenter struc eng ⇒  eng → Selection struc → Focus struc → Cull eng → Viewport eng
+        - cull_selection :: Presenter struc eng ⇒  eng → Selection struc → ViewArgs → Viewport eng → (View struc, Boundary eng
+        - layout         :: Presenter struc eng ⇒  eng → (View struc, Boundary eng) → (Layout eng, Ephemeral eng)
+        - render         :: RenderContext ren ⇒    ren → (View struc, Boundary eng) → (Layout eng, Ephemeral eng) → IO ()
+        - interact       :: InputSys is ⇒          is → (View struc, Boundary eng) → Affective → Affective
 
-    - Presenter choice :: Selection → PresPref → Presenter
-      - =PresPref= picks a specific =Presenter=, compatible with the current
-        =Selection= structure:
-        - defaults to last used
-        - size limits for non-partial-capable engines?
-        - can be cycled through by a shortcut
-      - Engines:
-        - Graph, dag, tree:
-          - =SideGraph=: graph from aside
-          - =DownGraph=: graph, arrow aligned weighted partitioning
-        - Dag (duplicates-encoded), tree:
-          - =DagList=, list entries
-          - =DagGrid=, icon grid
-          - =DagSpace=, space partitioning, ala /Lamdu/
-        - Set:
-          - =Carousel=
-          - =Grid=
-          - =List=
-      - Summing up, *fundamentally* we want:
-        1. type classes for individual LEs, because it allows for a
-           seriously neat organisation of code
-        2. multiple LEs associated with a structure, because that's how
-           the problem domain looks
-        3. #1 gives that there isn't a monotype for a LE
+******* Phases
 
-    - Visibility constraints computation :: Presenter → (Granularity, MinSize) → Cull
-      - disconnected from specific elements -- deals with UI constraints projected onto a
-        specific layout engine:
-        - for SideGraph and SideDag -- no idea, let practice guide us..
-        - for space partitioning it's trivial -- granularity says it all
-        - for a Grid and DagGrid -- how many rows and columns
-        - for a List -- how many rows
-      - updated only rarely -- when the user changes the visualisation parameters
+        - Select :: Source → Selector → Selection
+          - What :: select from Source
+          - =Selections= split into the following categories, by structure:
+            - General graph
+            - DAG (directed acyclic graph)
+            - Set -- with customisable ordering
+              - XXX: ordering not factored in
+          - Design considerations ::
+            - XXX: live-updating selections
+              - just carry update frequency for re-selection? (DONE)
+              - any kind of policy that would be more.. reactive?
+            - XXX: partial selections?
+              - what for?
+                - for hopelessly large data sets we can limit
+                  - but a dumb cutoff isn't useful
+                  - so, a smart, movable cutoff is needed
+            - does it make sense for a selector to be non-specific about what it returns?
+              - hard to say just yet, we need experience as guide
 
-    - Viewport positioning :: Presenter → Selection → Focus → Cull → Viewport
-      - How do we position a viewport?
-        - If we don't have a focus, then it wouldn't make sense to have a viewport
-          - Pick a "first" element (maybeHead $ fromList set, e.g.)
-        - If we don't have a viewport, generate one containing the focus
-        - if we do have a viewport, and the focus is inside -- choice is upon the engine
-        - if we the focus is outside, shift the viewport -- how exactly is upon the engine
-      - The above exposes following questions:
-        - what does "inside a viewport" mean?
-        - how can we generate a viewport that is guaranteed to contain a focus?
-      - The answer seems to have the shape of a structure-specific visibility
-        constraint specifier -- a =Cull=.
+        - Presenter choice :: Selection → PresPref → Presenter
+          - =PresPref= picks a specific =Presenter=, compatible with the current
+            =Selection= structure:
+            - defaults to last used
+            - size limits for non-partial-capable engines?
+            - can be cycled through by a shortcut
+          - Engines:
+            - Graph, dag, tree:
+              - =SideGraph=: graph from aside
+              - =DownGraph=: graph, arrow aligned weighted partitioning
+            - Dag (duplicates-encoded), tree:
+              - =DagList=, list entries
+              - =DagGrid=, icon grid
+              - =DagSpace=, space partitioning, ala /Lamdu/
+            - Set:
+              - =Carousel=
+              - =Grid=
+              - =List=
+          - Summing up, *fundamentally* we want:
+            1. type classes for individual LEs, because it allows for a
+               seriously neat organisation of code
+            2. multiple LEs associated with a structure, because that's how
+               the problem domain looks
+            3. #1 gives that there isn't a monotype for a LE
 
-    - Viewport culling :: Presenter → Selection → (Granularity, MinSize) → Viewport → (View, Boundary)
-      - XXX: what's the story about half-visible objects?
-        - select all intersecting, render more than what is showable?
-      - XXX: what's the story about avoidable layout recomputation?
-        - *key question*: is it bad?  In case of SideGraph, which *is* about
-                          total representation, it's very very bad.
-        - *caseanalysis* cacheable total-cost    can-partial partial-composable
-          - SideGraph:    yes       very hard     no(?)       no(?)
-          - DownGraph:    no        medium-small  yes         yes
-          - DagList:      yes       small         yes         yes
-          - DagGrid:      yes       medium-small  yes         yes
-          - DagSpace:     yes       very hard     yes         yes
-          - Carousel:     no        easy          no          no
-          - Grid:         yes       easy          yes         yes
-          - List:         yes       easy          yes         yes
-        - *option*: compute base layout, then viewportcull and localise from base
-          - for huge selections this produces unnecessary computation
-        - *option*: go with partials and compose them, whenever possible
-          - if so, layout needs to be:
-            - restartable at arbitrary point
-            - splittable and composable
-        - *option*: lazy evaluation?
-        - NOTE: all obvious caching solutions seem to rely on *Ord*
-      - =Granularity= determines, for tree layouts, the maximum depth of
-        subdivision, after which abbreviation is engaged
-      - =MinSize= limits the minimum element size
-      - =Viewport= is specific to =Presenter=:
-        - SideGraph: layout-global position
-        - DownGraph: subroot node
-        - DagList:   row offset
-        - DagGrid:   row offset
-        - DagSpace:  vertical offset (it's possible, because it's weighted space partitioning, but...?)
-        - Carousel:  current selection
-        - Grid:      row offset
-        - List:      row offset
-      - =View= is direct elements from =Selection=
-      - =Boundary= is anchor points to the parts of =Selection= that fall outside the =Viewport=
+        - Visibility constraints computation :: Presenter → (Granularity, MinSize) → Cull
+          - disconnected from specific elements -- deals with UI constraints projected onto a
+            specific layout engine:
+            - for SideGraph and SideDag -- no idea, let practice guide us..
+            - for space partitioning it's trivial -- granularity says it all
+            - for a Grid and DagGrid -- how many rows and columns
+            - for a List -- how many rows
+          - updated only rarely -- when the user changes the visualisation parameters
 
-    - Layout :: Presenter → (View, Boundary) → (Layout, Ephemerals)
-      - XXX: =Positions= what are they?
-        - scene-specific structure and interpretation?
-        - if not, global or screenspace?
-        - pixel-based, or [0.0..1.0]?
-      - =Ephemerals= are inherently non-persistent, layout-specific things like:
-        - element focus visulalisation state:
-          - scale change, to indicate foreground/background
+        - Viewport positioning :: Presenter → Selection → Focus → Cull → Viewport
+          - How do we position a viewport?
+            - If we don't have a focus, then it wouldn't make sense to have a viewport
+              - Pick a "first" element (maybeHead $ fromList set, e.g.)
+            - If we don't have a viewport, generate one containing the focus
+            - if we do have a viewport, and the focus is inside -- choice is upon the engine
+            - if we the focus is outside, shift the viewport -- how exactly is upon the engine
+          - The above exposes following questions:
+            - what does "inside a viewport" mean?
+            - how can we generate a viewport that is guaranteed to contain a focus?
+          - The answer seems to have the shape of a structure-specific visibility
+            constraint specifier -- a =Cull=.
 
-    - Change summary ::
-      - What effect did the last =Selector= change have?  Not always obvious.
+        - Viewport culling :: Presenter → Selection → (Granularity, MinSize) → Viewport → (View, Boundary)
+          - XXX: what's the story about half-visible objects?
+            - select all intersecting, render more than what is showable?
+          - XXX: what's the story about avoidable layout recomputation?
+            - *key question*: is it bad?  In case of SideGraph, which *is* about
+                              total representation, it's very very bad.
+            - *caseanalysis* cacheable total-cost    can-partial partial-composable
+              - SideGraph:    yes       very hard     no(?)       no(?)
+              - DownGraph:    no        medium-small  yes         yes
+              - DagList:      yes       small         yes         yes
+              - DagGrid:      yes       medium-small  yes         yes
+              - DagSpace:     yes       very hard     yes         yes
+              - Carousel:     no        easy          no          no
+              - Grid:         yes       easy          yes         yes
+              - List:         yes       easy          yes         yes
+            - *option*: compute base layout, then viewportcull and localise from base
+              - for huge selections this produces unnecessary computation
+            - *option*: go with partials and compose them, whenever possible
+              - if so, layout needs to be:
+                - restartable at arbitrary point
+                - splittable and composable
+            - *option*: lazy evaluation?
+            - NOTE: all obvious caching solutions seem to rely on *Ord*
+          - =Granularity= determines, for tree layouts, the maximum depth of
+            subdivision, after which abbreviation is engaged
+          - =MinSize= limits the minimum element size
+          - =Viewport= is specific to =Presenter=:
+            - SideGraph: layout-global position
+            - DownGraph: subroot node
+            - DagList:   row offset
+            - DagGrid:   row offset
+            - DagSpace:  vertical offset (it's possible, because it's weighted space partitioning, but...?)
+            - Carousel:  current selection
+            - Grid:      row offset
+            - List:      row offset
+          - =View= is direct elements from =Selection=
+          - =Boundary= is anchor points to the parts of =Selection= that fall outside the =Viewport=
 
-    - Render :: RenderContext → (View, Boundary) → (Layout, Ephemerals) → IO ()
+        - Layout :: Presenter → (View, Boundary) → (Layout, Ephemerals)
+          - XXX: =Positions= what are they?
+            - scene-specific structure and interpretation?
+            - if not, global or screenspace?
+            - pixel-based, or [0.0..1.0]?
+          - =Ephemerals= are inherently non-persistent, layout-specific things like:
+            - element focus visulalisation state:
+              - scale change, to indicate foreground/background
 
-    - Interaction :: Inputs → (View, Boundary) → Focus → (Granularity, MinSize) → Selector → PresPref → (Modifiers, Focus, (Granularity, MinSize), Selector, PresPref)
+        - Change summary ::
+          - What effect did the last =Selector= change have?  Not always obvious.
+
+        - Render :: RenderContext → (View, Boundary) → (Layout, Ephemerals) → IO ()
+
+        - Interaction :: Inputs → (View, Boundary) → Focus → (Granularity, MinSize) → Selector → PresPref → (Modifiers, Focus, (Granularity, MinSize), Selector, PresPref)
+*** Concepts available for implementation
+***** (To be) Displayable structures
+
+      - Graphs ::
+        - Views ::
+          - Z-axis ::
+            - Classic side view ::
+                 Needs root detection, for automatic layout.
+          - Arrow-aligned ::
+            - Weighted partitioning ::
+
+      - Dags ::
+        - Views ::
+          - Z-axis :: inherited from Graphs
+          - Y-axis :: inherited from Graphs
+          - Treeview, list entries, with duplication ::
+          - Treeview, icon grid, with duplication ::
+          - Treeview, space partitioning, ala Lamdu, with duplication ::
+        - Subsetting ::
+          - Viewport ::
+                       Arrow walker -- for nodes.
+                       Iterative refinement -- subsetting and context narrowing.
+                       Some kind of a shortcut-based jump language.
+                       Bookmarks.
+          - Ellipsis ::
+                       Zoomable: "everything else in this direction"
+                       What cases need it, given a proper Viewport subsetter?
+
+      - Sets ::
+        - Views ::
+          - Carousel ::
+          - Grid ::
+          - List ::
+        - Subsetting ::
+          - Viewport ::
+                       Iterative refinement makes it useful.
+                       Arrow walker -- for refinement elements and for.
+
+          - Summary  ::
+                       Extracting and exposing set structure.
+          - Ellipsis ::
+                       Logic summary or an explicit summary.
+***** Visualisable qualities
+
+      - Exhaustivity ::
+        - Explicit "unknown" remaining
+      - Variant-ness ::
+        - Simultaneous
+        - Per-choice filtering
+      - Progression ::
+      - Distinctions ::
+        - Decomposition vs. dependency
 
 * Open question archive
 *** =flex= notes
