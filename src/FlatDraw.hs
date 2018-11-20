@@ -13,11 +13,17 @@ module FlatDraw
   , coPatternGradLinear, coWithMaybePatternGradLinear, coPatternGradRadial
 
     -- * Drawing: simple
+  , dpx
   , thLineSet, poArc
+  , paintFill
+  , paintRect
+  , paintCircle
+  , paintDebugColorFrames
 
   -- * Rounded rectangle
   , wrapRoundedRectFeatures
   , executeFeature
+  , paintRoundedRect
   )
 where
 
@@ -28,6 +34,7 @@ import           Prelude.Unicode
 import           Control.Lens                      hiding (children)
 import           Control.Monad.State
 import           Data.Maybe
+import           Data.List                                (cycle)
 
 -- Algebra
 import           Linear
@@ -73,6 +80,11 @@ coPatternGradRadial !(Po (V2 xi yi)) !ir !ico !(Po (V2 xo yo)) !origin !oco = do
 
 -- * Drawing: simple
 --
+dpx ∷ Po Double → Co Double → GRCI.Render ()
+dpx (Po (V2 x y)) color = coSetSourceColor color >>
+                          -- GRC.rectangle (x) (y) 1 1 >> GRC.fill
+                          GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
+
 thLineSet ∷ Th Double → GRCI.Render ()
 thLineSet !(Th th)
   = GRC.setLineWidth th
@@ -81,9 +93,42 @@ poArc ∷ Po Double → Double → An2 Double → GRCI.Render ()
 poArc !(Po (V2 x y)) !r !(An2 (V2 angs ange))
   = GRC.arc x y r angs ange
 
+paintFill ∷ Co Double → GRCI.Render ()
+paintFill color = do
+  GRC.save
+  GRC.setOperator GRCI.OperatorSource
+  coSetSourceColor color
+  GRC.paint
+  GRC.restore
+
+paintRect ∷ Co Double → Di (Unit PU) → GRCI.Render ()
+paintRect color dim' = do
+  coSetSourceColor color
+  GRC.rectangle (0) (0) (fromPU $ dim'^.di'v._x) (fromPU $ dim'^.di'v._y)
+  GRC.fill
+
+paintCircle ∷ Co Double → R Double → Po Double → GRC.Render ()
+paintCircle color (R r) (Po (V2 x y)) = do
+  coSetSourceColor color
+  GRC.newPath >> thLineSet 0
+  GRC.arc x y r 0 180
+  GRC.arc x y r 180 0
+  GRC.fill
+
+paintDebugColorFrames ∷ Di Int → GRCI.Render ()
+paintDebugColorFrames (Di (V2 w h)) = do
+  let n ∷ Int = floor $ (fromIntegral $ min w h) / (2.0 ∷ Double)
+  GRC.setLineWidth 1
+  forM_ (take n $ zip [0..] $ cycle [red, green, blue]) $
+    \(x ∷ Int, color)→ do
+      coSetSourceColor color
+      GRC.rectangle (fromIntegral x) (fromIntegral x) (fromIntegral $ w - x) (fromIntegral $ h - x)
+      GRC.stroke
+
 
 -- * Drawing: complex
 
+
 -- | Description of rounded rectangle features -- sides and corners.
 --
 data RoundRectFeature dk a where
@@ -102,6 +147,8 @@ deriving instance Show a ⇒ Show (RoundRectFeature dk a)
 
 data WRoundRectFeature a where
   WRR ∷ RoundRectFeature dk a → WRoundRectFeature a
+
+deriving instance Show a ⇒ Show (WRoundRectFeature a)
 
 -- | Wrap rendering as a rounded rectangle.
 --   XXX: see if `Linear.V2.perp` can help with that.
@@ -144,3 +191,17 @@ executeFeature !cStart !cEnd !(WRR (RRCorn o c@(Po (V2 cx cy)) (An2 (V2 sa ea)) 
         Nothing → pure ()
         Just c' → coSetSourceColor c'
       GRC.arc cx cy (_r'val r) sa ea
+
+paintRoundedRect ∷ (Co Double, Co Double) → Th Double → R Double → Wi Double → Pad Double → GRC.Render ()
+paintRoundedRect (fgColor, bgColor) lw r@(R radius) (Wi interfocal) (Pad pad) = do
+  coSetSourceColor fgColor
+  let h = 2 * radius
+      w = h + interfocal
+      area = Area (LU $ po pad pad) (Size $ unsafe'di w h)
+      [n, ne, _, se, _, sw, _, nw] = wrapRoundedRectFeatures area r lw
+  GRC.newPath >> thLineSet lw
+  forM_ [n, ne, se, sw, nw] $ executeFeature Nothing Nothing
+  coSetSourceColor bgColor >>
+    GRC.fillPreserve
+  coSetSourceColor fgColor >>
+    GRC.stroke

@@ -389,6 +389,15 @@ buildPipelineForStorage storage pipelineSrc = liftIO $ do
 portMakeDrawable ∷ (MonadIO m) ⇒ Port f → IdToken → Di Double → m Drawable
 portMakeDrawable Port{..} = makeDrawable portObjectStream
 
+clearDrawable ∷ (MonadIO m) ⇒ Drawable → m ()
+clearDrawable Drawable{..} = do
+  Cr.runCairo dCairo $ do
+    GRC.save
+    GRC.setOperator GRCI.OperatorSource
+    Cr.crColor (co 0 0 0 0)
+    GRC.paint
+    GRC.restore
+
 imageSurfaceGetPixels' :: GRC.Surface → IO (F.Ptr F.CUChar, V2 Int)
 imageSurfaceGetPixels' pb = do
   pixPtr ← GRCI.imageSurfaceGetData pb
@@ -666,37 +675,3 @@ drawableBindFontLayout dπ Drawable{..} = Cr.bindWFontLayout dπ dGIC
 drawableDrawText ∷ (MonadIO m) ⇒ Drawable → GIP.Layout → Co Double → T.Text → m ()
 drawableDrawText Drawable{..} layout color text = do
   Cr.layDrawText dCairo dGIC layout (po 0 0) color text
-
-
--- * Painting
---
-dpx ∷ Po Double → Co Double → GRCI.Render ()
-dpx (Po (V2 x y)) color = Cr.crColor color >>
-                          -- GRC.rectangle (x) (y) 1 1 >> GRC.fill
-                          GRC.rectangle (x-1) (y-1) 3 3 >> GRC.fill
-
-clearDrawable ∷ (MonadIO m) ⇒ Drawable → m ()
-clearDrawable Drawable{..} = do
-  Cr.runCairo dCairo $ do
-    GRC.save
-    GRC.setOperator GRCI.OperatorSource
-    Cr.crColor (co 0 0 0 0)
-    GRC.paint
-    GRC.restore
-
-drawableDrawRect ∷ (MonadIO m, FromUnit u) ⇒ Port f → Drawable → Co Double → Di (Unit u) → m ()
-drawableDrawRect Port{portSettings=Settings{..}} d@Drawable{..} color dim' = do
-  let dim = fromUnit sttsDΠ <$> dim'
-  Cr.runCairo dCairo $ do
-    Cr.crColor color
-    GRC.rectangle (0) (0) (fromPU $ dim^.di'v._x) (fromPU $ dim^.di'v._y)
-    GRC.fill
-  drawableContentToGPU d
-  pure ()
-
--- Render with: framePutDrawable frame px0 (doubleToFloat <$> po 0 0)
--- mkRectDrawable ∷ (MonadIO m, FromUnit u) ⇒ Port f → Di (Unit u) → Co Double → m Drawable
--- mkRectDrawable port@Port{portSettings=Settings{..}} dim color = do
---   d@Drawable{..} ← portMakeDrawable port $ fromPU ∘ fromUnit sttsDΠ <$> dim
---   drawableDrawRect port d color dim
---   pure d
