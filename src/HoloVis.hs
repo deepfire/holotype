@@ -103,6 +103,14 @@ instance Vis () where
   freeVisualOf _proxy     _vis          = pure ()
 
 
+-- Note [Granularity and composite structures]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-- Notions of granularity:
+--  - g. of input events -- drawables, easily, because of picking (unless we're willing to introduce complicated mapping schemes)
+--  - g. of visual effects -- drawables, again, because of shaders
+--  - g. of values -- minimally decorated entry "widgets", in a narrow sense of a widget
+--                    ..as well as their composition (Record..) ?
+--
 data Composite s a where
   Composite ∷ (Vis a, Vis (Composite s a)) ⇒
     { cValue     ∷ a
