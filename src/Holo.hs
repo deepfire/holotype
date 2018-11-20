@@ -42,6 +42,7 @@ module Holo
   , inputMatch
   , InputEventMask(..), Subscription(..), subSingleton
   , inputMaskKeys, inputMaskButtons, inputMaskChars, editMaskKeys
+  , inputMaskClick, inputMaskClick1Press, inputMaskClick1Release
   --
   , Holo(..), hiHasVisual, hiLeaves
   , HoloBlank
@@ -254,6 +255,13 @@ inputMaskChars   = InputEventMask $ GLFW.eventMaskChars
 
 inputMaskButtons ∷ GLFW.ButtonEventMask → InputEventMask
 inputMaskButtons = InputEventMask ∘ GLFW.eventMaskButtons
+
+inputMaskClick ∷ GL.MouseButton → GL.MouseButtonState → InputEventMask
+inputMaskClick btn state = InputEventMask $ GLFW.eventMaskButtons $ GLFW.ButtonEventMask (Set.singleton btn) (Set.singleton state) mempty
+
+inputMaskClick1Press, inputMaskClick1Release ∷ InputEventMask
+inputMaskClick1Press   = inputMaskClick GL.MouseButton'1 GL.MouseButtonState'Pressed
+inputMaskClick1Release = inputMaskClick GL.MouseButton'1 GL.MouseButtonState'Released
 
 editMaskKeys ∷ InputEventMask
 editMaskKeys = (inputMaskChars <>) $ InputEventMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask
