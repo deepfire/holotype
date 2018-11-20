@@ -325,8 +325,8 @@ rotateRPo ∷ RealFloat a ⇒ An a → RPo a → RPo a
 rotateRPo (An a) (RPo c) = RPo $ mkPolar (magnitude c) (phase c + a)
 
 po'add, po'sub ∷ Num a ⇒ V2 a → Po a → Po a
-po'add v _po = Po (v ^+^ _po'v _po)
-po'sub v _po = Po (v ^-^ _po'v _po)
+po'add v _po = Po (_po'v _po ^+^ v)
+po'sub v _po = Po (_po'v _po ^-^ v)
 
 poDelta ∷ Num a ⇒ Po a → Po a → Di a
 poDelta (Po v) (Po v') = Di $ v ^-^ v'
