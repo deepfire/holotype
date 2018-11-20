@@ -79,16 +79,17 @@ type family StyleOf  a ∷ Type
 type family VisualOf a ∷ Type
 
 class Typeable a ⇒ Vis a where
-  defStyleOf      ∷                                                               Proxy a → StyleOf a
-  compStyleOf     ∷                                                                     a → StyleOf a
-  compGeo         ∷                                                                     a → Geo
-  sizeRequest     ∷ (MonadIO m, c a) ⇒ VPort → StyleOf a →           [Item c PLayout] → a → m (Di (Maybe Double))
-  setupVisual     ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
-  render          ∷ (MonadIO m) ⇒ VPort → StyleOf a → VisualOf a     → Drawable →       a → m ()  -- ^ Update a visualisation of 'a'.
-  freeVisualOf    ∷ (MonadIO m) ⇒                                    Proxy a → VisualOf a → m ()
+  defStyleOf       ∷                                                               Proxy a → StyleOf a
+  compStyleOf      ∷                                                                     a → StyleOf a
+  compGeo          ∷                                                                     a → Geo
+  sizeRequest      ∷ (MonadIO m, c a) ⇒ VPort → StyleOf a →           [Item c PLayout] → a → m (Di (Maybe Double))
+  setupVisual      ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
+  render           ∷ (MonadIO m) ⇒ VPort → StyleOf a → VisualOf a     → Drawable →       a → m ()  -- ^ Update a visualisation of 'a'.
+  freeVisualOf     ∷ (MonadIO m) ⇒                                    Proxy a → VisualOf a → m ()
   --
-  compStyleOf     = defStyleOf ∘ proxy   -- default style
-  compGeo         = const mempty         -- default geometry
+  compStyleOf      = defStyleOf ∘ proxy   -- default style
+  compGeo          = const mempty         -- default geometry
+  freeVisualOf _ _ = pure ()
 
 -- * Concrete, minimal case, to keep us in check
 type instance StyleOf  () = ()
