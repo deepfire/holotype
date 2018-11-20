@@ -59,6 +59,7 @@ import qualified Reflex.GLFW                       as GLFW
 -- Local imports
 import           Elsewhere
 import           Flatland
+import           FlatDraw
 import           HoloPrelude
 import           Holo
 import           HoloCairo                            (FKind(..))
@@ -143,11 +144,16 @@ instance Vis Rect where
   sizeRequest port Rect{..} _ _ = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> _rectDim
   defStyleOf _              = Rect zero white
   compStyleOf               = id
-  setupVisual port _ _area drw Rect{..} =
-    Port.drawableDrawRect port drw _rectColor _rectDim -- $ PUs <$> _area^.area'b.size'di
-  render port _ _ drw Rect{..} =
-    Port.drawableDrawRect port drw _rectColor _rectDim
-  freeVisualOf _ _       = pure ()
+  setupVisual Port.Port{portSettings=Port.Settings{..}} _ _area drw@Drawable{..} Rect{..} = do
+    let dim = fromUnit sttsDΠ <$> _rectDim
+    Cr.runCairo dCairo $ do
+      paintRect _rectColor dim -- $ PUs <$> _area^.area'b.size'di
+    Port.drawableContentToGPU drw
+  render Port.Port{portSettings=Port.Settings{..}} _ _ drw@Drawable{..} Rect{..} = do
+    let dim = fromUnit sttsDΠ <$> _rectDim
+    Cr.runCairo dCairo $ do
+      paintRect _rectColor dim -- $ PUs <$> _area^.area'b.size'di
+    Port.drawableContentToGPU drw
 
 instance Holo Rect where
   hasVisual               _ = True
@@ -247,6 +253,69 @@ tsSizeSpec  ∷ Lens' TextStyle (Cr.TextSizeSpec PU)
 tsSizeSpec f ts@(TextStyle _ x _) = (\xx→ts{_tsSizeSpec=xx}) <$> f x
 tsColor     ∷ Lens' TextStyle (Co Double)
 tsColor    f ts@(TextStyle _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
+
+
+-- * Bool!!!
+--
+data BoolStyle
+  = BoolStyle
+  { bsRadius     ∷ Double
+  , bsTolerance  ∷ Double
+  , bsLineWeight ∷ Double
+  , bsInterfocal ∷ Double
+  , bsColorOn    ∷ Co Double
+  , bsColorOff   ∷ Co Double
+  } -- specifying scale as part of style is a smell
+--
+--  Height: 2*(radius + line-weight + tolerance + line-weight + 0.5*(line-weight + tolerance))
+--  Width:  2*(0.5*interfocal + radius + line-weight + tolerance + line-weight + 0.5*(line-weight + tolerance))
+--
+--     ,------T-----------------L------.
+--    /       V  Tolerance              \
+--   /   /~~~~~~`\              Line    `\
+--  /   /          \            weight    \
+--  /  /            \                     \
+--  T→ |     o--R--→|  Radius             |
+--  \  \            /                     /
+--  \   \          /                     /
+--   \   \_______/`                     /`
+--    \                                /
+--     `------------------------------'
+--
+type instance StyleOf  Bool = BoolStyle
+type instance VisualOf Bool = ()
+
+instance Vis Bool where
+  defStyleOf _ = BoolStyle
+    { bsRadius     = 10
+    , bsTolerance  = 2    -- pixel counting → 2
+    , bsLineWeight = 2    -- pixel counting → 3
+    , bsInterfocal = 12
+    , bsColorOn    = green
+    , bsColorOff   = gray 0.4 1.0
+    }
+  sizeRequest _ BoolStyle{..} _ _ =
+    let padding = 0.5 * (bsLineWeight + bsTolerance)
+        h = 2 * (bsRadius + bsTolerance + bsLineWeight + padding)
+        w = h + bsInterfocal
+    in pure ∘ (Just <$>) ∘ Di $ V2 w h
+  setupVisual _ _ _ _ _ = pure ()
+  render _ BoolStyle{..} () d@Drawable{..} val = do
+    Cr.runCairo dCairo $ do
+      -- paintDebugColorFrames dDi
+      let padding  = 0.5 * (bsLineWeight + bsTolerance)
+          rrRadius = bsRadius + bsTolerance + bsLineWeight
+          hCenter  = rrRadius + padding
+      paintRoundedRect (white, if val then bsColorOn else bsColorOff)
+        (Th bsLineWeight) (R rrRadius) (Wi bsInterfocal) (Pad padding)
+      paintCircle white (R bsRadius) (Po $ V2 (hCenter + if val then 0 else bsInterfocal) hCenter)
+    Port.drawableContentToGPU d
+-- paintRoundedRect color lw@(Th lineWeight) r@(R radius) (Wi interfocal) (Pad pad) = do
+
+instance Holo Bool where
+  hasVisual _ = True
+  subscription tok _ = subSingleton tok inputMaskClick1Press
+  liftHoloDyn initial ev = foldDyn (\_ v → not v) initial ev
 
 
 -- * Settings

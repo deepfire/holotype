@@ -213,6 +213,7 @@ data AnObject where
   AnObject ∷
     { objName   ∷ Text
     , objLol    ∷ Text
+    , objYay    ∷ Bool
     -- , objDPI    ∷ DΠ
     -- , objDim    ∷ Di Int
     } → AnObject
@@ -241,7 +242,7 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
   varlenTextD      ← liftWDynamic $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
   -- xStts            ← liftRecord muxV defSettingsV
-  xDD@(W (_, xDDv)) ← liftWRecord @(Static t AnObject) (eV, AnObject "yayyity" "lol")
+  xDD@(W (_, xDDv)) ← liftWRecord @(Static t AnObject) (eV, AnObject "yayyity" "lol" True)
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
   xSD@(W (_, xSDv)) ← liftWRecord @(Static t Port.Settings) (eV, defSettingsV)
