@@ -114,6 +114,8 @@ tool      := $(and $(leakcheck),valgrind --leak-check=full --show-leak-kinds=all
              $(and $(pprof),pprof)
 toollog   := $(and $(leakcheck), 2>&1 | ts -s | tee leakcheck.$(shell date +%s).report) \
              $(and $(pprof),     2>&1 | ts -s | tee     pprof.$(shell date +%s).report)
+traced: OPTS=--trace
+traced: holotype
 holotype: $(HOLOTYPE)
 	$(tool) $< +RTS -T -RTS $(OPTS) $(toollog)
 pholotype: $(HOLOTYPE)
