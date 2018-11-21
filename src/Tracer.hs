@@ -40,26 +40,30 @@ data TraceAction
 
 data TraceConf where
   TraceConf ∷
-    { tcas ∷ Map.Map (TraceKind, TraceEntity) (TraceAction, Int)
+    { defaultEnabled ∷ Bool
+    , tcas ∷ Map.Map (TraceKind, TraceEntity) (TraceAction, Int)
     } → TraceConf
 
 conf ∷ IO.IORef TraceConf
-conf = IO.unsafePerformIO $ IO.newIORef $ TraceConf mempty
+conf = IO.unsafePerformIO $ IO.newIORef $ TraceConf False mempty
 
-setupTracer ∷ [(TraceKind, TraceEntity, TraceAction, Int)] → IO ()
-setupTracer = IO.writeIORef conf ∘ TraceConf ∘ Map.fromList ∘ (fmap $ \(k,e,a,d)→((k,e),(a,d)))
+setupTracer ∷ Bool → [(TraceKind, TraceEntity, TraceAction, Int)] → IO ()
+setupTracer en = IO.writeIORef conf ∘ TraceConf en ∘ Map.fromList ∘ (fmap $ \(k,e,a,d)→((k,e),(a,d)))
 
 trev ∷ (HasCallStack, MonadIO m, Show a) ⇒ TraceKind → TraceEntity → a → Int → m ()
 trev kind entity arg addrOrId = liftIO $ do
-  config ← tcas <$> IO.readIORef conf
-  unless (Map.null config) $ do
-    let cfg = Map.lookup (kind, entity) config
+  config ← IO.readIORef conf
+  unless (Map.null $ tcas config) $ do
+    let cfg = Map.lookup (kind, entity) $ tcas config
     let msg = show kind <> " " <> show entity <> " 0x" <> showHex addrOrId "" <> " " <> show arg
     case cfg of
       Just (IGNORE, _)     → pure ()
       Just (STACK,  depth) → let prefix = replicate depth ' ' in (putStrLn $ prettyCallStack callStack) >> traceIO (prefix <> msg) >> traceEventIO msg
       Just (TRACE,  depth) → let prefix = replicate depth ' ' in                                           traceIO (prefix <> msg) >> traceEventIO msg
-      _                    →                                                                               traceIO            msg  >> traceEventIO msg
+      _                    →
+        if defaultEnabled config
+        then traceIO msg  >> traceEventIO msg
+        else pure ()
 
 trevE ∷ (HasCallStack, Show a) ⇒ TraceKind → TraceEntity → a → Int → b → b
 trevE kind entity arg addrOrId x =
