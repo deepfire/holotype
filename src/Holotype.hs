@@ -119,29 +119,38 @@ average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 routeInputEvent ∷ ∀ t m. (RGLFW t m)
            ⇒ Event t InputEvent          -- ^ Events to distribute
-           → Event t IdToken             -- ^ Carries the (possibly) new picked entity
+           → Event t InputEvent          -- ^ Carries the (possibly) new picked entity
            → Dynamic t Subscription      -- ^ The total mass of subscriptions
            → m (InputEventMux t)         -- ^ Global event wire for all IdTokens
-routeInputEvent inputE pickedE subsD = do
-  pickeD ← holdDyn Nothing $ Just <$> pickedE -- Compute the latest focus
-  let inputsD = zipDynWith (,) pickeD (traceDyn "===== new subs: " subsD)
+routeInputEvent inputE clickedE subsD = do
+  pickeD ← holdDyn Nothing $ Just ∘ Holo.inIdToken <$> clickedE -- Compute the latest focus (or just a mouse click)
+  -- XXX: filter the above on the left click -- as it stands any mouse button changes selection
+  let fullInputE = leftmost [clickedE, inputE]
+      inputsD = zipDynWith (,) pickeD (traceDyn "===== new subs: " subsD)
       -- | Process the incoming events using the latest listener and total set subscriptions
       routedE ∷ Event t (M.Map IdToken InputEvent)
-      routedE = routeSingle <$> attachPromptlyDyn inputsD inputE
+      routedE = routeSingle <$> attachPromptlyDyn inputsD fullInputE
       routeSingle ∷ ((Maybe IdToken, Subscription), InputEvent) → M.Map IdToken InputEvent
-      routeSingle ((picked, Subscription ss), ev) =
-        case MMap.lookup (GLFW.eventUType $ Holo.inInputEvent ev) ss of
-          Nothing         → --trace ("rejected type: "<>show ev<>"/"<>show (inInputEvent ev))
-                            mempty -- no-one cares, nothing happened..
-          Just potentials →
-            let matches = flip Seq.filter potentials (flip Holo.inputMatch ev ∘ snd)
-            in case (picked, toList matches) of
-                 (_, [])               → --trace ("rejected unmatched: "<>show ev)
-                                         mempty
-                 (Just pick, matched)  → case lookup pick matched of
-                   Nothing → mempty -- XXX: mis-focus -- we allowed to focus a non-interested entity
-                   Just _  → M.singleton pick ev
-                 (Nothing, (tok, _):_) → M.singleton tok ev
+      routeSingle ((mClickOrPicked, Subscription ss), ev) =
+        let eventType = Holo.inputEventType ev
+        in case MMap.lookup eventType ss of
+           Nothing         → mempty -- no-one cares about this type of events
+           Just eventTypeSubscribers  →
+             let eventListenerSet ∷ Seq.Seq (IdToken, Holo.InputEventMask) =
+                   flip Seq.filter eventTypeSubscribers (flip Holo.inputMatch ev ∘ snd)
+             in case (eventType, trace ("routing: "<>show mClickOrPicked) mClickOrPicked, toList eventListenerSet) of
+                  (_, _, []) → mempty -- no-one's event mask matches this event
+                  -- --------------- here we need the click, not the accumulated pick
+                  -- (GLFW.MouseButton, Just clicked, eventListeners) → case lookup clicked eventListeners of
+                  --   Nothing → mempty -- focused ID is not among subscribers
+                  --   Just x  → if x ≡ clicked
+                  --             then M.singleton clicked ev
+                  --             else mempty
+                  (_, Just pick, eventListeners)  → case lookup pick eventListeners of
+                    Nothing → mempty -- focused ID is not among subscribers
+                    Just _  → M.singleton (trace ("routed to: "<>show pick) pick) ev
+                  -- (_, Nothing, (tok, _):_) → M.singleton tok ev
+                  (_, Nothing, _) → mempty
   pure $ fanMap routedE
 
 
@@ -325,7 +334,7 @@ holotype win evCtl windowFrameE inputE = mdo
 
   -- * SCENE
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
-  inputMux         ← routeInputEvent (Holo.InputEvent <$> inputE) pickedE subscriptionsD
+  inputMux         ← routeInputEvent (Holo.InputEvent <$> ffilter (\case (U GLFW.EventMouseButton{}) → False; _ → True) inputE) clickedE subscriptionsD
   (,) subscriptionsD sceneD
                    ← scene Port.defaultSettings inputMux statsValD frameNoD fpsValueD
 
@@ -356,11 +365,11 @@ holotype win evCtl windowFrameE inputE = mdo
   -- * PICKING
   let clickE        = ffilter (\case (U GLFW.EventMouseButton{}) → True; _ → False) inputE
       pickE         = fmapMaybe id $ attachPromptlyDyn drawnPortD clickE <&> \case
-                        (Nothing, _) → Nothing
+                        (Nothing, _) → Nothing -- We may have no drawn picture yet.
                         (Just x, y)  → Just (x, y)
-  pickedE          ← mousePointId $ (id *** (\(U x@GLFW.EventMouseButton{})→ x)) <$> pickE
-  performEvent_ $ pickedE <&>
-    \token→ liftIO $ printf "%x\n" (Port.tokenHash token)
+  clickedE          ← mousePointId $ (id *** (\(U x@GLFW.EventMouseButton{})→ x)) <$> pickE
+  performEvent_ $ clickedE <&>
+    \Holo.ClickEvent{..}→ liftIO $ printf "pick=0x%x\n" (Port.tokenHash inIdToken)
 
   -- * Limit frame rate to vsync.  XXX:  also, flicker.
   worldE ∷ Event t WorldEvent
@@ -371,11 +380,11 @@ holotype win evCtl windowFrameE inputE = mdo
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
 
-mousePointId ∷ RGLFW t m ⇒ Event t (VPort, GLFW.Input 'GLFW.MouseButton) → m (Event t IdToken)
-mousePointId ev = (ffilter ((≢ 0) ∘ Port.tokenHash) <$>) <$>
-                  performEvent $ ev <&> \(port@Port{..}, GLFW.EventMouseButton _ _ _ _) → do
+mousePointId ∷ RGLFW t m ⇒ Event t (VPort, GLFW.Input 'GLFW.MouseButton) → m (Event t InputEvent)
+mousePointId ev = (ffilter ((≢ 0) ∘ Port.tokenHash ∘ Holo.inIdToken) <$>) <$>
+                  performEvent $ ev <&> \(port@Port{..}, e@(GLFW.EventMouseButton _ _ _ _)) → do
                     (,) x y ← liftIO $ (GLFW.getCursorPos portWindow)
-                    Port.portPick port $ floor <$> po x y
+                    Holo.ClickEvent e <$> (Port.portPick port $ floor <$> po x y)
 
 
 

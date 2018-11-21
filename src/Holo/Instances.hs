@@ -313,8 +313,8 @@ instance Vis Bool where
 -- paintRoundedRect color lw@(Th lineWeight) r@(R radius) (Wi interfocal) (Pad pad) = do
 
 instance Holo Bool where
-  hasVisual _ = True
-  subscription tok _ = subSingleton tok inputMaskClick1Press
+  hasVisual            _ = True
+  subscription    tok  _ = subSingleton tok inputMaskClick1Press
   liftHoloDyn initial ev = foldDyn (\_ v → not v) initial ev
 
 
