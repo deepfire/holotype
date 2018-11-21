@@ -39,7 +39,7 @@ module Holo
   --
   , compToken
   , InputEvent(..)
-  , inputMatch
+  , inputEventType, inputMatch
   , InputEventMask(..), Subscription(..), subSingleton
   , inputMaskKeys, inputMaskButtons, inputMaskChars, editMaskKeys
   , inputMaskClick, inputMaskClick1Press, inputMaskClick1Release
@@ -208,7 +208,11 @@ type InputEventMux t     = EventSelector t (Const2 IdToken InputEvent)
 
 data InputEvent where
   InputEvent ∷
-    { inInputEvent ∷ GLFW.InputU
+    { inInputEvent       ∷ GLFW.InputU
+    } → InputEvent
+  ClickEvent ∷
+    { inMouseButtonEvent ∷ GLFW.Input GLFW.MouseButton
+    , inIdToken          ∷ IdToken
     } → InputEvent
   deriving (Show)
 
@@ -223,6 +227,13 @@ instance Show InputEventMask where
 inputMatch ∷ InputEventMask → InputEvent → Bool
 inputMatch InputEventMask{..} = \case
   InputEvent{inInputEvent=GLFW.U x} → GLFW.eventMatch inputMask x
+  ClickEvent{inMouseButtonEvent=x}  → GLFW.eventMatch inputMask x
+
+inputEventType ∷ InputEvent → GLFW.EventType
+inputEventType = \case
+  InputEvent{inInputEvent=GLFW.U x} → GLFW.eventType x
+  ClickEvent{inMouseButtonEvent=x}  → GLFW.MouseButton
+
 
 instance Semigroup InputEventMask where
   InputEventMask a <> InputEventMask b = InputEventMask $ a <> b
