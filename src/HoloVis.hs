@@ -31,11 +31,11 @@
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
 
 module HoloVis
-  ( Vis(..)
-  , StyleOf
+  ( As(..)
   , Style(..), sStyle, sStyleGene, initStyle, defStyle
   , StyleGene(..), fromStyleGene
-  , VisualOf, Visual(..)
+  , Visual(..)
+  -- , Vis(..)
   --
   , HIArea, HIVisual
   , Item(..), hiStyleGene, hiLeaves
@@ -73,35 +73,33 @@ import           HoloPort                                 (IdToken, Drawable, Fr
 import qualified HoloPort                          as Port
 
 
--- * Vis: making things visible
+-- * As -- assigning representation
 --
-type family StyleOf  a ∷ Type
-type family VisualOf a ∷ Type
-
-class Typeable a ⇒ Vis a where
-  defStyleOf       ∷                                                               Proxy a → StyleOf a
-  compStyleOf      ∷                                                                     a → StyleOf a
-  compGeo          ∷                                                                     a → Geo
-  sizeRequest      ∷ (MonadIO m, c a) ⇒ VPort → StyleOf a →           [Item c PLayout] → a → m (Di (Maybe Double))
-  setupVisual      ∷ (MonadIO m) ⇒ VPort → StyleOf a → Area'LU Double → Drawable →       a → m (VisualOf a)
-  render           ∷ (MonadIO m) ⇒ VPort → StyleOf a → VisualOf a     → Drawable →       a → m ()  -- ^ Update a visualisation of 'a'.
-  freeVisualOf     ∷ (MonadIO m) ⇒                                    Proxy a → VisualOf a → m ()
-  --
-  compStyleOf      = defStyleOf ∘ proxy   -- default style
-  compGeo          = const mempty         -- default geometry
-  freeVisualOf _ _ = pure ()
+class As r where
+  type          Sty r ∷ Type
+  type instance Sty r = ()
+  type          Vis r ∷ Type
+  type instance Vis r = ()
+  defSty      ∷                                                           Proxy r → Sty r
+  compSty     ∷                                                                 r → Sty r
+  compSty                                                                       x = defSty (proxy x)
+  compGeo     ∷                     r                                             → Geo
+  compGeo                                                                         = const mempty
+  sizeRequest ∷ MonadIO m ⇒ VPort → r → Sty r                                     → m (Di (Maybe Double))
+  setupVis    ∷ MonadIO m ⇒ VPort → r → Sty r → Area'LU Double → Drawable         → m (Vis r)
+  render      ∷ MonadIO m ⇒ VPort → r → Sty r                  → Drawable → Vis r → m () -- ^ Update visual.
+  freeVis     ∷ MonadIO m ⇒   Proxy r                                     → Vis r → m ()
+  freeVis                           _                                           _ = pure ()
 
 -- * Concrete, minimal case, to keep us in check
-type instance StyleOf  () = ()
-type instance VisualOf () = ()
-instance Vis () where
-  defStyleOf                     _proxy = ()
-  compStyleOf                        _x = ()
-  compGeo                            _x = mempty
-  sizeRequest  _port _sty _chi       _x = pure $ Di $ V2 Nothing Nothing
-  setupVisual  _port _sty _area _drw _x = pure ()
-  render       _port _sty _vis  _drw _x = pure ()
-  freeVisualOf _proxy     _vis          = pure ()
+instance As () where
+  defSty                             _px    = ()
+  compSty                                _x = ()
+  compGeo                                _x = mempty
+  sizeRequest  _port _x  _sty               = pure $ Di $ V2 Nothing Nothing
+  setupVis     _port _x  _sty _area _drw    = pure ()
+  render         _port _x  _sty _vis  _drw  = pure ()
+  freeVis             _px       _vis        = pure ()
 
 
 -- Note [Granularity and composite structures]
@@ -112,13 +110,13 @@ instance Vis () where
 --  - g. of values -- minimally decorated entry "widgets", in a narrow sense of a widget
 --                    ..as well as their composition (Record..) ?
 --
-data Composite s a where
-  Composite ∷ (Vis a, Vis (Composite s a)) ⇒
-    { cValue     ∷ a
-    , cStyle     ∷ Style (Composite s a)
-    , cStructure ∷ Item Vis PBlank       -- internal structure
-    , cToken     ∷ IdToken               -- identity of the backing drawable
-    } → Composite s a
+-- data Composite s a where
+--   Composite ∷ (Vis a, Vis (Composite s a)) ⇒
+--     { cValue     ∷ a
+--     , cStyle     ∷ Style (Composite s a)
+--     , cStructure ∷ Item Vis PBlank       -- internal structure
+--     , cToken     ∷ IdToken               -- identity of the backing drawable
+--     } → Composite s a
 -- Questions:
 -- 1. How does it integrate with the old compose/layout/render/show workflow?
 --    ..in particular, how does Query continues to work?
@@ -149,28 +147,28 @@ fromStyleGene ∷ Lens' StyleGene Int
 fromStyleGene f (StyleGene x) = f x <&> StyleGene
 
 data Style a where
-  Style ∷ Vis a ⇒
-    { _sStyle      ∷ StyleOf a
+  Style ∷ As a ⇒
+    { _sStyle      ∷ Sty a
     , _sStyleGene  ∷ StyleGene
     } → Style a
 
-sStyle     ∷ Lens' (Style a) (StyleOf a)
+sStyle     ∷ Lens' (Style a) (Sty a)
 sStyle     f s@Style{..} = f _sStyle     <&> \x→ s{_sStyle=x}
 sStyleGene ∷ Lens' (Style a) StyleGene
 sStyleGene f s@Style{..} = f _sStyleGene <&> \x→ s{_sStyleGene=x}
 
-initStyle ∷ Vis a ⇒ StyleOf a → Style a
+initStyle ∷ As a ⇒ Sty a → Style a
 initStyle s = Style { _sStyle = s, _sStyleGene = StyleGene 0 }
 
-defStyle ∷ ∀ a. Vis a ⇒ Style a
-defStyle = initStyle $ defStyleOf (Proxy @a)
+defStyle ∷ ∀ a. As a ⇒ Style a
+defStyle = initStyle $ defSty (Proxy @a)
 
 
 -- * Visual wrapper
 --
 data Visual a where
-  Visual ∷ Vis a ⇒
-    { vVisual   ∷ Maybe (VisualOf a)
+  Visual ∷ As a ⇒
+    { vVisual   ∷ Maybe (Vis a)
     , vStyle    ∷ Style a
     , vDrawable ∷ Maybe Drawable
     } → Visual a
@@ -180,7 +178,7 @@ type VPort = Port.Port Visual
 instance Port.PortVisual Visual where
   pvDrawable = vDrawable
   pvFree _pC pA = \case
-    Visual{..} → sequence_ $ freeVisualOf pA <$> vVisual
+    Visual{..} → sequence_ $ freeVis pA <$> vVisual
 
 
 -- * Item
@@ -201,7 +199,7 @@ type family HIVisual (p ∷ Phase) a ∷ Type where
   HIVisual PVisual a = Maybe (Visual a)
 
 data Item (c ∷ Type → Constraint) (p ∷ Phase) where
-  Item ∷ ∀ p c a. (c a, Vis a) ⇒
+  Item ∷ ∀ p c a. (c a, As a, Flex.Flex a, Typeable a) ⇒
     { holo        ∷ a
     , hiConstr    ∷ Proxy c
     , hiToken     ∷ IdToken
@@ -254,7 +252,7 @@ hiSizeRequest port hoi@Item{..} =
         queryOne port hoi children =
           case hoi of
             Item{..} → do
-              size ← sizeRequest port (_sStyle $ hiStyle) children holo
+              size ← sizeRequest port holo (_sStyle $ hiStyle)
               trev SIZE HOLO size (Port.tokenHash hiToken)
               pure Item{hiSize=size, hiArea=mempty, hiChildren=children, ..}
 
@@ -262,8 +260,8 @@ hiMandateVisual ∷ (HasCallStack, MonadIO m) ⇒ VPort → Item c PLayout → [
 hiMandateVisual port hi children = case hi of
   Item{..} → do
     let dim = hiArea^.area'b.size'di
-    vis ←  Port.portEnsureVisual port dim (Proxy @Vis) hiToken Proxy (\Visual{..}→ _sStyleGene vStyle ≢ hiStyleGene hi) $
-           \drw→ Visual <$> (Just <$> setupVisual port (_sStyle hiStyle) hiArea drw holo)
+    vis ←  Port.portEnsureVisual port dim (Proxy @As) hiToken Proxy (\Visual{..}→ _sStyleGene vStyle ≢ hiStyleGene hi) $
+           \drw→ Visual <$> (Just <$> setupVis port holo (_sStyle hiStyle) hiArea drw)
                         <*> pure hiStyle
                         <*> (pure $ Just drw)
     pure Item{hiVisual=Just vis, hiChildren=children, ..}
@@ -278,7 +276,7 @@ hiRender port Item{..} = do
     Just Visual{vVisual=Just vis, vStyle=Style{..}, vDrawable=Just drw} → do
       -- XXX: 'render' is called every frame for everything
       Port.clearDrawable drw
-      render port _sStyle vis drw holo
+      render port holo _sStyle drw vis
       Port.drawableContentToGPU drw
     _ → pure ()
 
@@ -290,28 +288,27 @@ data KNode
   | HBox
 
 data Node (k ∷ KNode) where
-  HBoxN ∷ Node HBox
-  VBoxN ∷ Node VBox
+  HBoxN ∷ (As r, Flex.Flex r) ⇒ [r] → Node HBox
+  VBoxN ∷ (As r, Flex.Flex r) ⇒ [r] → Node VBox
 
 boxAxis ∷ Node a → Axis
-boxAxis HBoxN = X
-boxAxis VBoxN = Y
+boxAxis (HBoxN _) = X
+boxAxis (VBoxN _) = Y
 
-type instance StyleOf  (Node _) = ()
-type instance VisualOf (Node _) = ()
-
-instance Typeable k ⇒ Vis (Node (k ∷ KNode)) where
-  defStyleOf _           = ()
-  compGeo HBoxN          = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
-  compGeo VBoxN          = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
-  sizeRequest _ _ xs box =
+instance As (Node (k ∷ KNode)) where
+  type instance Sty (Node k) = ()
+  type instance Vis (Node k) = ()
+  defSty _          = ()
+  compGeo (HBoxN _) = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
+  compGeo (VBoxN _) = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
+  sizeRequest _ box@(HBoxN xs) _ =
     -- Requirement is a sum of children requirements
     pure $ (Just <$>) $ _reqt'di $ foldl' (reqt'add $ boxAxis box) zero $ (\x→ Reqt (fromMaybe 0 <$> x^.Flex.size)) <$> xs
 
 
 -- * Constructors
 --
-item ∷ ∀ c a. (c a, Vis a)
+item ∷ ∀ c a. (c a, As a, Flex.Flex a, Typeable a)
   ⇒ IdToken
   → Style a
   → a
@@ -324,7 +321,7 @@ item hiToken hiStyle holo hiGeo hiChildren =
       hiVisual = ()
   in Item{..}
 
-node ∷ ∀ a c k. (c a, a ~ Node k, Typeable k)
+node ∷ ∀ a c k. (c a, a ~ Node k, Flex.Flex a, Typeable k)
   ⇒ IdToken
   → Style a
   → a
@@ -332,7 +329,7 @@ node ∷ ∀ a c k. (c a, a ~ Node k, Typeable k)
   → Item c PBlank
 node tok sty holo = item tok sty holo (compGeo holo)
 
-leaf ∷ (c a, Vis a)
+leaf ∷ (c a, As a, Flex.Flex a, Typeable a)
   ⇒ IdToken
   → Style a
   → a
@@ -342,8 +339,8 @@ leaf tok sty holo = item tok sty holo (compGeo holo) []
 -- XXX: here's trouble -- we're using blankIdToken!
 hbox ∷ (c (Node 'HBox)) ⇒ [Item c PBlank] → Item c PBlank
 vbox ∷ (c (Node 'VBox)) ⇒ [Item c PBlank] → Item c PBlank
-hbox = node Port.blankIdToken (initStyle ()) (HBoxN ∷ Node HBox)
-vbox = node Port.blankIdToken (initStyle ()) (VBoxN ∷ Node VBox)
+hbox = node Port.blankIdToken (initStyle ()) ∘ (HBoxN ∷ r → Node HBox)
+vbox = node Port.blankIdToken (initStyle ()) ∘ (VBoxN ∷ r → Node VBox)
 
 
 -- * Tree-wise ops

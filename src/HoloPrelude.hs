@@ -46,7 +46,7 @@ module HoloPrelude
 where
 
 import           Control.Applicative
-import           Control.Lens                      hiding (children)
+import           Control.Lens                      hiding (children, As)
 import           Control.Monad                            (unless, when, filterM)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import           Control.Exception                        (assert)
