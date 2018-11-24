@@ -35,17 +35,18 @@ module HoloVis
   , Style(..), sStyle, sStyleGene, initStyle, defStyle
   , StyleGene(..), fromStyleGene
   , Visual(..)
-  -- , Vis(..)
   --
-  , HIArea, HIVisual
-  , Item(..), hiStyleGene, hiLeaves
+  , Name(..)
+  , IVisual
   , Phase(..)
+  , Item(..), iLeafP, iToken, iStyleGene
+  , iLeaves
   , Node(..)
-  , item, node, leaf
+  , node, leaf
   , hbox, vbox
-  , hiSizeRequest
-  , hiMandateVisual, hiUnvisual
-  , hiRender
+  , iSizeRequest
+  , iMandateVisual, iUnvisual
+  , iRender
   , renderHolotreeVisuals
   , showHolotreeVisuals
   --
@@ -58,9 +59,9 @@ import           Data.Foldable
 import           Data.Maybe
 import           Data.Typeable
 import           Generics.SOP                             (Proxy)
-import           GHC.Types                                (Constraint)
 import           Linear
 import qualified Data.Map.Strict                   as Map
+import qualified Unsafe.Coerce                     as Co
 
 -- Local imports
 import           HoloPrelude
@@ -188,20 +189,10 @@ data Phase
   | PLayout
   | PVisual
 
-type family HISize   (p ∷ Phase) ∷ Type where
-  HISize   PBlank  = ()
-  HISize   PLayout = Di (Maybe Double)
-  HISize   PVisual = Di (Maybe Double)
-
-type family HIArea   (p ∷ Phase) ∷ Type where
-  HIArea   PBlank  = ()
-  HIArea   PLayout = Area'LU Double
-  HIArea   PVisual = Area'LU Double
-
-type family HIVisual (p ∷ Phase) a ∷ Type where
-  HIVisual PBlank  _ = ()
-  HIVisual PLayout _ = ()
-  HIVisual PVisual a = Maybe (Visual a)
+type family IVisual (p ∷ Phase) a ∷ Type where
+  IVisual PBlank  _ = ()
+  IVisual PLayout _ = ()
+  IVisual PVisual a = Maybe (Visual a)
 
 data Name a where
   Name ∷ ∀ a. (As a, Typeable a) ⇒
@@ -216,15 +207,17 @@ data Item (p ∷ Phase) where
   Leaf ∷ ∀ p a. (As a, Typeable a) ⇒
     { name        ∷ Name a
     , denoted     ∷ Denoted a
-    , iSize       ∷ HISize p          -- Flex input:  the desired size
-    , iArea       ∷ HIArea p          -- Flex output: the resultant size + coords
-    , lVisual     ∷ HIVisual p a
+    , iSize       ∷ Di (Maybe Double) -- Flex input:  the desired size
+                                      -- Has to be always defined, because we need an universally quantified Flex (Item p)
+    , iArea       ∷ Area'LU Double    -- Flex output: the resultant size + coords
+                                      -- Same quip as for iSize
+    , lVisual     ∷ IVisual p a
     } → Item p
-  Node ∷ ∀ p a. (As a, Typeable a) ⇒
+  Node ∷ ∀ k p a. (a ~ Node k p) ⇒
     { name        ∷ Name a
     , denoted     ∷ Denoted a
-    , iSize       ∷ HISize p          -- Flex input:  the desired size
-    , iArea       ∷ HIArea p          -- Flex output: the resultant size + coords
+    , iSize       ∷ Di (Maybe Double) -- Flex input:  the desired size
+    , iArea       ∷ Area'LU Double    -- Flex output: the resultant size + coords
     } → Item p
 
 iLeafP ∷ Item p → Bool
@@ -241,7 +234,9 @@ iStyleGene ∷ Item p → StyleGene
 iStyleGene = \case
   Leaf{name=Name{..},..} → _sStyleGene nStyle
   Node{name=Name{..},..} → _sStyleGene nStyle
-  -- case x of Item{..} → case hiName of Name{..} → _sStyleGene nStyle
+
+blankSize ∷ Di (Maybe Double)
+blankSize = unsafe'di Nothing Nothing
 
 instance Eq (Item a) where
   (==)    a b = iToken a ≡ iToken b
@@ -249,69 +244,58 @@ instance Eq (Item a) where
 instance Ord (Item a) where
   compare a b = iToken a `compare` iToken b
 
-instance Flex.Flex (Item PLayout) where
-  geo      f    Leaf{..} = (\x→ Leaf {name=name {nGeo = x}, ..}) <$> f (nGeo name)
-  geo      f    Node{..} = (\x→ Node {name=name {nGeo = x}, ..}) <$> f (nGeo name)
-  size     f hi@Leaf{..} = (\x→ hi   {iSize=x})                  <$> f iSize
-  size     f hi@Node{..} = (\x→ hi   {iSize=x})                  <$> f iSize
-  area     f hi@Leaf{..} = (\x→ hi   {iArea=x})                  <$> f iArea
-  area     f hi@Node{..} = (\x→ hi   {iArea=x})                  <$> f iArea
-  children f hi@Leaf{..} = (\x→ hi)                              <$> f []
-  children f hi@Node{..} = (\x→ hi   {nChildren=x})              <$> f nChildren
+instance Flex.Flex (Item (a ∷ Phase)) where
+  geo      f   Leaf{..} = (\x→ Leaf {name=name {nGeo = x}, ..}) <$> f (nGeo name)
+  geo      f   Node{..} = (\x→ Node {name=name {nGeo = x}, ..}) <$> f (nGeo name)
+  size     f i@Leaf{..} = (\x→ i    {iSize=x})                  <$> f iSize
+  size     f i@Node{..} = (\x→ i    {iSize=x})                  <$> f iSize
+  area     f i@Leaf{..} = (\x→ i    {iArea=x})                  <$> f iArea
+  area     f i@Node{..} = (\x→ i    {iArea=x})                  <$> f iArea
+  children f i@Leaf{..} = (\_→ i)                               <$> f []
+  children f   Node{..} = (\x→ Node {denoted=x, ..})            <$> f denoted
 
-instance Flex.Flex (Item PVisual) where
-  geo      f    Leaf{..} = (\x→ Leaf {name=name {nGeo = x}, ..}) <$> f (nGeo name)
-  geo      f    Node{..} = (\x→ Node {name=name {nGeo = x}, ..}) <$> f (nGeo name)
-  size     f hi@Leaf{..} = (\x→ hi   {iSize=x})                  <$> f iSize
-  size     f hi@Node{..} = (\x→ hi   {iSize=x})                  <$> f iSize
-  area     f hi@Leaf{..} = (\x→ hi   {iArea=x})                  <$> f iArea
-  area     f hi@Node{..} = (\x→ hi   {iArea=x})                  <$> f iArea
-  children f hi@Leaf{..} = (\x→ hi)                              <$> f []
-  children f hi@Node{..} = (\x→ hi   {nChildren=x})              <$> f nChildren
-
-hiLeaves ∷ Item a → Map.Map IdToken (Item a)
-hiLeaves root = Map.fromList $ walk root
+iLeaves ∷ ∀ a. Item a → Map.Map IdToken (Item a)
+iLeaves root = Map.fromList $ walk root
   where walk x@Leaf{..} = [(iToken x, x)]
-        walk   Node{..} = concat $ walk <$> nChildren
+        walk   Node{..} = concat $ walk <$> denoted
 
-hiSizeRequest ∷ ∀ c m. (MonadIO m) ⇒ VPort → Item PBlank → m (Item PLayout)
-hiSizeRequest port Leaf{name=name@Name{..},..} = do
+iSizeRequest ∷ ∀ m. (MonadIO m) ⇒ VPort → Item PBlank → m (Item PLayout)
+iSizeRequest port Leaf{name=name@Name{..},..} = do
   size ← sizeRequest port n denoted (_sStyle $ nStyle)
   trev SIZE HOLO size $ Port.tokenHash nToken
   pure Leaf{iSize=(size ∷ Di (Maybe Double)), iArea=mempty, ..}
-hiSizeRequest port hoi@Node{name=Name{..},..} =
-  queryOne port hoi =<< (sequence $ hiSizeRequest port <$> nChildren)
+iSizeRequest port hoi@Node{name=Name{..},..} =
+  queryOne port hoi =<< (sequence $ iSizeRequest port <$> denoted)
   where queryOne ∷ VPort → Item PBlank → [Item PLayout] → m (Item PLayout)
         queryOne port hoi children =
           case hoi of
             Node{name=name@Name{..},..} → do
               size ← sizeRequest port n denoted (_sStyle $ nStyle)
               trev SIZE HOLO size (Port.tokenHash nToken)
-              pure Node{iSize=size, iArea=mempty, nChildren=children, ..}
+              pure Node{name=nodeNameBtoL name, iSize=size, iArea=mempty, denoted=children, ..}
 
--- hiMandateVisual ∷ (HasCallStack, MonadIO m) ⇒ VPort → Item PLayout → [Item PVisual] → m (Item PVisual)
--- hiMandateVisual port hi children = case hi of
---   Item{..} → do
---     let dim = hiArea^.area'b.size'di
---     vis ←  Port.portEnsureVisual port dim (Proxy @As) hiToken Proxy (\Visual{..}→ _sStyleGene vStyle ≢ hiStyleGene hi) $
---            \drw→ Visual <$> (Just <$> setupVis port holo (_sStyle hiStyle) hiArea drw)
---                         <*> pure hiStyle
---                         <*> (pure $ Just drw)
---     pure Item{hiVisual=Just vis, hiChildren=children, ..}
+iMandateVisual ∷ (HasCallStack, MonadIO m) ⇒ VPort → Item PLayout → [Item PVisual] → m (Item PVisual)
+iMandateVisual port hi children = case hi of
+  Node{..} → pure $ Node {name = nodeNameLtoV name, denoted = children, ..}
+  Leaf{name=name@Name{..},..} → do
+    let dim = iArea^.area'b.size'di
+    vis ←  Port.portEnsureVisual port dim (Proxy @As) nToken Proxy (\Visual{..}→ _sStyleGene nStyle ≢ iStyleGene hi) $
+           \drw→ Visual <$> setupVis port n denoted (_sStyle nStyle) iArea drw
+                        <*> pure drw
+    pure Leaf{lVisual=Just vis, ..}
 
--- hiUnvisual ∷ Item PLayout → [Item PVisual] → Item PVisual
--- hiUnvisual hi children = case hi of
---   Item{..} → Item{hiVisual=Nothing, hiChildren=children,..}
+iUnvisual ∷ Item PLayout → [Item PVisual] → Item PVisual
+iUnvisual hi children = case hi of
+  Node{..} → Node{name = nodeNameLtoV name, denoted = children, ..}
+  Leaf{..} → Leaf{lVisual = Nothing, ..}
 
--- hiRender ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
--- hiRender port Item{..} = do
---   case hiVisual of
---     Just Visual{vVisual=Just vis, vDrawable=Just drw} → do
---       -- XXX: 'render' is called every frame for everything
---       Port.clearDrawable drw
---       render port holo _sStyle drw vis
---       Port.drawableContentToGPU drw
---     _ → pure ()
+iRender ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
+iRender port Leaf{name=Name{..}, lVisual=Just Visual{..},..} = do
+  -- XXX: 'render' is called every frame for everything
+  Port.clearDrawable vDrawable
+  render port n denoted (_sStyle nStyle) vDrawable vVisual
+  Port.drawableContentToGPU vDrawable
+iRender _ _ = pure ()
 
 
 -- * Node
@@ -321,6 +305,8 @@ data KNode
   | HBox
 
 data Node (k ∷ KNode) (p ∷ Phase) where
+  -- Safety note: once Phase-dependent fields are added,
+  -- make sure to update nodeName*to*
   HBoxN ∷ Node HBox p
   VBoxN ∷ Node VBox p
 
@@ -332,13 +318,22 @@ nodeGeo ∷ Node k p → Geo
 nodeGeo HBoxN = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
 nodeGeo VBoxN = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
 
+nodeNameBtoL ∷ Name (Node k PBlank)  → Name (Node k PLayout)
+nodeNameBtoL = Co.unsafeCoerce
+nodeNameLtoV ∷ Name (Node k PLayout) → Name (Node k PVisual)
+nodeNameLtoV = Co.unsafeCoerce
+
+-- We're pushed to implement a generic As (Node k p) instance, because otherwise,
+-- any function depending on As:Denoted type family to quantify over all phases
+-- would break.
+-- This, in turn, requires a generic Flex (Item p) instance.
 instance As (Node (k ∷ KNode) (p ∷ Phase)) where
   type Denoted (Node k p) = [Item p]
   type Sty     (Node k p) = ()
   type Vis     (Node k p) = ()
-  defSty        _         = ()
-  -- comnGeo (HBoxN _) = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
-  -- comnGeo (VBoxN _) = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
+  defSty _ = ()
+  -- compGeo (HBoxN _) = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
+  -- compGeo (VBoxN _) = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
   sizeRequest _ box chi _ =
     -- Requirement is a sum of children requirements
     pure $ (Just <$>) $ _reqt'di $ foldl' (reqt'add $ boxAxis box) zero $ (\x→ Reqt (fromMaybe 0 <$> x^.Flex.size)) <$> chi
@@ -346,47 +341,47 @@ instance As (Node (k ∷ KNode) (p ∷ Phase)) where
 
 -- * Constructors
 --
-node ∷ ∀ a k. (a ~ Node k PBlank, Flex.Flex a, Typeable k)
+node ∷ ∀ a k. (a ~ Node k PBlank, Typeable k)
   ⇒ IdToken
   → Style a
   → a
   → [Item PBlank]
   → Item PBlank
-node tok sty i chi = Node (Name tok sty (nodeGeo i) i) chi () ()
+node tok sty i chi = Node (Name tok sty (nodeGeo i) i) chi blankSize mempty
 
-leaf ∷ (As a, Flex.Flex a, Typeable a)
+leaf ∷ (As a, Typeable a)
   ⇒ IdToken
   → Style a
   → a
   → Denoted a
   → Item PBlank
-leaf tok sty name denoted = Leaf (Name tok sty mempty name) denoted () () ()
+leaf tok sty name denoted = Leaf (Name tok sty mempty name) denoted blankSize mempty ()
 
 -- XXX: here's trouble -- we're using blankIdToken!
 hbox ∷ [Item PBlank] → Item PBlank
 vbox ∷ [Item PBlank] → Item PBlank
-hbox = node Port.blankIdToken (initStyle ()) ∘ (HBoxN ∷ r → Node HBox)
-vbox = node Port.blankIdToken (initStyle ()) ∘ (VBoxN ∷ r → Node VBox)
+hbox = node Port.blankIdToken (initStyle ()) HBoxN
+vbox = node Port.blankIdToken (initStyle ()) VBoxN
 
 
 -- * Tree-wise ops
 --
 renderHolotreeVisuals ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
 renderHolotreeVisuals port hoi@Leaf{..} = do
-  hiRender port hoi
+  iRender port hoi
 renderHolotreeVisuals port Node{..} = do
-  forM_ nChildren (renderHolotreeVisuals port)
+  forM_ denoted (renderHolotreeVisuals port)
 
 showHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → Item PVisual → m ()
-showHolotreeVisuals frame root = recur (luOf (hiArea root)^.lu'po) "" root
+showHolotreeVisuals frame root = recur (luOf (iArea root)^.lu'po) "" root
   where
-    recur parOff pfx Leaf{..} = do
-      let ourOff = parOff + luOf hiArea^.lu'po
-      case hiVisual of
-        Just Visual{vDrawable=Just drw} →
-          Port.framePutDrawable frame drw (doubleToFloat <$> ourOff)
+    recur parOff _ Leaf{..} = do
+      let ourOff = parOff + luOf iArea^.lu'po
+      case lVisual of
+        Just Visual{..} →
+          Port.framePutDrawable frame vDrawable (doubleToFloat <$> ourOff)
         _ → pure ()
     recur parOff pfx Node{..} = do
       -- liftIO $ putStrLn $ pfx <> show (offset ^.po'v) <> " " <> Flex.ppItemArea i
       let ourOff = parOff + luOf iArea^.lu'po
-      forM_ nChildren $ recur ourOff (pfx <> "  ")
+      forM_ denoted $ recur ourOff (pfx <> "  ")
