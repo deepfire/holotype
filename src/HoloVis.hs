@@ -59,6 +59,7 @@ where
 import           Data.Foldable
 import           Data.Maybe
 import           Data.Typeable
+import           GHC.Types                                (Constraint)
 import           Generics.SOP                             (Proxy)
 import           Linear
 import qualified Data.Map.Strict                   as Map
@@ -175,8 +176,8 @@ data Name a where
     } → Name a
 
 -- Phasing is TTG-inspired
-data Item (p ∷ Phase) where
-  Leaf ∷ ∀ p a. (As a, Typeable a) ⇒
+data Item (c ∷ Type → Constraint) (p ∷ Phase) where
+  Leaf ∷ ∀ c p a. (As a, c (Denoted a), Typeable a) ⇒
     { name        ∷ Name a
     , denoted     ∷ Denoted a
     , iSize       ∷ Di (Maybe Double) -- Flex input:  the desired size
@@ -184,25 +185,25 @@ data Item (p ∷ Phase) where
     , iArea       ∷ Area'LU Double    -- Flex output: the resultant size + coords
                                       -- Same quip as for iSize
     , lVisual     ∷ IVisual p a
-    } → Item p
-  Node ∷ ∀ k p a. (a ~ Node k p) ⇒
+    } → Item c p
+  Node ∷ ∀ c k p a. (a ~ Node c k p) ⇒
     { name        ∷ Name a
     , denoted     ∷ Denoted a
     , iSize       ∷ Di (Maybe Double) -- Flex input:  the desired size
     , iArea       ∷ Area'LU Double    -- Flex output: the resultant size + coords
-    } → Item p
+    } → Item c p
 
-iLeafP ∷ Item p → Bool
+iLeafP ∷ Item c p → Bool
 iLeafP = \case
   Leaf{..} → True
   _        → False
 
-iToken ∷ Item p → IdToken
+iToken ∷ Item c p → IdToken
 iToken = \case
   Leaf{name=Name{..},..} → nToken
   Node{name=Name{..},..} → nToken
 
-iStyleGene ∷ Item p → StyleGene
+iStyleGene ∷ Item c p → StyleGene
 iStyleGene = \case
   Leaf{name=Name{..},..} → _sStyleGene nStyle
   Node{name=Name{..},..} → _sStyleGene nStyle
@@ -210,13 +211,13 @@ iStyleGene = \case
 blankSize ∷ Di (Maybe Double)
 blankSize = unsafe'di Nothing Nothing
 
-instance Eq (Item a) where
+instance Eq (Item c a) where
   (==)    a b = iToken a ≡ iToken b
 
-instance Ord (Item a) where
+instance Ord (Item c a) where
   compare a b = iToken a `compare` iToken b
 
-instance Flex.Flex (Item (a ∷ Phase)) where
+instance Flex.Flex (Item c (a ∷ Phase)) where
   geo      f   Leaf{..} = (\x→ Leaf {name=name {nGeo = x}, ..}) <$> f (nGeo name)
   geo      f   Node{..} = (\x→ Node {name=name {nGeo = x}, ..}) <$> f (nGeo name)
   size     f i@Leaf{..} = (\x→ i    {iSize=x})                  <$> f iSize
@@ -226,14 +227,14 @@ instance Flex.Flex (Item (a ∷ Phase)) where
   children f i@Leaf{..} = (\_→ i)                               <$> f []
   children f   Node{..} = (\x→ Node {denoted=x, ..})            <$> f denoted
 
-iSizeRequest ∷ ∀ m. (MonadIO m) ⇒ VPort → Item PBlank → m (Item PLayout)
+iSizeRequest ∷ ∀ c m. (MonadIO m) ⇒ VPort → Item c PBlank → m (Item c PLayout)
 iSizeRequest port Leaf{name=name@Name{..},..} = do
   size ← sizeRequest port n denoted (_sStyle $ nStyle)
   trev SIZE HOLO size $ Port.tokenHash nToken
   pure Leaf{iSize=(size ∷ Di (Maybe Double)), iArea=mempty, ..}
 iSizeRequest port hoi@Node{name=Name{..},..} =
   queryOne port hoi =<< (sequence $ iSizeRequest port <$> denoted)
-  where queryOne ∷ VPort → Item PBlank → [Item PLayout] → m (Item PLayout)
+  where queryOne ∷ VPort → Item c PBlank → [Item c PLayout] → m (Item c PLayout)
         queryOne port hoi children =
           case hoi of
             Node{name=name@Name{..},..} → do
@@ -241,7 +242,7 @@ iSizeRequest port hoi@Node{name=Name{..},..} =
               trev SIZE HOLO size (Port.tokenHash nToken)
               pure Node{name=nodeNameBtoL name, iSize=size, iArea=mempty, denoted=children, ..}
 
-iMandateVisual ∷ (HasCallStack, MonadIO m) ⇒ VPort → Item PLayout → [Item PVisual] → m (Item PVisual)
+iMandateVisual ∷ (HasCallStack, MonadIO m) ⇒ VPort → Item c PLayout → [Item c PVisual] → m (Item c PVisual)
 iMandateVisual port hi children = case hi of
   Node{..} → pure $ Node {name = nodeNameLtoV name, denoted = children, ..}
   Leaf{name=name@Name{..},..} → do
@@ -251,12 +252,12 @@ iMandateVisual port hi children = case hi of
                         <*> pure drw
     pure Leaf{lVisual=Just vis, ..}
 
-iUnvisual ∷ Item PLayout → [Item PVisual] → Item PVisual
+iUnvisual ∷ Item c PLayout → [Item c PVisual] → Item c PVisual
 iUnvisual hi children = case hi of
   Node{..} → Node{name = nodeNameLtoV name, denoted = children, ..}
   Leaf{..} → Leaf{lVisual = Nothing, ..}
 
-iRender ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
+iRender ∷ (MonadIO m) ⇒ VPort → Item c PVisual → m ()
 iRender port Leaf{name=Name{..}, lVisual=Just Visual{..},..} = do
   -- XXX: 'render' is called every frame for everything
   Port.clearDrawable vDrawable
@@ -271,33 +272,33 @@ data KNode
   = VBox
   | HBox
 
-data Node (k ∷ KNode) (p ∷ Phase) where
+data Node c (k ∷ KNode) (p ∷ Phase) where
   -- Safety note: once Phase-dependent fields are added,
   -- make sure to update nodeName*to*
-  HBoxN ∷ Node HBox p
-  VBoxN ∷ Node VBox p
+  HBoxN ∷ Node c HBox p
+  VBoxN ∷ Node c VBox p
 
-boxAxis ∷ Node a p → Axis
+boxAxis ∷ Node c k p → Axis
 boxAxis HBoxN = X
 boxAxis VBoxN = Y
 
-nodeGeo ∷ Node k p → Geo
+nodeGeo ∷ Node c k p → Geo
 nodeGeo HBoxN = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
 nodeGeo VBoxN = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
 
-nodeNameBtoL ∷ Name (Node k PBlank)  → Name (Node k PLayout)
+nodeNameBtoL ∷ Name (Node c k PBlank)  → Name (Node c k PLayout)
 nodeNameBtoL = Co.unsafeCoerce
-nodeNameLtoV ∷ Name (Node k PLayout) → Name (Node k PVisual)
+nodeNameLtoV ∷ Name (Node c k PLayout) → Name (Node c k PVisual)
 nodeNameLtoV = Co.unsafeCoerce
 
 -- We're pushed to implement a generic As (Node k p) instance, because otherwise,
 -- any function depending on As:Denoted type family to quantify over all phases
 -- would break.
 -- This, in turn, requires a generic Flex (Item p) instance.
-instance As (Node (k ∷ KNode) (p ∷ Phase)) where
-  type Denoted (Node k p) = [Item p]
-  type Sty     (Node k p) = ()
-  type Vis     (Node k p) = ()
+instance As (Node (c ∷ Type → Constraint) (k ∷ KNode) (p ∷ Phase)) where
+  type Denoted (Node c k p) = [Item c p]
+  type Sty     (Node c k p) = ()
+  type Vis     (Node c k p) = ()
   defSty _ = ()
   -- compGeo (HBoxN _) = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
   -- compGeo (VBoxN _) = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
@@ -308,41 +309,41 @@ instance As (Node (k ∷ KNode) (p ∷ Phase)) where
 
 -- * Constructors
 --
-node ∷ ∀ a k. (a ~ Node k PBlank)
+node ∷ ∀ c a k. (a ~ Node c k PBlank)
   ⇒ IdToken
   → Style a
   → a
-  → [Item PBlank]
-  → Item PBlank
+  → [Item c PBlank]
+  → Item c PBlank
 node tok sty i chi = Node (Name tok sty (nodeGeo i) i) chi blankSize mempty
 
-leaf ∷ (As a, Typeable a)
+leaf ∷ (As a, c (Denoted a), Typeable a)
   ⇒ IdToken
   → Style a
   → a
   → Denoted a
-  → Item PBlank
+  → Item c PBlank
 leaf tok sty name denoted = Leaf (Name tok sty mempty name) denoted blankSize mempty ()
 
 -- XXX: here's trouble -- we're using blankIdToken!  No messages for the nodes! ..not that they care yet..
-hbox ∷ [Item PBlank] → Item PBlank
-vbox ∷ [Item PBlank] → Item PBlank
+hbox, vbox ∷ [Item c PBlank] → Item c PBlank
 hbox = node Port.blankIdToken (initStyle ()) HBoxN
 vbox = node Port.blankIdToken (initStyle ()) VBoxN
 
 
 -- * Tree-wise ops
 --
-treeLeaves ∷ ∀ a. Item a → Map.Map IdToken (Item a)
+treeLeaves ∷ Item c a → Map.Map IdToken (Item c a)
 treeLeaves root = Map.fromList $ walk root
-  where walk x@Leaf{..} = [(iToken x, x)]
+  where walk ∷ Item c a → [(IdToken, Item c a)]
+        walk x@Leaf{..} = [(iToken x, x)]
         walk   Node{..} = concat $ walk <$> denoted
 
-renderTreeVisuals ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
+renderTreeVisuals ∷ (MonadIO m) ⇒ VPort → Item c PVisual → m ()
 renderTreeVisuals port l@Leaf{..} = iRender port l
 renderTreeVisuals port   Node{..} = forM_ denoted (renderTreeVisuals port)
 
-showTreeVisuals ∷ (MonadIO m) ⇒ Frame → Item PVisual → m ()
+showTreeVisuals ∷ (MonadIO m) ⇒ Frame → Item c PVisual → m ()
 showTreeVisuals frame root = recur (luOf (iArea root)^.lu'po) "" root
   where
     recur parOff _ Leaf{..} = do

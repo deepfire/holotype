@@ -136,8 +136,8 @@ instance Reflex t ⇒ Applicative (Result t) where
     W $ (,)
     (zipDynWith (<>) fsubs xsubs)
     (zipDynWith ((\(f,   fhb)
-                   (  x, xhb@Item{..})→
-                   (f x, xhb { hiChildren = fhb : hiChildren })))
+                   (  x, xhb)→
+                   (f x, xhb & children ~. fhb : hiChildren )))
       fvals xvals)
 
 -- record lifting for unchanging values
