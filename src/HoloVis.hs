@@ -40,15 +40,16 @@ module HoloVis
   , IVisual
   , Phase(..)
   , Item(..), iLeafP, iToken, iStyleGene
-  , iLeaves
   , Node(..)
   , node, leaf
   , hbox, vbox
   , iSizeRequest
   , iMandateVisual, iUnvisual
   , iRender
-  , renderHolotreeVisuals
-  , showHolotreeVisuals
+  --
+  , treeLeaves
+  , renderTreeVisuals
+  , showTreeVisuals
   --
   , Drawable(..)
   , VPort
@@ -111,35 +112,6 @@ instance As () where
 --  - g. of visual effects -- drawables, again, because of shaders
 --  - g. of values -- minimally decorated entry "widgets", in a narrow sense of a widget
 --                    ..as well as their composition (Record..) ?
---
--- data Composite s a where
---   Composite ∷ (Vis a, Vis (Composite s a)) ⇒
---     { cValue     ∷ a
---     , cStyle     ∷ Style (Composite s a)
---     , cStructure ∷ Item Vis PBlank       -- internal structure
---     , cToken     ∷ IdToken               -- identity of the backing drawable
---     } → Composite s a
--- Questions:
--- 1. How does it integrate with the old compose/layout/render/show workflow?
---    ..in particular, how does Query continues to work?
--- 2. How should we supply values / obtain them?
---    ..most every Item used to correspond to a Dynamic value,
---      so same should be somehow true for Composite?
-
--- * Goal
---
--- Minimum extension over Vis, to allow:
--- 1. text entry
--- 2. …as an abstract composite:
---    - literal text entry defined by isolated code
---    - label defined separately, yet reuses text's vis (but not necessarily style)
---    - frame defined separately
--- 3. a single drawable to be used
---    …ergo, the token is per-composite
---    …ergo, the Vis API shrinks even further
--- 4. partial redraws, at least in cases where no internal geometry changes
--- 5. with its own style
--- 6. lifecycle defined as incremental changes driven by FRP Event updates, that reuse structure
 
 
 -- * Style wrapper
@@ -149,7 +121,7 @@ fromStyleGene ∷ Lens' StyleGene Int
 fromStyleGene f (StyleGene x) = f x <&> StyleGene
 
 data Style a where
-  Style ∷ As a ⇒
+  Style ∷
     { _sStyle      ∷ Sty a
     , _sStyleGene  ∷ StyleGene
     } → Style a
@@ -159,7 +131,7 @@ sStyle     f s@Style{..} = f _sStyle     <&> \x→ s{_sStyle=x}
 sStyleGene ∷ Lens' (Style a) StyleGene
 sStyleGene f s@Style{..} = f _sStyleGene <&> \x→ s{_sStyleGene=x}
 
-initStyle ∷ As a ⇒ Sty a → Style a
+initStyle ∷ Sty a → Style a
 initStyle s = Style { _sStyle = s, _sStyleGene = StyleGene 0 }
 
 defStyle ∷ ∀ a. As a ⇒ Style a
@@ -195,7 +167,7 @@ type family IVisual (p ∷ Phase) a ∷ Type where
   IVisual PVisual a = Maybe (Visual a)
 
 data Name a where
-  Name ∷ ∀ a. (As a, Typeable a) ⇒
+  Name ∷
     { nToken     ∷ IdToken
     , nStyle     ∷ Style a
     , nGeo       ∷ Geo
@@ -253,11 +225,6 @@ instance Flex.Flex (Item (a ∷ Phase)) where
   area     f i@Node{..} = (\x→ i    {iArea=x})                  <$> f iArea
   children f i@Leaf{..} = (\_→ i)                               <$> f []
   children f   Node{..} = (\x→ Node {denoted=x, ..})            <$> f denoted
-
-iLeaves ∷ ∀ a. Item a → Map.Map IdToken (Item a)
-iLeaves root = Map.fromList $ walk root
-  where walk x@Leaf{..} = [(iToken x, x)]
-        walk   Node{..} = concat $ walk <$> denoted
 
 iSizeRequest ∷ ∀ m. (MonadIO m) ⇒ VPort → Item PBlank → m (Item PLayout)
 iSizeRequest port Leaf{name=name@Name{..},..} = do
@@ -341,7 +308,7 @@ instance As (Node (k ∷ KNode) (p ∷ Phase)) where
 
 -- * Constructors
 --
-node ∷ ∀ a k. (a ~ Node k PBlank, Typeable k)
+node ∷ ∀ a k. (a ~ Node k PBlank)
   ⇒ IdToken
   → Style a
   → a
@@ -357,7 +324,7 @@ leaf ∷ (As a, Typeable a)
   → Item PBlank
 leaf tok sty name denoted = Leaf (Name tok sty mempty name) denoted blankSize mempty ()
 
--- XXX: here's trouble -- we're using blankIdToken!
+-- XXX: here's trouble -- we're using blankIdToken!  No messages for the nodes! ..not that they care yet..
 hbox ∷ [Item PBlank] → Item PBlank
 vbox ∷ [Item PBlank] → Item PBlank
 hbox = node Port.blankIdToken (initStyle ()) HBoxN
@@ -366,14 +333,17 @@ vbox = node Port.blankIdToken (initStyle ()) VBoxN
 
 -- * Tree-wise ops
 --
-renderHolotreeVisuals ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
-renderHolotreeVisuals port hoi@Leaf{..} = do
-  iRender port hoi
-renderHolotreeVisuals port Node{..} = do
-  forM_ denoted (renderHolotreeVisuals port)
+treeLeaves ∷ ∀ a. Item a → Map.Map IdToken (Item a)
+treeLeaves root = Map.fromList $ walk root
+  where walk x@Leaf{..} = [(iToken x, x)]
+        walk   Node{..} = concat $ walk <$> denoted
 
-showHolotreeVisuals ∷ (MonadIO m) ⇒ Frame → Item PVisual → m ()
-showHolotreeVisuals frame root = recur (luOf (iArea root)^.lu'po) "" root
+renderTreeVisuals ∷ (MonadIO m) ⇒ VPort → Item PVisual → m ()
+renderTreeVisuals port l@Leaf{..} = iRender port l
+renderTreeVisuals port   Node{..} = forM_ denoted (renderTreeVisuals port)
+
+showTreeVisuals ∷ (MonadIO m) ⇒ Frame → Item PVisual → m ()
+showTreeVisuals frame root = recur (luOf (iArea root)^.lu'po) "" root
   where
     recur parOff _ Leaf{..} = do
       let ourOff = parOff + luOf iArea^.lu'po
