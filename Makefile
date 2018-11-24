@@ -133,6 +133,8 @@ res resources:
 
 #
 #
+pro prorun pronounce-runnable:
+	git branch -f runnable HEAD
 package:
 package:
 	nix-build packages.nix -A ${NAME} --argstr compiler ghc${GHC} --show-trace --cores 0 --no-out-link
