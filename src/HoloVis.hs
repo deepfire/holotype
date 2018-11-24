@@ -76,30 +76,31 @@ import qualified HoloPort                          as Port
 -- * As -- assigning representation
 --
 class As r where
+  type      Denotes r ∷ Type
   type          Sty r ∷ Type
   type instance Sty r = ()
   type          Vis r ∷ Type
   type instance Vis r = ()
-  defSty      ∷                                                           Proxy r → Sty r
-  compSty     ∷                                                                 r → Sty r
-  compSty                                                                       x = defSty (proxy x)
-  compGeo     ∷                     r                                             → Geo
-  compGeo                                                                         = const mempty
-  sizeRequest ∷ MonadIO m ⇒ VPort → r → Sty r                                     → m (Di (Maybe Double))
-  setupVis    ∷ MonadIO m ⇒ VPort → r → Sty r → Area'LU Double → Drawable         → m (Vis r)
-  render      ∷ MonadIO m ⇒ VPort → r → Sty r                  → Drawable → Vis r → m () -- ^ Update visual.
-  freeVis     ∷ MonadIO m ⇒   Proxy r                                     → Vis r → m ()
-  freeVis                           _                                           _ = pure ()
+  defSty      ∷               Proxy r             → Sty r
+  compSty     ∷                     r             → Sty r
+  compSty                           x             = defSty (proxy x)
+  sizeRequest ∷ MonadIO m ⇒ VPort → r → Denotes r → Sty r → m (Di (Maybe Double))
+  setupVis    ∷ MonadIO m ⇒ VPort → r → Denotes r → Sty r → Area'LU Double → Drawable → m (Vis r)
+  render      ∷ MonadIO m ⇒ VPort → r → Denotes r → Sty r                  → Drawable → Vis r → m () -- ^ Update visual.
+  freeVis     ∷ MonadIO m ⇒   Proxy r                                                 → Vis r → m ()
+  freeVis                           _                                                       _ = pure ()
 
 -- * Concrete, minimal case, to keep us in check
 instance As () where
-  defSty                             _px    = ()
-  compSty                                _x = ()
-  compGeo                                _x = mempty
-  sizeRequest  _port _x  _sty               = pure $ Di $ V2 Nothing Nothing
-  setupVis     _port _x  _sty _area _drw    = pure ()
-  render         _port _x  _sty _vis  _drw  = pure ()
-  freeVis             _px       _vis        = pure ()
+  type Denotes () = ()
+  type     Sty () = ()
+  type     Vis () = ()
+  defSty            _px   = ()
+  compSty            _x   = ()
+  sizeRequest  _port () () _sty = pure $ Di $ V2 Nothing Nothing
+  setupVis     _port () () _sty _area      _drw = pure ()
+  render       _port () () _sty       _vis _drw = pure ()
+  freeVis           _px               _vis      = pure ()
 
 
 -- Note [Granularity and composite structures]
@@ -168,9 +169,8 @@ defStyle = initStyle $ defSty (Proxy @a)
 --
 data Visual a where
   Visual ∷ As a ⇒
-    { vVisual   ∷ Maybe (Vis a)
-    , vStyle    ∷ Style a
-    , vDrawable ∷ Maybe Drawable
+    { vVisual   ∷ Vis a
+    , vDrawable ∷ Drawable
     } → Visual a
 
 type VPort = Port.Port Visual
@@ -178,7 +178,7 @@ type VPort = Port.Port Visual
 instance Port.PortVisual Visual where
   pvDrawable = vDrawable
   pvFree _pC pA = \case
-    Visual{..} → sequence_ $ freeVis pA <$> vVisual
+    Visual{..} → freeVis pA vVisual
 
 
 -- * Item
@@ -187,6 +187,11 @@ data Phase
   = PBlank
   | PLayout
   | PVisual
+
+type family HISize   (p ∷ Phase) ∷ Type where
+  HIArea   PBlank  = ()
+  HIArea   PLayout = Di (Maybe Double)
+  HIArea   PVisual = Di (Maybe Double)
 
 type family HIArea   (p ∷ Phase) ∷ Type where
   HIArea   PBlank  = ()
@@ -198,47 +203,62 @@ type family HIVisual (p ∷ Phase) a ∷ Type where
   HIVisual PLayout _ = ()
   HIVisual PVisual a = Maybe (Visual a)
 
+data Props (c ∷ Type → Constraint) a where
+  Props ∷ ∀ p c a. (c a, As a, Typeable a) ⇒
+    { pConstr    ∷ Proxy c
+    , pToken     ∷ IdToken
+    , pStyle     ∷ Style a
+    , pGeo       ∷ Geo
+    } → Props c a
+
 data Item (c ∷ Type → Constraint) (p ∷ Phase) where
-  Item ∷ ∀ p c a. (c a, As a, Flex.Flex a, Typeable a) ⇒
-    { holo        ∷ a
-    , hiConstr    ∷ Proxy c
-    , hiToken     ∷ IdToken
-    , hiStyle     ∷ Style a
-    , hiGeo       ∷ Geo
+  Item ∷ ∀ p c a. (c a, As a, Typeable a) ⇒
+    { hiProps     ∷ Props c a
+    , holo        ∷ a
     , hiChildren  ∷ [Item c p]
-    , hiSize      ∷ Di (Maybe Double) -- Flex input:  the desired size
     -- TTG-inspired phasing:
+    , hiSize      ∷ HISize p          -- Flex input:  the desired size
     , hiArea      ∷ HIArea p          -- Flex output: the resultant size + coords
     , hiVisual    ∷ HIVisual p a
     } → Item c p
 
 instance Eq (Item c a) where
-  (==) a b = (≡) (hiToken a) (hiToken b)
+  (==) a b =
+    case a of
+      Item{..} →
+        case hiProps of
+          Props _ ta _ _ →
+            case b of
+              Item{..} → case hiProps of
+                Props _ tb _ _ →
+                  (≡) ta tb
 
 instance Ord (Item c a) where
-  compare a b = compare (hiToken a) (hiToken b)
-
-instance Flex.Flex (Item c PBlank) where
-  geo      f hi@Item{..} = (\x→ hi {hiGeo=x})       <$> f hiGeo
-  size     f hi@Item{..} = (\x→ hi {hiSize=x})      <$> f hiSize
-  children f hi@Item{..} = (\x→ hi {hiChildren=x})  <$> f hiChildren
-  area     f hi@Item{..} = (\_→ hi {hiArea=mempty}) <$> f mempty
+  compare a b =
+    case a of
+      Item{..} →
+        case hiProps of
+          Props _ ta _ _ →
+            case b of
+              Item{..} → case hiProps of
+                Props _ tb _ _ →
+                  compare ta tb
 
 instance Flex.Flex (Item c PLayout) where
-  geo      f hi@Item{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
-  size     f hi@Item{..} = (\x→ hi {hiSize=x})     <$> f hiSize
-  children f hi@Item{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
-  area     f hi@Item{..} = (\x→ hi {hiArea=x})     <$> f hiArea
+  geo      f hi@Item{..} = (\x→ hi {hiProps=hiProps {pGeo = x}}) <$> f (pGeo hiProps)
+  size     f hi@Item{..} = (\x→ hi {hiSize=x})                   <$> f hiSize
+  children f hi@Item{..} = (\x→ hi {hiChildren=x})               <$> f hiChildren
+  area     f hi@Item{..} = (\x→ hi {hiArea=x})                   <$> f hiArea
 
 instance Flex.Flex (Item c PVisual) where
-  geo      f hi@Item{..} = (\x→ hi {hiGeo=x})      <$> f hiGeo
-  size     f hi@Item{..} = (\x→ hi {hiSize=x})     <$> f hiSize
-  children f hi@Item{..} = (\x→ hi {hiChildren=x}) <$> f hiChildren
-  area     f hi@Item{..} = (\x→ hi {hiArea=x})     <$> f hiArea
+  geo      f hi@Item{..} = (\x→ hi {hiProps=hiProps {pGeo = x}}) <$> f (pGeo hiProps)
+  size     f hi@Item{..} = (\x→ hi {hiSize=x})                   <$> f hiSize
+  children f hi@Item{..} = (\x→ hi {hiChildren=x})               <$> f hiChildren
+  area     f hi@Item{..} = (\x→ hi {hiArea=x})                   <$> f hiArea
 
 hiStyleGene ∷ Item c p → StyleGene
 hiStyleGene x =
-  case x of Item{..} → _sStyleGene hiStyle
+  case x of Item{..} → case hiProps of Props{..} → _sStyleGene pStyle
 
 hiLeaves ∷ Item c a → Map.Map IdToken (Item c a)
 hiLeaves root = Map.fromList $ walk root
@@ -268,12 +288,12 @@ hiMandateVisual port hi children = case hi of
 
 hiUnvisual ∷ Item c PLayout → [Item c PVisual] → Item c PVisual
 hiUnvisual hi children = case hi of
-  Item{..} → Item{hiVisual=Just (Visual Nothing hiStyle Nothing), hiChildren=children,..}
+  Item{..} → Item{hiVisual=Nothing, hiChildren=children,..}
 
 hiRender ∷ (MonadIO m) ⇒ VPort → Item c PVisual → m ()
 hiRender port Item{..} = do
   case hiVisual of
-    Just Visual{vVisual=Just vis, vStyle=Style{..}, vDrawable=Just drw} → do
+    Just Visual{vVisual=Just vis, vDrawable=Just drw} → do
       -- XXX: 'render' is called every frame for everything
       Port.clearDrawable drw
       render port holo _sStyle drw vis
@@ -295,15 +315,19 @@ boxAxis ∷ Node a → Axis
 boxAxis (HBoxN _) = X
 boxAxis (VBoxN _) = Y
 
-instance As (Node (k ∷ KNode)) where
-  type instance Sty (Node k) = ()
-  type instance Vis (Node k) = ()
-  defSty _          = ()
-  compGeo (HBoxN _) = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
-  compGeo (VBoxN _) = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
-  sizeRequest _ box@(HBoxN xs) _ =
-    -- Requirement is a sum of children requirements
-    pure $ (Just <$>) $ _reqt'di $ foldl' (reqt'add $ boxAxis box) zero $ (\x→ Reqt (fromMaybe 0 <$> x^.Flex.size)) <$> xs
+nodeGeo ∷ Node k → Geo
+nodeGeo (HBoxN _) = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
+nodeGeo (VBoxN _) = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
+
+-- instance As (Node (k ∷ KNode)) where
+--   type instance Sty (Node k) = ()
+--   type instance Vis (Node k) = ()
+--   defSty _          = ()
+--   -- compGeo (HBoxN _) = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
+--   -- compGeo (VBoxN _) = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
+--   sizeRequest _ box@(HBoxN xs) _ =
+--     -- Requirement is a sum of children requirements
+--     pure $ (Just <$>) $ _reqt'di $ foldl' (reqt'add $ boxAxis box) zero $ (\x→ Reqt (fromMaybe 0 <$> x^.Flex.size)) <$> xs
 
 
 -- * Constructors
@@ -316,10 +340,7 @@ item ∷ ∀ c a. (c a, As a, Flex.Flex a, Typeable a)
   → [Item c PBlank]
   → Item c PBlank
 item hiToken hiStyle holo hiGeo hiChildren =
-  let hiSize   = Di (V2 Nothing Nothing)
-      hiArea   = ()
-      hiVisual = ()
-  in Item{..}
+  Item{hiSize=(), hiArea=(), hiVisual=(), ..}
 
 node ∷ ∀ a c k. (c a, a ~ Node k, Flex.Flex a, Typeable k)
   ⇒ IdToken
@@ -327,14 +348,14 @@ node ∷ ∀ a c k. (c a, a ~ Node k, Flex.Flex a, Typeable k)
   → a
   → [Item c PBlank]
   → Item c PBlank
-node tok sty holo = item tok sty holo (compGeo holo)
+node tok sty holo = item tok sty holo (nodeGeo holo)
 
 leaf ∷ (c a, As a, Flex.Flex a, Typeable a)
   ⇒ IdToken
   → Style a
   → a
   → Item c PBlank
-leaf tok sty holo = item tok sty holo (compGeo holo) []
+leaf tok sty holo = item tok sty holo mempty []
 
 -- XXX: here's trouble -- we're using blankIdToken!
 hbox ∷ (c (Node 'HBox)) ⇒ [Item c PBlank] → Item c PBlank

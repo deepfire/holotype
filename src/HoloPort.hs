@@ -621,11 +621,11 @@ portEnsureVisual Port{..} newDim@(Di (V2 newW newH)) hiC hitok pHi keepTest hif 
               (,True) <$> (hif =<< makeDrawable portObjectStream hitok newDim)
             Just (pv ∷ f x) → do
               let pvDrw  = pvDrawable pv
-              if not (keepTest pv) ∨ ((dDi <$> pvDrw) ≢ Just (ceiling <$> newDim))
+              if not (keepTest pv) ∨ (dDi pvDrw ≢ (ceiling <$> newDim))
               then do
                 trev REALLOC VIS (newW, newH) (tokenHash hitok)
                 pvFree hiC Proxy pv
-                sequence $ disposeDrawable portObjectStream <$> pvDrw
+                disposeDrawable portObjectStream pvDrw
                 (,True) <$> (hif =<< makeDrawable portObjectStream hitok newDim)
               else do
                 trev REUSE   VIS (newW, newH) (tokenHash hitok)
@@ -635,7 +635,7 @@ portEnsureVisual Port{..} newDim@(Di (V2 newW newH)) hiC hitok pHi keepTest hif 
       pure vis
 
 class PortVisual f where
-  pvDrawable    ∷ f a → Maybe Drawable
+  pvDrawable    ∷ f a → Drawable
   pvFree        ∷ (MonadIO m, c a) ⇒ Proxy c → Proxy a → f a → m ()
 
 portGarbageCollectVisuals ∷ ∀ m f a. (MonadIO m, PortVisual f) ⇒ Port f → Map.Map IdToken a → m ()
@@ -653,7 +653,7 @@ portGarbageCollectVisuals Port{..} validLeaves = do
               --   case vDrawable of
               --     Nothing → (0, 0)
               --     Just vDrawable → (dDi vDrawable^.di'w, dDi vDrawable^.di'h)
-              sequence $ disposeDrawable portObjectStream <$> pvDrawable pv
+              disposeDrawable portObjectStream $ pvDrawable pv
             pure $ CTIMap pC used
       tm' ← TM.traverse gcTM tm
       tiMapReplace portVisualTracker tm'
