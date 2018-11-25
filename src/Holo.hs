@@ -35,7 +35,6 @@ module Holo
   --
   , liftWDynamic, liftWSeed, liftWStatic
   , Frame(..)
-  , VPort
   --
   , compToken
   , InputEvent(..)
@@ -44,9 +43,11 @@ module Holo
   , inputMaskKeys, inputMaskButtons, inputMaskChars, editMaskKeys
   , inputMaskClick, inputMaskClick1Press, inputMaskClick1Release
   --
-  , Holo(..), hiHasVisual, hiLeaves
+  , Input
+  --
+  , Holo(..), hiHasVisual
   , HoloBlank
-  , ensureHolotreeVisuals
+  , ensureTreeVisuals
   --
   , Structure, Result(..)
   , WH, wWH
@@ -62,17 +63,13 @@ import           Control.Arrow
 import           Control.Newtype.Generics
 import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
-import           Data.Maybe
 import           Data.Typeable
 import           Generics.SOP                             (Proxy)
 import           Generics.SOP.Monadic
-import           GHC.Types                                (Constraint)
-import           Linear
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW                              (RGLFW)
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Data.Map.Monoidal.Strict          as MMap
-import qualified Data.Map.Strict                   as Map
 import qualified Data.Sequence                     as Seq
 import qualified Data.Set                          as Set
 import qualified Reflex.GLFW                       as GLFW
@@ -80,25 +77,22 @@ import qualified Reflex.GLFW                       as GLFW
 -- Local imports
 import           HoloPrelude
 
-import           Flex                                     (Geo)
-import qualified Flex                              as Flex
-
-import           Flatland
 import           HoloPort                                 (IdToken, Drawable, Frame)
 import qualified HoloPort                          as Port
 import           HoloVis
 
 
-class Input iv a where
+class (As a, Denoted a ~ b) ⇒ Input a b where
 
-class (Typeable a, Vis a) ⇒ Holo a where
+class (As (DefaultName a), Denoted (DefaultName a) ~ a) ⇒ Holo a where
+  type DefaultName a ∷ Type
   -- type CLiftW   t (m ∷ Type → Type) a ∷ Constraint
   hasVisual       ∷                                                               Proxy a → Bool
   liftHoloDyn     ∷ (RGLFW t m) ⇒                                  a → Event t InputEvent → m (Dynamic t a)
-  liftHoloItem    ∷                                                           IdToken → a → Item Holo PBlank
+  liftHoloItem    ∷ (As n, Denoted n ~ a) ⇒                               IdToken → n → a → Item Holo PBlank
   subscription    ∷                                                     IdToken → Proxy a → Subscription
-  liftDynW        ∷ (Reflex t)  ⇒                                   IdToken → Dynamic t a → Widget t a
-  liftW           ∷ (RGLFW t m) ⇒                                     InputEventMux t → a → m (Widget t a)
+  liftDynW        ∷ (As n, Denoted n ~ a, Reflex t) ⇒           IdToken → n → Dynamic t a → Widget t a
+  liftW           ∷ (As n, Denoted n ~ a, RGLFW t m) ⇒            InputEventMux t → n → a → m (Widget t a)
   --
   hasVisual       = const False          -- no visual by default
   liftHoloDyn     = liftHoloDynStatic    -- no value change in response to events
@@ -137,7 +131,7 @@ instance Reflex t ⇒ Applicative (Result t) where
     (zipDynWith (<>) fsubs xsubs)
     (zipDynWith ((\(f,   fhb)
                    (  x, xhb)→
-                   (f x, xhb & children ~. fhb : hiChildren )))
+                   (f x, xhb & children %~ (fhb :))))
       fvals xvals)
 
 -- record lifting for unchanging values
@@ -155,51 +149,49 @@ newtype Static t a = Static a -- XXX: once we're successful with the lift, let's
 --   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputEventMux t → a → m (W t a)
 --   liftW = liftRecord
 
-liftItemStatic ∷ ∀ a. (Holo a) ⇒ IdToken → a → Item Holo PBlank
-liftItemStatic tok x = leaf tok (initStyle $ compStyleOf x) x
+liftItemStatic ∷ ∀ n a. (As n, Denoted n ~ a, Holo a) ⇒ IdToken → n → a → Item Holo PBlank
+liftItemStatic tok n a = leaf tok n a (initStyle $ compSty n)
 
 liftHoloDynStatic ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
 liftHoloDynStatic init _ev = pure $ constDyn init
 
-liftWStatic ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputEventMux t → Static t a → m (Widget t a)
-liftWStatic _imux (Static initial) = do
+liftWStatic ∷ ∀ t m n a. (As n, Denoted n ~ a, Holo a, RGLFW t m) ⇒ InputEventMux t → n → Static t a → m (Widget t a)
+liftWStatic _imux n (Static initial) = do
   tok ← compToken $ Proxy @a
   pure $ W ( constDyn $ subscription tok (Proxy @a)
-           , constDyn (initial, liftHoloItem tok initial))
+           , constDyn (initial, liftHoloItem tok n initial))
 
-liftWSeed   ∷ ∀ t m a. (Holo a, RGLFW t m) ⇒ InputEventMux t → a → m (Widget t a)
-liftWSeed imux initial = do
+liftWSeed   ∷ ∀ t m n a. (As n, Denoted n ~ a, Holo a, RGLFW t m) ⇒ InputEventMux t → n → a → m (Widget t a)
+liftWSeed imux n initial = do
   tok ← compToken $ Proxy @a
-  liftDynW tok <$> (liftHoloDyn initial $ select imux $ Const2 tok)
+  liftDynW tok n <$> (liftHoloDyn initial $ select imux $ Const2 tok)
 
-liftDynWStaticSubs ∷ ∀ t a. (Holo a, Reflex t) ⇒ IdToken → Dynamic t a → Widget t a
-liftDynWStaticSubs tok valD =
+liftDynWStaticSubs ∷ ∀ t n a. (As n, Denoted n ~ a, Holo a, Reflex t) ⇒ IdToken → n → Dynamic t a → Widget t a
+liftDynWStaticSubs tok n da =
   W ( constDyn $ subscription tok (Proxy @a)
-    , valD <&> (id &&& liftHoloItem tok))
+    , da <&> (id &&& liftHoloItem tok n))
 
-liftWDynamic ∷ ∀ a t m. (Holo a, RGLFW t m) ⇒ Dynamic t a → m (Widget t a)
-liftWDynamic h = do
+liftWDynamic ∷ ∀ t m n a. (As n, Denoted n ~ a, Holo a, RGLFW t m) ⇒ n → Dynamic t a → m (Widget t a)
+liftWDynamic n da = do
   tok ← compToken $ Proxy @a
-  pure $ liftDynWStaticSubs tok h
+  pure $ liftDynWStaticSubs tok n da
 
 
 hiHasVisual ∷ Item Holo p → Bool
-hiHasVisual x =
+hiHasVisual = \case
   -- XXX: we're losing type safety here..
-  case x of Item{holo=_holo ∷ a, ..} → hasVisual (Proxy @a)
-
-hiEnsureVisual ∷ (HasCallStack, c ~ Holo, MonadIO m) ⇒ VPort → Item c PLayout → [Item c PVisual] → m (Item c PVisual)
-hiEnsureVisual port hi children = case hi of
-  Item{..} →
-    if not $ hasVisual (proxy holo)
-    then pure $ hiUnvisual    hi children
-    else hiMandateVisual port hi children
+  Leaf{..} → hasVisual $ proxy denoted
+  Node{..} → False
 
 
-
-ensureHolotreeVisuals ∷ (c ~ Holo, MonadIO m) ⇒ VPort → Item c PLayout → m (Item c PVisual)
-ensureHolotreeVisuals port hoi@Item{..} =
-  hiEnsureVisual port hoi =<< (sequence $ ensureHolotreeVisuals port <$> hiChildren)
+-- * Treewise ops
+--
+ensureTreeVisuals ∷ (c ~ Holo, MonadIO m) ⇒ VPort → Item c PLayout → m (Item c PVisual)
+ensureTreeVisuals port i = case i of
+  Node{..} → iUnvisual i <$> (sequence $ ensureTreeVisuals port <$> denoted)
+  Leaf{..} → if not $ hasVisual (proxy denoted)
+    then pure $ iUnvisual    i []
+    else iMandateVisual port i []
 
 
 -- * InputEvent & Subscription
@@ -232,7 +224,7 @@ inputMatch InputEventMask{..} = \case
 inputEventType ∷ InputEvent → GLFW.EventType
 inputEventType = \case
   InputEvent{inInputEvent=GLFW.U x} → GLFW.eventType x
-  ClickEvent{inMouseButtonEvent=x}  → GLFW.MouseButton
+  ClickEvent{inMouseButtonEvent=_x} → GLFW.MouseButton
 
 
 instance Semigroup InputEventMask where
@@ -288,13 +280,15 @@ editMaskKeys = (inputMaskChars <>) $ InputEventMask $ GLFW.eventMaskKeys $ GLFW.
 -- * Concrete, minimal case, to keep us in check
 --
 instance Holo () where
+  type DefaultName () = ()
 
 instance Semigroup (Item Holo PBlank)  where _ <> _ = mempty
-instance Monoid    (Item Holo PBlank)  where mempty = Item () Proxy Port.blankIdToken (initStyle ()) mempty [] (Di $ V2 Nothing Nothing) mempty ()
+instance Monoid    (Item Holo PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) mempty ()) () diNothing mempty mempty
 instance Semigroup (Item Holo PLayout) where _ <> _ = mempty
-instance Monoid    (Item Holo PLayout) where mempty = Item () Proxy Port.blankIdToken (initStyle ()) mempty [] (Di $ V2 Nothing Nothing) mempty ()
+instance Monoid    (Item Holo PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) mempty ()) () diNothing mempty mempty
 
-deriving anyclass instance Typeable k ⇒ Holo (Node k)
+-- instance (Typeable c, Typeable p) ⇒ Holo (Node c k p) where
+--   type DefaultName (Node c k p) = ()
 
 -- instance Semigroup (Item PLayout) where
 --   l <> r = vbox [l, r]

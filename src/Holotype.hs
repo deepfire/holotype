@@ -81,7 +81,7 @@ import qualified Flex
 import           HoloPrelude                       hiding ((<>))
 import           Holo.Instances
 import           Holo                                     ( Vis
-                                                          , Holo, HoloBlank, InputEvent, InputEventMux, Item, Style(..), StyleOf, StyleGene(..), Subscription(..), VPort
+                                                          , Holo, HoloBlank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
                                                           , Static(..)
                                                           , Widget, liftW, liftWDynamic
                                                           , WH, wWH
@@ -164,7 +164,7 @@ routeInputEvent inputE clickedE subsD = do
 --   holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn valD holoE)
 --    <&> (,) editMaskKeys
 
-mkTextEntryValidatedStyleD ∷ RGLFW t m ⇒ InputEventMux t → Behavior t (Style Text) → Text → (Text → Bool) → m (Result t Text)
+mkTextEntryValidatedStyleD ∷ RGLFW t m ⇒ InputEventMux t → Behavior t (Style TextLine) → Text → (Text → Bool) → m (Result t Text)
 mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
@@ -202,7 +202,7 @@ nextFrame win windowFrameE = performEvent $ windowFrameE <&>
     -- GL.flush  -- not necessary, but someone recommended it
     GLFW.pollEvents
 
-trackStyle ∷ (Holo a, RGLFW t m) ⇒ Dynamic t (StyleOf a) → m (Dynamic t (Style a))
+trackStyle ∷ (Holo a, RGLFW t m) ⇒ Dynamic t (Sty a) → m (Dynamic t (Style a))
 trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
@@ -258,7 +258,7 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
   longStaticTextD  ← liftW eV ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
-  let fontNameStyle name = Holo.defStyleOf (Proxy @Text) & tsFontKey .~ Cr.FK name
+  let fontNameStyle name = Holo.defSty (Proxy @Text) & tsFontKey .~ Cr.FK name
 
   W styleEntryD ← mkTextEntryValidatedStyleD eV styleB "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
@@ -341,7 +341,7 @@ holotype win evCtl windowFrameE inputE = mdo
 
   -- * LAYOUT
   -- needs port because of DPI and fonts
-  sceneQueriedE    ← performEvent $ (\(s, (p, _f))→ Holo.hiSizeRequest p s) <$>
+  sceneQueriedE    ← performEvent $ (\(s, (p, _f))→ Holo.iSizeRequest p s) <$>
                      attachPromptlyDyn sceneD portFrameE
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
 
@@ -353,13 +353,13 @@ holotype win evCtl windowFrameE inputE = mdo
   drawnPortE       ← performEvent $ sceneDrawE <&>
                      \(tree, (,) port f@Port.Frame{..}) → do
                        -- Flex.dump (\x→ "La: "<>Flex.ppItemArea x<>" ← "<>Flex.ppItemSize x) tree
-                       let leaves = Holo.hiLeaves tree
+                       let leaves = Holo.treeLeaves tree
                        -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
                        Port.portGarbageCollectVisuals port leaves
-                       tree' ← Holo.ensureHolotreeVisuals port tree
+                       tree' ← Holo.ensureTreeVisuals port tree
                        -- XXX: 'render' is called every frame for everything
-                       Holo.renderHolotreeVisuals port tree'
-                       Holo.showHolotreeVisuals f tree'
+                       Holo.renderTreeVisuals port tree'
+                       Holo.showTreeVisuals f tree'
                        pure port
   drawnPortD       ← holdDyn Nothing $ Just <$> drawnPortE
 

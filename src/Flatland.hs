@@ -30,7 +30,8 @@ module Flatland
   , area'a, area'b
   , pretty'Area'Int
   --
-  , opaque, white, gray, black, red, green, blue
+  , opaque, white, gray, black
+  , base03, base02, base01, base00, base0, base1, base2, base3, yellow, orange, red, magenta, violet, blue, cyan, green
   , chord'CW
   )
 where
@@ -356,10 +357,7 @@ instance Semigroup (Co Double) where
 instance Monoid    (Co Double) where
   mempty              = white
 
-red, green, blue, white, black ∷ Co Double
-red   = co 1 0 0 1
-green = co 0 1 0 1
-blue  = co 0 0 1 1
+white, black ∷ Co Double
 white = co 1 1 1 1
 black = co 0 0 0 1
 
@@ -371,6 +369,27 @@ gray x a = co x x x a
 
 coMult ∷ Num a ⇒ a → Co a → Co a
 coMult x (Co (V4 r g b a)) = Co $ V4 (r*x) (g*x) (b*x) a
+
+
+-- * Solarized
+--
+base03, base02, base01, base00, base0, base1, base2, base3, yellow, orange, red, magenta, violet, blue, cyan, green ∷ Co Double
+base03  = co 0.000 0.169 0.212 1
+base02  = co 0.027 0.212 0.259 1
+base01  = co 0.345 0.431 0.459 1
+base00  = co 0.396 0.482 0.514 1
+base0   = co 0.514 0.580 0.588 1
+base1   = co 0.576 0.631 0.631 1
+base2   = co 0.933 0.910 0.835 1
+base3   = co 0.992 0.965 0.890 1
+yellow  = co 0.710 0.537 0.000 1
+orange  = co 0.796 0.294 0.086 1
+red     = co 0.863 0.196 0.184 1
+magenta = co 0.827 0.212 0.510 1
+violet  = co 0.423 0.443 0.769 1
+blue    = co 0.149 0.545 0.824 1
+cyan    = co 0.166 0.631 0.596 1
+green   = co 0.522 0.600 0.000 1
 
 
 -- * Axis
@@ -652,3 +671,4 @@ instance (AreaDict d, Monoid (po d), Monoid (di d)) ⇒ Semigroup (Area' po di d
   Area lpo ldi <> Area rpo' rdi = Area (lpo <> rpo') (ldi <> rdi)
 instance (AreaDict d, Monoid (po d), Monoid (di d)) ⇒ Monoid    (Area' po di d) where
   mempty = Area mempty mempty
+

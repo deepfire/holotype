@@ -33,8 +33,11 @@
 module Holo.Instances
   ( liftWRecord
   , Rect(..)
+  --
   , TextStyle, TextVisual
   , tsFontKey, tsSizeSpec, tsColor
+  , TextLine
+  --
   , ConsCtx, FieldCtx
   )
 where
@@ -98,10 +101,10 @@ instance ( RGLFW t m
          , d ~ Result t
          , ConsCtx t u ~ (InputEventMux t, Structure u)) ⇒
          HasReadField t m u a where
-  readField _ _ (mux, initV) (FieldName fname) = O $ do
+  readField _ _ (mux, initV ∷ a) (FieldName fname) = O $ do
     tok ← liftIO Port.newId
-    let package x = hbox [leaf tok defStyle (fname <> ": "), x]
-    W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftW mux initV
+    let package x = hbox [leaf tok TextLine (fname <> ": ") defStyle, x]
+    W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftW mux (defName $ Proxy @(DefaultName a)) initV
 
 -- record lifting for Dynamic initials
 type instance ConsCtx  t (Dynamic t a) = Dynamic t a
@@ -130,33 +133,28 @@ instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
 
 -- * Leaves
 --
-data Rect where
-  Rect ∷
-    { _rectDim   ∷ Di (Unit PU)
-    , _rectColor ∷ Co Double
-    } → Rect
--- makeLenses ''Rect
+data Rect = Rect
 
-type instance StyleOf  Rect = Rect
-type instance VisualOf Rect = ()
-
-instance Vis Rect where
-  sizeRequest port Rect{..} _ _ = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> _rectDim
-  defStyleOf _              = Rect zero white
-  compStyleOf               = id
-  setupVisual Port.Port{portSettings=Port.Settings{..}} _ _area drw@Drawable{..} Rect{..} = do
-    let dim = fromUnit sttsDΠ <$> _rectDim
+instance As Rect where
+  type Denoted Rect        = Di (Unit PU)
+  type Sty     Rect        = Co Double
+  defName                _ = Rect
+  defSty                 _ = blue
+  sizeRequest port Rect dim _sty = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> dim
+  setupVis Port.Port{portSettings=Port.Settings{..}} Rect dim' color _area drw@Drawable{..} = do
+    let dim = fromUnit sttsDΠ <$> dim'
     Cr.runCairo dCairo $ do
-      paintRect _rectColor dim -- $ PUs <$> _area^.area'b.size'di
+      paintRect color dim -- $ PUs <$> _area^.area'b.size'di
     Port.drawableContentToGPU drw
-  render Port.Port{portSettings=Port.Settings{..}} _ _ drw@Drawable{..} Rect{..} = do
-    let dim = fromUnit sttsDΠ <$> _rectDim
+  render Port.Port{portSettings=Port.Settings{..}} Rect dim' color drw@Drawable{..} () = do
+    let dim = fromUnit sttsDΠ <$> dim'
     Cr.runCairo dCairo $ do
-      paintRect _rectColor dim -- $ PUs <$> _area^.area'b.size'di
+      paintRect color dim -- $ PUs <$> _area^.area'b.size'di
     Port.drawableContentToGPU drw
 
-instance Holo Rect where
-  hasVisual               _ = True
+instance Holo (Di (Unit PU)) where
+  type DefaultName (Di (Unit PU)) = Rect
+  hasVisual                     _ = True
 
 
 -- * This is a complicated story:
@@ -183,20 +181,22 @@ data TextVisual where
     , tLayout        ∷ GIP.Layout
     } → TextVisual
 
-type instance StyleOf  T.Text = TextStyle
-type instance VisualOf T.Text = TextVisual
+data TextLine = TextLine
 
-instance Vis T.Text where
-  defStyleOf _ = TextStyle
+instance As TextLine where
+  type Denoted TextLine = T.Text
+  type Sty     TextLine = TextStyle
+  type Vis     TextLine = TextVisual
+  defName          _ = TextLine
+  defSty           _ = TextStyle
     { _tsFontKey     = "default"
     , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
     , _tsColor       = white
     }
-  compStyleOf = const $ defStyleOf $ Proxy @T.Text
-  sizeRequest port TextStyle{..} _ content = do
+  sizeRequest port TextLine content TextStyle{..} = do
     let font = Port.portFont' port _tsFontKey -- XXX: non-total
     (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (Port.portDΠ port) _tsSizeSpec) (partial (≢ "") content)
-  setupVisual port TextStyle{..} area' drw _content = do
+  setupVis port TextLine _content TextStyle{..} area' drw = do
     -- 1. find font, 2. bind font to GIC, 3. create layout
     -- Q: why not also draw here?  Reflow?
     let font = Port.portFont' port _tsFontKey -- XXX: non-total
@@ -207,13 +207,14 @@ instance Vis T.Text where
     --   GIPC.createContext gic  -- released by FFI finalizers
     --   GIP.layoutNew      gipc -- same as above
     pure $ TextVisual{..}
-  render _ TextStyle{..} TextVisual{..} drw text =
+  render _ TextLine content TextStyle{..} drw TextVisual{..} =
     -- 1. execute GIP draw & GIPC composition
-    Port.drawableDrawText drw tLayout _tsColor text
-  freeVisualOf _ TextVisual{..} =
+    Port.drawableDrawText drw tLayout _tsColor content
+  freeVis _ TextVisual{..} =
     Cr.unbindFontLayout tFont tLayout
 
 instance Holo T.Text where
+  type DefaultName T.Text = TextLine
   hasVisual _ = True
   subscription tok _ = subSingleton tok editMaskKeys
   liftHoloDyn initial ev =
@@ -257,14 +258,14 @@ tsColor    f ts@(TextStyle _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
 
 -- * Bool!!!
 --
-data BoolStyle
-  = BoolStyle
-  { bsRadius     ∷ Double
-  , bsTolerance  ∷ Double
-  , bsLineWeight ∷ Double
-  , bsInterfocal ∷ Double
-  , bsColorOn    ∷ Co Double
-  , bsColorOff   ∷ Co Double
+data SwitchStyle
+  = SwitchStyle
+  { ssRadius     ∷ Double
+  , ssTolerance  ∷ Double
+  , ssLineWeight ∷ Double
+  , ssInterfocal ∷ Double
+  , ssColorOn    ∷ Co Double
+  , ssColorOff   ∷ Co Double
   } -- specifying scale as part of style is a smell
 --
 --  Height: 2*(radius + line-weight + tolerance + line-weight + 0.5*(line-weight + tolerance))
@@ -282,37 +283,46 @@ data BoolStyle
 --    \                                /
 --     `------------------------------'
 --
-type instance StyleOf  Bool = BoolStyle
-type instance VisualOf Bool = ()
+-- defSty      ∷               Proxy r             → Sty r
+-- compSty     ∷                     r             → Sty r
+-- sizeRequest ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → m (Di (Maybe Double))
+-- setupVis    ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → Area'LU Double → Drawable → m (Vis r)
+-- render      ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r                  → Drawable → Vis r → m () -- ^ Update visual.
+-- freeVis     ∷ MonadIO m ⇒   Proxy r                                                 → Vis r → m ()
+data Switch = Switch
 
-instance Vis Bool where
-  defStyleOf _ = BoolStyle
-    { bsRadius     = 10
-    , bsTolerance  = 2    -- pixel counting → 2
-    , bsLineWeight = 2    -- pixel counting → 3
-    , bsInterfocal = 12
-    , bsColorOn    = green
-    , bsColorOff   = gray 0.4 1.0
+instance As Switch where
+  type Denoted Switch = Bool
+  type Sty     Switch = SwitchStyle
+  defName _ = Switch
+  defSty  _ = SwitchStyle
+    { ssRadius     = 10
+    , ssTolerance  = 2    -- pixel counting → 2
+    , ssLineWeight = 2    -- pixel counting → 3
+    , ssInterfocal = 12
+    , ssColorOn    = green
+    , ssColorOff   = gray 0.4 1.0
     }
-  sizeRequest _ BoolStyle{..} _ _ =
-    let padding = 0.5 * (bsLineWeight + bsTolerance)
-        h = 2 * (bsRadius + bsTolerance + bsLineWeight + padding)
-        w = h + bsInterfocal
+  sizeRequest _ Switch _ SwitchStyle{..} =
+    let padding = 0.5 * (ssLineWeight + ssTolerance)
+        h = 2 * (ssRadius + ssTolerance + ssLineWeight + padding)
+        w = h + ssInterfocal
     in pure ∘ (Just <$>) ∘ Di $ V2 w h
-  setupVisual _ _ _ _ _ = pure ()
-  render _ BoolStyle{..} () d@Drawable{..} val = do
+  setupVis _ _ _ _ _ _ = pure ()
+  render _ Switch val SwitchStyle{..} d@Drawable{..} () = do
     Cr.runCairo dCairo $ do
       -- paintDebugColorFrames dDi
-      let padding  = 0.5 * (bsLineWeight + bsTolerance)
-          rrRadius = bsRadius + bsTolerance + bsLineWeight
+      let padding  = 0.5 * (ssLineWeight + ssTolerance)
+          rrRadius = ssRadius + ssTolerance + ssLineWeight
           hCenter  = rrRadius + padding
-      paintRoundedRect (white, if val then bsColorOn else bsColorOff)
-        (Th bsLineWeight) (R rrRadius) (Wi bsInterfocal) (Pad padding)
-      paintCircle white (R bsRadius) (Po $ V2 (hCenter + if val then 0 else bsInterfocal) hCenter)
+      paintRoundedRect (white, if val then ssColorOn else ssColorOff)
+        (Th ssLineWeight) (R rrRadius) (Wi ssInterfocal) (Pad padding)
+      paintCircle white (R ssRadius) (Po $ V2 (hCenter + if val then 0 else ssInterfocal) hCenter)
     Port.drawableContentToGPU d
 -- paintRoundedRect color lw@(Th lineWeight) r@(R radius) (Wi interfocal) (Pad pad) = do
 
 instance Holo Bool where
+  type DefaultName Bool  = Switch
   hasVisual            _ = True
   subscription    tok  _ = subSingleton tok inputMaskClick1Press
   liftHoloDyn initial ev = foldDyn (\_ v → not v) initial ev
@@ -320,26 +330,26 @@ instance Holo Bool where
 
 -- * Settings
 --
-instance Vis  a ⇒ Vis  (Port.ScreenDim a) where
-instance Holo a ⇒ Holo (Port.ScreenDim a) where
-  subscription tok _ = subSingleton tok $ InputEventMask GLFW.eventMaskFramebufferSize
+-- instance Vis  a ⇒ Vis  (Port.ScreenDim a) where
+-- instance Holo a ⇒ Holo (Port.ScreenDim a) where
+--   subscription tok _ = subSingleton tok $ InputEventMask GLFW.eventMaskFramebufferSize
 
-instance Vis  Port.ScreenMode where
-instance Holo Port.ScreenMode where
-  subscription tok _ = subSingleton tok editMaskKeys
+-- instance Vis  Port.ScreenMode where
+-- instance Holo Port.ScreenMode where
+--   subscription tok _ = subSingleton tok editMaskKeys
 
-instance Vis  (Cr.FontPreferences PU) where
-instance Holo (Cr.FontPreferences PU) where
-  subscription tok _ = subSingleton tok editMaskKeys
+-- instance Vis  (Cr.FontPreferences PU) where
+-- instance Holo (Cr.FontPreferences PU) where
+--   subscription tok _ = subSingleton tok editMaskKeys
 
-instance Vis a  ⇒ Vis  (Di a) where
-instance Holo a ⇒ Holo (Di a) where
-  subscription tok _ = subSingleton tok editMaskKeys
+-- instance Vis a  ⇒ Vis  (Di a) where
+-- instance Holo a ⇒ Holo (Di a) where
+--   subscription tok _ = subSingleton tok editMaskKeys
 
-instance Vis  DΠ where
-instance Holo DΠ where
-  subscription tok _ = subSingleton tok editMaskKeys
+-- instance Vis  DΠ where
+-- instance Holo DΠ where
+--   subscription tok _ = subSingleton tok editMaskKeys
 
-instance Vis  Int where
-instance Holo Int where
-  subscription tok _ = subSingleton tok editMaskKeys
+-- instance Vis  Int where
+-- instance Holo Int where
+--   subscription tok _ = subSingleton tok editMaskKeys

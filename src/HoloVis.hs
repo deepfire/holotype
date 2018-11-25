@@ -39,7 +39,7 @@ module HoloVis
   , Name(..)
   , IVisual
   , Phase(..)
-  , Item(..), iLeafP, iToken, iStyleGene
+  , Item(..), iLeafP, iToken, iStyleGene, diNothing
   , Node(..)
   , node, leaf
   , hbox, vbox
@@ -50,8 +50,9 @@ module HoloVis
   , treeLeaves
   , renderTreeVisuals
   , showTreeVisuals
-  --
+  -- * reёxports
   , Drawable(..)
+  , Flex(..)
   , VPort
   )
 where
@@ -68,7 +69,7 @@ import qualified Unsafe.Coerce                     as Co
 -- Local imports
 import           HoloPrelude
 
-import           Flex                                     (Geo)
+import           Flex                                     (Geo, Flex(..))
 import qualified Flex                              as Flex
 
 import           Flatland
@@ -78,12 +79,13 @@ import qualified HoloPort                          as Port
 
 -- * As -- assigning representation
 --
-class As r where
+class Typeable r ⇒ As r where
   type      Denoted r ∷ Type
   type          Sty r ∷ Type
   type instance Sty r = ()
   type          Vis r ∷ Type
   type instance Vis r = ()
+  defName     ∷               Proxy r             → r
   defSty      ∷               Proxy r             → Sty r
   compSty     ∷                     r             → Sty r
   compSty                           x             = defSty (proxy x)
@@ -98,6 +100,7 @@ instance As () where
   type Denoted () = ()
   type     Sty () = ()
   type     Vis () = ()
+  defName           _px   = ()
   defSty            _px   = ()
   compSty            _x   = ()
   sizeRequest  _port () () _sty = pure $ Di $ V2 Nothing Nothing
@@ -186,7 +189,7 @@ data Item (c ∷ Type → Constraint) (p ∷ Phase) where
                                       -- Same quip as for iSize
     , lVisual     ∷ IVisual p a
     } → Item c p
-  Node ∷ ∀ c k p a. (a ~ Node c k p) ⇒
+  Node ∷ ∀ c k p a. (a ~ Node c k p, Typeable k) ⇒
     { name        ∷ Name a
     , denoted     ∷ Denoted a
     , iSize       ∷ Di (Maybe Double) -- Flex input:  the desired size
@@ -208,8 +211,8 @@ iStyleGene = \case
   Leaf{name=Name{..},..} → _sStyleGene nStyle
   Node{name=Name{..},..} → _sStyleGene nStyle
 
-blankSize ∷ Di (Maybe Double)
-blankSize = unsafe'di Nothing Nothing
+diNothing ∷ Di (Maybe Double)
+diNothing = unsafe'di Nothing Nothing
 
 instance Eq (Item c a) where
   (==)    a b = iToken a ≡ iToken b
@@ -217,7 +220,7 @@ instance Eq (Item c a) where
 instance Ord (Item c a) where
   compare a b = iToken a `compare` iToken b
 
-instance Flex.Flex (Item c (a ∷ Phase)) where
+instance Flex (Item c (a ∷ Phase)) where
   geo      f   Leaf{..} = (\x→ Leaf {name=name {nGeo = x}, ..}) <$> f (nGeo name)
   geo      f   Node{..} = (\x→ Node {name=name {nGeo = x}, ..}) <$> f (nGeo name)
   size     f i@Leaf{..} = (\x→ i    {iSize=x})                  <$> f iSize
@@ -227,7 +230,7 @@ instance Flex.Flex (Item c (a ∷ Phase)) where
   children f i@Leaf{..} = (\_→ i)                               <$> f []
   children f   Node{..} = (\x→ Node {denoted=x, ..})            <$> f denoted
 
-iSizeRequest ∷ ∀ c m. (MonadIO m) ⇒ VPort → Item c PBlank → m (Item c PLayout)
+iSizeRequest ∷ ∀ c m. (MonadIO m, Typeable c) ⇒ VPort → Item c PBlank → m (Item c PLayout)
 iSizeRequest port Leaf{name=name@Name{..},..} = do
   size ← sizeRequest port n denoted (_sStyle $ nStyle)
   trev SIZE HOLO size $ Port.tokenHash nToken
@@ -295,10 +298,11 @@ nodeNameLtoV = Co.unsafeCoerce
 -- any function depending on As:Denoted type family to quantify over all phases
 -- would break.
 -- This, in turn, requires a generic Flex (Item p) instance.
-instance As (Node (c ∷ Type → Constraint) (k ∷ KNode) (p ∷ Phase)) where
+instance (Typeable c, Typeable k, Typeable p) ⇒ As (Node (c ∷ Type → Constraint) (k ∷ KNode) (p ∷ Phase)) where
   type Denoted (Node c k p) = [Item c p]
   type Sty     (Node c k p) = ()
   type Vis     (Node c k p) = ()
+  defName  = undefined --VBoxN
   defSty _ = ()
   -- compGeo (HBoxN _) = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
   -- compGeo (VBoxN _) = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
@@ -309,26 +313,26 @@ instance As (Node (c ∷ Type → Constraint) (k ∷ KNode) (p ∷ Phase)) where
 
 -- * Constructors
 --
-node ∷ ∀ c a k. (a ~ Node c k PBlank)
+node ∷ ∀ c a k. (a ~ Node c k PBlank, Typeable k)
   ⇒ IdToken
-  → Style a
   → a
   → [Item c PBlank]
-  → Item c PBlank
-node tok sty i chi = Node (Name tok sty (nodeGeo i) i) chi blankSize mempty
-
-leaf ∷ (As a, c (Denoted a), Typeable a)
-  ⇒ IdToken
   → Style a
+  → Item c PBlank
+node tok i chi sty = Node (Name tok sty (nodeGeo i) i) chi diNothing mempty
+
+leaf ∷ (As a, c (Denoted a))
+  ⇒ IdToken
   → a
   → Denoted a
+  → Style a
   → Item c PBlank
-leaf tok sty name denoted = Leaf (Name tok sty mempty name) denoted blankSize mempty ()
+leaf tok name denoted sty = Leaf (Name tok sty mempty name) denoted diNothing mempty ()
 
 -- XXX: here's trouble -- we're using blankIdToken!  No messages for the nodes! ..not that they care yet..
 hbox, vbox ∷ [Item c PBlank] → Item c PBlank
-hbox = node Port.blankIdToken (initStyle ()) HBoxN
-vbox = node Port.blankIdToken (initStyle ()) VBoxN
+hbox chi = node Port.blankIdToken HBoxN chi (initStyle ())
+vbox chi = node Port.blankIdToken VBoxN chi (initStyle ())
 
 
 -- * Tree-wise ops
