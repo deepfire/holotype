@@ -12,7 +12,6 @@
 *.graphml
 *.hi
 *.hp
-*.json
 *.lprof
 *.ltrace*
 *.o
