@@ -378,7 +378,7 @@ buildPipelineForStorage storage pipelineSrc = liftIO $ do
     Left  err → error $ printf "-- error compiling %s:\n%s\n" pipelineSrc (GL.ppShow err)
     Right ppl → do
       renderer ← GL.allocRenderer ppl
-      LB.writeFile (pipelineSrc <> ".json") (AE.encodePretty ppl)
+      LB.writeFile ("run/" <> pipelineSrc <> ".json") (AE.encodePretty ppl)
       _ ← printTimeDiff "-- binding GPU pipeline to GL storage (GL.setStorage)... " $
         GL.setStorage renderer storage
       pure renderer
