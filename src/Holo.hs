@@ -45,7 +45,7 @@ module Holo
   --
   , Input
   --
-  , Holo(..), hiHasVisual
+  , Holo(..)
   , HoloBlank
   , ensureTreeVisuals
   --
@@ -87,19 +87,22 @@ class (As a, Denoted a ~ b) ⇒ Input a b where
 class (As (DefaultName a), Denoted (DefaultName a) ~ a, Typeable a) ⇒ Holo a where
   type DefaultName a ∷ Type
   -- type CLiftW   t (m ∷ Type → Type) a ∷ Constraint
-  hasVisual       ∷                                                               Proxy a → Bool
-  liftHoloDyn     ∷ (RGLFW t m) ⇒                                  a → Event t InputEvent → m (Dynamic t a)
-  liftHoloItem    ∷ (As n, Denoted n ~ a) ⇒                               IdToken → n → a → Item Holo PBlank
-  subscription    ∷                                                     IdToken → Proxy a → Subscription
-  liftDynW        ∷ (As n, Denoted n ~ a, Reflex t) ⇒           IdToken → n → Dynamic t a → Widget t a
-  liftW           ∷ (As n, Denoted n ~ a, RGLFW t m) ⇒            InputEventMux t → n → a → m (Widget t a)
+  compName     ∷ As n ⇒                              Proxy a → IdToken → n → Name n
+  hasVisual    ∷                                                   Proxy a → Bool
+  liftHoloDyn  ∷ (RGLFW t m) ⇒                      a → Event t InputEvent → m (Dynamic t a)
+  subscription ∷                                         IdToken → Proxy a → Subscription
+  liftDynW     ∷ (As n, Denoted n~a, Reflex t) ⇒ IdToken → n → Dynamic t a → Widget t a
+  liftW        ∷ (As n, Denoted n~a, RGLFW t m) ⇒  InputEventMux t → n → a → m (Widget t a)
   --
-  hasVisual       = const False          -- no visual by default
-  liftHoloDyn     = liftHoloDynStatic    -- no value change in response to events
-  liftHoloItem    = liftItemStatic       -- static style and geometry
-  subscription    = const mempty         -- ignore events
-  liftDynW        = liftDynWStaticSubs
-  liftW           = liftWSeed
+  compName     = defCompName
+  hasVisual    = const False          -- no visual by default
+  liftHoloDyn  = liftHoloDynStatic    -- no value change in response to events
+  subscription = const mempty         -- ignore events
+  liftDynW     = liftDynWStaticSubs
+  liftW        = liftWSeed
+
+defCompName ∷ As n ⇒ Proxy a → IdToken → n → Name n
+defCompName _ tok n = Name tok (initStyle $ compSty n) defGeo n
 
 compToken ∷ ∀ m a. (Holo a, MonadIO m) ⇒ Proxy a → m IdToken
 compToken (hasVisual → True) = Port.newId $ showT $ typeRep (Proxy @a)
@@ -125,6 +128,9 @@ instance Functor (Result t) where
   fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
 
 instance Reflex t ⇒ Applicative (Result t) where
+  -- To allow nodes to have unique IdTokens
+  -- ← must allow executing newId here
+  -- ← work out how to unpack W
   pure x = W (mempty, constDyn (x, vbox []))
   W (fsubs, fvals) <*> W (xsubs, xvals) =
     W $ (,)
@@ -149,39 +155,33 @@ newtype Static t a = Static a -- XXX: once we're successful with the lift, let's
 --   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputEventMux t → a → m (W t a)
 --   liftW = liftRecord
 
-liftItemStatic ∷ ∀ n a. (As n, Denoted n ~ a, Holo a) ⇒ IdToken → n → a → Item Holo PBlank
-liftItemStatic tok n a = leaf tok n a (initStyle $ compSty n)
-
-liftHoloDynStatic ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
-liftHoloDynStatic init _ev = pure $ constDyn init
-
 liftWStatic ∷ ∀ t m n a. (As n, Denoted n ~ a, Holo a, RGLFW t m) ⇒ InputEventMux t → n → Static t a → m (Widget t a)
 liftWStatic _imux n (Static initial) = do
   tok ← compToken $ Proxy @a
   pure $ W ( constDyn $ subscription tok (Proxy @a)
-           , constDyn (initial, liftHoloItem tok n initial))
-
-liftWSeed   ∷ ∀ t m n a. (As n, Denoted n ~ a, Holo a, RGLFW t m) ⇒ InputEventMux t → n → a → m (Widget t a)
-liftWSeed imux n initial = do
-  tok ← compToken $ Proxy @a
-  liftDynW tok n <$> (liftHoloDyn initial $ select imux $ Const2 tok)
-
-liftDynWStaticSubs ∷ ∀ t n a. (As n, Denoted n ~ a, Holo a, Reflex t) ⇒ IdToken → n → Dynamic t a → Widget t a
-liftDynWStaticSubs tok n da =
-  W ( constDyn $ subscription tok (Proxy @a)
-    , da <&> (id &&& liftHoloItem tok n))
+           , constDyn (initial, leaf (compName (Proxy @a) tok n) initial))
 
 liftWDynamic ∷ ∀ t m n a. (As n, Denoted n ~ a, Holo a, RGLFW t m) ⇒ n → Dynamic t a → m (Widget t a)
 liftWDynamic n da = do
   tok ← compToken $ Proxy @a
   pure $ liftDynWStaticSubs tok n da
 
+
+liftHoloDynStatic ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
+liftHoloDynStatic init _ev = pure $ constDyn init
 
-hiHasVisual ∷ Item Holo p → Bool
-hiHasVisual = \case
-  -- XXX: we're losing type safety here..
-  Leaf{..} → hasVisual $ proxy denoted
-  Node{..} → False
+liftDynWStaticSubs ∷ ∀ t n a. (As n, Denoted n ~ a, Holo a, Reflex t) ⇒ IdToken → n → Dynamic t a → Widget t a
+liftDynWStaticSubs tok n da =
+  let name = compName (Proxy @a) tok n
+  in W ( constDyn $ subscription tok (Proxy @a)
+       , da <&> (id &&& leaf name))
+-- ← liftHoloDynStatic
+-- ← liftDynWStaticSubs
+liftWSeed   ∷ ∀ t m n a. (As n, Denoted n ~ a, Holo a, RGLFW t m) ⇒ InputEventMux t → n → a → m (Widget t a)
+liftWSeed imux n initial = do
+  tok ← compToken $ Proxy @a
+  liftDynW tok n <$> (liftHoloDyn initial $ select imux $ Const2 tok)
+-- → liftW
 
 
 -- * Treewise ops

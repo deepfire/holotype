@@ -103,8 +103,10 @@ instance ( RGLFW t m
          HasReadField t m u a where
   readField _ _ (mux, initV ∷ a) (FieldName fname) = O $ do
     tok ← liftIO $ Port.newId $ "record label '" <> fname <> "'"
-    let package x = hbox [leaf tok TextLine (fname <> ": ") defStyle, x]
-    W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftW mux (defName $ Proxy @(DefaultName a)) initV
+    let package x = hbox [ defLeaf tok TextLine (fname <> ": ")
+                         , x
+                         ]
+    W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftW mux (defAs $ Proxy @(DefaultName a)) initV
 
 -- record lifting for Dynamic initials
 type instance ConsCtx  t (Dynamic t a) = Dynamic t a
@@ -138,7 +140,7 @@ data Rect = Rect
 instance As Rect where
   type Denoted Rect        = Di (Unit PU)
   type Sty     Rect        = Co Double
-  defName                _ = Rect
+  defAs                  _ = Rect
   defSty                 _ = blue
   sizeRequest port Rect dim _sty = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> dim
   setupVis Port.Port{portSettings=Port.Settings{..}} Rect dim' color _area drw@Drawable{..} = do
@@ -175,6 +177,12 @@ data TextStyle where
     , _tsSizeSpec    ∷ Cr.TextSizeSpec PU
     , _tsColor       ∷ Co Double
     } → TextStyle
+tsFontKey   ∷ Lens' TextStyle Cr.FontKey
+tsFontKey  f ts@(TextStyle x _ _) = (\xx→ts{_tsFontKey=xx})  <$> f x
+tsSizeSpec  ∷ Lens' TextStyle (Cr.TextSizeSpec PU)
+tsSizeSpec f ts@(TextStyle _ x _) = (\xx→ts{_tsSizeSpec=xx}) <$> f x
+tsColor     ∷ Lens' TextStyle (Co Double)
+tsColor    f ts@(TextStyle _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
 data TextVisual where
   TextVisual ∷
     { tFont          ∷ Cr.WFont Bound
@@ -187,7 +195,7 @@ instance As TextLine where
   type Denoted TextLine = T.Text
   type Sty     TextLine = TextStyle
   type Vis     TextLine = TextVisual
-  defName          _ = TextLine
+  defAs            _ = TextLine
   defSty           _ = TextStyle
     { _tsFontKey     = "default"
     , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
@@ -198,7 +206,6 @@ instance As TextLine where
     (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (Port.portDΠ port) _tsSizeSpec) (partial (≢ "") content)
   setupVis port TextLine _content TextStyle{..} area' drw = do
     -- 1. find font, 2. bind font to GIC, 3. create layout
-    -- Q: why not also draw here?  Reflow?
     let font = Port.portFont' port _tsFontKey -- XXX: non-total
         tDim = fromUnit (Port.portDΠ port) ∘ PUs <$> dimOf area'
     -- liftIO $ putStrLn $ printf "setupVisual T.Text: %s → %s" (show _tsFontKey) (show font)
@@ -213,6 +220,7 @@ instance As TextLine where
   freeVis _ TextVisual{..} =
     Cr.unbindFontLayout tFont tLayout
 
+
 instance Holo T.Text where
   type DefaultName T.Text = TextLine
   hasVisual _ = True
@@ -247,13 +255,6 @@ translateEditEvent = \case
   (InputEvent (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoBOL
   (InputEvent (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoEOL
   x → error $ "Unexpected event (non-edit): " <> show x
-
-tsFontKey   ∷ Lens' TextStyle Cr.FontKey
-tsFontKey  f ts@(TextStyle x _ _) = (\xx→ts{_tsFontKey=xx})  <$> f x
-tsSizeSpec  ∷ Lens' TextStyle (Cr.TextSizeSpec PU)
-tsSizeSpec f ts@(TextStyle _ x _) = (\xx→ts{_tsSizeSpec=xx}) <$> f x
-tsColor     ∷ Lens' TextStyle (Co Double)
-tsColor    f ts@(TextStyle _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
 
 
 -- * Bool!!!
@@ -294,7 +295,7 @@ data Switch = Switch
 instance As Switch where
   type Denoted Switch = Bool
   type Sty     Switch = SwitchStyle
-  defName _ = Switch
+  defAs   _ = Switch
   defSty  _ = SwitchStyle
     { ssRadius     = 10
     , ssTolerance  = 2    -- pixel counting → 2
@@ -330,8 +331,8 @@ instance Holo Bool where
 
 -- * Settings
 --
--- instance Vis  a ⇒ Vis  (Port.ScreenDim a) where
 -- instance Holo a ⇒ Holo (Port.ScreenDim a) where
+--   type DefaultName (Port.ScreenDim a) =
 --   subscription tok _ = subSingleton tok $ InputEventMask GLFW.eventMaskFramebufferSize
 
 -- instance Vis  Port.ScreenMode where

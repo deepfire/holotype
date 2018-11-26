@@ -31,7 +31,7 @@
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
 
 module HoloVis
-  ( As(..)
+  ( As(..), defName
   , Style(..), sStyle, sStyleGene, initStyle, defStyle
   , StyleGene(..), fromStyleGene
   , Visual(..)
@@ -43,6 +43,8 @@ module HoloVis
   , Node(..)
   , node, leaf
   , hbox, vbox
+  , defLeaf
+  --
   , traceIGeoDiff
   , iSizeRequest
   , iMandateVisual, iUnvisual
@@ -58,7 +60,6 @@ module HoloVis
   )
 where
 
-import           Control.Arrow
 import           Data.Foldable
 import           Data.Maybe
 import           Data.Typeable
@@ -87,7 +88,7 @@ class Typeable r ⇒ As r where
   type instance Sty r = ()
   type          Vis r ∷ Type
   type instance Vis r = ()
-  defName     ∷               Proxy r             → r
+  defAs       ∷               Proxy r             → r
   defSty      ∷               Proxy r             → Sty r
   compSty     ∷                     r             → Sty r
   compSty                           x             = defSty (proxy x)
@@ -102,13 +103,16 @@ instance As () where
   type Denoted () = ()
   type     Sty () = ()
   type     Vis () = ()
-  defName           _px   = ()
+  defAs             _px   = ()
   defSty            _px   = ()
   compSty            _x   = ()
-  sizeRequest  _port () () _sty = pure $ Di $ V2 Nothing Nothing
+  sizeRequest  _port () () _sty = pure diNothing
   setupVis     _port () () _sty _area      _drw = pure ()
   render       _port () () _sty       _vis _drw = pure ()
   freeVis           _px               _vis      = pure ()
+
+defName ∷ ∀ a. As a ⇒ IdToken → a → Name a
+defName tok n = Name tok defStyle defGeo n
 
 
 -- Note [Granularity and composite structures]
@@ -311,7 +315,7 @@ instance (Typeable c, Typeable k, Typeable p) ⇒ As (Node (c ∷ Type → Const
   type Denoted (Node c k p) = [Item c p]
   type Sty     (Node c k p) = ()
   type Vis     (Node c k p) = ()
-  defName  = undefined --VBoxN
+  defAs    = undefined --VBoxN
   defSty _ = ()
   -- compGeo (HBoxN _) = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
   -- compGeo (VBoxN _) = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
@@ -323,26 +327,25 @@ instance (Typeable c, Typeable k, Typeable p) ⇒ As (Node (c ∷ Type → Const
 
 -- * Constructors
 --
-node ∷ ∀ c a k. (a ~ Node c k PBlank, Typeable k)
-  ⇒ IdToken
-  → a
+node ∷ (a ~ Node c k PBlank, Typeable k)
+  ⇒ Name a
   → [Item c PBlank]
-  → Style a
   → Item c PBlank
-node tok i chi sty = Node (Name tok sty (nodeGeo i) i) chi diNothing mempty
+node name denoted = Node name denoted diNothing mempty
 
 leaf ∷ (As a, c (Denoted a))
-  ⇒ IdToken
-  → a
+  ⇒ Name a
   → Denoted a
-  → Style a
   → Item c PBlank
-leaf tok name denoted sty = Leaf (Name tok sty defGeo name) denoted diNothing mempty ()
+leaf name denoted = Leaf name denoted diNothing mempty ()
 
--- XXX: here's trouble -- we're using blankIdToken!  No messages for the nodes! ..not that they care yet..
 hbox, vbox ∷ [Item c PBlank] → Item c PBlank
-hbox chi = node Port.blankIdToken HBoxN chi (initStyle ())
-vbox chi = node Port.blankIdToken VBoxN chi (initStyle ())
+hbox chi = node (Name Port.blankIdToken (initStyle ()) (nodeGeo HBoxN) HBoxN) chi
+vbox chi = node (Name Port.blankIdToken (initStyle ()) (nodeGeo VBoxN) VBoxN) chi
+
+
+defLeaf ∷ (As a, c (Denoted a)) ⇒ IdToken → a → Denoted a → Item c PBlank
+defLeaf tok a denoted = leaf (defName tok a) denoted
 
 
 -- * Tree-wise ops
