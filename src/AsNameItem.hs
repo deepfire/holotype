@@ -30,13 +30,14 @@
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
 
-module HoloVis
+module AsNameItem
   ( As(..), defName
   , Style(..), sStyle, sStyleGene, initStyle, defStyle
   , StyleGene(..), fromStyleGene
-  , Visual(..)
+  , Visual(..), VPort
   --
   , Name(..)
+  --
   , IVisual
   , Phase(..)
   , Item(..), iLeafP, iToken, iGeo, iStyleGene, diNothing
@@ -55,7 +56,6 @@ module HoloVis
   , showTreeVisuals
   -- * reёxports
   , Drawable(..)
-  , VPort
   , module Flex
   )
 where
@@ -164,6 +164,18 @@ instance Port.PortVisual Visual where
     Visual{..} → freeVis pA vVisual
 
 
+-- * Name
+--    ..as per Пиотровский Р. Г. Текст, машина, человек — Л.: Наука, 1975
+--    Which is supposed to make sense in context of As/Denoted
+data Name a where
+  Name ∷
+    { nToken     ∷ IdToken
+    , nStyle     ∷ Style a
+    , nGeo       ∷ Geo
+    , n          ∷ a
+    } → Name a
+
+
 -- * Item
 --
 data Phase
@@ -175,14 +187,6 @@ type family IVisual (p ∷ Phase) a ∷ Type where
   IVisual PBlank  _ = ()
   IVisual PLayout _ = ()
   IVisual PVisual a = Maybe (Visual a)
-
-data Name a where
-  Name ∷
-    { nToken     ∷ IdToken
-    , nStyle     ∷ Style a
-    , nGeo       ∷ Geo
-    , n          ∷ a
-    } → Name a
 
 -- Phasing is TTG-inspired
 data Item (c ∷ Type → Constraint) (p ∷ Phase) where

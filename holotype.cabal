@@ -42,7 +42,7 @@ library
                   HoloOS
                   HoloPort
                   HoloPrelude
-                  HoloVis
+                  AsNameItem
 
                   Generics.SOP.Monadic
                   Reflex.Random

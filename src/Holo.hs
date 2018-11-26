@@ -31,7 +31,7 @@
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
 
 module Holo
-  ( module HoloVis
+  ( module AsNameItem
   --
   , liftWDynamic, liftWSeed, liftWStatic
   , Frame(..)
@@ -79,7 +79,7 @@ import           HoloPrelude
 
 import           HoloPort                                 (IdToken, Drawable, Frame)
 import qualified HoloPort                          as Port
-import           HoloVis
+import           AsNameItem
 
 
 class (As a, Denoted a ~ b) ⇒ Input a b where

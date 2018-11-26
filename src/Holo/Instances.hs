@@ -331,6 +331,11 @@ instance Holo Bool where
 
 -- * Settings
 --
+
+-- * Plan for ScreenDim
+-- 1. Need a new As for two fields
+-- 2. Co-opt lifted records?
+-- 3. If not, what?
 -- instance Holo a ⇒ Holo (Port.ScreenDim a) where
 --   type DefaultName (Port.ScreenDim a) =
 --   subscription tok _ = subSingleton tok $ InputEventMask GLFW.eventMaskFramebufferSize
