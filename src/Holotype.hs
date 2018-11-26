@@ -299,8 +299,9 @@ holotype win evCtl windowFrameE inputE = mdo
                   -- <> header   "A simple holotype."
                   <> Opt.progDesc "A simple holotype.")
   when oTrace $
-    liftIO $ setupTracer False [
-    (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
+    liftIO $ setupTracer False
+    [(ALLOC,     TOK,  TRACE, 0),(FREE,      TOK, TRACE, 0)
+    ,(SIZE,      HOLO, TRACE, 0)
     -- (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
     -- ,(MISSALLOC, VIS, TRACE, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
     -- ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
