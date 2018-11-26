@@ -25,7 +25,7 @@ module Flex
   , walk
   , dump, ppItemArea, showItemArea, ppItemSize
   --
-  , Geo(..), defaultGeo
+  , Geo(..), defGeo, defGeoDiff, ppdefGeoDiff
   , padding
   , margin
   , absolute
@@ -124,28 +124,63 @@ data Geo where
     deriving (Show)
 makeLenses ''Geo
 
-defaultGeo ∷ Geo
-defaultGeo = Geo
-  { _padding         = LRTB 0 0 0 0
-  , _margin          = LRTB 0 0 0 0
-  , _absolute        = LRTB Nothing Nothing Nothing Nothing
-  , _justify'content = AlignStart
-  , _align'content   = AlignStretch
-  , _align'items     = AlignStart
-  , _align'self      = AlignAuto
-  , _positioning     = Relative
-  , _direction       = DirColumn
-  , _wrap            = NoWrap
-  , _grow            = 0
-  , _shrink          = 1
-  , _order           = Nothing
-  , _basis           = 0
+deriving instance Eq (LRTB Double)
+deriving instance Eq (LRTB (Maybe Double))
+
+data GeoFieldValue
+  = GPadding             (LRTB Double)
+  | GMargin              (LRTB Double)
+  | GAbsolute            (LRTB (Maybe Double))
+  | GJustifyContent      Alignment
+  | GAlignContent        Alignment
+  | GAlignItems          Alignment
+  | GAlignSelf           Alignment
+  | GPositioning         Positioning
+  | GDirection           Direction
+  | GWrap                Wrapping
+  | GGrow                Int
+  | GShrink              Int
+  | GOrder               (Maybe Int)
+  | GBasis               Double
+  deriving (Show)
+
+defGeo ∷ Geo
+defGeo = Geo
+  { _padding           = LRTB 0 0 0 0
+  , _margin            = LRTB 0 0 0 0
+  , _absolute          = LRTB Nothing Nothing Nothing Nothing
+  , _justify'content   = AlignStart
+  , _align'content     = AlignStretch
+  , _align'items       = AlignStart
+  , _align'self        = AlignAuto
+  , _positioning       = Relative
+  , _direction         = DirColumn
+  , _wrap              = NoWrap
+  , _grow              = 0
+  , _shrink            = 1
+  , _order             = Nothing
+  , _basis             = 0
   }
 
-instance Semigroup Geo where
-  (<>) = error "Semigroup append not implemented for Flex.Geo."
-instance Monoid Geo where
-  mempty  = defaultGeo
+defGeoDiff ∷ Geo → [GeoFieldValue]
+defGeoDiff g =
+  (   let x = _padding         g in [GPadding        x | x ≢ _padding         defGeo])
+  <> (let x = _margin          g in [GMargin         x | x ≢ _margin          defGeo])
+  <> (let x = _absolute        g in [GAbsolute       x | x ≢ _absolute        defGeo])
+  <> (let x = _justify'content g in [GJustifyContent x | x ≢ _justify'content defGeo])
+  <> (let x = _align'content   g in [GAlignContent   x | x ≢ _align'content   defGeo])
+  <> (let x = _align'items     g in [GAlignItems     x | x ≢ _align'items     defGeo])
+  <> (let x = _align'self      g in [GAlignSelf      x | x ≢ _align'self      defGeo])
+  <> (let x = _positioning     g in [GPositioning    x | x ≢ _positioning     defGeo])
+  <> (let x = _direction       g in [GDirection      x | x ≢ _direction       defGeo])
+  <> (let x = _wrap            g in [GWrap           x | x ≢ _wrap            defGeo])
+  <> (let x = _grow            g in [GGrow           x | x ≢ _grow            defGeo])
+  <> (let x = _shrink          g in [GShrink         x | x ≢ _shrink          defGeo])
+  <> (let x = _order           g in [GOrder          x | x ≢ _order           defGeo])
+  <> (let x = _basis           g in [GBasis          x | x ≢ _basis           defGeo])
+
+ppdefGeoDiff ∷ Geo → String
+ppdefGeoDiff g = intercalate "." $ show <$> defGeoDiff g
 
 
 -- * API
