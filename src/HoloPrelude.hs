@@ -22,6 +22,7 @@ module HoloPrelude
   , IsString
   , MonadIO, liftIO
   , Pretty(..)
+  , HexShow(..)
   --
   , (<>)
   , assert
@@ -64,6 +65,7 @@ import           Debug.Trace                              (trace)
 import           GHC.Generics                             (Generic)
 import           GHC.Stack                                (HasCallStack)
 import           GHC.Types                         hiding (Constraint, Word)
+import           Numeric
 import           Numeric.Extra                            (doubleToFloat)
 import           Linear                            hiding (trace)
 import           Prelude                           hiding ((.), Word, words)
@@ -78,6 +80,11 @@ import           Elsewhere
 import           Tracer
 
 -- * Pretty
+newtype HexShow = HexShow Int
+
+instance Show HexShow where
+  show (HexShow x) = showHex x ""
+
 dumpPretty ∷ Pretty a ⇒ Int → a → IO ()
 dumpPretty = Data.Text.Lazy.IO.putStrLn .: ppPretty
 
