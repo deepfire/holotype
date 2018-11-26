@@ -36,7 +36,7 @@ module Holo.Instances
   --
   , TextStyle, TextVisual
   , tsFontKey, tsSizeSpec, tsColor
-  , TextLine
+  , TextLine(..)
   --
   , ConsCtx, FieldCtx
   )

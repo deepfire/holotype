@@ -80,7 +80,7 @@ import qualified Flex
 
 import           HoloPrelude                       hiding ((<>))
 import           Holo.Instances
-import           Holo                                     ( Vis
+import           Holo                                     ( As(..), Vis
                                                           , Holo, HoloBlank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
                                                           , Static(..)
                                                           , Widget, liftW, liftWDynamic
@@ -169,7 +169,7 @@ mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
   -- (subD, textD) ← mkTextEntryStyleD mux styleB initialV
-  W (subD, textD) ← Holo.liftW mux initialV
+  W (subD, textD) ← Holo.liftW mux TextLine initialV
   initial ← sample $ current textD
   foldDyn (\(new, newHoloi) (oldValid, _)→
                (if testF new then new else oldValid, newHoloi))
@@ -202,7 +202,7 @@ nextFrame win windowFrameE = performEvent $ windowFrameE <&>
     -- GL.flush  -- not necessary, but someone recommended it
     GLFW.pollEvents
 
-trackStyle ∷ (Holo a, RGLFW t m) ⇒ Dynamic t (Sty a) → m (Dynamic t (Style a))
+trackStyle ∷ (As a, RGLFW t m) ⇒ Dynamic t (Sty a) → m (Dynamic t (Style a))
 trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
@@ -240,27 +240,27 @@ scene ∷ ∀ t m. ( RGLFW t m
   → m (WH t)
 scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
-  fpsD             ← liftWDynamic (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
-  statsD           ← liftWDynamic $ statsValD <&>
+  fpsD             ← liftWDynamic TextLine (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  statsD           ← liftWDynamic TextLine $ statsValD <&>
                      \(mem)→ T.pack $ printf "mem: %d" mem
 
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
-  rectD            ← liftWDynamic $ zipDynWith Rect rectDiD (constDyn $ co 1 0 0 1)
-  frameCountD      ← liftWDynamic $ T.pack ∘ printf "frame #%04d" <$> frameNoD
+  rectD            ← liftWDynamic Rect rectDiD
+  frameCountD      ← liftWDynamic TextLine $ T.pack ∘ printf "frame #%04d" <$> frameNoD
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
-  varlenTextD      ← liftWDynamic $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
+  varlenTextD      ← liftWDynamic TextLine $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
   -- xStts            ← liftRecord muxV defSettingsV
   xDD@(W (_, xDDv)) ← liftWRecord @(Static t AnObject) (eV, AnObject "yayyity" "lol" True)
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
-  xSD@(W (_, xSDv)) ← liftWRecord @(Static t Port.Settings) (eV, defSettingsV)
+  -- xSD@(W (_, xSDv)) ← liftWRecord @(Static t Port.Settings) (eV, defSettingsV)
 
-  longStaticTextD  ← liftW eV ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
+  longStaticTextD  ← liftW eV TextLine ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
-  let fontNameStyle name = Holo.defSty (Proxy @Text) & tsFontKey .~ Cr.FK name
+  let fontNameStyle name = Holo.defSty (Proxy @TextLine) & tsFontKey .~ Cr.FK name
 
-  W styleEntryD ← mkTextEntryValidatedStyleD eV styleB "defaultSans" $
+  W styleEntryD    ← mkTextEntryValidatedStyleD eV styleB "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
 
   styleD           ← trackStyle $ fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) (snd styleEntryD))
@@ -352,7 +352,10 @@ holotype win evCtl windowFrameE inputE = mdo
       sceneDrawE     = attachPromptlyDyn sceneLaidTreeD portFrameE
   drawnPortE       ← performEvent $ sceneDrawE <&>
                      \(tree, (,) port f@Port.Frame{..}) → do
-                       -- Flex.dump (\x→ "La: "<>Flex.ppItemArea x<>" ← "<>Flex.ppItemSize x) tree
+                       -- let ppItem = \case
+                       --       x@Holo.Node{..} → "N: "<>Flex.ppItemArea x<>" ← "<>Flex.ppItemSize x<>" geoΔ: "<>Flex.ppdefGeoDiff (Holo.iGeo x)
+                       --       x@Holo.Leaf{..} → "L: "<>Flex.ppItemArea x<>" ← "<>Flex.ppItemSize x<>" geoΔ: "<>Flex.ppdefGeoDiff (Holo.iGeo x)
+                       -- Flex.dump ppItem tree
                        let leaves = Holo.treeLeaves tree
                        -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
                        Port.portGarbageCollectVisuals port leaves
