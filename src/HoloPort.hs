@@ -84,6 +84,8 @@ import qualified LambdaCube.Linear                 as LCLin
 import qualified System.IO.Unsafe                  as IO
 import qualified Unsafe.Coerce                     as Co
 
+import qualified Debug.Trace                       as DBG
+
 -- Local imports
 import           Flatland
 import           HoloCairo                                (FKind(..))
@@ -386,9 +388,6 @@ buildPipelineForStorage storage pipelineSrc = liftIO $ do
 
 -- * A Pango/Cairo-capable 'Drawable' with an artificial identity.
 --
-portMakeDrawable ∷ (MonadIO m) ⇒ Port f → IdToken → Di Double → m Drawable
-portMakeDrawable Port{..} = makeDrawable portObjectStream
-
 clearDrawable ∷ (MonadIO m) ⇒ Drawable → m ()
 clearDrawable Drawable{..} = do
   Cr.runCairo dCairo $ do
@@ -408,10 +407,10 @@ imageSurfaceGetPixels' pb = do
   return (pixPtr, V2 r h)
 
 makeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → IdToken → Di Double → m Drawable
-makeDrawable dObjectStream@ObjectStream{..} ident dDi' = liftIO $ do
+makeDrawable dObjectStream@ObjectStream{..} tok dDi' = liftIO $ do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
-  unless (w * h ≢ 0) $
-    error $ printf "makeDrawable: zero dimensions are not acceptable: %s" (show dDi')
+  unless (w > 0 ∧ h > 0) $
+    error $ printf "makeDrawable: non-positive dimensions are not acceptable (token=0x%x): %s" (tokenHash tok) (show $ dDi'^.di'v)
   dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
   dCairo        ← Cr.cairoCreate  dSurface
   dGIC          ← Cr.cairoToGICairo dCairo
