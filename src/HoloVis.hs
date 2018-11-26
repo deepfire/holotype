@@ -39,10 +39,11 @@ module HoloVis
   , Name(..)
   , IVisual
   , Phase(..)
-  , Item(..), iLeafP, iToken, iStyleGene, diNothing
+  , Item(..), iLeafP, iToken, iGeo, iStyleGene, diNothing
   , Node(..)
   , node, leaf
   , hbox, vbox
+  , traceIGeoDiff
   , iSizeRequest
   , iMandateVisual, iUnvisual
   , iRender
@@ -52,24 +53,25 @@ module HoloVis
   , showTreeVisuals
   -- * reёxports
   , Drawable(..)
-  , Flex(..)
   , VPort
+  , module Flex
   )
 where
 
+import           Control.Arrow
 import           Data.Foldable
 import           Data.Maybe
 import           Data.Typeable
 import           GHC.Types                                (Constraint)
 import           Generics.SOP                             (Proxy)
-import           Linear
+import           Linear                            hiding (trace)
 import qualified Data.Map.Strict                   as Map
 import qualified Unsafe.Coerce                     as Co
 
 -- Local imports
 import           HoloPrelude
 
-import           Flex                                     (Geo, Flex(..))
+import           Flex                                     (Geo, defGeo, Flex(..))
 import qualified Flex                              as Flex
 
 import           Flatland
@@ -206,6 +208,11 @@ iToken = \case
   Leaf{name=Name{..},..} → nToken
   Node{name=Name{..},..} → nToken
 
+iGeo ∷ Item c p → Geo
+iGeo = \case
+  Leaf{name=Name{..},..} → nGeo
+  Node{name=Name{..},..} → nGeo
+
 iStyleGene ∷ Item c p → StyleGene
 iStyleGene = \case
   Leaf{name=Name{..},..} → _sStyleGene nStyle
@@ -230,20 +237,22 @@ instance Flex (Item c (a ∷ Phase)) where
   children f i@Leaf{..} = (\_→ i)                               <$> f []
   children f   Node{..} = (\x→ Node {denoted=x, ..})            <$> f denoted
 
+traceIGeoDiff ∷ String → Item a b → Item a b
+traceIGeoDiff desc x = trace (desc<>" geoΔ: "<>Flex.ppdefGeoDiff (iGeo x)) x
+
 iSizeRequest ∷ ∀ c m. (MonadIO m, Typeable c) ⇒ VPort → Item c PBlank → m (Item c PLayout)
 iSizeRequest port Leaf{name=name@Name{..},..} = do
-  size ← sizeRequest port n denoted (_sStyle $ nStyle)
-  trev SIZE HOLO size $ Port.tokenHash nToken
-  pure Leaf{iSize=(size ∷ Di (Maybe Double)), iArea=mempty, ..}
-iSizeRequest port hoi@Node{name=Name{..},..} =
-  queryOne port hoi =<< (sequence $ iSizeRequest port <$> denoted)
-  where queryOne ∷ VPort → Item c PBlank → [Item c PLayout] → m (Item c PLayout)
-        queryOne port hoi children =
-          case hoi of
-            Node{name=name@Name{..},..} → do
-              size ← sizeRequest port n denoted (_sStyle $ nStyle)
-              trev SIZE HOLO size (Port.tokenHash nToken)
-              pure Node{name=nodeNameBtoL name, iSize=size, iArea=mempty, denoted=children, ..}
+  --
+  iSize ← sizeRequest port n denoted (_sStyle $ nStyle)
+  trev SIZE HOLO iSize $ Port.tokenHash nToken
+  pure Leaf{iArea=mempty, ..}
+iSizeRequest port Node{name=name',iSize=_,..} = do
+  chi ← (sequence $ iSizeRequest port <$> denoted)
+  let name@Name{..} = nodeNameBtoL name'
+  --
+  size ← sizeRequest port n chi (_sStyle $ nStyle)
+  trev SIZE HOLO size (Port.tokenHash nToken)
+  pure $ Node{iArea=mempty, iSize=size, denoted=chi, ..}
 
 iMandateVisual ∷ (HasCallStack, MonadIO m) ⇒ VPort → Item c PLayout → [Item c PVisual] → m (Item c PVisual)
 iMandateVisual port hi children = case hi of
@@ -286,8 +295,8 @@ boxAxis HBoxN = X
 boxAxis VBoxN = Y
 
 nodeGeo ∷ Node c k p → Geo
-nodeGeo HBoxN = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
-nodeGeo VBoxN = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
+nodeGeo HBoxN = defGeo & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
+nodeGeo VBoxN = defGeo & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
 
 nodeNameBtoL ∷ Name (Node c k PBlank)  → Name (Node c k PLayout)
 nodeNameBtoL = Co.unsafeCoerce
@@ -306,9 +315,10 @@ instance (Typeable c, Typeable k, Typeable p) ⇒ As (Node (c ∷ Type → Const
   defSty _ = ()
   -- compGeo (HBoxN _) = mempty & Flex.direction .~ Flex.DirRow    & Flex.align'content .~ Flex.AlignStart
   -- compGeo (VBoxN _) = mempty & Flex.direction .~ Flex.DirColumn & Flex.align'content .~ Flex.AlignStart
-  sizeRequest _ box chi _ =
+  sizeRequest _ box chi _ = do
     -- Requirement is a sum of children requirements
-    pure $ (Just <$>) $ _reqt'di $ foldl' (reqt'add $ boxAxis box) zero $ (\x→ Reqt (fromMaybe 0 <$> x^.Flex.size)) <$> chi
+    let chireqs = (\x→ (,) (iToken x) $ Reqt (fromMaybe 0 <$> x^.Flex.size)) <$> chi
+    pure $ Just <$> (_reqt'di $ foldl' (reqt'add $ boxAxis box) zero (snd <$> chireqs))
 
 
 -- * Constructors
@@ -327,7 +337,7 @@ leaf ∷ (As a, c (Denoted a))
   → Denoted a
   → Style a
   → Item c PBlank
-leaf tok name denoted sty = Leaf (Name tok sty mempty name) denoted diNothing mempty ()
+leaf tok name denoted sty = Leaf (Name tok sty defGeo name) denoted diNothing mempty ()
 
 -- XXX: here's trouble -- we're using blankIdToken!  No messages for the nodes! ..not that they care yet..
 hbox, vbox ∷ [Item c PBlank] → Item c PBlank
