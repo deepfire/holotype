@@ -84,7 +84,7 @@ import           HoloVis
 
 class (As a, Denoted a ~ b) ⇒ Input a b where
 
-class (As (DefaultName a), Denoted (DefaultName a) ~ a) ⇒ Holo a where
+class (As (DefaultName a), Denoted (DefaultName a) ~ a, Typeable a) ⇒ Holo a where
   type DefaultName a ∷ Type
   -- type CLiftW   t (m ∷ Type → Type) a ∷ Constraint
   hasVisual       ∷                                                               Proxy a → Bool
@@ -102,7 +102,7 @@ class (As (DefaultName a), Denoted (DefaultName a) ~ a) ⇒ Holo a where
   liftW           = liftWSeed
 
 compToken ∷ ∀ m a. (Holo a, MonadIO m) ⇒ Proxy a → m IdToken
-compToken (hasVisual → True) = Port.newId
+compToken (hasVisual → True) = Port.newId $ showT $ typeRep (Proxy @a)
 compToken _                  = pure Port.blankIdToken
 
 
@@ -283,9 +283,9 @@ instance Holo () where
   type DefaultName () = ()
 
 instance Semigroup (Item Holo PBlank)  where _ <> _ = mempty
-instance Monoid    (Item Holo PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) mempty ()) () diNothing mempty mempty
+instance Monoid    (Item Holo PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () diNothing mempty mempty
 instance Semigroup (Item Holo PLayout) where _ <> _ = mempty
-instance Monoid    (Item Holo PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) mempty ()) () diNothing mempty mempty
+instance Monoid    (Item Holo PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () diNothing mempty mempty
 
 -- instance (Typeable c, Typeable p) ⇒ Holo (Node c k p) where
 --   type DefaultName (Node c k p) = ()

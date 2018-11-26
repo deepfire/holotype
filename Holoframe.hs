@@ -65,7 +65,7 @@ main = do
   GL.glDisable GL.GL_DEPTH_TEST
   GL.glDisable GL.GL_STENCIL_TEST
 
-  tokenV           ← newId
+  tokenV           ← newId "desc"
   let rectD         = di 200 200
       valD@(Holo.Rect _ _)
                     = Holo.Rect rectD (co 1 0 0 1)

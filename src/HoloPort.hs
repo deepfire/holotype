@@ -420,7 +420,7 @@ makeDrawable dObjectStream@ObjectStream{..} ident dDi' = liftIO $ do
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
       position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
       texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
-      ids      = V.fromList $ L.replicate 6 $ fromIntegral (tokenHash ident)
+      ids      = V.fromList $ L.replicate 6 $ fromIntegral (tokenHash tok)
       dMesh    = LC.Mesh { mPrimitive  = P_Triangles
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                       , ("uv",        A_V2F texcoord)
@@ -535,16 +535,16 @@ instance Show IdToken where
 fromIdToken ∷ IdToken → U.Unique
 fromIdToken = fromIdToken'
 
-newId ∷ (HasCallStack, MonadIO m) ⇒ m IdToken
-newId = liftIO $ do
+newId ∷ (HasCallStack, MonadIO m) ⇒ T.Text → m IdToken
+newId desc = liftIO $ do
   tok ← U.newUnique
-  trev ALLOC TOK (U.hashUnique tok) (U.hashUnique tok)
+  trev ALLOC TOK desc (U.hashUnique tok)
   pure $ IdToken tok
 
 blankIdToken'      ∷ IO.IORef IdToken
 blankIdToken'      = IO.unsafePerformIO $ IO.newIORef  undefined
 blankIdToken'setup ∷ IO ()
-blankIdToken'setup = IO.writeIORef blankIdToken' =<< newId
+blankIdToken'setup = IO.writeIORef blankIdToken' =<< newId "blank"
 blankIdToken       ∷ IdToken
 blankIdToken       = IO.unsafePerformIO $ IO.readIORef blankIdToken'
 {-# NOINLINE blankIdToken #-}

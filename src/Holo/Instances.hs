@@ -102,7 +102,7 @@ instance ( RGLFW t m
          , ConsCtx t u ~ (InputEventMux t, Structure u)) ⇒
          HasReadField t m u a where
   readField _ _ (mux, initV ∷ a) (FieldName fname) = O $ do
-    tok ← liftIO Port.newId
+    tok ← liftIO $ Port.newId $ "record label '" <> fname <> "'"
     let package x = hbox [leaf tok TextLine (fname <> ": ") defStyle, x]
     W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftW mux (defName $ Proxy @(DefaultName a)) initV
 
