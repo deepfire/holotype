@@ -398,11 +398,11 @@ clearDrawable Drawable{..} = do
     GRC.paint
     GRC.restore
 
-imageSurfaceGetPixels' :: GRC.Surface → IO (F.Ptr F.CUChar, V2 Int)
+imageSurfaceGetPixels' ∷ HasCallStack ⇒ GRC.Surface → IO (F.Ptr F.CUChar, V2 Int)
 imageSurfaceGetPixels' pb = do
   pixPtr ← GRCI.imageSurfaceGetData pb
   when (pixPtr ≡ F.nullPtr) $ do
-    fail "imageSurfaceGetPixels: image surface not available"
+    error "imageSurfaceGetPixels: image surface not available"
   h ← GRC.imageSurfaceGetHeight pb
   r ← GRC.imageSurfaceGetStride pb
   return (pixPtr, V2 r h)

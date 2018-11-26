@@ -160,16 +160,16 @@ main = do
       pipelineSrc  = "Holotype.lc"
 
   _ ← LCC.compileMain ["lc"] LCC.OpenGL33 pipelineSrc >>= \case
-    Left  err → fail "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err) >> return False
+    Left  err → error "-- error compiling %s:\n%s\n" pipelineSrc (ppShow err) >> return False
     Right ppl → LB.writeFile pipelineJSON (AE.encode ppl)                    >> return True
   let paths = [pipelineJSON]
   validPaths ← filterM FS.doesFileExist paths
   when (Prelude.null validPaths) $
-    fail $ "GPU pipeline " ++ pipelineJSON ++ " couldn't be found in " ++ show paths
+    error $ "GPU pipeline " ++ pipelineJSON ++ " couldn't be found in " ++ show paths
 
   renderer ← printTimeDiff "-- allocating GPU pipeline (GL.allocRenderer)... " $ do
     AE.eitherDecode <$> LB.readFile (Prelude.head validPaths) >>= \case
-      Left err  → fail err
+      Left err  → error err
       Right ppl → GL.allocRenderer ppl
 
   _ ← GL.setStorage renderer glstorage <&>
