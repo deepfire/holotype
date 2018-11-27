@@ -29,7 +29,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults -fconstraint-solver-iterations=0 #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
 module Holo.Instances
   ( liftWRecord
   , Rect(..)
@@ -221,12 +221,14 @@ instance As TextLine where
     Cr.unbindFontLayout tFont tLayout
 
 
+instance Mutable T.Text where
+  subscription tok _ = subSingleton tok editMaskKeys
+  mutate initial ev =
+    (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
+
 instance Holo T.Text where
   type DefaultName T.Text = TextLine
   hasVisual _ = True
-  subscription tok _ = subSingleton tok editMaskKeys
-  liftHoloDyn initial ev =
-    (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
 
 data EditEvent where
   Edit ∷
@@ -322,11 +324,13 @@ instance As Switch where
     Port.drawableContentToGPU d
 -- paintRoundedRect color lw@(Th lineWeight) r@(R radius) (Wi interfocal) (Pad pad) = do
 
+instance Mutable Bool where
+  subscription tok _ = subSingleton tok inputMaskClick1Press
+  mutate  initial ev = foldDyn (\_ v → not v) initial ev
+
 instance Holo Bool where
   type DefaultName Bool  = Switch
   hasVisual            _ = True
-  subscription    tok  _ = subSingleton tok inputMaskClick1Press
-  liftHoloDyn initial ev = foldDyn (\_ v → not v) initial ev
 
 
 -- -- * Named tuple

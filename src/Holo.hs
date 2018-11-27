@@ -25,6 +25,7 @@
 {-# LANGUAGE TypeInType #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Weverything #-}
@@ -91,12 +92,12 @@ import           AsNameItem
 -- * Mutability:  Mutable, InputEvent & Subscription
 --
 class Mutable a where
-  subscription ∷                                         IdToken → Proxy a → Subscription
+  subscription ∷                    IdToken → Proxy a → Subscription
   subscription = const mempty         -- ignore events
-  mutate       ∷ (Applicative m, Reflex t) ⇒ a → Event t InputEvent → m (Dynamic t a)
+  mutate       ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
   mutate       = immutable
 
-immutable ∷ (Reflex t, Applicative m) ⇒ a → Event t InputEvent → m (Dynamic t a)
+immutable ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
 immutable init _ev = pure $ constDyn init
 
 type InputEventMux t     = EventSelector t (Const2 IdToken InputEvent)
@@ -191,7 +192,12 @@ defCompName ∷ As n ⇒ Proxy a → IdToken → n → Name n
 defCompName _ tok n = Name tok (initStyle $ compSty n) defGeo n
 
 
-class (Typeable b) ⇒ Holo b where
+class ( As (DefaultName b)
+      , Mutable (Denoted (DefaultName b))
+      , Holo (Denoted (DefaultName b))
+      , Typeable b
+      ) ⇒
+      Holo b where
   type DefaultName b ∷ Type
   hasVisual    ∷                                                                                                        Proxy b → Bool
   liftDynW     ∷ (As n, Denoted n ~ a, Mutable a, Holo a, Interp a b, Named a b, Holo b, RGLFW t m) ⇒ IdToken → n → Dynamic t a → m (Widget t b)
@@ -307,6 +313,9 @@ ensureTreeVisuals port i = case i of
 
 -- * Concrete, minimal case, to keep us in check
 --
+instance Mutable () where
+  mutate = immutable
+
 instance Holo () where
   type DefaultName () = ()
 
