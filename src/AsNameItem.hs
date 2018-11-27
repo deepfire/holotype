@@ -14,6 +14,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -35,6 +36,8 @@ module AsNameItem
   , Style(..), sStyle, sStyleGene, initStyle, defStyle
   , StyleGene(..), fromStyleGene
   , Visual(..), VPort
+  --
+  , Interp(..)
   --
   , Name(..)
   --
@@ -66,7 +69,9 @@ import           Data.Typeable
 import           GHC.Types                                (Constraint)
 import           Generics.SOP                             (Proxy)
 import           Linear                            hiding (trace)
+import           Text.Read                                (readMaybe)
 import qualified Data.Map.Strict                   as Map
+import qualified Data.Text                         as T
 import qualified Unsafe.Coerce                     as Co
 
 -- Local imports
@@ -113,6 +118,21 @@ instance As () where
 
 defName ∷ ∀ a. As a ⇒ IdToken → a → Name a
 defName tok n = Name tok defStyle defGeo n
+
+
+-- * Interp
+--
+class Interp (a ∷ Type) (b ∷ Type) where
+  interp        ∷ a → Maybe b
+  forget        ∷ b → a
+
+instance Interp a a where
+  interp        = Just
+  forget        = id
+
+instance (Read b, Show b) ⇒ Interp T.Text b where
+  interp        = readMaybe ∘ T.unpack
+  forget        = T.pack ∘ show
 
 
 -- Note [Granularity and composite structures]

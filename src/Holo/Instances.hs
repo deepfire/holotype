@@ -282,7 +282,7 @@ data SwitchStyle
 --  \   \          /                     /
 --   \   \_______/`                     /`
 --    \                                /
---     `------------------------------'
+--     ```--------------------------'''
 --
 -- defSty      ∷               Proxy r             → Sty r
 -- compSty     ∷                     r             → Sty r
@@ -327,6 +327,12 @@ instance Holo Bool where
   hasVisual            _ = True
   subscription    tok  _ = subSingleton tok inputMaskClick1Press
   liftHoloDyn initial ev = foldDyn (\_ v → not v) initial ev
+
+
+-- -- * Named tuple
+-- --
+-- data NamedTuple a b
+--   = NamedTuple ((Text, a), (Text, b))
 
 
 -- * Settings
