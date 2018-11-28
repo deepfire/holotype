@@ -192,16 +192,10 @@ defCompName ∷ As n ⇒ Proxy a → IdToken → n → Name n
 defCompName _ tok n = Name tok (initStyle $ compSty n) defGeo n
 
 
-class ( As (DefaultName b)
-      , Mutable (Denoted (DefaultName b))
-      , Holo (Denoted (DefaultName b))
-      , Typeable b
-      ) ⇒
-      Holo b where
-  type DefaultName b ∷ Type
+class (Typeable b) ⇒ Holo b where
   hasVisual    ∷                                                                                                        Proxy b → Bool
-  liftDynW     ∷ (As n, Denoted n ~ a, Mutable a, Holo a, Interp a b, Named a b, Holo b, RGLFW t m) ⇒ IdToken → n → Dynamic t a → m (Widget t b)
-  liftW        ∷ (As n, Denoted n ~ a, Mutable a, Holo a, Interp a b, Named a b, Holo b, RGLFW t m) ⇒   InputEventMux t → n → b → m (Widget t b)
+  liftDynW     ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m) ⇒ IdToken → n → Dynamic t a → m (Widget t b)
+  liftW        ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m) ⇒   InputEventMux t → n → b → m (Widget t b)
   --
   hasVisual    = const False          -- no visual by default
   liftDynW     = liftDynWStaticSubs
@@ -214,7 +208,10 @@ compToken _                  = pure Port.blankIdToken
 
 -- * The final lift:  W(-idget)
 --
-type HoloBlank      = Item Holo PBlank
+class Unconstr a where
+instance Unconstr a where
+
+type HoloBlank      = Item Unconstr PBlank
 type WH       t     = (Dynamic t Subscription, Dynamic t HoloBlank)
 
 -- Result of the lifts -- the Widget:
@@ -265,23 +262,27 @@ newtype Static t a = Static a -- XXX: once we're successful with the lift, let's
 --            , constDyn (initial, leaf (compName (Proxy @a) tok n) initial))
 
 liftWDynamic ∷ ∀ m t n a b.
-  (As n, Denoted n ~ a, Mutable a, Holo a, Interp a b, Named a b, Holo b, RGLFW t m)
+  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
   ⇒ n → Dynamic t a → m (Widget t b)
 liftWDynamic n da = do
   tok ← compToken $ Proxy @b
   liftDynWStaticSubs tok n da
 
 
--- scanDynMaybe ∷ (a → b) → (a → b → Maybe b) → Dynamic t a → m (Dynamic t b)
-interpretate ∷ (As n, Denoted n ~ a, Interp a b, Holo a, RGLFW t m) ⇒ Name n → Dynamic t a → m (Dynamic t (b, HoloBlank))
+-- interpretate needed 'Holo a', because:
+--   Could not deduce (Holo a) arising from a use of ‘leaf’
+--   ..which needs it because it's an Item, which is constrained on Holo.
+interpretate ∷ (As n, Denoted n ~ a, Interp a b, RGLFW t m) ⇒ Name n → Dynamic t a → m (Dynamic t (b, HoloBlank))
 interpretate name dyn = scanDynMaybe (fromMaybe (error "Cannot interpret initial value.") *** id)
                         (\x _ -> case x of
                                    (Just val, item) → Just (val, item)
                                    _                → Nothing) $
                         (interp &&& leaf name) <$> dyn
 
+-- liftDynWStaticSubs needed 'Holo a', because:
+--   interpretate needed it
 liftDynWStaticSubs ∷ ∀ m t n a b.
-  (As n, Denoted n ~ a, Mutable a, Holo a, Interp a b, Named a b, RGLFW t m)
+  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, RGLFW t m)
   ⇒ IdToken → n → Dynamic t a → m (Widget t b)
 liftDynWStaticSubs tok n db = do
   let name ∷ Name n = compName (Proxy @(a, b)) tok n
@@ -291,7 +292,7 @@ liftDynWStaticSubs tok n db = do
 -- ← liftHoloDynStatic
 -- ← liftDynWStaticSubs
 liftWSeed ∷ ∀ m t n a b.
-  (As n, Denoted n ~ a, Mutable a, Holo a, Interp a b, Named a b, Holo b, RGLFW t m)
+  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
   ⇒ InputEventMux t → n → b → m (Widget t b)
 liftWSeed imux n initial = do
   tok ← compToken $ Proxy @b
@@ -317,15 +318,13 @@ instance Mutable () where
   mutate = immutable
 
 instance Holo () where
-  type DefaultName () = ()
 
-instance Semigroup (Item Holo PBlank)  where _ <> _ = mempty
-instance Monoid    (Item Holo PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () diNothing mempty mempty
-instance Semigroup (Item Holo PLayout) where _ <> _ = mempty
-instance Monoid    (Item Holo PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () diNothing mempty mempty
+instance Semigroup (Item As PBlank)  where _ <> _ = mempty
+instance Monoid    (Item As PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () diNothing mempty mempty
+instance Semigroup (Item As PLayout) where _ <> _ = mempty
+instance Monoid    (Item As PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () diNothing mempty mempty
 
 -- instance (Typeable c, Typeable p) ⇒ Holo (Node c k p) where
---   type DefaultName (Node c k p) = ()
 
 -- instance Semigroup (Item PLayout) where
 --   l <> r = vbox [l, r]

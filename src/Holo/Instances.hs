@@ -47,6 +47,7 @@ import           Control.Compose
 import           Data.Proxy
 import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
+import           Data.Typeable
 import           Generics.SOP.Monadic
 import           Linear
 import           Prelude                           hiding ((.), id)
@@ -54,6 +55,7 @@ import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW                              (RGLFW, InputU(..))
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
+import qualified Data.TypeMap.Dynamic              as TM
 import qualified Generics.SOP                      as SOP
 import qualified GI.Pango                          as GIP
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
@@ -88,25 +90,41 @@ liftWRecord ctxR = unO $ recover (Proxy @(RGLFW t m)) (Proxy @(t, a)) ctxR
 -- 3. 1+2 ?→ Field definition not proportional to structure and field types
 -- 4. …
 
-instance ( RGLFW t m
-         , Holo a
-         , d ~ Result t
-         , ConsCtx t u ~ (InputEventMux t, Structure u)) ⇒
-         HasFieldCtx t m u a where
-  type instance FieldCtx t a  = (InputEventMux t, a)
-  fieldCtx _ (mux, x) proj = (mux, proj x)
+-- * A style map of types to their As instances.
+data WXs where
+  WXs ∷ (As a, Mutable (Denoted a)) ⇒ a → WXs
+
+data TypeAsTag
+type instance TM.Item TypeAsTag a = WXs
+newtype TypeAs = AsMap (TM.TypeMap TypeAsTag)
 
 instance ( RGLFW t m
          , Holo a
          , d ~ Result t
-         , ConsCtx t u ~ (InputEventMux t, Structure u)) ⇒
+         , ConsCtx t u ~ (InputEventMux t, TypeAs, Structure u)) ⇒
+         HasFieldCtx t m u a where
+  type instance FieldCtx t a  = (InputEventMux t, TypeAs, a)
+  fieldCtx _ (mux, tas, x) proj =
+    let fP = proxy $ proj x
+    in (mux, tas, proj x)
+
+instance ( RGLFW t m
+         , Holo a
+         , d ~ Result t
+         , ConsCtx t u ~ (InputEventMux t, TypeAs, Structure u)) ⇒
          HasReadField t m u a where
-  readField _ _ (mux, initV ∷ a) (FieldName fname) = O $ do
+  readField _ _ (mux, AsMap tam, initV ∷ a) (FieldName fname) = O $ do
     tok ← liftIO $ Port.newId $ "record label '" <> fname <> "'"
-    let package x = hbox [ defLeaf tok TextLine (fname <> ": ")
-                         , x
-                         ]
-    W ∘ (id *** (<&> (id *** package))) ∘ fromW <$> liftW mux (defAs $ Proxy @(DefaultName a)) initV
+    let addLabel x = hbox [ defLeaf tok TextLine (fname <> ": ")
+                          , x
+                          ]
+        fP = Proxy @a
+    case TM.lookup fP tam of
+      Nothing      → error $ printf "Record recovery has no As element for field of type %s." (show $ typeRep fP)
+      Just (WXs x) →
+        W ∘ (id *** (<&> (id *** addLabel))) ∘ fromW <$> liftW mux (defAs $ proxy x) initV
+        -- liftW ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
+        -- ⇒ InputEventMux t → n → b → m (Widget t b)
 
 -- record lifting for Dynamic initials
 type instance ConsCtx  t (Dynamic t a) = Dynamic t a
@@ -155,7 +173,6 @@ instance As Rect where
     Port.drawableContentToGPU drw
 
 instance Holo (Di (Unit PU)) where
-  type DefaultName (Di (Unit PU)) = Rect
   hasVisual                     _ = True
 
 
@@ -227,7 +244,6 @@ instance Mutable T.Text where
     (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
 
 instance Holo T.Text where
-  type DefaultName T.Text = TextLine
   hasVisual _ = True
 
 data EditEvent where
@@ -329,7 +345,6 @@ instance Mutable Bool where
   mutate  initial ev = foldDyn (\_ v → not v) initial ev
 
 instance Holo Bool where
-  type DefaultName Bool  = Switch
   hasVisual            _ = True
 
 
@@ -347,7 +362,6 @@ instance Holo Bool where
 -- 2. Co-opt lifted records?
 -- 3. If not, what?
 -- instance Holo a ⇒ Holo (Port.ScreenDim a) where
---   type DefaultName (Port.ScreenDim a) =
 --   subscription tok _ = subSingleton tok $ InputEventMask GLFW.eventMaskFramebufferSize
 
 -- instance Vis  Port.ScreenMode where
