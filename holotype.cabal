@@ -82,6 +82,7 @@ library
                      , filepath
                      , free
                      , freer-simple
+                     , fused-effects
                      -- , fsnotify
                      , generics-sop
                      , ghc-prim

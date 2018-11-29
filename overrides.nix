@@ -155,6 +155,10 @@ with pkgs.haskell.lib; with self; {
 
   ## Non-code, configuration-only change
 
+  fused-effects = overrideCabal super.fused-effects (drv: {
+    jailbreak       = true;
+  });
+
   hoogle-index = overrideCabal super.hoogle-index (drv: {
     jailbreak       = true;
   });
