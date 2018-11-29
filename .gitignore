@@ -33,7 +33,7 @@
 
 /lc/PipePick.lc
 
-/.ghc.environment*
+.ghc.environment*
 .stack-work/
 nohup.out
 

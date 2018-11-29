@@ -11,6 +11,11 @@ build-type:          Simple
 extra-source-files:  README.org
 cabal-version:       >=1.10
 
+Flag thinerr
+  Description: Enable thinerr plugin support
+  Default:     False
+  Manual:      True
+
 executable holotype
   hs-source-dirs:      .
   main-is:             Main.hs
@@ -141,7 +146,9 @@ library
                      , vector
                      , wl-pprint-extras
                      , wl-pprint-text
-
+  if flag(thinerr)
+    build-depends:     thinerr
+    
 test-suite test
   main-is:             Driver.hs
   hs-source-dirs:      tests
