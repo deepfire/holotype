@@ -671,6 +671,6 @@ drawableBindFontLayout ∷ (MonadIO m, FromUnit u, FromUnit v) ⇒
   DΠ → Drawable → Cr.Font Found u → Di (Unit v) → Cr.TextSizeSpec v → m (Cr.WFont Bound, GIP.Layout)
 drawableBindFontLayout dπ Drawable{..} = Cr.bindWFontLayout dπ dGIC
 
-drawableDrawText ∷ (MonadIO m) ⇒ Drawable → GIP.Layout → Co Double → T.Text → m ()
-drawableDrawText Drawable{..} layout color text = do
-  Cr.layDrawText dCairo dGIC layout (po 0 0) color text
+drawableDrawText ∷ (MonadIO m) ⇒ Drawable → GIP.Layout → Co Double → Po Double → T.Text → m ()
+drawableDrawText Drawable{..} layout color shift text = do
+  Cr.layDrawText dCairo dGIC layout shift color text

@@ -1,4 +1,3 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -40,9 +39,11 @@ module AsNameItem
   , Interp(..)
   --
   , Name(..)
+  , Named(..), defCompName
   --
-  , IVisual
   , Phase(..)
+  , IStrucP
+  , VisualP
   , Item(..), iLeafP, iToken, iGeo, iStyleGene, diNothing
   , Node(..)
   , node, leaf
@@ -65,6 +66,7 @@ where
 
 import           Data.Foldable
 import           Data.Maybe
+import           Data.Text                                (Text)
 import           Data.Typeable
 import           GHC.Types                                (Constraint)
 import           Generics.SOP                             (Proxy)
@@ -87,34 +89,38 @@ import qualified HoloPort                          as Port
 
 -- * As -- assigning representation
 --
-class Typeable r ⇒ As r where
-  type      Denoted r ∷ Type
-  type          Sty r ∷ Type
-  type instance Sty r = ()
-  type          Vis r ∷ Type
-  type instance Vis r = ()
+class Typeable r  ⇒ As r where
+  type         Denoted r ∷ Type
+  type             Sty r ∷ Type
+  type instance    Sty r = ()
+  type          IStruc r ∷ Type
+  type instance IStruc r = ()
+  type             Vis r ∷ Type
+  type instance    Vis r = ()
   defAs       ∷               Proxy r             → r
   defSty      ∷               Proxy r             → Sty r
   compSty     ∷                     r             → Sty r
   compSty                           x             = defSty (proxy x)
-  sizeRequest ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → m (Di (Maybe Double))
-  setupVis    ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → Area'LU Double → Drawable → m (Vis r)
-  render      ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r                  → Drawable → Vis r → m () -- ^ Update visual.
-  freeVis     ∷ MonadIO m ⇒   Proxy r                                                 → Vis r → m ()
-  freeVis                           _                                                       _ = pure ()
+  sizeRequest ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → m (IStruc r, Di (Maybe Double))
+  setupVis    ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Area'LU Double → Drawable → m (Vis r)
+  render      ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Po Double      → Drawable → Vis r → m () -- ^ Update visual.
+  freeVis     ∷ MonadIO m ⇒   Proxy r                                                            → Vis r → m ()
+  freeVis                           _                                                                  _ = pure ()
+
 
 -- * Concrete, minimal case, to keep us in check
 instance As () where
   type Denoted () = ()
   type     Sty () = ()
+  type  IStruc () = ()
   type     Vis () = ()
   defAs             _px   = ()
   defSty            _px   = ()
   compSty            _x   = ()
-  sizeRequest  _port () () _sty = pure diNothing
-  setupVis     _port () () _sty _area      _drw = pure ()
-  render       _port () () _sty       _vis _drw = pure ()
-  freeVis           _px               _vis      = pure ()
+  sizeRequest  _port () () _sty = pure $ (,) () diNothing
+  setupVis     _port () () _sty _area _istruc      _drw = pure ()
+  render       _port () () _sty _off  _istruc _vis _drw = pure ()
+  freeVis           _px                       _vis      = pure ()
 
 defName ∷ ∀ a. As a ⇒ IdToken → a → Name a
 defName tok n = Name tok defStyle defGeo n
@@ -126,13 +132,39 @@ class Interp (a ∷ Type) (b ∷ Type) where
   interp        ∷ a → Maybe b
   forget        ∷ b → a
 
-instance Interp a a where
+instance {-# OVERLAPPABLE #-} Interp a a where
   interp        = Just
   forget        = id
 
-instance (Read b, Show b) ⇒ Interp T.Text b where
+instance {-# OVERLAPPABLE #-} (Read b, Show b) ⇒ Interp Text b where
   interp        = readMaybe ∘ T.unpack
   forget        = T.pack ∘ show
+
+instance {-# OVERLAPS #-} Interp Text Text where
+  interp        = Just
+  forget        = id
+
+
+-- * Name
+--    ..as per Пиотровский Р. Г. Текст, машина, человек — Л.: Наука, 1975
+--    Which is supposed to make sense in context of As/Denoted
+data Name a where
+  Name ∷
+    { nToken     ∷ IdToken
+    , nStyle     ∷ Style a
+    , nGeo       ∷ Geo
+    , n          ∷ a
+    } → Name a
+
+-- * Named, choice of presentation
+class Interp a b ⇒ Named a b where
+  compName     ∷ (As n, Denoted n ~ a) ⇒ Proxy (a, b) → IdToken → n → Name n
+  compName     = defCompName
+
+defCompName ∷ As n ⇒ Proxy (a, b) → IdToken → n → Name n
+defCompName _ tok n = Name tok (initStyle $ compSty n) defGeo n
+
+instance (Read a, Show a) ⇒ Named Text a
 
 
 -- Note [Granularity and composite structures]
@@ -184,18 +216,6 @@ instance Port.PortVisual Visual where
     Visual{..} → freeVis pA vVisual
 
 
--- * Name
---    ..as per Пиотровский Р. Г. Текст, машина, человек — Л.: Наука, 1975
---    Which is supposed to make sense in context of As/Denoted
-data Name a where
-  Name ∷
-    { nToken     ∷ IdToken
-    , nStyle     ∷ Style a
-    , nGeo       ∷ Geo
-    , n          ∷ a
-    } → Name a
-
-
 -- * Item
 --
 data Phase
@@ -203,25 +223,32 @@ data Phase
   | PLayout
   | PVisual
 
-type family IVisual (p ∷ Phase) a ∷ Type where
-  IVisual PBlank  _ = ()
-  IVisual PLayout _ = ()
-  IVisual PVisual a = Maybe (Visual a)
+type family IStrucP (p ∷ Phase) a ∷ Type where
+  IStrucP PBlank  _ = ()
+  IStrucP PLayout a = IStruc a
+  IStrucP PVisual a = IStruc a
+
+type family VisualP (p ∷ Phase) a ∷ Type where
+  VisualP PBlank  _ = ()
+  VisualP PLayout _ = ()
+  VisualP PVisual a = Maybe (Visual a)
 
 -- Phasing is TTG-inspired
 data Item (c ∷ Type → Constraint) (p ∷ Phase) where
   Leaf ∷ ∀ c p a. (As a, c (Denoted a), Typeable a) ⇒
     { name        ∷ Name a
     , denoted     ∷ Denoted a
+    , iStruc      ∷ IStrucP p a
     , iSize       ∷ Di (Maybe Double) -- Flex input:  the desired size
                                       -- Has to be always defined, because we need an universally quantified Flex (Item p)
     , iArea       ∷ Area'LU Double    -- Flex output: the resultant size + coords
                                       -- Same quip as for iSize
-    , lVisual     ∷ IVisual p a
+    , lVisual     ∷ VisualP p a
     } → Item c p
   Node ∷ ∀ c k p a. (a ~ Node c k p, Typeable k) ⇒
     { name        ∷ Name a
     , denoted     ∷ Denoted a
+    , iStruc      ∷ IStrucP p a
     , iSize       ∷ Di (Maybe Double) -- Flex input:  the desired size
     , iArea       ∷ Area'LU Double    -- Flex output: the resultant size + coords
     } → Item c p
@@ -271,16 +298,16 @@ traceIGeoDiff desc x = trace (desc<>" geoΔ: "<>Flex.ppdefGeoDiff (iGeo x)) x
 iSizeRequest ∷ ∀ c m. (MonadIO m, Typeable c) ⇒ VPort → Item c PBlank → m (Item c PLayout)
 iSizeRequest port Leaf{name=name@Name{..},..} = do
   --
-  iSize ← sizeRequest port n denoted (_sStyle $ nStyle)
+  (,) iStruc iSize ← sizeRequest port n denoted (_sStyle $ nStyle)
   trev SIZE HOLO iSize $ Port.tokenHash nToken
   pure Leaf{iArea=mempty, ..}
 iSizeRequest port Node{name=name',iSize=_,..} = do
   chi ← (sequence $ iSizeRequest port <$> denoted)
   let name@Name{..} = nodeNameBtoL name'
   --
-  size ← sizeRequest port n chi (_sStyle $ nStyle)
-  trev SIZE HOLO size (Port.tokenHash nToken)
-  pure $ Node{iArea=mempty, iSize=size, denoted=chi, ..}
+  (,) iStruc iSize ← sizeRequest port n chi (_sStyle $ nStyle)
+  trev SIZE HOLO iSize (Port.tokenHash nToken)
+  pure $ Node{iArea=mempty, iSize=iSize, denoted=chi, ..}
 
 iMandateVisual ∷ (HasCallStack, MonadIO m) ⇒ VPort → Item c PLayout → [Item c PVisual] → m (Item c PVisual)
 iMandateVisual port hi children = case hi of
@@ -288,7 +315,7 @@ iMandateVisual port hi children = case hi of
   Leaf{name=name@Name{..},..} → do
     let dim = iArea^.area'b.size'di
     vis ←  Port.portEnsureVisual port dim (Proxy @As) nToken Proxy (\Visual{..}→ _sStyleGene nStyle ≢ iStyleGene hi) $
-           \drw→ Visual <$> setupVis port n denoted (_sStyle nStyle) iArea drw
+           \drw→ Visual <$> setupVis port n denoted (_sStyle nStyle) iStruc iArea drw
                         <*> pure drw
     pure Leaf{lVisual=Just vis, ..}
 
@@ -301,7 +328,7 @@ iRender ∷ (MonadIO m) ⇒ VPort → Item c PVisual → m ()
 iRender port Leaf{name=Name{..}, lVisual=Just Visual{..},..} = do
   -- XXX: 'render' is called every frame for everything
   Port.clearDrawable vDrawable
-  render port n denoted (_sStyle nStyle) vDrawable vVisual
+  render port n denoted (_sStyle nStyle) iStruc zero vDrawable vVisual
   Port.drawableContentToGPU vDrawable
 iRender _ _ = pure ()
 
@@ -346,7 +373,7 @@ instance (Typeable c, Typeable k, Typeable p) ⇒ As (Node (c ∷ Type → Const
   sizeRequest _ box chi _ = do
     -- Requirement is a sum of children requirements
     let chireqs = (\x→ (,) (iToken x) $ Reqt (fromMaybe 0 <$> x^.Flex.size)) <$> chi
-    pure $ Just <$> (_reqt'di $ foldl' (reqt'add $ boxAxis box) zero (snd <$> chireqs))
+    pure $ (,) () $ Just <$> (_reqt'di $ foldl' (reqt'add $ boxAxis box) zero (snd <$> chireqs))
 
 
 -- * Constructors
@@ -355,13 +382,13 @@ node ∷ (a ~ Node c k PBlank, Typeable k)
   ⇒ Name a
   → [Item c PBlank]
   → Item c PBlank
-node name denoted = Node name denoted diNothing mempty
+node name denoted = Node name denoted () diNothing mempty
 
 leaf ∷ (As a, c (Denoted a))
   ⇒ Name a
   → Denoted a
   → Item c PBlank
-leaf name denoted = Leaf name denoted diNothing mempty ()
+leaf name denoted = Leaf name denoted () diNothing mempty ()
 
 hbox, vbox ∷ [Item c PBlank] → Item c PBlank
 hbox chi = node (Name Port.blankIdToken (initStyle ()) (nodeGeo HBoxN) HBoxN) chi

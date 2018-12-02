@@ -32,13 +32,13 @@
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
 module Holo.Instances
   ( liftWRecord
+  --
   , Rect(..)
   --
-  , TextStyle, TextVisual
+  , TextS(..), TextVisual, TextLine(..)
   , tsFontKey, tsSizeSpec, tsColor
-  , TextLine(..)
   --
-  , ConsCtx, FieldCtx
+  , SwitchS(..), Switch(..)
   )
 where
 
@@ -53,7 +53,6 @@ import           Linear
 import           Prelude                           hiding ((.), id)
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW                              (RGLFW, InputU(..))
-import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
 import qualified Data.TypeMap.Dynamic              as TM
 import qualified Generics.SOP                      as SOP
@@ -151,55 +150,39 @@ instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
   -- nameMap       = (⊥)
 
 
--- * Leaves
+-- * Co Double - Rect - Di (Unit PU) - Interp (Di (Unit PU))
 --
 data Rect = Rect
 
 instance As Rect where
-  type Denoted Rect        = Di (Unit PU)
-  type Sty     Rect        = Co Double
-  defAs                  _ = Rect
-  defSty                 _ = blue
-  sizeRequest port Rect dim _sty = pure $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> dim
-  setupVis Port.Port{portSettings=Port.Settings{..}} Rect dim' color _area drw@Drawable{..} = do
+  type Denoted Rect              = Di (Unit PU)
+  type Sty     Rect              = Co Double
+  defAs                        _ = Rect
+  defSty                       _ = blue
+  sizeRequest port Rect dim _sty = pure $ (,) () $ Just ∘ fromPU ∘ fromUnit (Port.portDΠ port) <$> dim
+  setupVis         _ _ _ _ _ _ _ = pure ()
+  render Port.Port{portSettings=Port.Settings{..}} Rect dim' color () shift drw@Drawable{..} () = do
     let dim = fromUnit sttsDΠ <$> dim'
     Cr.runCairo dCairo $ do
+      Cr.crMoveTo shift
       paintRect color dim -- $ PUs <$> _area^.area'b.size'di
     Port.drawableContentToGPU drw
-  render Port.Port{portSettings=Port.Settings{..}} Rect dim' color drw@Drawable{..} () = do
-    let dim = fromUnit sttsDΠ <$> dim'
-    Cr.runCairo dCairo $ do
-      paintRect color dim -- $ PUs <$> _area^.area'b.size'di
-    Port.drawableContentToGPU drw
-
-instance Holo (Di (Unit PU)) where
-  hasVisual                     _ = True
 
 
--- * This is a complicated story:
+-- * TextS - TextVisual - TextLine - Text - Interp Text a
 --
--- Actors:
---  1. u-free text style
---  2. PU-wired Fontmap from the Port
---
--- instance Semigroup TextStyle where
---   TextStyle lfk (TextSizeSpec lws lhl) lco <> TextStyle rfk (TextSizeSpec rws rhl) rco = TextStyle
---     { _tsFontKey     = choosePartially "default" lfk rfk
---     , _tsSizeSpec    = TextSizeSpec (lws <|> rws) (choosePartially OneLine lhl rhl)
---     , _tsColor       = lco <> rco
---     }
-data TextStyle where
-  TextStyle ∷
+data TextS where
+  TextS ∷
     { _tsFontKey     ∷ Cr.FontKey
     , _tsSizeSpec    ∷ Cr.TextSizeSpec PU
     , _tsColor       ∷ Co Double
-    } → TextStyle
-tsFontKey   ∷ Lens' TextStyle Cr.FontKey
-tsFontKey  f ts@(TextStyle x _ _) = (\xx→ts{_tsFontKey=xx})  <$> f x
-tsSizeSpec  ∷ Lens' TextStyle (Cr.TextSizeSpec PU)
-tsSizeSpec f ts@(TextStyle _ x _) = (\xx→ts{_tsSizeSpec=xx}) <$> f x
-tsColor     ∷ Lens' TextStyle (Co Double)
-tsColor    f ts@(TextStyle _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
+    } → TextS
+tsFontKey   ∷ Lens' TextS Cr.FontKey
+tsFontKey  f ts@(TextS x _ _) = (\xx→ts{_tsFontKey=xx})  <$> f x
+tsSizeSpec  ∷ Lens' TextS (Cr.TextSizeSpec PU)
+tsSizeSpec f ts@(TextS _ x _) = (\xx→ts{_tsSizeSpec=xx}) <$> f x
+tsColor     ∷ Lens' TextS (Co Double)
+tsColor    f ts@(TextS _ _ x) = (\xx→ts{_tsColor=xx})    <$> f x
 data TextVisual where
   TextVisual ∷
     { tFont          ∷ Cr.WFont Bound
@@ -209,19 +192,19 @@ data TextVisual where
 data TextLine = TextLine
 
 instance As TextLine where
-  type Denoted TextLine = T.Text
-  type Sty     TextLine = TextStyle
+  type Denoted TextLine = Text
+  type Sty     TextLine = TextS
   type Vis     TextLine = TextVisual
   defAs            _ = TextLine
-  defSty           _ = TextStyle
+  defSty           _ = TextS
     { _tsFontKey     = "default"
     , _tsSizeSpec    = Cr.TextSizeSpec Nothing Cr.OneLine
     , _tsColor       = white
     }
-  sizeRequest port TextLine content TextStyle{..} = do
+  sizeRequest port TextLine content TextS{..} = do
     let font = Port.portFont' port _tsFontKey -- XXX: non-total
-    (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (Port.portDΠ port) _tsSizeSpec) (partial (≢ "") content)
-  setupVis port TextLine _content TextStyle{..} area' drw = do
+    (,) () ∘ (Just ∘ fromPU <$>) ∘ either errorT id <$> Cr.fontQuerySize font (convert (Port.portDΠ port) _tsSizeSpec) (partial (≢ "") content)
+  setupVis port TextLine _content TextS{..} () area' drw = do
     -- 1. find font, 2. bind font to GIC, 3. create layout
     let font = Port.portFont' port _tsFontKey -- XXX: non-total
         tDim = fromUnit (Port.portDΠ port) ∘ PUs <$> dimOf area'
@@ -231,19 +214,18 @@ instance As TextLine where
     --   GIPC.createContext gic  -- released by FFI finalizers
     --   GIP.layoutNew      gipc -- same as above
     pure $ TextVisual{..}
-  render _ TextLine content TextStyle{..} drw TextVisual{..} =
+  render _ TextLine content TextS{..} () shift drw TextVisual{..} =
     -- 1. execute GIP draw & GIPC composition
-    Port.drawableDrawText drw tLayout _tsColor content
+    Port.drawableDrawText drw tLayout _tsColor shift content
   freeVis _ TextVisual{..} =
     Cr.unbindFontLayout tFont tLayout
 
-
-instance Mutable T.Text where
+instance Mutable Text where
   subscription tok _ = subSingleton tok editMaskKeys
   mutate initial ev =
     (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
 
-instance Holo T.Text where
+instance Holo Text where
   hasVisual _ = True
 
 data EditEvent where
@@ -275,10 +257,10 @@ translateEditEvent = \case
   x → error $ "Unexpected event (non-edit): " <> show x
 
 
--- * Bool!!!
+-- * Switch - Bool - Interp Bool x
 --
-data SwitchStyle
-  = SwitchStyle
+data SwitchS
+  = SwitchS
   { ssRadius     ∷ Double
   , ssTolerance  ∷ Double
   , ssLineWeight ∷ Double
@@ -312,9 +294,9 @@ data Switch = Switch
 
 instance As Switch where
   type Denoted Switch = Bool
-  type Sty     Switch = SwitchStyle
+  type Sty     Switch = SwitchS
   defAs   _ = Switch
-  defSty  _ = SwitchStyle
+  defSty  _ = SwitchS
     { ssRadius     = 10
     , ssTolerance  = 2    -- pixel counting → 2
     , ssLineWeight = 2    -- pixel counting → 3
@@ -322,18 +304,19 @@ instance As Switch where
     , ssColorOn    = green
     , ssColorOff   = gray 0.4 1.0
     }
-  sizeRequest _ Switch _ SwitchStyle{..} =
+  sizeRequest _ Switch _ SwitchS{..} =
     let padding = 0.5 * (ssLineWeight + ssTolerance)
         h = 2 * (ssRadius + ssTolerance + ssLineWeight + padding)
         w = h + ssInterfocal
-    in pure ∘ (Just <$>) ∘ Di $ V2 w h
-  setupVis _ _ _ _ _ _ = pure ()
-  render _ Switch val SwitchStyle{..} d@Drawable{..} () = do
+    in pure ∘ (,) () ∘ (Just <$>) ∘ Di $ V2 w h
+  setupVis _ _ _ _ _ _ _ = pure ()
+  render _ Switch val SwitchS{..} () shift d@Drawable{..} () = do
+    let padding  = 0.5 * (ssLineWeight + ssTolerance)
+        rrRadius = ssRadius + ssTolerance + ssLineWeight
+        hCenter  = rrRadius + padding
     Cr.runCairo dCairo $ do
       -- paintDebugColorFrames dDi
-      let padding  = 0.5 * (ssLineWeight + ssTolerance)
-          rrRadius = ssRadius + ssTolerance + ssLineWeight
-          hCenter  = rrRadius + padding
+      Cr.crMoveTo shift
       paintRoundedRect (white, if val then ssColorOn else ssColorOff)
         (Th ssLineWeight) (R rrRadius) (Wi ssInterfocal) (Pad padding)
       paintCircle white (R ssRadius) (Po $ V2 (hCenter + if val then 0 else ssInterfocal) hCenter)
@@ -364,22 +347,17 @@ instance Holo Bool where
 -- instance Holo a ⇒ Holo (Port.ScreenDim a) where
 --   subscription tok _ = subSingleton tok $ InputEventMask GLFW.eventMaskFramebufferSize
 
--- instance Vis  Port.ScreenMode where
 -- instance Holo Port.ScreenMode where
 --   subscription tok _ = subSingleton tok editMaskKeys
 
--- instance Vis  (Cr.FontPreferences PU) where
 -- instance Holo (Cr.FontPreferences PU) where
 --   subscription tok _ = subSingleton tok editMaskKeys
 
--- instance Vis a  ⇒ Vis  (Di a) where
 -- instance Holo a ⇒ Holo (Di a) where
 --   subscription tok _ = subSingleton tok editMaskKeys
 
--- instance Vis  DΠ where
 -- instance Holo DΠ where
 --   subscription tok _ = subSingleton tok editMaskKeys
 
--- instance Vis  Int where
 -- instance Holo Int where
 --   subscription tok _ = subSingleton tok editMaskKeys

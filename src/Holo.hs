@@ -320,9 +320,9 @@ instance Mutable () where
 instance Holo () where
 
 instance Semigroup (Item As PBlank)  where _ <> _ = mempty
-instance Monoid    (Item As PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () diNothing mempty mempty
+instance Monoid    (Item As PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
 instance Semigroup (Item As PLayout) where _ <> _ = mempty
-instance Monoid    (Item As PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () diNothing mempty mempty
+instance Monoid    (Item As PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
 
 -- instance (Typeable c, Typeable p) ⇒ Holo (Node c k p) where
 
