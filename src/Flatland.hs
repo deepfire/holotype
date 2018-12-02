@@ -14,6 +14,8 @@ module Flatland
   --
   , DΠ(..)
   --
+  , V2A(..), v2a, v2a'lift, v2'proj
+  --
   , An(..), an'val
   , An2(..), an2
   , Po(..), po, po'd, po'add, po'sub
@@ -29,6 +31,7 @@ module Flatland
   , Area, Area'(..), Area'Orig, Area'LU, Area'LURB, FromArea(..), HasArea(..)
   , area'a, area'b
   , pretty'Area'Int
+  , area'split'start, area'split'end
   --
   , opaque, white, gray, black
   , base03, base02, base01, base00, base0, base1, base2, base3, yellow, orange, red, magenta, violet, blue, cyan, green
@@ -435,6 +438,10 @@ v2a'lift ∷ Axis → V2 d → V2A d
 v2a'lift X v        = V2A v
 v2a'lift Y (V2 x y) = V2A $ (V2 y x)
 
+v2'proj ∷ Axis → V2 d → d
+v2'proj X (V2 x _) = x
+v2'proj Y (V2 _ x) = x
+
 
 -- * Orientation: _ north-west, clockwise to west.
 --
@@ -620,6 +627,18 @@ pretty'Area'Int a =
   let Area (LU (Po (V2 x y))) (Size (Di d)) = from'area a
   in (text ∘ ppV2 $ floor <$> d)
      <> char '+' <> pretty (floor x ∷ Int) <> char '+' <> pretty (floor y ∷ Int)
+
+-- XXX: this is a lazy, slow implementation, that suffers from conversion roundtrips
+area'split'start ∷ RealFrac d ⇒ FromArea a b LU Size d ⇒ FromArea LU Size a b d ⇒ Axis → d → Area' a b d → (Area' a b d, Area' a b d)
+area'split'start axis spli a =
+  let Area (LU p) (Size d) = from'area a
+  in ( from'area $ Area (LU $ p)                         (Size $ d & di'd axis .~           spli)
+     , from'area $ Area (LU $ p & po'd axis %~ (+ spli)) (Size $ d & di'd axis %~ (flip (-) spli)))
+area'split'end   ∷ RealFrac d ⇒ FromArea a b LU Size d ⇒ FromArea LU Size a b d ⇒ Axis → d → Area' a b d → (Area' a b d, Area' a b d)
+area'split'end   axis spli a =
+  let Area (LU p) (Size d) = from'area a
+      axis'dim             = d^.di'd axis
+  in area'split'start axis (axis'dim - spli) a
 
 instance (FromArea a b LU Size d, RealFrac d) ⇒ Pretty (Area' a b d) where
   pretty = unreadable "Area" ∘ pretty'Area'Int
