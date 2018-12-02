@@ -15,6 +15,7 @@ module HoloCairo
   , pangoLayoutNew
   --
   , crColor
+  , crMoveTo
 
   -- * Font types
   , Font(..), WFont, FKind(..)
@@ -161,6 +162,9 @@ pangoLayoutNew context = liftIO $ do
 
 crColor ∷ Co Double → GRC.Render ()
 crColor (Co (V4 r g b a)) = GRC.setSourceRGBA r g b a
+
+crMoveTo ∷ Po Double → GRC.Render ()
+crMoveTo (Po (V2 dx dy))  = GRC.moveTo dx dy
 
 
 -- $Font choice strategy.
