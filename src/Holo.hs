@@ -43,13 +43,15 @@ module Holo
   , Subscription(..), subSingleton
   , InputEventMux
   --
+  , BlankHolo, Holo(..)
+  , Blank,     Unconstr
+  , liftDynamic
+  , liftPureDynamic
   --
   , WH, wWH
   , Widget
-  , HoloBlank
   --
   , Static
-  , liftWDynamic
   , interpretate
   , liftDynWStaticSubs
   , liftWSeed
@@ -183,6 +185,53 @@ class (Typeable b) ⇒ Holo b where
   liftDynW     = liftDynWStaticSubs
   liftW        = liftWSeed
 
+-- interpretate needed 'Holo a', because:
+--   Could not deduce (Holo a) arising from a use of ‘leaf’
+--   ..which needs it because it's an Item, which is constrained on Holo.
+interpretate ∷ (As n, Denoted n ~ a, Interp a b, RGLFW t m) ⇒ Name n → Dynamic t a → m (Dynamic t (b, Blank))
+interpretate name dyn = scanDynMaybe (fromMaybe (error "Cannot interpret initial value.") *** id)
+                        (\x _ -> case x of
+                                   (Just val, item) → Just (val, item)
+                                   _                → Nothing) $
+                        (interp &&& leaf name) <$> dyn
+
+-- liftDynWStaticSubs needed 'Holo a', because:
+--   interpretate needed it
+liftDynWStaticSubs ∷ ∀ m t n a b.
+  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, RGLFW t m)
+  ⇒ IdToken → n → Dynamic t a → m (Widget t b)
+liftDynWStaticSubs tok n db = do
+  let name ∷ Name n = compName (Proxy @(a, b)) tok n
+  int ← interpretate name db
+  pure $ W ( constDyn $ subscription tok (Proxy @a)
+           , int)
+-- ← liftHoloDynStatic
+-- ← liftDynWStaticSubs
+liftWSeed ∷ ∀ m t n a b.
+  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
+  ⇒ InputEventMux t → n → b → m (Widget t b)
+liftWSeed imux n initial = do
+  tok ← iNewToken $ Proxy @b
+  mut ← mutate (forget initial) $ select imux $ Const2 tok
+  liftDynW tok n mut
+-- → liftW
+
+liftDynamic ∷ ∀ m t n a b.
+  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
+  ⇒ n → Dynamic t a → m (Widget t b)
+liftDynamic n da = do
+  tok ← iNewToken $ Proxy @b
+  liftDynW tok n da
+
+liftPureDynamic ∷ ∀ m t n a b.
+  (As n, Denoted n ~ a,            Interp a b, Named a b, Holo b, RGLFW t m)
+  ⇒ n → Dynamic t a → m (Widget t b)
+liftPureDynamic n db = do
+  tok ← iNewToken $ Proxy @b
+  let name ∷ Name n = compName (Proxy @(a, b)) tok n
+  int ← interpretate name db
+  pure $ W ( constDyn mempty
+           , int)
 
 
 -- * The final lift:  W(-idget)
@@ -190,14 +239,15 @@ class (Typeable b) ⇒ Holo b where
 class Unconstr a where
 instance Unconstr a where
 
-type HoloBlank      = Item Unconstr PBlank
-type WH       t     = (Dynamic t Subscription, Dynamic t HoloBlank)
+type BlankHolo      = Item Holo     PBlank
+type Blank          = Item Unconstr PBlank
+type WH       t     = (Dynamic t Subscription, Dynamic t Blank)
 
 -- Result of the lifts -- the Widget:
 type Widget     t a = Result t a
 data instance Result t a
   = Reflex t ⇒ W
-    { fromW ∷ (Dynamic t Subscription, Dynamic t (a, HoloBlank))
+    { fromW ∷ (Dynamic t Subscription, Dynamic t (a, Blank))
     }
 
 wWH ∷ Reflex t ⇒ Widget t a → WH t
@@ -240,45 +290,6 @@ newtype Static t a = Static a -- XXX: once we're successful with the lift, let's
 --   pure $ W ( constDyn $ subscription tok (Proxy @a)
 --            , constDyn (initial, leaf (compName (Proxy @a) tok n) initial))
 
-liftWDynamic ∷ ∀ m t n a b.
-  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
-  ⇒ n → Dynamic t a → m (Widget t b)
-liftWDynamic n da = do
-  tok ← compToken $ Proxy @b
-  liftDynWStaticSubs tok n da
-
-
--- interpretate needed 'Holo a', because:
---   Could not deduce (Holo a) arising from a use of ‘leaf’
---   ..which needs it because it's an Item, which is constrained on Holo.
-interpretate ∷ (As n, Denoted n ~ a, Interp a b, RGLFW t m) ⇒ Name n → Dynamic t a → m (Dynamic t (b, HoloBlank))
-interpretate name dyn = scanDynMaybe (fromMaybe (error "Cannot interpret initial value.") *** id)
-                        (\x _ -> case x of
-                                   (Just val, item) → Just (val, item)
-                                   _                → Nothing) $
-                        (interp &&& leaf name) <$> dyn
-
--- liftDynWStaticSubs needed 'Holo a', because:
---   interpretate needed it
-liftDynWStaticSubs ∷ ∀ m t n a b.
-  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, RGLFW t m)
-  ⇒ IdToken → n → Dynamic t a → m (Widget t b)
-liftDynWStaticSubs tok n db = do
-  let name ∷ Name n = compName (Proxy @(a, b)) tok n
-  int ← interpretate name db
-  pure $ W ( constDyn $ subscription tok (Proxy @a)
-           , int)
--- ← liftHoloDynStatic
--- ← liftDynWStaticSubs
-liftWSeed ∷ ∀ m t n a b.
-  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
-  ⇒ InputEventMux t → n → b → m (Widget t b)
-liftWSeed imux n initial = do
-  tok ← compToken $ Proxy @b
-  mut ← mutate (forget initial) $ select imux $ Const2 tok
-  liftDynW tok n mut
--- → liftW
-
 
 
 -- * Concrete, minimal case, to keep us in check
@@ -288,10 +299,10 @@ instance Mutable () where
 
 instance Holo () where
 
-instance Semigroup (Item As PBlank)  where _ <> _ = mempty
-instance Monoid    (Item As PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
-instance Semigroup (Item As PLayout) where _ <> _ = mempty
-instance Monoid    (Item As PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
+instance Semigroup (Item Unconstr PBlank)  where _ <> _ = mempty
+instance Monoid    (Item Unconstr PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
+instance Semigroup (Item Unconstr PLayout) where _ <> _ = mempty
+instance Monoid    (Item Unconstr PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
 
 -- instance (Typeable c, Typeable p) ⇒ Holo (Node c k p) where
 
