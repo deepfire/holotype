@@ -81,9 +81,9 @@ import qualified Flex
 import           HoloPrelude                       hiding ((<>))
 import           Holo.Instances
 import           Holo                                     ( As(..), Vis
-                                                          , Holo, HoloBlank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
+                                                          , Holo, BlankHolo, Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
                                                           , Static(..)
-                                                          , Widget, liftW, liftWDynamic
+                                                          , Widget, liftW, liftPureDynamic, liftDynamic
                                                           , WH, wWH
                                                           , Result(..))
 import qualified Holo
@@ -169,7 +169,7 @@ mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
   -- (subD, textD) ← mkTextEntryStyleD mux styleB initialV
-  W (subD, textD) ← Holo.liftW mux TextLine initialV
+  W (subD, textD) ← Holo.liftW @Text mux TextLine initialV
   initial ← sample $ current textD
   foldDyn (\(new, newHoloi) (oldValid, _)→
                (if testF new then new else oldValid, newHoloi))
@@ -178,7 +178,7 @@ mkTextEntryValidatedStyleD mux styleB initialV testF = do
 
 vboxD ∷ ∀ t m. (RGLFW t m) ⇒ [WH t] → m (WH t)
 vboxD chi = do
-  let dyn ∷ (Dynamic t Subscription, Dynamic t [HoloBlank])
+  let dyn ∷ (Dynamic t Subscription, Dynamic t [Blank])
       dyn = foldr (\(s, hb) (ss, hbs)→
                       ( zipDynWith (<>) s ss
                       , zipDynWith (:) hb hbs ))
@@ -229,6 +229,9 @@ data AnObject where
     deriving (Eq, GHC.Generic, Show)
 instance SOP.Generic         AnObject
 instance SOP.HasDatatypeInfo AnObject
+type instance Structure AnObject = AnObject
+
+instance Holo.Named (Di a) (Di a)
 
 scene ∷ ∀ t m. ( RGLFW t m
                , Typeable t)
@@ -240,18 +243,32 @@ scene ∷ ∀ t m. ( RGLFW t m
   → m (WH t)
 scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
-  fpsD             ← liftWDynamic TextLine (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
-  statsD           ← liftWDynamic TextLine $ statsValD <&>
+  -- XXX: we have a conceptual conflict:
+  --      1. Holo implies editability
+  --      2. liftWDynamic takes an already formed dynamic and turns into a visual
+  --      3. ..yet it requires Holo, which insists on Mutable, which we don't care about..
+  fpsD ∷ Widget t Text
+                   ← liftDynamic TextLine (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  statsD ∷ Widget t Text
+                   ← liftDynamic TextLine $ statsValD <&>
                      \(mem)→ T.pack $ printf "mem: %d" mem
 
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
-  rectD            ← liftWDynamic Rect rectDiD
-  frameCountD      ← liftWDynamic TextLine $ T.pack ∘ printf "frame #%04d" <$> frameNoD
+  rectD ∷ Widget t (Di (Unit PU))
+                   ← liftPureDynamic Rect rectDiD
+  frameCountD ∷ Widget t Text
+                   ← liftPureDynamic TextLine $ T.pack ∘ printf "frame #%04d" <$> frameNoD
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
-  varlenTextD      ← liftWDynamic TextLine $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
+  varlenTextD ∷ Widget t Text
+                   ← liftPureDynamic TextLine $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
   -- xStts            ← liftRecord muxV defSettingsV
-  xDD@(W (_, xDDv)) ← liftWRecord @(Static t AnObject) (eV, AnObject "yayyity" "lol" True)
+
+  -- NEXT: figuire where Holo comes from
+  xDD@(W (_, xDDv)) ← liftRecord @(Static t AnObject) @t @m @As @AnObject
+                      ( eV
+                      , TypeAs TM.empty
+                      , AnObject "yayyity" "lol" True)
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
   -- xSD@(W (_, xSDv)) ← liftWRecord @(Static t Port.Settings) (eV, defSettingsV)
@@ -345,7 +362,7 @@ holotype win evCtl windowFrameE inputE = mdo
                      attachPromptlyDyn sceneD portFrameE
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
 
-  let sceneLaidTreeD ∷ Dynamic t (Item Holo Holo.PLayout)
+  let sceneLaidTreeD ∷ Dynamic t (Item Holo.Unconstr Holo.PLayout)
       sceneLaidTreeD = Flex.layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
 
   -- * RENDER
