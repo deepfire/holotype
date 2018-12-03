@@ -31,7 +31,8 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
 module Holo.Instances
-  ( liftWRecord
+  ( TypeAs(..)
+  , liftRecord
   --
   , Rect(..)
   --
@@ -48,6 +49,7 @@ import           Data.Proxy
 import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
 import           Data.Typeable
+import           GHC.Types
 import           Generics.SOP.Monadic
 import           Linear
 import           Prelude                           hiding ((.), id)
@@ -341,10 +343,61 @@ instance Mutable Bool where
 instance Holo Bool where
 
 
--- -- * Named tuple
--- --
--- data NamedTuple a b
---   = NamedTuple ((Text, a), (Text, b))
+-- * Text → As → As
+--
+newtype Labelled a = Labelled (Text, a)
+
+instance As a ⇒ As (Labelled a) where
+  type Denoted (Labelled a) = Denoted a
+  type Sty     (Labelled a) = (TextS,      Sty a)
+  type IStruc  (Labelled a) = (Wi Double, IStruc a)
+  type Vis     (Labelled a) = (TextVisual, Vis a)
+  defAs                   _ = Labelled ("fi", defAs Proxy)
+  defSty                  _ = (defSty $ Proxy @TextLine, defSty $ Proxy @a)
+  sizeRequest p (Labelled (label, asA)) content (tSty, aSty) = do
+    (_, rTL@(Di (V2 w _))) ← ((fromMaybe 0 <$>) <$>) <$> sizeRequest p TextLine label   tSty
+    (aS, rA)               ← ((fromMaybe 0 <$>) <$>) <$> sizeRequest p asA      content aSty
+    pure $ ((Wi w, aS),) $ Just <$> (_reqt'di $ reqt'add X (Reqt rTL) (Reqt rA))
+  setupVis        p (Labelled (label, asA)) content (sT, sA) (Wi cShift, isA) area' drw = do
+    let (areaL, areaR) = area'split'start X cShift area'
+    vT ← setupVis p TextLine                label    sT      ()               areaL drw
+    vA ← setupVis p asA                     content      sA              isA  areaR drw
+    pure $ (,) vT vA
+  render          p (Labelled (label, asA)) content (sT, sA) (Wi cShift, isA) shift drw (tV, aV) = do
+    render        p TextLine   label                 sT      ()               shift drw  tV
+    render        p asA                     content      sA  isA             (shift & po'd X %~ (+cShift)) drw aV
+  freeVis _ (tV, aV) = do
+    freeVis (Proxy @TextLine) tV
+    freeVis (Proxy @a) aV
+
+
+-- * Axis → a → b → (,) a b
+--
+--  XXX:  what could be a meaning that wouldn't involve managing input focus internally?
+--        1. two Mutables with non-conflicting subscriptions?
+instance (As a, As b) ⇒ As (Axis, (a, b)) where
+  type Denoted (Axis, (a, b)) = (Denoted a, Denoted b)
+  type Sty     (Axis, (a, b)) = (Sty     a,     Sty b)
+  type IStruc  (Axis, (a, b)) = (Double
+                                ,(IStruc a,  IStruc b))
+  type Vis     (Axis, (a, b)) = (Vis     a,     Vis b)
+  defAs                     _ = (X, (defAs Proxy, defAs Proxy))
+  defSty                    _ = (defSty $ Proxy @a, defSty $ Proxy @b)
+  sizeRequest p (ax, (asA, asB)) (cA, cB) (sA, sB) = do
+    (isA, rA@(Di v)) ← ((fromMaybe 0 <$>) <$>) <$> sizeRequest p asA cA sA
+    (isB, rB)        ← ((fromMaybe 0 <$>) <$>) <$> sizeRequest p asB cB sB
+    pure $ ((v2'proj ax v, (isA, isB)),) $ Just <$> (_reqt'di $ reqt'add ax (Reqt rA) (Reqt rB))
+  setupVis    p (ax, (asA, asB)) (cA, cB) (sA, sB) (shift, (isA, isB)) area' drw = do
+    let (aLU, aRB) = area'split'start ax shift area'
+    vA ← setupVis p asA           cA       sA               isA        aLU   drw
+    vB ← setupVis p asB               cB       sB                isB   aRB   drw
+    pure $ (,) vA vB
+  render      p (ax, (asA, asB)) (cA, cB) (sA, sB) (shiftN, (isA, isB)) shift drw (aV, bV) = do
+    render        p asA           cA       sA                isA        shift drw  aV
+    render        p asB               cB       sB                 isB  (shift & po'd ax %~ (+shiftN)) drw bV
+  freeVis _ (aV, bV) = do
+    freeVis (Proxy @a) aV
+    freeVis (Proxy @b) bV
 
 
 -- * Settings
@@ -356,6 +409,10 @@ instance Holo Bool where
 -- 3. If not, what?
 -- instance Holo a ⇒ Holo (Port.ScreenDim a) where
 --   subscription tok _ = subSingleton tok $ InputEventMask GLFW.eventMaskFramebufferSize
+
+instance Holo Double
+
+instance Holo (Di (Unit PU)) where
 
 -- instance Holo Port.ScreenMode where
 --   subscription tok _ = subSingleton tok editMaskKeys
