@@ -76,12 +76,22 @@ import qualified HoloPort                          as Port
 instance SOP.Generic         Port.Settings
 instance SOP.HasDatatypeInfo Port.Settings
 
-liftWRecord ∷ ∀ a t m s xs.
-  ( RGLFW t m, Record t m a, s ~ Structure a
+liftRecord ∷ ∀ a t m c s xs.
+  ( RGLFW t m, Record t m c a, s ~ Structure a
   , SOP.Code s ~ '[xs]
-  , SOP.All (HasReadField t m a) xs
-  ) ⇒ RecordCtx t a → m (Widget t s)
-liftWRecord ctxR = unO $ recover (Proxy @(RGLFW t m)) (Proxy @(t, a)) ctxR
+  , SOP.All (HasReadField t m c a) xs
+  ) ⇒ RecordCtx t c a → m (Widget t s)
+liftRecord ctxR = unO $ recover (Proxy @c) (Proxy @(t, a)) ctxR
+-- recover  ∷ ∀ (t ∷ Type) c m a s xss xs.
+--            ( Record t m a, s ~ Structure a
+--            , SOP.HasDatatypeInfo s
+--            , Code s ~ xss, xss ~ '[xs]
+--            , All2 (HasReadField t m c a) xss
+--            , HasCallStack, Monad m, Applicative (Result t))
+--          ⇒ Proxy c
+--          → Proxy (t, a)
+--          → RecordCtx t a
+--          → (m :. Result t) s
 
 -- Design derivation for Holo lifts:
 -- 1. P: low-friction definition for structure types
@@ -89,35 +99,37 @@ liftWRecord ctxR = unO $ recover (Proxy @(RGLFW t m)) (Proxy @(t, a)) ctxR
 -- 3. 1+2 ?→ Field definition not proportional to structure and field types
 -- 4. …
 
--- * A style map of types to their As instances.
-data WXs where
-  WXs ∷ (As a, Mutable (Denoted a)) ⇒ a → WXs
+-- * A style map of types to their As types.
+data WXs c b where
+  WXs ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, c b) ⇒ n → WXs c b
 
-data TypeAsTag
-type instance TM.Item TypeAsTag a = WXs
-newtype TypeAs = AsMap (TM.TypeMap TypeAsTag)
-
-instance ( RGLFW t m
-         , Holo a
-         , d ~ Result t
-         , ConsCtx t u ~ (InputEventMux t, TypeAs, Structure u)) ⇒
-         HasFieldCtx t m u a where
-  type instance FieldCtx t a  = (InputEventMux t, TypeAs, a)
-  fieldCtx _ (mux, tas, x) proj =
-    let fP = proxy $ proj x
-    in (mux, tas, proj x)
+data TypeAsTag (с ∷ Type → Constraint)
+type instance TM.Item (TypeAsTag с) b = WXs с b
+newtype TypeAs c = TypeAs (TM.TypeMap (TypeAsTag c))
 
 instance ( RGLFW t m
          , Holo a
          , d ~ Result t
-         , ConsCtx t u ~ (InputEventMux t, TypeAs, Structure u)) ⇒
-         HasReadField t m u a where
-  readField _ _ (mux, AsMap tam, initV ∷ a) (FieldName fname) = O $ do
+         , ConsCtx t c u ~ (InputEventMux t, TypeAs Holo, Structure u)) ⇒
+         HasFieldCtx t m c u a where
+  type instance FieldCtx t a  = (InputEventMux t, TypeAs Holo, a)
+  fieldCtx _ _ (mux, tas, x) proj = (mux, tas, proj x)
+
+instance ( RGLFW t m
+         , As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m
+         , d ~ Result t
+         , ConsCtx t c u ~ (InputEventMux t, TypeAs Holo, Structure u)
+         , As TextLine, c Text
+         ) ⇒
+         HasReadField t m (c ∷ Type → Constraint) u b where
+  readField _ _ (mux, TypeAs tam, initV ∷ b) (FieldName fname) = O $ do
     tok ← liftIO $ Port.newId $ "record label '" <> fname <> "'"
-    let addLabel x = hbox [ defLeaf tok TextLine (fname <> ": ")
+    let addLabel x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Unconstr (Denoted x))
+                              ⇒ Port.IdToken → x → Denoted x → Blank)
+                            tok TextLine (fname <> ": ")
                           , x
                           ]
-        fP = Proxy @a
+        fP = Proxy @b
     case TM.lookup fP tam of
       Nothing      → error $ printf "Record recovery has no As element for field of type %s." (show $ typeRep fP)
       Just (WXs x) →
@@ -126,26 +138,26 @@ instance ( RGLFW t m
         -- ⇒ InputEventMux t → n → b → m (Widget t b)
 
 -- record lifting for Dynamic initials
-type instance ConsCtx  t (Dynamic t a) = Dynamic t a
-type instance Structure  (Dynamic _ a) = a
+type instance ConsCtx  t c (Dynamic t a) = Dynamic t a
+type instance Structure    (Dynamic _ a) = a
 
 
-type instance ConsCtx  t (Static t a)  = (InputEventMux t, a)
-type instance Structure  (Static _ a)  = a
-
-instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
-         , RGLFW t m
-         ) ⇒ Record t m (Static t a) where
-  type RecordCtx t (Static t a) = (InputEventMux t, a)
-  prefixChars _ = 3
-  consCtx _ _ _ (mux, a) = (mux, a)
+type instance ConsCtx  t c (Static t a)  = (InputEventMux t, TypeAs c, a)
+type instance Structure    (Static _ a)  = a
 
 instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
          , RGLFW t m
-         ) ⇒ Record t m (Dynamic t a) where
-  type RecordCtx t (Dynamic t a) = Dynamic t a
-  prefixChars _ = 3
-  consCtx _ _ _ x = x
+         ) ⇒ Record t m c (Static t a) where
+  type RecordCtx t c (Static t a) = (InputEventMux t, TypeAs c, a)
+  prefixChars _ _ = 3
+  consCtx _ _ _ _ (mux, ta, a) = (mux, ta, a)
+
+instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
+         , RGLFW t m
+         ) ⇒ Record t m c (Dynamic t a) where
+  type RecordCtx t c (Dynamic t a) = Dynamic t a
+  prefixChars _ _ = 3
+  consCtx _ _ _ _ x = x
   -- toFieldName _ = (⊥)
   -- nameMap       = (⊥)
 
@@ -226,7 +238,6 @@ instance Mutable Text where
     (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
 
 instance Holo Text where
-  hasVisual _ = True
 
 data EditEvent where
   Edit ∷
@@ -328,7 +339,6 @@ instance Mutable Bool where
   mutate  initial ev = foldDyn (\_ v → not v) initial ev
 
 instance Holo Bool where
-  hasVisual            _ = True
 
 
 -- -- * Named tuple

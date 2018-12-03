@@ -39,12 +39,12 @@ module AsNameItem
   , Interp(..)
   --
   , Name(..)
-  , Named(..), defCompName
+  , Named(..), defStyGeoName
   --
   , Phase(..)
   , IStrucP
   , VisualP
-  , Item(..), iLeafP, iToken, iGeo, iStyleGene, diNothing
+  , Item(..), iLeafP, iNewToken, iCompToken, iToken, iGeo, iStyleGene, diNothing
   , Node(..)
   , node, leaf
   , hbox, vbox
@@ -56,6 +56,7 @@ module AsNameItem
   , iRender
   --
   , treeLeaves
+  , ensureTreeVisuals
   , renderTreeVisuals
   , showTreeVisuals
   -- * reёxports
@@ -132,17 +133,17 @@ class Interp (a ∷ Type) (b ∷ Type) where
   interp        ∷ a → Maybe b
   forget        ∷ b → a
 
-instance {-# OVERLAPPABLE #-} Interp a a where
-  interp        = Just
-  forget        = id
-
-instance {-# OVERLAPPABLE #-} (Read b, Show b) ⇒ Interp Text b where
-  interp        = readMaybe ∘ T.unpack
-  forget        = T.pack ∘ show
-
 instance {-# OVERLAPS #-} Interp Text Text where
   interp        = Just
   forget        = id
+
+instance {-# INCOHERENT #-} Interp a a where
+  interp        = Just
+  forget        = id
+
+instance {-# INCOHERENT #-} (Read b, Show b) ⇒ Interp Text b where
+  interp        = readMaybe ∘ T.unpack
+  forget        = T.pack ∘ show
 
 
 -- * Name
@@ -157,12 +158,12 @@ data Name a where
     } → Name a
 
 -- * Named, choice of presentation
-class Interp a b ⇒ Named a b where
-  compName     ∷ (As n, Denoted n ~ a) ⇒ Proxy (a, b) → IdToken → n → Name n
-  compName     = defCompName
+class Named a b where
+  compName ∷ (As n, Denoted n ~ a) ⇒ Proxy (a, b) → IdToken → n → Name n
+  compName = defStyGeoName
 
-defCompName ∷ As n ⇒ Proxy (a, b) → IdToken → n → Name n
-defCompName _ tok n = Name tok (initStyle $ compSty n) defGeo n
+defStyGeoName ∷ As n ⇒ Proxy (a, b) → IdToken → n → Name n
+defStyGeoName _ tok n = Name tok (initStyle $ compSty n) defGeo n
 
 instance (Read a, Show a) ⇒ Named Text a
 
@@ -257,6 +258,14 @@ iLeafP ∷ Item c p → Bool
 iLeafP = \case
   Leaf{..} → True
   _        → False
+
+iNewToken ∷ (MonadIO m, Typeable a) ⇒ Proxy a → m IdToken
+iNewToken p = Port.newId $ showT $ typeRep p
+
+iCompToken ∷ MonadIO m ⇒ Item c p → m IdToken
+iCompToken = \case
+  Leaf{name=Name{..},..} → Port.newId $ showT $ typeRep (proxy n)
+  Node{..} → pure Port.blankIdToken
 
 iToken ∷ Item c p → IdToken
 iToken = \case
@@ -406,6 +415,11 @@ treeLeaves root = Map.fromList $ walk root
   where walk ∷ Item c a → [(IdToken, Item c a)]
         walk x@Leaf{..} = [(iToken x, x)]
         walk   Node{..} = concat $ walk <$> denoted
+
+ensureTreeVisuals ∷ (MonadIO m) ⇒ VPort → Item c PLayout → m (Item c PVisual)
+ensureTreeVisuals port i = case i of
+  Node{..} → iUnvisual i <$> (sequence $ ensureTreeVisuals port <$> denoted)
+  Leaf{..} → iMandateVisual port i []
 
 renderTreeVisuals ∷ (MonadIO m) ⇒ VPort → Item c PVisual → m ()
 renderTreeVisuals port l@Leaf{..} = iRender port l

@@ -43,9 +43,6 @@ module Holo
   , Subscription(..), subSingleton
   , InputEventMux
   --
-  , Named(..), defCompName
-  --
-  , Holo(..), compToken
   --
   , WH, wWH
   , Widget
@@ -56,9 +53,6 @@ module Holo
   , interpretate
   , liftDynWStaticSubs
   , liftWSeed
-
-  -- * Treewise
-  , ensureTreeVisuals
 
   -- * Re-exports
   , Structure, Result(..)
@@ -182,28 +176,13 @@ subSingleton tok im@(InputEventMask em) = Subscription $
                 | evty ← GLFW.eventMaskTypes em ]
 
 
--- * Named, choice of presentation
---
-class Named a b where
-  compName     ∷ (As n, Denoted n ~ a) ⇒        Proxy (a, b) → IdToken → n → Name n
-  compName     = defCompName
-
-defCompName ∷ As n ⇒ Proxy a → IdToken → n → Name n
-defCompName _ tok n = Name tok (initStyle $ compSty n) defGeo n
-
-
 class (Typeable b) ⇒ Holo b where
-  hasVisual    ∷                                                                                                        Proxy b → Bool
   liftDynW     ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m) ⇒ IdToken → n → Dynamic t a → m (Widget t b)
   liftW        ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m) ⇒   InputEventMux t → n → b → m (Widget t b)
   --
-  hasVisual    = const False          -- no visual by default
   liftDynW     = liftDynWStaticSubs
   liftW        = liftWSeed
 
-compToken ∷ ∀ m a. (Holo a, MonadIO m) ⇒ Proxy a → m IdToken
-compToken (hasVisual → True) = Port.newId $ showT $ typeRep (Proxy @a)
-compToken _                  = pure Port.blankIdToken
 
 
 -- * The final lift:  W(-idget)
@@ -299,16 +278,6 @@ liftWSeed imux n initial = do
   mut ← mutate (forget initial) $ select imux $ Const2 tok
   liftDynW tok n mut
 -- → liftW
-
-
--- * Treewise ops
---
-ensureTreeVisuals ∷ (c ~ Holo, MonadIO m) ⇒ VPort → Item c PLayout → m (Item c PVisual)
-ensureTreeVisuals port i = case i of
-  Node{..} → iUnvisual i <$> (sequence $ ensureTreeVisuals port <$> denoted)
-  Leaf{..} → if not $ hasVisual (proxy denoted)
-    then pure $ iUnvisual    i []
-    else iMandateVisual port i []
 
 
 
