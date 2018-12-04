@@ -31,10 +31,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
 module Holo.Instances
-  ( TypeAs(..)
-  , liftRecord
-  --
-  , Rect(..)
+  ( Rect(..)
   --
   , TextS(..), TextVisual, TextLine(..)
   , tsFontKey, tsSizeSpec, tsColor
@@ -43,21 +40,15 @@ module Holo.Instances
   )
 where
 
-import           Control.Arrow
-import           Control.Compose
 import           Data.Proxy
 import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
-import           Data.Typeable
 import           GHC.Types
-import           Generics.SOP.Monadic
 import           Linear
 import           Prelude                           hiding ((.), id)
 import           Reflex                            hiding (Query, Query(..))
-import           Reflex.GLFW                              (RGLFW, InputU(..))
+import           Reflex.GLFW                              (InputU(..))
 import qualified Data.Text.Zipper                  as T
-import qualified Data.TypeMap.Dynamic              as TM
-import qualified Generics.SOP                      as SOP
 import qualified GI.Pango                          as GIP
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 import qualified Reflex.GLFW                       as GLFW
@@ -72,96 +63,6 @@ import           HoloCairo                            (FKind(..))
 import qualified HoloCairo                         as Cr
 import qualified HoloPort                          as Port
 
-
--- * Lifted records (depends on Holo Text instance)
---
-instance SOP.Generic         Port.Settings
-instance SOP.HasDatatypeInfo Port.Settings
-
-liftRecord ∷ ∀ a t m c s xs.
-  ( RGLFW t m, Record t m c a, s ~ Structure a
-  , SOP.Code s ~ '[xs]
-  , SOP.All (HasReadField t m c a) xs
-  ) ⇒ RecordCtx t c a → m (Widget t s)
-liftRecord ctxR = unO $ recover (Proxy @c) (Proxy @(t, a)) ctxR
--- recover  ∷ ∀ (t ∷ Type) c m a s xss xs.
---            ( Record t m a, s ~ Structure a
---            , SOP.HasDatatypeInfo s
---            , Code s ~ xss, xss ~ '[xs]
---            , All2 (HasReadField t m c a) xss
---            , HasCallStack, Monad m, Applicative (Result t))
---          ⇒ Proxy c
---          → Proxy (t, a)
---          → RecordCtx t a
---          → (m :. Result t) s
-
--- Design derivation for Holo lifts:
--- 1. P: low-friction definition for structure types
--- 2. P: low-friction definition for structure field types
--- 3. 1+2 ?→ Field definition not proportional to structure and field types
--- 4. …
-
--- * A style map of types to their As types.
-data WXs c b where
-  WXs ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, c b) ⇒ n → WXs c b
-
-data TypeAsTag (с ∷ Type → Constraint)
-type instance TM.Item (TypeAsTag с) b = WXs с b
-newtype TypeAs c = TypeAs (TM.TypeMap (TypeAsTag c))
-
-instance ( RGLFW t m
-         , Holo a
-         , d ~ Result t
-         , ConsCtx t c u ~ (InputEventMux t, TypeAs Holo, Structure u)) ⇒
-         HasFieldCtx t m c u a where
-  type instance FieldCtx t a  = (InputEventMux t, TypeAs Holo, a)
-  fieldCtx _ _ (mux, tas, x) proj = (mux, tas, proj x)
-
-instance ( RGLFW t m
-         , As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m
-         , d ~ Result t
-         , ConsCtx t c u ~ (InputEventMux t, TypeAs Holo, Structure u)
-         , As TextLine, c Text
-         ) ⇒
-         HasReadField t m (c ∷ Type → Constraint) u b where
-  readField _ _ (mux, TypeAs tam, initV ∷ b) (FieldName fname) = O $ do
-    tok ← liftIO $ Port.newId $ "record label '" <> fname <> "'"
-    let addLabel x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Unconstr (Denoted x))
-                              ⇒ Port.IdToken → x → Denoted x → Blank)
-                            tok TextLine (fname <> ": ")
-                          , x
-                          ]
-        fP = Proxy @b
-    case TM.lookup fP tam of
-      Nothing      → error $ printf "Record recovery has no As element for field of type %s." (show $ typeRep fP)
-      Just (WXs x) →
-        W ∘ (id *** (<&> (id *** addLabel))) ∘ fromW <$> liftW mux (defAs $ proxy x) initV
-        -- liftW ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
-        -- ⇒ InputEventMux t → n → b → m (Widget t b)
-
--- record lifting for Dynamic initials
-type instance ConsCtx  t c (Dynamic t a) = Dynamic t a
-type instance Structure    (Dynamic _ a) = a
-
-
-type instance ConsCtx  t c (Static t a)  = (InputEventMux t, TypeAs c, a)
-type instance Structure    (Static _ a)  = a
-
-instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
-         , RGLFW t m
-         ) ⇒ Record t m c (Static t a) where
-  type RecordCtx t c (Static t a) = (InputEventMux t, TypeAs c, a)
-  prefixChars _ _ = 3
-  consCtx _ _ _ _ (mux, ta, a) = (mux, ta, a)
-
-instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
-         , RGLFW t m
-         ) ⇒ Record t m c (Dynamic t a) where
-  type RecordCtx t c (Dynamic t a) = Dynamic t a
-  prefixChars _ _ = 3
-  consCtx _ _ _ _ x = x
-  -- toFieldName _ = (⊥)
-  -- nameMap       = (⊥)
 
 
 -- * Co Double - Rect - Di (Unit PU) - Interp (Di (Unit PU))

@@ -239,8 +239,8 @@ liftPureDynamic n db = do
 class Unconstr a where
 instance Unconstr a where
 
-type BlankHolo      = Item Holo     PBlank
 type Blank          = Item Unconstr PBlank
+type BlankHolo      = Item Holo     PBlank
 type WH       t     = (Dynamic t Subscription, Dynamic t Blank)
 
 -- Result of the lifts -- the Widget:

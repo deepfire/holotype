@@ -80,6 +80,7 @@ import qualified Flex
 
 import           HoloPrelude                       hiding ((<>))
 import           Holo.Instances
+import           Holo.Record
 import           Holo                                     ( As(..), Vis
                                                           , Holo, BlankHolo, Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
                                                           , Static(..)
@@ -264,8 +265,12 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
   -- xStts            ← liftRecord muxV defSettingsV
 
-  -- NEXT: figuire where Holo comes from
-  xDD@(W (_, xDDv)) ← liftRecord @(Static t AnObject) @t @m @As @AnObject
+  -- Considerations:
+  -- 1. Holo comes from the HasReadField instance required of all record fields (due to liftW).
+  -- 2. In the new model, everything Holo must have a somehow chosen As instance supplied.
+  -- 3. Currently, we have no way of representing such a choice within the record lifting framework.
+  --
+  xDD@(W (_, xDDv)) ← liftRecord @t @m @(Static t AnObject) @AnObject
                       ( eV
                       , TypeAs TM.empty
                       , AnObject "yayyity" "lol" True)

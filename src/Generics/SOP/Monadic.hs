@@ -75,12 +75,12 @@ data family Result    t   s ∷ Type
 type family ConsCtx   t (c ∷ Type → Constraint) s ∷ Type
 
 class (Monad m) ⇒ HasFieldCtx t m (c ∷ Type → Constraint) u a where
-  type family FieldCtx  t s ∷ Type
+  type family FieldCtx t c a ∷ Type
   fieldCtx          ∷ Proxy c
                     → Proxy (t, u, a, m a)
                     → ConsCtx t c u
                     → (Structure u → a)
-                    → FieldCtx t a
+                    → FieldCtx t c a
 
 class ( Monad m
       , HasFieldCtx t m c u a
@@ -89,7 +89,7 @@ class ( Monad m
   readField         ∷ (HasCallStack)
                     ⇒ Proxy c
                     → Proxy (t, u, a)
-                    → FieldCtx t a
+                    → FieldCtx t c a
                     → FieldName
                     → (m :. Result t) a
   -- default readField ∷ ( HasCallStack, c
