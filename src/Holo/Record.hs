@@ -60,7 +60,7 @@ import           Holo.Instances
 instance SOP.Generic         Port.Settings
 instance SOP.HasDatatypeInfo Port.Settings
 
-liftRecord ∷ ∀ t m a s xs.
+liftRecord ∷ ∀ a t m s xs.
   ( RGLFW t m, Record t m a, s ~ Structure a
   , SOP.Code s ~ '[xs]
   , SOP.All (HasReadField t m a) xs
