@@ -233,6 +233,12 @@ instance SOP.HasDatatypeInfo AnObject
 type instance Structure AnObject = AnObject
 
 instance Holo.Named (Di a) (Di a)
+instance Holo.Named Bool Bool
+instance Holo.Named Int Int
+instance Holo.Named Text Text
+
+(<:) ∷ Typeable b ⇒ TM.TypeMap a → (Proxy b, TM.Item a b) → TM.TypeMap a
+(<:) tm (k, v) = TM.insert k v tm
 
 scene ∷ ∀ t m. ( RGLFW t m
                , Typeable t)
@@ -272,7 +278,9 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
   --
   xDD@(W (_, xDDv)) ← liftRecord @t @m @(Static t AnObject) @AnObject
                       ( eV
-                      , TypeAs TM.empty
+                      , TypeAs (TM.empty
+                                <: (Proxy @Text, HoloName TextLine)
+                                <: (Proxy @Bool, HoloName Switch))
                       , AnObject "yayyity" "lol" True)
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)

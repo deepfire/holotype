@@ -43,6 +43,7 @@ library
 
                   Holo
                   Holo.Instances
+                  Holo.Record
                   HoloCairo
                   HoloOS
                   HoloPort
