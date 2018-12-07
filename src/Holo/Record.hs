@@ -34,6 +34,7 @@
 module Holo.Record
   ( TypeAs(..)
   , liftRecord
+  , HoloName(..)
   )
 where
 
@@ -60,11 +61,11 @@ instance SOP.Generic         Port.Settings
 instance SOP.HasDatatypeInfo Port.Settings
 
 liftRecord ∷ ∀ t m a s xs.
-  ( RGLFW t m, Record t m Holo a, s ~ Structure a
+  ( RGLFW t m, Record t m a, s ~ Structure a
   , SOP.Code s ~ '[xs]
-  , SOP.All (HasReadField t m Holo a) xs
-  ) ⇒ RecordCtx t Holo a → m (Widget t s)
-liftRecord ctxR = unO $ recover (Proxy @Holo) (Proxy @(t, a)) ctxR
+  , SOP.All (HasReadField t m a) xs
+  ) ⇒ RecordCtx t a → m (Widget t s)
+liftRecord ctxR = unO $ recover (Proxy @(t, a)) ctxR
 -- recover  ∷ ∀ (t ∷ Type) c m a s xss xs.
 --            ( Record t m a, s ~ Structure a
 --            , SOP.HasDatatypeInfo s
@@ -82,32 +83,31 @@ liftRecord ctxR = unO $ recover (Proxy @Holo) (Proxy @(t, a)) ctxR
 -- 3. 1+2 ?→ Field definition not proportional to structure and field types
 -- 4. …
 
--- * A style map of types to their As types.
-data WXs c b where
-  WXs ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, c b) ⇒ n → WXs c b
+-- A name and a piece of evidence of its relevance to 'b'.
+data HoloName b where
+  HoloName ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b) ⇒ n → HoloName b
 
-data TypeAsTag (с ∷ Type → Constraint)
-type instance TM.Item (TypeAsTag с) b = WXs с b
-newtype TypeAs c = TypeAs (TM.TypeMap (TypeAsTag c))
-
-instance ( RGLFW t m
-         , Holo a
-         , d ~ Result t
-         , ConsCtx t Holo u ~ (InputEventMux t, TypeAs Holo, Structure u)) ⇒
-         HasFieldCtx t m Holo u a where
-  type instance FieldCtx t Holo a  = (InputEventMux t, TypeAs Holo, a)
-  fieldCtx _ _ (mux, tas, x) proj = (mux, tas, proj x)
+data HoloTag
+type instance TM.Item HoloTag b = HoloName b
+newtype TypeAs c = TypeAs (TM.TypeMap HoloTag)
 
 instance ( RGLFW t m
-         , As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, RGLFW t m
-         , Holo ~ Holo, Holo b, Typeable b
          , d ~ Result t
-         , ConsCtx t Holo u ~ (InputEventMux t, TypeAs c, Structure u)
-         , As TextLine, Holo Text
-         , c ~ Holo
+         , ConsCtx t u ~ (InputEventMux t, TypeAs Holo, Structure u)
          ) ⇒
-         HasReadField t m (c ∷ Type → Constraint) u b where
-  readField _ _ (mux, TypeAs tam, initV ∷ b) (FieldName fname) = O $ do
+         HasFieldCtx t m u a where
+  type instance FieldCtx t a  = (InputEventMux t, TypeAs Holo, a)
+  fieldCtx _ (mux, tas, x) proj = (mux, tas, proj x)
+
+instance ( RGLFW t m
+         , HasFieldCtx t m  u a
+         , d ~ Result t
+         , ConsCtx t u ~ (InputEventMux t, TypeAs Holo, Structure u)
+         , As TextLine, Holo Text
+         , Typeable b
+         ) ⇒
+         HasReadField t m u b where
+  readField _ (mux, TypeAs tam, initV ∷ b) (FieldName fname) = O $ do
     tok ← liftIO $ Port.newId $ "record label '" <> fname <> "'"
     let addLabel x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Unconstr (Denoted x))
                               ⇒ Port.IdToken → x → Denoted x → Blank)
@@ -117,31 +117,31 @@ instance ( RGLFW t m
         fP = Proxy @b
     case TM.lookup fP tam of
       Nothing      → error $ printf "Record recovery has no As element for field of type %s." (show $ typeRep fP)
-      Just (WXs x) →
+      Just (HoloName x) →
         W ∘ (id *** (<&> (id *** addLabel))) ∘ fromW <$> liftW mux (defAs $ proxy x) initV
         -- liftW ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
         -- ⇒ InputEventMux t → n → b → m (Widget t b)
 
 -- record lifting for Dynamic initials
-type instance ConsCtx  t c (Dynamic t a) = Dynamic t a
+type instance ConsCtx  t (Dynamic t a) = Dynamic t a
 type instance Structure    (Dynamic _ a) = a
 
 
-type instance ConsCtx  t c (Static t a)  = (InputEventMux t, TypeAs c, a)
+type instance ConsCtx  t (Static t a)  = (InputEventMux t, TypeAs Holo, a)
 type instance Structure    (Static _ a)  = a
 
 instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
          , RGLFW t m
-         ) ⇒ Record t m c (Static t a) where
-  type RecordCtx t c (Static t a) = (InputEventMux t, TypeAs c, a)
-  prefixChars _ _ = 3
-  consCtx _ _ _ _ (mux, ta, a) = (mux, ta, a)
+         ) ⇒ Record t m (Static t a) where
+  type RecordCtx t (Static t a) = (InputEventMux t, TypeAs Holo, a)
+  prefixChars _ = 3
+  consCtx _ _ _ (mux, ta, a) = (mux, ta, a)
 
 instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
          , RGLFW t m
-         ) ⇒ Record t m c (Dynamic t a) where
-  type RecordCtx t c (Dynamic t a) = Dynamic t a
-  prefixChars _ _ = 3
-  consCtx _ _ _ _ x = x
+         ) ⇒ Record t m (Dynamic t a) where
+  type RecordCtx t (Dynamic t a) = Dynamic t a
+  prefixChars _ = 3
+  consCtx _ _ _ x = x
   -- toFieldName _ = (⊥)
   -- nameMap       = (⊥)
