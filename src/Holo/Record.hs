@@ -116,7 +116,7 @@ instance ( RGLFW t m
                           ]
         fP = Proxy @b
     case TM.lookup fP tam of
-      Nothing      → error $ printf "Record recovery has no As element for field of type %s." (show $ typeRep fP)
+      Nothing      → error $ printf "Record recovery has no As element for field '%s' of type %s." fname (show $ typeRep fP)
       Just (HoloName x) →
         W ∘ (id *** (<&> (id *** addLabel))) ∘ fromW <$> liftW mux (defAs $ proxy x) initV
         -- liftW ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)

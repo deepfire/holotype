@@ -240,6 +240,13 @@ instance Holo.Named Text Text
 (<:) ∷ Typeable b ⇒ TM.TypeMap a → (Proxy b, TM.Item a b) → TM.TypeMap a
 (<:) tm (k, v) = TM.insert k v tm
 
+defNameMap ∷ TypeAs Holo
+defNameMap = TypeAs
+  (TM.empty
+    <: (Proxy @Text, HoloName TextLine)
+    <: (Proxy @Bool, HoloName Switch)
+  )
+
 scene ∷ ∀ t m. ( RGLFW t m
                , Typeable t)
   ⇒ Port.Settings
@@ -259,6 +266,9 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
   statsD ∷ Widget t Text
                    ← liftDynamic TextLine $ statsValD <&>
                      \(mem)→ T.pack $ printf "mem: %d" mem
+  lolD ∷ Widget t Text
+                   ← liftDynamic (Labelled ("mem", TextLine)) $ statsValD <&>
+                     \(mem)→ T.pack $ printf "%d" mem
 
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
   rectD ∷ Widget t (Di (Unit PU))
@@ -273,9 +283,7 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
   xDD@(W (_, xDDv)) ← liftRecord @(Static t AnObject)
                       ( eV
-                      , TypeAs (TM.empty
-                                <: (Proxy @Text, HoloName TextLine)
-                                <: (Proxy @Bool, HoloName Switch))
+                      , defNameMap
                       , AnObject "yayyity" "lol" True)
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
@@ -297,6 +305,7 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
         -- , (snd <$>) <$> text2HoloQD
         , (snd <$>) <$> styleEntryD
         -- , wWH xD
+        , wWH lolD
         , wWH xDD
         , wWH $ rectD
         , wWH $ fpsD

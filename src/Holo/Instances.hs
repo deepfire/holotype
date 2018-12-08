@@ -37,6 +37,8 @@ module Holo.Instances
   , tsFontKey, tsSizeSpec, tsColor
   --
   , SwitchS(..), Switch(..)
+  --
+  , Labelled(..)
   )
 where
 
@@ -256,16 +258,19 @@ instance As a ⇒ As (Labelled a) where
   defAs                   _ = Labelled ("fi", defAs Proxy)
   defSty                  _ = (defSty $ Proxy @TextLine, defSty $ Proxy @a)
   sizeRequest p (Labelled (label, asA)) content (tSty, aSty) = do
-    (_, rTL@(Di (V2 w _))) ← ((fromMaybe 0 <$>) <$>) <$> sizeRequest p TextLine label   tSty
-    (aS, rA)               ← ((fromMaybe 0 <$>) <$>) <$> sizeRequest p asA      content aSty
+    let effLabel = label <> ": "
+    (_, rTL@(Di (V2 w _))) ← ((fromMaybe 0 <$>) <$>) <$> sizeRequest p TextLine effLabel tSty
+    (aS, rA)               ← ((fromMaybe 0 <$>) <$>) <$> sizeRequest p asA      content  aSty
     pure $ ((Wi w, aS),) $ Just <$> (_reqt'di $ reqt'add X (Reqt rTL) (Reqt rA))
   setupVis        p (Labelled (label, asA)) content (sT, sA) (Wi cShift, isA) area' drw = do
     let (areaL, areaR) = area'split'start X cShift area'
-    vT ← setupVis p TextLine                label    sT      ()               areaL drw
+    let effLabel = label <> ": "
+    vT ← setupVis p TextLine                effLabel sT      ()               areaL drw
     vA ← setupVis p asA                     content      sA              isA  areaR drw
     pure $ (,) vT vA
   render          p (Labelled (label, asA)) content (sT, sA) (Wi cShift, isA) shift drw (tV, aV) = do
-    render        p TextLine   label                 sT      ()               shift drw  tV
+    let effLabel = label <> ": "
+    render        p TextLine   effLabel              sT      ()               shift drw  tV
     render        p asA                     content      sA  isA             (shift & po'd X %~ (+cShift)) drw aV
   freeVis _ (tV, aV) = do
     freeVis (Proxy @TextLine) tV
