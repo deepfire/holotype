@@ -236,6 +236,7 @@ instance Holo.Named (Di a) (Di a)
 instance Holo.Named Bool Bool
 instance Holo.Named Int Int
 instance Holo.Named Text Text
+instance Holo.Named (Text,Text) (Double,Double)
 
 (<:) ∷ Typeable b ⇒ TM.TypeMap a → (Proxy b, TM.Item a b) → TM.TypeMap a
 (<:) tm (k, v) = TM.insert k v tm
@@ -281,6 +282,11 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
   -- xStts            ← liftRecord muxV defSettingsV
 
+  dimD ∷ Widget t (Double, Double)
+                   ← liftW eV (Y, (Labelled ("x", TextLine)
+                                  ,Labelled ("y", TextLine)))
+                     (0,0)
+
   xDD@(W (_, xDDv)) ← liftWRecord @(Static t AnObject)
                       ( eV
                       , defNameMap
@@ -306,6 +312,7 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
         , (snd <$>) <$> styleEntryD
         -- , wWH xD
         , wWH lolD
+        , wWH dimD
         , wWH xDD
         , wWH $ rectD
         , wWH $ fpsD

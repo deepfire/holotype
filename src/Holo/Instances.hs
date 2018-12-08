@@ -276,6 +276,13 @@ instance As a ⇒ As (Labelled a) where
     freeVis (Proxy @TextLine) tV
     freeVis (Proxy @a) aV
 
+instance (Mutable a, Mutable b) ⇒ Mutable (a, b) where
+  subscription tok _ =
+    mempty -- how do we switch?
+    <> subscription tok (Proxy @a)
+    <> subscription tok (Proxy @b)
+  mutate (ia, ib) evE = foldDyn (\ev (_,_)→ (ia, ib)) (ia, ib) evE
+
 
 -- * Axis → a → b → (,) a b
 --
@@ -315,6 +322,8 @@ instance (As a, As b) ⇒ As (Axis, (a, b)) where
 -- 3. If not, what?
 -- instance Holo a ⇒ Holo (Port.ScreenDim a) where
 --   subscription tok _ = subSingleton tok $ InputEventMask GLFW.eventMaskFramebufferSize
+
+instance (Holo a, Holo b) ⇒ Holo (a, b)
 
 instance Holo Double
 

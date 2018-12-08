@@ -145,6 +145,10 @@ instance {-# INCOHERENT #-} (Read b, Show b) ⇒ Interp Text b where
   interp        = readMaybe ∘ T.unpack
   forget        = T.pack ∘ show
 
+instance (Interp a b, Interp c d) ⇒ Interp (a, c) (b, d) where
+  interp (a,c) = (,) <$> interp a <*> interp c
+  forget (b,d) = (,) (forget b) (forget d)
+
 
 -- * Name
 --    ..as per Пиотровский Р. Г. Текст, машина, человек — Л.: Наука, 1975
