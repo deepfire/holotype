@@ -271,11 +271,6 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
   -- xStts            ← liftRecord muxV defSettingsV
 
-  -- Considerations:
-  -- 1. Holo comes from the HasReadField instance required of all record fields (due to liftW).
-  -- 2. In the new model, everything Holo must have a somehow chosen As instance supplied.
-  -- 3. Currently, we have no way of representing such a choice within the record lifting framework.
-  --
   xDD@(W (_, xDDv)) ← liftRecord @(Static t AnObject)
                       ( eV
                       , TypeAs (TM.empty
