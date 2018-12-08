@@ -35,7 +35,6 @@
 
   1. Map the entire resident context (headspace) available in a convenient way
   2. Facilitate context switching by introducing sub-contexts
-
 * Ideas pipeline
 *** Inspiration material
 
@@ -397,7 +396,31 @@
       - Progression ::
       - Distinctions ::
         - Decomposition vs. dependency
-
+* Implemented
+*** Substrates
+***** Flatland -- primordial soup of units of scale, color, dimension, area
+      ..and associated operations
+***** HoloCairo -- Flatland + Cairo-based drawing & font-work
+      - fairly flexible font selection with aliases, vector/bitmap distinction, variants and defaulting
+*** Components
+***** Flex -- 2d Flexbox-based abstract layout engine
+***** HoloPort -- manage/show abstract Visuals with identity
+      - LambdaCube3D-based, so richly extensible
+      - picking supported
+      - 2.5D
+      - screen/frame management
+      - targetable by HoloCairo
+***** Holo -- Reflex FRP-based composable widget layer
+      - vocabulary:
+        - As :: a Name that Denotes a type
+        - Interp :: Interpret a type into another
+        - Mutable :: evolution in response to events subscribed to
+        - Holo :: build upon the above -- mix input events with others to define a
+                  dynamic As/Interp-defined interactive widget
+***** SOP.Monadic -- abstract applicative+monadic operation on SOPs
+      - generic: monadically recovers a datatype from the structure of a related
+        datatype, with relationship treated in applicative context
+      - allows us to lift single-product records into editable widgets
 * Open question archive
 *** =flex= notes
 ***** Attributes
