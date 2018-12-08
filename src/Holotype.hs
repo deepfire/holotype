@@ -262,12 +262,12 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
   --      2. liftWDynamic takes an already formed dynamic and turns into a visual
   --      3. ..yet it requires Holo, which insists on Mutable, which we don't care about..
   fpsD ∷ Widget t Text
-                   ← liftDynamic TextLine (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+                   ← liftPureDynamic TextLine (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
   statsD ∷ Widget t Text
-                   ← liftDynamic TextLine $ statsValD <&>
+                   ← liftPureDynamic TextLine $ statsValD <&>
                      \(mem)→ T.pack $ printf "mem: %d" mem
   lolD ∷ Widget t Text
-                   ← liftDynamic (Labelled ("mem", TextLine)) $ statsValD <&>
+                   ← liftPureDynamic (Labelled ("mem", TextLine)) $ statsValD <&>
                      \(mem)→ T.pack $ printf "%d" mem
 
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
@@ -281,7 +281,7 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
   -- xStts            ← liftRecord muxV defSettingsV
 
-  xDD@(W (_, xDDv)) ← liftRecord @(Static t AnObject)
+  xDD@(W (_, xDDv)) ← liftWRecord @(Static t AnObject)
                       ( eV
                       , defNameMap
                       , AnObject "yayyity" "lol" True)

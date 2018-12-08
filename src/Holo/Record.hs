@@ -33,7 +33,7 @@
 
 module Holo.Record
   ( TypeAs(..)
-  , liftRecord
+  , liftWRecord
   , HoloName(..)
   )
 where
@@ -60,12 +60,12 @@ import           Holo.Instances
 instance SOP.Generic         Port.Settings
 instance SOP.HasDatatypeInfo Port.Settings
 
-liftRecord ∷ ∀ a t m s xs.
+liftWRecord ∷ ∀ a t m s xs.
   ( RGLFW t m, Record t m a, s ~ Structure a
   , SOP.Code s ~ '[xs]
   , SOP.All (HasReadField t m a) xs
   ) ⇒ RecordCtx t a → m (Widget t s)
-liftRecord ctxR = unO $ recover (Proxy @(t, a)) ctxR
+liftWRecord ctxR = unO $ recover (Proxy @(t, a)) ctxR
 -- recover  ∷ ∀ (t ∷ Type) c m a s xss xs.
 --            ( Record t m a, s ~ Structure a
 --            , SOP.HasDatatypeInfo s
