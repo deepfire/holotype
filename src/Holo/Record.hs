@@ -1,6 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -40,13 +41,13 @@ where
 
 import           Control.Arrow
 import           Control.Compose
+import           Control.Newtype.Generics
 import           Data.Text                                (Text)
 import           Data.Typeable
 import           Generics.SOP.Monadic
 import           Reflex.GLFW                              (RGLFW)
 import qualified Data.TypeMap.Dynamic              as TM
 import qualified Generics.SOP                      as SOP
-import           GHC.Types
 import           Reflex                            hiding (Query, Query(..))
 
 import           HoloPrelude
@@ -122,26 +123,56 @@ instance ( RGLFW t m
         -- liftW ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
         -- ⇒ InputEventMux t → n → b → m (Widget t b)
 
--- record lifting for Dynamic initials
-type instance ConsCtx  t (Dynamic t a) = Dynamic t a
-type instance Structure    (Dynamic _ a) = a
-
-
-type instance ConsCtx  t (Static t a)  = (InputEventMux t, TypeAs Holo, a)
-type instance Structure    (Static _ a)  = a
+type instance ConsCtx  t a = (InputEventMux t, TypeAs Holo, a)
+type instance Structure  a = a
 
 instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
          , RGLFW t m
-         ) ⇒ Record t m (Static t a) where
-  type RecordCtx t (Static t a) = (InputEventMux t, TypeAs Holo, a)
+         ) ⇒ Record t m a where
+  type RecordCtx t a = (InputEventMux t, TypeAs Holo, a)
   prefixChars _ = 3
   consCtx _ _ _ (mux, ta, a) = (mux, ta, a)
 
-instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
-         , RGLFW t m
-         ) ⇒ Record t m (Dynamic t a) where
-  type RecordCtx t (Dynamic t a) = Dynamic t a
-  prefixChars _ = 3
-  consCtx _ _ _ x = x
+-- instance (Typeable b, SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ Holo a where
+--   liftW mux name init = liftWRecord
+--
+-- liftWRecord ∷ ∀ a t m s xs.
+--   ( RGLFW t m, Record t m a, s ~ Structure a
+--   , SOP.Code s ~ '[xs]
+--   , SOP.All (HasReadField t m a) xs
+--   ) ⇒ RecordCtx t a → m (Widget t s)
+-- liftWSeed ∷ ∀ m t n a b.
+--   (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
+--   ⇒ InputEventMux t → n → b → m (Widget t b)
+-- liftWSeed imux n initial = do
+--   tok ← iNewToken $ Proxy @b
+--   mut ← mutate (forget initial) $ select imux $ Const2 tok
+--   liftDynW tok n mut
+
+
+-- * The below constitutes an attempt to allow Holo lifting of dynamic-supplied records.
+--
+-- type instance ConsCtx  t (Dynamic t a) = Dynamic t a
+-- type instance Structure    (Dynamic _ a) = a
+
+-- newtype Static t a = Static a -- XXX: once we're successful with the lift, let's drop the 't'
+--   deriving newtype (Newtype)
+
+-- type instance ConsCtx  t (Static t a)  = (InputEventMux t, TypeAs Holo, a)
+-- type instance Structure    (Static _ a)  = a
+
+-- instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
+--          , RGLFW t m
+--          ) ⇒ Record t m (Static t a) where
+--   type RecordCtx t (Static t a) = (InputEventMux t, TypeAs Holo, a)
+--   prefixChars _ = 3
+--   consCtx _ _ _ (mux, ta, a) = (mux, ta, a)
+
+-- instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
+--          , RGLFW t m
+--          ) ⇒ Record t m (Dynamic t a) where
+--   type RecordCtx t (Dynamic t a) = Dynamic t a
+--   prefixChars _ = 3
+--   consCtx _ _ _ x = x
   -- toFieldName _ = (⊥)
   -- nameMap       = (⊥)

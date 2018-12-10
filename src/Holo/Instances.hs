@@ -142,8 +142,6 @@ instance Mutable Text where
   mutate initial ev =
     (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
 
-instance Holo Text where
-
 data EditEvent where
   Edit ∷
     { eeEdit ∷ TextZipper Text → TextZipper Text
@@ -243,8 +241,6 @@ instance Mutable Bool where
   subscription tok _ = subSingleton tok inputMaskClick1Press
   mutate  initial ev = foldDyn (\_ v → not v) initial ev
 
-instance Holo Bool where
-
 
 -- * Text → As → As
 --
@@ -276,13 +272,6 @@ instance As a ⇒ As (Labelled a) where
     freeVis (Proxy @TextLine) tV
     freeVis (Proxy @a) aV
 
-instance (Mutable a, Mutable b) ⇒ Mutable (a, b) where
-  subscription tok _ =
-    mempty -- how do we switch?
-    <> subscription tok (Proxy @a)
-    <> subscription tok (Proxy @b)
-  mutate (ia, ib) evE = foldDyn (\ev (_,_)→ (ia, ib)) (ia, ib) evE
-
 
 -- * Axis → a → b → (,) a b
 --
@@ -313,6 +302,27 @@ instance (As a, As b) ⇒ As (Axis, (a, b)) where
     freeVis (Proxy @b) bV
 
 
+-- * Holo
+--
+instance Holo Bool
+instance Holo Double
+instance Holo Float
+instance Holo Int
+instance Holo Integer
+instance Holo String
+instance Holo Text
+instance Holo (Unit PU)
+
+-- So, liftWRecord works for (a, b) now, even if it's assigning empty field names.
+-- Next -- shall we:
+--   1. rename liftWProduct ← liftWRecord
+--   2. make Holo instances for everything liftWProduct-able?
+
+instance Holo a ⇒ Holo (V2 a)
+
+instance Holo (Di (Unit PU)) where
+
+
 -- * Settings
 --
 
@@ -322,12 +332,6 @@ instance (As a, As b) ⇒ As (Axis, (a, b)) where
 -- 3. If not, what?
 -- instance Holo a ⇒ Holo (Port.ScreenDim a) where
 --   subscription tok _ = subSingleton tok $ InputEventMask GLFW.eventMaskFramebufferSize
-
-instance (Holo a, Holo b) ⇒ Holo (a, b)
-
-instance Holo Double
-
-instance Holo (Di (Unit PU)) where
 
 -- instance Holo Port.ScreenMode where
 --   subscription tok _ = subSingleton tok editMaskKeys

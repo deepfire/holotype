@@ -51,7 +51,6 @@ module Holo
   , WH, wWH
   , Widget
   --
-  , Static
   , interpretate
   , liftDynWStaticSubs
   , liftWSeed
@@ -63,7 +62,6 @@ module Holo
 where
 
 import           Control.Arrow
-import           Control.Newtype.Generics
 import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Typeable
@@ -268,12 +266,6 @@ instance Reflex t ⇒ Applicative (Result t) where
                    (  x, xhb)→
                    (f x, xhb & children %~ (fhb :))))
       fvals xvals)
-
--- record lifting for unchanging values
--- type instance ConsCtx  t (Static t a)  = (InputEventMux t, a)
--- type instance FieldCtx t (Static t a)  = (InputEventMux t, a)
-newtype Static t a = Static a -- XXX: once we're successful with the lift, let's drop the 't'
-  deriving newtype (Newtype)
 
 -- instance {-# OVERLAPPABLE #-}
 --   (Typeable a

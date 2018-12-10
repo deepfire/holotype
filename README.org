@@ -417,6 +417,25 @@
         - Mutable :: evolution in response to events subscribed to
         - Holo :: build upon the above -- mix input events with others to define a
                   dynamic As/Interp-defined interactive widget
+******* Considerations
+        - why did we (mistakenly) go with: (As a, As b) => As (a, b)
+          - originally:  -> Holo (Di a)
+          - also: Denoted n ~ (a, a)
+        - the mistake of (As a, As b) => As (a, b) -- necessitates own,
+          intra-widget focus management, since specialised input is impossible due
+          to genericity
+        - let's go back to generic Holo (Di a)
+          - does it need an As n, Denoted n ~ a, Interp a (Di b)?
+          - What is implementable/not for a multi-Identity composite?
+            - [-] As n, Denoted n ~ Composite -- necessitates a single Identity
+            - [-] Mutable Composite -- we have a multitude of identities and want to
+              reuse generic focus machinery
+            - [X] Named Composite b
+            - [X] Interp Composite b
+          - prerequisite lift step doable generically via liftWRecord on (,)
+        - let's turn liftWRecord into a Holo instance?
+          - ..would require As
+          - -> impossible?
 ***** SOP.Monadic -- abstract applicative+monadic operation on SOPs
       - generic: monadically recovers a datatype from the structure of a related
         datatype, with relationship treated in applicative context

@@ -96,6 +96,8 @@ class Typeable r  ⇒ As r where
   type instance    Sty r = ()
   type          IStruc r ∷ Type
   type instance IStruc r = ()
+  -- type             Drw r ∷ Type
+  -- type instance    Drw r = Drawable
   type             Vis r ∷ Type
   type instance    Vis r = ()
   defAs       ∷               Proxy r             → r
@@ -105,9 +107,8 @@ class Typeable r  ⇒ As r where
   sizeRequest ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → m (IStruc r, Di (Maybe Double))
   setupVis    ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Area'LU Double → Drawable → m (Vis r)
   render      ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Po Double      → Drawable → Vis r → m () -- ^ Update visual.
-  freeVis     ∷ MonadIO m ⇒   Proxy r                                                            → Vis r → m ()
-  freeVis                           _                                                                  _ = pure ()
-
+  freeVis     ∷ MonadIO m ⇒   Proxy r                                                         → Vis r → m ()
+  freeVis                           _                                                               _ = pure ()
 
 -- * Concrete, minimal case, to keep us in check
 instance As () where
@@ -441,3 +442,31 @@ showTreeVisuals frame root = recur (luOf (iArea root)^.lu'po) "" root
       -- liftIO $ putStrLn $ pfx <> show (offset ^.po'v) <> " " <> Flex.ppItemArea i
       let ourOff = parOff + luOf iArea^.lu'po
       forM_ denoted $ recur ourOff (pfx <> "  ")
+
+---
+--- Demonstration that compounds can't be easily done via As instances.
+---
+-- instance (As a, As b) ⇒ As (Axis, (a, b)) where
+--   type Denoted (Axis, (a, b)) = (Denoted a, Denoted b)
+--   type Sty     (Axis, (a, b)) = (Sty     a,     Sty b)
+--   type IStruc  (Axis, (a, b)) = (Double
+--                                 ,(IStruc a,  IStruc b))
+--   -- type Drw     (Axis, (a, b)) = (Drw     a,     Drw b)
+--   type Vis     (Axis, (a, b)) = (Vis     a,     Vis b)
+--   defAs                     _ = (X, (defAs Proxy, defAs Proxy))
+--   defSty                    _ = (defSty $ Proxy @a, defSty $ Proxy @b)
+--   sizeRequest p (ax, (asA, asB)) (cA, cB) (sA, sB) = do
+--     (isA, rA@(Di v)) ← ((fromMaybe 0 <$>) <$>) <$> sizeRequest p asA cA sA
+--     (isB, rB)        ← ((fromMaybe 0 <$>) <$>) <$> sizeRequest p asB cB sB
+--     pure $ ((v2'proj ax v, (isA, isB)),) $ Just <$> (_reqt'di $ reqt'add ax (Reqt rA) (Reqt rB))
+--   setupVis    p (ax, (asA, asB)) (cA, cB) (sA, sB) (shift, (isA, isB)) area' --------(drwA, drwB)------- = do
+--     let (aLU, aRB) = area'split'start ax shift area'
+--     vA ← setupVis p asA           cA       sA               isA        aLU    drwA
+--     vB ← setupVis p asB               cB       sB                isB   aRB    drwB
+--     pure $ (,) vA vB
+--   render      p (ax, (asA, asB)) (cA, cB) (sA, sB) (shiftN, (isA, isB)) shift drw (aV, bV) = do
+--     render        p asA           cA       sA                isA        shift drw  aV
+--     render        p asB               cB       sB                 isB  (shift & po'd ax %~ (+shiftN)) drw bV
+--   freeVis _ (aV, bV) = do
+--     freeVis (Proxy @a) aV
+--     freeVis (Proxy @b) bV

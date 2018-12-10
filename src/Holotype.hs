@@ -83,7 +83,6 @@ import           Holo.Instances
 import           Holo.Record
 import           Holo                                     ( As(..), Vis
                                                           , Holo, BlankHolo, Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
-                                                          , Static(..)
                                                           , Widget, liftW, liftPureDynamic, liftDynamic
                                                           , WH, wWH
                                                           , Result(..))
@@ -222,7 +221,7 @@ instance SOP.HasDatatypeInfo MegaSub
 data AnObject where
   AnObject ∷
     { objName   ∷ Text
-    , objLol    ∷ Text
+    , objLol    ∷ Double
     , objYay    ∷ Bool
     -- , objDPI    ∷ DΠ
     -- , objDim    ∷ Di Int
@@ -232,10 +231,11 @@ instance SOP.Generic         AnObject
 instance SOP.HasDatatypeInfo AnObject
 type instance Structure AnObject = AnObject
 
-instance Holo.Named (Di a) (Di a)
-instance Holo.Named Bool Bool
-instance Holo.Named Int Int
-instance Holo.Named Text Text
+instance {-# OVERLAPPABLE #-} Holo.Named a a
+instance {-# OVERLAPPABLE #-} Holo.Named Text a
+instance {-# OVERLAPS #-}     Holo.Named Text Text
+
+instance Holo.Named Text Double
 instance Holo.Named (Text,Text) (Double,Double)
 
 (<:) ∷ Typeable b ⇒ TM.TypeMap a → (Proxy b, TM.Item a b) → TM.TypeMap a
@@ -244,8 +244,13 @@ instance Holo.Named (Text,Text) (Double,Double)
 defNameMap ∷ TypeAs Holo
 defNameMap = TypeAs
   (TM.empty
-    <: (Proxy @Text, HoloName TextLine)
-    <: (Proxy @Bool, HoloName Switch)
+    <: (Proxy @Bool,    HoloName TextLine)
+    <: (Proxy @Bool,    HoloName Switch)
+    <: (Proxy @Double,  HoloName TextLine)
+    <: (Proxy @Float,   HoloName TextLine)
+    <: (Proxy @Int,     HoloName TextLine)
+    <: (Proxy @Integer, HoloName TextLine)
+    <: (Proxy @Text,    HoloName TextLine)
   )
 
 scene ∷ ∀ t m. ( RGLFW t m
@@ -274,6 +279,7 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
   rectD ∷ Widget t (Di (Unit PU))
                    ← liftPureDynamic Rect rectDiD
+
   frameCountD ∷ Widget t Text
                    ← liftPureDynamic TextLine $ T.pack ∘ printf "frame #%04d" <$> frameNoD
   -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
@@ -282,17 +288,24 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
   -- xStts            ← liftRecord muxV defSettingsV
 
-  dimD ∷ Widget t (Double, Double)
-                   ← liftW eV (Y, (Labelled ("x", TextLine)
-                                  ,Labelled ("y", TextLine)))
-                     (0,0)
+  doubleD ∷ Widget t Double
+                   ← liftW eV TextLine 0
 
-  xDD@(W (_, xDDv)) ← liftWRecord @(Static t AnObject)
+  -- dimD ∷ Widget t (Double, Double)
+  --                  ← liftW eV (X, (Labelled ("x", TextLine)
+  --                                 ,Labelled ("y", TextLine)))
+  --                    (0,0)
+
+  xDD@(W (_, xDDv)) ← liftWRecord @AnObject
                       ( eV
                       , defNameMap
-                      , AnObject "yayyity" "lol" True)
+                      , AnObject "yayyity" 3.14 True)
   _                ← performEvent $ (updated xDDv) <&>
                      \(x, _) → liftIO $ putStrLn (show x)
+  xDT@(W (_, xDTv)) ← liftWRecord @(Int, Text)
+                      ( eV
+                      , defNameMap
+                      , (42, "seriously?"))
   -- xSD@(W (_, xSDv)) ← liftWRecord @(Static t Port.Settings) (eV, defSettingsV)
 
   longStaticTextD  ← liftW eV TextLine ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
@@ -312,8 +325,9 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
         , (snd <$>) <$> styleEntryD
         -- , wWH xD
         , wWH lolD
-        , wWH dimD
+        , wWH doubleD
         , wWH xDD
+        , wWH xDT
         , wWH $ rectD
         , wWH $ fpsD
         , wWH $ longStaticTextD

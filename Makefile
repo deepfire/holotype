@@ -1,6 +1,6 @@
 GHC  ?= $(shell echo $$(cat default-compiler.nix) | tr -d '"')
 GHCD := $(shell echo $(GHC) | sed 's/ghc843/8.4.3/;s/ghc861/8.6.1/')
-$(warning Using ghc-$(GHCD))
+$(info Using ghc-$(GHCD))
 
 all: holotype
 

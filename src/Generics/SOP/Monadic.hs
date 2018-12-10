@@ -61,6 +61,7 @@ import           Generics.SOP                        (NP(..), SOP(..), I(..), K(
                                                      ,HasDatatypeInfo(..), DatatypeInfo(..), ConstructorInfo(..), SListI
                                                      , hcliftA2, hliftA, hsequence
                                                      )
+import           Generics.SOP.NP                     (pure_NP)
 import qualified Generics.SOP                     as SOP
 import qualified Generics.SOP.Lens                as SOP
 
@@ -161,6 +162,8 @@ recoverCtor
   → NP (m :. Result t) xs
 recoverCtor pTS ctxR _ (O (consNr, (Record consName fis))) =
   recoverFields pTS ctxR (consCtx (Proxy @(t, m a)) (pack consName) consNr ctxR) $ hliftA (K ∘ pack ∘ SOP.fieldName) fis
+recoverCtor pTS ctxR _ (O (consNr, (Constructor consName))) =
+  recoverFields pTS ctxR (consCtx (Proxy @(t, m a)) (pack consName) consNr ctxR) $ (pure_NP (K ""))
 
 recoverCtor _ _ name _ =
   error $ printf "Non-Record (plain Constructor, Infix) ADTs not supported: type %s." (unpack name)
