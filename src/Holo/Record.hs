@@ -61,12 +61,12 @@ import           Holo.Instances
 instance SOP.Generic         Port.Settings
 instance SOP.HasDatatypeInfo Port.Settings
 
-liftWRecord ∷ ∀ a t m s xs.
-  ( RGLFW t m, Record t m a, s ~ Structure a
+liftWRecord ∷ ∀ a i t m s xs.
+  ( HGLFW i t m, Record i m a, s ~ Structure a
   , SOP.Code s ~ '[xs]
-  , SOP.All (HasReadField t m a) xs
-  ) ⇒ RecordCtx t a → m (Widget t s)
-liftWRecord ctxR = unO $ recover (Proxy @(t, a)) ctxR
+  , SOP.All (HasReadField i m a) xs
+  ) ⇒ RecordCtx i a → m (Widget i s)
+liftWRecord ctxR = unO $ recover (Proxy @(i, a)) ctxR
 -- recover  ∷ ∀ (t ∷ Type) c m a s xss xs.
 --            ( Record t m a, s ~ Structure a
 --            , SOP.HasDatatypeInfo s
@@ -85,56 +85,67 @@ liftWRecord ctxR = unO $ recover (Proxy @(t, a)) ctxR
 -- 4. …
 
 -- A name and a piece of evidence of its relevance to 'b'.
-data HoloName b where
-  HoloName ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b) ⇒ n → HoloName b
+data HoloName i b where
+  HoloName ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b) ⇒ n → HoloName i b
 
-data HoloTag
-type instance TM.Item HoloTag b = HoloName b
-newtype TypeAs c = TypeAs (TM.TypeMap HoloTag)
+data (HoloTag i)
+type instance TM.Item (HoloTag i) b = HoloName i b
+newtype TypeAs i c = TypeAs (TM.TypeMap (HoloTag i))
 
-instance ( RGLFW t m
-         , d ~ Result t
-         , ConsCtx t u ~ (InputEventMux t, TypeAs Holo, Structure u)
+instance ( HGLFW i t m
+         , d ~ Result i
+         , ConsCtx i u ~ (InputEventMux t, TypeAs i (Holo i), Structure u)
          ) ⇒
-         HasFieldCtx t m u a where
-  type instance FieldCtx t a  = (InputEventMux t, TypeAs Holo, a)
+         HasFieldCtx i m u a where
+  type instance FieldCtx i a  = (InputEventMux (HoloAPIt i), TypeAs i (Holo i), a)
   fieldCtx _ (mux, tas, x) proj = (mux, tas, proj x)
 
-instance ( RGLFW t m
-         , HasFieldCtx t m  u a
-         , d ~ Result t
-         , ConsCtx t u ~ (InputEventMux t, TypeAs Holo, Structure u)
-         , As TextLine, Holo Text
+instance ( HGLFW i t m
+         , HasFieldCtx i m u a
+         , d ~ Result i
+         , ConsCtx i u ~ (InputEventMux t, TypeAs i (Holo i), Structure u)
+         , As TextLine, Holo i Text
          , Typeable b
          ) ⇒
-         HasReadField t m u b where
+         HasReadField i m u b where
   readField _ (mux, TypeAs tam, initV ∷ b) (FieldName fname) = O $ do
     tok ← liftIO $ Port.newId $ "record label '" <> fname <> "'"
     let addLabel x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Unconstr (Denoted x))
-                              ⇒ Port.IdToken → x → Denoted x → Blank)
+                              ⇒ Port.IdToken → x → Denoted x → Blank i)
                             tok TextLine (fname <> ": ")
                           , x
                           ]
         fP = Proxy @b
     case TM.lookup fP tam of
       Nothing      → error $ printf "Record recovery has no As element for field '%s' of type %s." fname (show $ typeRep fP)
-      Just (HoloName x) →
-        W ∘ (id *** (<&> (id *** addLabel))) ∘ fromW <$> liftW mux (defAs $ proxy x) initV
+      Just (HoloName x ∷ HoloName i b) →
+        W ∘ (id *** (<&> (id *** addLabel))) ∘ fromW <$> liftW @i mux (defAs $ proxy x) initV
         -- liftW ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo b, RGLFW t m)
         -- ⇒ InputEventMux t → n → b → m (Widget t b)
 
-type instance ConsCtx  t a = (InputEventMux t, TypeAs Holo, a)
+type instance ConsCtx  i a = (InputEventMux (HoloAPIt i), TypeAs i (Holo i), a)
 type instance Structure  a = a
 
 instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
-         , RGLFW t m
-         ) ⇒ Record t m a where
-  type RecordCtx t a = (InputEventMux t, TypeAs Holo, a)
+         , HGLFW i t m
+         ) ⇒ Record i m a where
+  type RecordCtx i a = (InputEventMux (HoloAPIt i), TypeAs i (Holo i), a)
   prefixChars _ = 3
   consCtx _ _ _ (mux, ta, a) = (mux, ta, a)
 
--- instance (Typeable b, SOP.Generic a, SOP.HasDatatypeInfo a) ⇒ Holo a where
---   liftW mux name init = liftWRecord
+-- * !!!!!!! This is now almost possible (modulo the instance overlap) !!!!!!!!
+--
+-- instance {-# OVERLAPPABLE #-} (Typeable b, SOP.Generic b, SOP.HasDatatypeInfo b
+--          , SOP.Code b ~ '[xs]
+--          , SOP.All (HasReadField i m b) xs
+--          , Structure b ~ b
+--          , HGLFW i t m
+--          ) ⇒ Holo i b where
+--   liftW mux name init =
+--     liftWRecord (mux, (⊥), init)
+
+    -- @b @t @m @b
+    -- ∷ m (Widget t b)
 --
 -- liftWRecord ∷ ∀ a t m s xs.
 --   ( RGLFW t m, Record t m a, s ~ Structure a
