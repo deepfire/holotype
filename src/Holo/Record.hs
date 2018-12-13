@@ -81,12 +81,13 @@ instance ( HGLFW i t m
          HasReadField i m u b where
   readField _ (mux, voc, initV ∷ b) (FieldName fname) = O $ do
     tok ← liftIO $ Port.newId $ "record label '" <> fname <> "'"
-    let addLabel x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Unconstr (Denoted x))
-                              ⇒ Port.IdToken → x → Denoted x → Blank i)
-                            tok TextLine (fname <> ": ")
-                          , x
-                          ]
-    mapWItem @i addLabel <$> liftW @i mux voc initV
+    let addLabel ""  x = x
+        addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Unconstr (Denoted x))
+                                  ⇒ Port.IdToken → x → Denoted x → Blank i)
+                                tok TextLine (lab <> ": ")
+                              , x
+                              ]
+    mapWItem @i (addLabel fname) <$> liftW @i mux voc initV
 
 type instance ConsCtx  i a = (InputEventMux (APIt i), Vocab i (Holo i), a)
 type instance Structure  a = a

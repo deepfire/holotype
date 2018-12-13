@@ -3,9 +3,11 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralisedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -212,14 +214,31 @@ trackStyle sof = do
 
 
 
-data MegaSub where
-  MegaSub ∷
-    { suSub1    ∷ Text
-    , suSub2    ∷ Text
-    } → MegaSub
+data Settings where
+  Settings ∷
+    { sttsDΠ              ∷ DΠ
+    -- , sttsFontPreferences ∷ Cr.FontPreferences PU
+    , sttsScreenMode      ∷ Port.ScreenMode
+    , sttsScreenDim       ∷ Port.ScreenDim (Di Int)
+    } → Settings
     deriving (Eq, GHC.Generic, Show)
-instance SOP.Generic         MegaSub
-instance SOP.HasDatatypeInfo MegaSub
+instance SOP.Generic         Settings
+instance SOP.HasDatatypeInfo Settings
+type instance Structure Settings = Settings
+defSettings ∷ Settings
+defSettings =
+  let sttsDΠ ∷ DΠ         = 96
+      sttsFontPreferences = Cr.FontPreferences
+        [ ("default",     Left $ Cr.Alias "defaultMono" )
+        , ("defaultSans", Right $ [ Cr.FontSpec "Bitstream Charter" "Regular" $ Cr.Outline (PUs 16)
+                                  , Cr.FontSpec "Aurulent Sans"     "Regular" $ Cr.Outline (PUs 16) ])
+        , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (PUs 15) LT ])
+        ]
+      sttsScreenMode      = Port.Windowed
+      sttsScreenDim       = Port.ScreenDim $ di 800 600
+  in Settings{..}
+instance Holo i (Port.ScreenMode)
+instance Typeable a ⇒ Holo i (Port.ScreenDim a)
 
 data AnObject where
   AnObject ∷
@@ -234,6 +253,10 @@ instance SOP.Generic         AnObject
 instance SOP.HasDatatypeInfo AnObject
 type instance Structure AnObject = AnObject
 
+instance SOP.Generic         (Cr.FontPreferences PU)
+instance SOP.HasDatatypeInfo (Cr.FontPreferences PU)
+type instance Structure (Cr.FontPreferences 'PU) = (Cr.FontPreferences PU)
+
 instance {-# OVERLAPPABLE #-} Holo.Named a a
 instance {-# OVERLAPPABLE #-} Holo.Named Text a
 instance {-# OVERLAPS #-}     Holo.Named Text Text
@@ -247,14 +270,20 @@ instance Holo.Named (Text,Text) (Double,Double)
 defVocab ∷ Vocab i (Holo i)
 defVocab = Vocab
   (TM.empty
-    <: (Proxy @Bool,    HoloName TextLine)
-    <: (Proxy @Bool,    HoloName Switch)
-    <: (Proxy @Double,  HoloName TextLine)
-    <: (Proxy @Float,   HoloName TextLine)
-    <: (Proxy @Int,     HoloName TextLine)
-    <: (Proxy @Integer, HoloName TextLine)
-    <: (Proxy @Text,    HoloName TextLine)
+    <: (Proxy @Bool,             HoloName TextLine)
+    <: (Proxy @Bool,             HoloName Switch)
+    <: (Proxy @Double,           HoloName TextLine)
+    <: (Proxy @DΠ,               HoloName TextLine)
+    <: (Proxy @Port.ScreenMode,  HoloName TextLine)
+    <: (Proxy @Float,            HoloName TextLine)
+    <: (Proxy @Int,              HoloName TextLine)
+    <: (Proxy @Integer,          HoloName TextLine)
+    <: (Proxy @Text,             HoloName TextLine)
+    -- <: (Proxy @(Port.ScreenDim (Di Int)),
+    --                              HoloName TextLine)
   )
+deriving newtype instance Read DΠ
+deriving         instance Read Port.ScreenMode
 
 scene ∷ ∀ i t m. ( HGLFW i t m
                  , Typeable t)
@@ -290,8 +319,6 @@ scene pI defSettingsV eV statsValD frameNoD fpsValueD = mdo
   varlenTextD ∷ Widget i Text
                    ← liftPureDynamic TextLine $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  -- xStts            ← liftRecord muxV defSettingsV
-
   doubleD ∷ Widget i Double
                    ← liftW eV (namely @Double TextLine) 0
 
@@ -300,41 +327,45 @@ scene pI defSettingsV eV statsValD frameNoD fpsValueD = mdo
   --                                 ,Labelled ("y", TextLine)))
   --                    (0,0)
 
-  xDD@(W(_,_,xDDv)) ← liftW @i eV defVocab
+  recWD@(W(_,_,xDDv)) ← liftW @i eV defVocab
                       (AnObject "yayyity" 3.14 True)
-  -- xDD@(W (_, xDDi, xDDv)) ← liftW @i eV (⊥) --(NRecord defNameMap)
-  --                           (AnObject "yayyity" 3.14 True)
   _                ← performEvent $ (updated xDDv) <&>
                      \x → liftIO $ putStrLn (show x)
-  xDT@(W (_, _, _)) ← liftW @i @(Int, Text) eV defVocab
+  tupleWD          ← liftW @i @(Int, Text) eV defVocab
                       (42, "seriously?")
-  -- xSD@(W (_, xSDv)) ← liftWRecord @(Static t Port.Settings) (eV, defSettingsV)
+  -- sttsWD           ← liftW @i @Settings eV defVocab
+  --                     defSettings
+  -- • Couldn't match type ‘'[ '[(Cr.FontKey,  Either Cr.FontAlias [Cr.Font 'Cr.Spec 'PU]),
+  --                             [(Cr.FontKey, Either Cr.FontAlias [Cr.Font 'Cr.Spec 'PU])]
+  --                            ]
+  --                         ]’
+  --                  with ‘'[]’
+  --     arising from a use of ‘liftW’
 
   longStaticTextD  ← liftW @i eV (namely @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
+  -- The loop demo (currently incapacitated due to definition of mkTextEntryValidatedStyleD)
   let fontNameStyle name = Holo.defSty (Proxy @TextLine) & tsFontKey .~ Cr.FK name
-
-  styleNameD@(W styleEntryD) ← mkTextEntryValidatedStyleD @i eV styleB "defaultSans" $
-                               (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-
+  styleNameD       ← mkTextEntryValidatedStyleD @i eV styleB "defaultSans" $
+                     (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
   styleD           ← trackStyle $ fontNameStyle <$> (traceDynWith show $ Holo.wValD styleNameD)
   let styleB        = current styleD
 
-  -- text2HoloQD      ← mkTextEntryStyleD muxV styleB "watch me"
-
+  --
   vboxD @i [ stripW $ frameCountD
         -- , (snd <$>) <$> text2HoloQD
         , stripW styleNameD
         -- , stripW xD
         , stripW lolD
         , stripW doubleD
-        , stripW xDD
-        , stripW xDT
-        , stripW $ rectD
-        , stripW $ fpsD
-        , stripW $ longStaticTextD
-        , stripW $ statsD
-        , stripW $ varlenTextD ]
+        , stripW recWD
+        -- , stripW sttsWD
+        , stripW tupleWD
+        , stripW rectD
+        , stripW fpsD
+        , stripW longStaticTextD
+        , stripW statsD
+        , stripW varlenTextD ]
 
 
 

@@ -84,8 +84,6 @@ import qualified LambdaCube.Linear                 as LCLin
 import qualified System.IO.Unsafe                  as IO
 import qualified Unsafe.Coerce                     as Co
 
-import qualified Debug.Trace                       as DBG
-
 -- Local imports
 import           Flatland
 import           HoloCairo                                (FKind(..))

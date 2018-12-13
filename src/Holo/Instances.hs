@@ -306,6 +306,7 @@ instance (As a, As b) ⇒ As (Axis, (a, b)) where
 --
 instance Holo i Bool
 instance Holo i Double
+instance Holo i DΠ
 instance Holo i Float
 instance Holo i Int
 instance Holo i Integer

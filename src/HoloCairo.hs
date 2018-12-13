@@ -1,5 +1,5 @@
 {-# LANGUAGE DataKinds, GADTs, KindSignatures, TypeFamilies #-}
-{-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving, StandaloneDeriving #-}
+{-# LANGUAGE DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
 {-# LANGUAGE LambdaCase, MultiWayIf, OverloadedStrings, RecordWildCards, ScopedTypeVariables, TupleSections #-}
 {-# LANGUAGE UnicodeSyntax #-}
@@ -59,6 +59,7 @@ import           Data.Maybe                               (fromMaybe)
 import           Data.Ord
 import           Data.Text                         as T   (Text, unpack)
 import           Debug.Trace                              (trace)
+import           GHC.Generics
 import           HoloPrelude                       hiding ((.))
 import           Prelude                           hiding (fail)
 import           Text.Printf                              (printf)
@@ -559,9 +560,9 @@ newtype FontAlias
   =     Alias { fromAlias ∷ FontKey }
   deriving (Eq, Ord, Show, IsString)
 
-newtype FontPreferences u
+data    FontPreferences u
   =     FontPreferences [(FontKey, Either FontAlias [Font Spec u])]
-  deriving (Eq, Show)
+  deriving (Eq, Generic, Show)
 
 data FontMap u where
   FontMap ∷
