@@ -36,7 +36,6 @@ module Holo.Record
   ( Vocab(..)
   , liftWRecord
   , HoloName(..)
-  , NRecord(..)
   )
 where
 
@@ -44,7 +43,6 @@ import           Control.Compose
 import           Data.Text                                (Text)
 import           Data.Typeable
 import           Generics.SOP.Monadic
-import qualified Data.TypeMap.Dynamic              as TM
 import qualified Generics.SOP                      as SOP
 
 import           HoloPrelude
@@ -101,24 +99,14 @@ instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
   prefixChars _ = 3
   consCtx _ _ _ (mux, ta, a) = (mux, ta, a)
 
-data NRecord i c (b ∷ Type) where
-  NRecord ∷
-    { nrStyle ∷ Vocab i c
-    } → NRecord i c b
-
-instance (Typeable (NRecord i c b)) ⇒ As (NRecord i c b) where
-  type Denoted (NRecord i c b) = b
-  type Sty     (NRecord i c b) = Vocab i c
-  type Vis     (NRecord i c b) = ()
-
--- instance {-# INCOHERENT #-} (Typeable b, SOP.Generic b, SOP.HasDatatypeInfo b
---          , SOP.Code b ~ '[xs]
---          , SOP.All (HasReadField i m b) xs
---          , Structure b ~ b
---          , HGLFW i t m
---          ) ⇒ Holo i b where
-  -- liftW mux n init =
-  --   liftWRecord (mux, defSty (proxy n), init)
+instance {-# OVERLAPPABLE #-} (Typeable b, SOP.Generic b, SOP.HasDatatypeInfo b
+         , SOP.Code b ~ '[xs]
+         , SOP.All (HasReadField i m b) xs
+         , Structure b ~ b
+         , HGLFW i t m
+         ) ⇒ Holo i b where
+  liftW mux voc initial =
+    liftWRecord (mux, voc, initial)
 
 
 -- * The below constitutes an attempt to allow Holo lifting of dynamic-supplied records.

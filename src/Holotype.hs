@@ -300,10 +300,8 @@ scene pI defSettingsV eV statsValD frameNoD fpsValueD = mdo
   --                                 ,Labelled ("y", TextLine)))
   --                    (0,0)
 
-  xDD@(W (_, _, xDDv)) ← liftWRecord @AnObject @i
-                      ( eV
-                      , defVocab
-                      , AnObject "yayyity" 3.14 True)
+  xDD@(W(_,_,xDDv)) ← liftW @i eV defVocab
+                         (AnObject "yayyity" 3.14 True)
   -- xDD@(W (_, xDDi, xDDv)) ← liftW @i eV (⊥) --(NRecord defNameMap)
   --                           (AnObject "yayyity" 3.14 True)
   _                ← performEvent $ (updated xDDv) <&>
