@@ -79,20 +79,17 @@ instance ( HGLFW i t m
          , ConsCtx i u ~ (InputEventMux t, Vocab i (Holo i), Structure u)
          , As TextLine, Holo i Text
          , Typeable b
+         , Holo i b
          ) ⇒
          HasReadField i m u b where
-  readField _ (mux, Vocab tam, initV ∷ b) (FieldName fname) = O $ do
+  readField _ (mux, voc, initV ∷ b) (FieldName fname) = O $ do
     tok ← liftIO $ Port.newId $ "record label '" <> fname <> "'"
     let addLabel x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Unconstr (Denoted x))
                               ⇒ Port.IdToken → x → Denoted x → Blank i)
                             tok TextLine (fname <> ": ")
                           , x
                           ]
-        fP = Proxy @b
-    case TM.lookup fP tam of
-      Nothing      → error $ printf "Record recovery has no As element for field '%s' of type %s." fname (show $ typeRep fP)
-      Just (HoloName x ∷ HoloName i b) →
-        W ∘ mapWItem @i addLabel ∘ fromW <$> liftW @i mux (defAs $ proxy x) initV
+    mapWItem @i addLabel <$> liftW @i mux voc initV
 
 type instance ConsCtx  i a = (InputEventMux (APIt i), Vocab i (Holo i), a)
 type instance Structure  a = a
@@ -114,12 +111,12 @@ instance (Typeable (NRecord i c b)) ⇒ As (NRecord i c b) where
   type Sty     (NRecord i c b) = Vocab i c
   type Vis     (NRecord i c b) = ()
 
-instance {-# INCOHERENT #-} (Typeable b, SOP.Generic b, SOP.HasDatatypeInfo b
-         , SOP.Code b ~ '[xs]
-         , SOP.All (HasReadField i m b) xs
-         , Structure b ~ b
-         , HGLFW i t m
-         ) ⇒ Holo i b where
+-- instance {-# INCOHERENT #-} (Typeable b, SOP.Generic b, SOP.HasDatatypeInfo b
+--          , SOP.Code b ~ '[xs]
+--          , SOP.All (HasReadField i m b) xs
+--          , Structure b ~ b
+--          , HGLFW i t m
+--          ) ⇒ Holo i b where
   -- liftW mux n init =
   --   liftWRecord (mux, defSty (proxy n), init)
 

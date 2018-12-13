@@ -193,8 +193,11 @@ type instance              TM.Item    (HoloTag i) b = HoloName i b
 data                                   HoloTag i
 
 -- | Construct a singleton vocabulary easily.
-namely ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b) ⇒ Proxy b → n → Vocab i c
-namely pB n = Vocab $ TM.insert pB (HoloName n) TM.empty
+namely ∷ ∀ b n a i c. (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b) ⇒ n → Vocab i c
+namely n = Vocab $ TM.insert (Proxy @b) (HoloName n) TM.empty
+
+vocHoloName ∷ Typeable b ⇒ Proxy b → Vocab i c → Maybe (HoloName i b)
+vocHoloName p (Vocab tm) = TM.lookup p tm
 
 
 -- | Global context.
@@ -216,8 +219,10 @@ type family APIm a ∷ (Type → Type) where
 -- | Turn values into interactive widgets.
 --
 class (Typeable b) ⇒ Holo i b where
-  liftDynW     ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, HGLFW i t m) ⇒ IdToken → n → Dynamic t a → m (Widget i b)
-  liftW        ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, HGLFW i t m) ⇒   InputEventMux t → n → b → m (Widget i b)
+  liftDynW     ∷ (HGLFW i t m, Typeable b, As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b)
+               ⇒         IdToken → n                → Dynamic t a → m (Widget i b)
+  liftW        ∷ (HGLFW i t m, Typeable b, HasCallStack)
+               ⇒ InputEventMux t → Vocab i (Holo i) →           b → m (Widget i b)
   --
   liftDynW     = liftDynWStaticSubs
   liftW        = liftWSeed
@@ -235,27 +240,28 @@ interpretate dyn = scanDynMaybe (fromMaybe $ error $ "Cannot interpret initial v
 
 -- | Final lift pipeline step: dynamic of a interpretation source to a widget.
 liftDynWStaticSubs ∷ ∀ i t m n a b.
-  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, HGLFW i t m, Typeable b)
+  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b, HGLFW i t m)
   ⇒ IdToken → n → Dynamic t a → m (Widget i b)
 liftDynWStaticSubs tok n da = do
-  let name ∷ Name n = compName (Proxy @(a, b)) tok n
-  int ← interpretate @i da
-  pure $ W ( constDyn $ subscription tok (Proxy @a)
-           , leaf name <$> da
-           , int)
+    let name ∷ Name n = compName (Proxy @(a, b)) tok n
+    int ← interpretate @i da
+    pure $ W ( constDyn $ subscription tok (Proxy @a)
+             , leaf name <$> da
+             , int)
 
 
 -- | Full lift pipeline: initial value to a widget.
 --
 -- ← default: immutable
 -- ← default: liftDynWStaticSubs
-liftWSeed ∷ ∀ i t m n a b.
-  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b, HGLFW i t m)
-  ⇒ InputEventMux t → n → b → m (Widget i b)
-liftWSeed imux n initial = do
-  tok ← iNewToken $ Proxy @b
-  mut ← mutate (forget initial) $ select imux $ Const2 tok
-  liftDynW tok n mut
+liftWSeed ∷ ∀ i t m b. (HGLFW i t m, Typeable b, HasCallStack)
+          ⇒ InputEventMux t → Vocab i (Holo i) → b → m (Widget i b)
+liftWSeed imux voc initial = case vocHoloName (Proxy @b) voc of
+  Nothing → error $ printf "Lift has no As element for value of type %s." (show $ typeRep (Proxy @b))
+  Just (HoloName n ∷ HoloName i b) → do
+    tok ← iNewToken $ Proxy @b
+    mut ← mutate (forget initial) $ select imux $ Const2 tok
+    liftDynW tok n mut
 -- → default: liftW
 
 liftDynamic ∷ ∀ i t m n a b.
@@ -303,14 +309,14 @@ wValD  (W (_,_,x)) = x
 stripW ∷ Widget i a → WH i
 stripW (W (subs, item, _value)) = (subs, item)
 
-mapWSubs ∷ Reflex (APIt i) ⇒ (Subscription → Subscription) → WF i b → WF i b
-mapWSubs f (s,i,v) = (f <$> s,i,v)
+mapWSubs ∷ Reflex (APIt i) ⇒ (Subscription → Subscription) → Widget i b → Widget i b
+mapWSubs f (W (s,i,v)) = W (f <$> s,i,v)
 
-mapWItem ∷ Reflex (APIt i) ⇒ (Blank i → Blank i) → WF i b → WF i b
-mapWItem f (s,i,v) = (s,f <$> i,v)
+mapWItem ∷ Reflex (APIt i) ⇒ (Blank i → Blank i) → Widget i b → Widget i b
+mapWItem f (W (s,i,v)) = W (s,f <$> i,v)
 
-mapWVal  ∷ Reflex (APIt i) ⇒ (b → b) → WF i b → WF i b
-mapWVal  f (s,i,v) = (s,i,f <$> v)
+mapWVal  ∷ Reflex (APIt i) ⇒ (b → b) → Widget i b → Widget i b
+mapWVal  f (W (s,i,v)) = W (s,i,f <$> v)
 
 instance Functor (Result i) where
   fmap f (W (subs, item, val)) = W (subs, item, f <$> val)

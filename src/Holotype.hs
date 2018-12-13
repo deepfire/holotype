@@ -82,7 +82,8 @@ import qualified Flex
 import           HoloPrelude                       hiding ((<>))
 import           Holo.Instances
 import           Holo.Record
-import           Holo                                     ( As(..), Vis, Vocab
+import           Holo                                     ( As(..), Vocab, namely
+                                                          , Vis
                                                           , Holo, BlankHolo, Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
                                                           , HGLFW, API, APIt, APIm
                                                           , Widget, liftW, liftPureDynamic, liftDynamic
@@ -171,7 +172,7 @@ mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
   -- (subD, textD) ← mkTextEntryStyleD mux styleB initialV
-  W (subD, itemD, textD) ← Holo.liftW @i @Text mux TextLine initialV
+  W (subD, itemD, textD) ← Holo.liftW @i @Text mux (namely @Text TextLine) initialV
   initial ← sample $ current textD
   foldDyn (\new oldValid→
                if testF new then new else oldValid)
@@ -292,7 +293,7 @@ scene pI defSettingsV eV statsValD frameNoD fpsValueD = mdo
   -- xStts            ← liftRecord muxV defSettingsV
 
   doubleD ∷ Widget i Double
-                   ← liftW eV TextLine 0
+                   ← liftW eV (namely @Double TextLine) 0
 
   -- dimD ∷ Widget i (Double, Double)
   --                  ← liftW eV (X, (Labelled ("x", TextLine)
@@ -313,7 +314,7 @@ scene pI defSettingsV eV statsValD frameNoD fpsValueD = mdo
                       , (42, "seriously?"))
   -- xSD@(W (_, xSDv)) ← liftWRecord @(Static t Port.Settings) (eV, defSettingsV)
 
-  longStaticTextD  ← liftW @i eV TextLine ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
+  longStaticTextD  ← liftW @i eV (namely @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
   let fontNameStyle name = Holo.defSty (Proxy @TextLine) & tsFontKey .~ Cr.FK name
 
