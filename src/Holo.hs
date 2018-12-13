@@ -2,6 +2,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExplicitForAll #-}
@@ -44,13 +45,14 @@ module Holo
   , Subscription(..), subSingleton
   , InputEventMux
   --
-  , BlankHolo, Holo(..), HoloAPI, HoloAPIt, HoloAPIm, HGLFW
+  , HoloName(..), Vocab(..), namely
+  , BlankHolo, Holo(..), API, APIt, APIm, HGLFW
   , Blank,     Unconstr
   , liftDynamic
   , liftPureDynamic
   --
-  , WH, wWH
   , Widget
+  , WH, WF, wSubD, wItemD, wValD, stripW, mapWSubs, mapWItem, mapWVal
   --
   , interpretate
   , liftDynWStaticSubs
@@ -62,10 +64,10 @@ module Holo
   )
 where
 
-import           Control.Arrow
 import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Typeable
+import qualified Data.TypeMap.Dynamic              as TM
 import           Generics.SOP                             (Proxy)
 import           Generics.SOP.Monadic
 import           GHC.TypeLits
@@ -89,9 +91,9 @@ import           AsNameItem
 --
 class Mutable a where
   subscription ∷                    IdToken → Proxy a → Subscription
-  subscription = const mempty         -- ignore events
+  subscription = const mempty         -- declare ignorance..
   mutate       ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
-  mutate       = immutable
+  mutate       = immutable            -- ..then effectuate it
 
 immutable ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
 immutable init _ev = pure $ constDyn init
@@ -158,7 +160,7 @@ editMaskKeys = (inputMaskChars <>) $ InputEventMask $ GLFW.eventMaskKeys $ GLFW.
   (mempty)
 
 
--- * Subscription
+-- * Subscription of IdTokens to InputEventMasks
 --
 newtype Subscription = Subscription (MMap.MonoidalMap GLFW.EventType (Seq.Seq (IdToken, InputEventMask)))
 instance Show Subscription where
@@ -178,50 +180,75 @@ subSingleton tok im@(InputEventMask em) = Subscription $
                 | evty ← GLFW.eventMaskTypes em ]
 
 
+
+-- * The final type class assembly.
+--
+-- | A name and the chain establishing its relevance to Holo 'b'.
+data HoloName i b where
+  HoloName ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b) ⇒ n → HoloName i b
+
+-- | 'Vocab' establishes names for a bunch of types.
+newtype Vocab i c = Vocab (TM.TypeMap (HoloTag i))
+type instance              TM.Item    (HoloTag i) b = HoloName i b
+data                                   HoloTag i
+
+-- | Construct a singleton vocabulary easily.
+namely ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b) ⇒ Proxy b → n → Vocab i c
+namely pB n = Vocab $ TM.insert pB (HoloName n) TM.empty
+
+
+-- | Global context.
+type HGLFW i t m = (t ~ (APIt i), m ~ (APIm i), RGLFW t m)
+
+-- | Package types supplying necessary global context (see 'HGLFW') into a single abstract type
+--   available for threading.
+data API t m
+
+type family APIt a ∷ Type where
+  APIt (API t _) = t
+  APIt _         = TypeError ('Text "APIt on non-API.")
+
+type family APIm a ∷ (Type → Type) where
+  APIm (API _ m) = m
+  APIm _         = TypeError ('Text "APIm on non-API.")
+
+
+-- | Turn values into interactive widgets.
+--
 class (Typeable b) ⇒ Holo i b where
-  liftDynW     ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b, HGLFW i t m) ⇒ IdToken → n → Dynamic t a → m (Widget i b)
-  liftW        ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b, HGLFW i t m) ⇒   InputEventMux t → n → b → m (Widget i b)
+  liftDynW     ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, HGLFW i t m) ⇒ IdToken → n → Dynamic t a → m (Widget i b)
+  liftW        ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, HGLFW i t m) ⇒   InputEventMux t → n → b → m (Widget i b)
   --
   liftDynW     = liftDynWStaticSubs
   liftW        = liftWSeed
 
+
+-- | Interpretation from the Denoted type and widget creation.
+--
+interpretate ∷ ∀ i t m a b.
+  (Interp a b, HGLFW i t m, Typeable b)
+  ⇒ Dynamic t a → m (Dynamic t b)
+interpretate dyn = scanDynMaybe (fromMaybe $ error $ "Cannot interpret initial value into type " <> show (typeRep $ Proxy @b))
+                   const
+                   (interp <$> dyn)
 
-data HoloAPI t m
-
-type family HoloAPIt a ∷ Type where
-  HoloAPIt (HoloAPI t _) = t
-  HoloAPIt _             = TypeError ('Text "HoloAPIt on non-HoloAPI.")
-
-type family HoloAPIm a ∷ (Type → Type) where
-  HoloAPIm (HoloAPI _ m) = m
-  HoloAPIm _             = TypeError ('Text "HoloAPIm on non-HoloAPI.")
-
--- interpretate needed 'Holo a', because:
---   Could not deduce (Holo a) arising from a use of ‘leaf’
---   ..which needs it because it's an Item, which is constrained on Holo.
-interpretate ∷ ∀ i t m n a b.
-  (As n, Denoted n ~ a,            Interp a b,            HGLFW i t m)
-  ⇒ Name n → Dynamic t a → m (Dynamic t (b, Blank i))
-interpretate name dyn = scanDynMaybe (fromMaybe (error "Cannot interpret initial value.") *** id)
-                        (\x _ -> case x of
-                                   (Just val, item) → Just (val, item)
-                                   _                → Nothing) $
-                        (interp &&& leaf name) <$> dyn
-
--- liftDynWStaticSubs needed 'Holo a', because:
---   interpretate needed it
+
+-- | Final lift pipeline step: dynamic of a interpretation source to a widget.
 liftDynWStaticSubs ∷ ∀ i t m n a b.
-  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, HGLFW i t m)
+  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, HGLFW i t m, Typeable b)
   ⇒ IdToken → n → Dynamic t a → m (Widget i b)
-liftDynWStaticSubs tok n db = do
+liftDynWStaticSubs tok n da = do
   let name ∷ Name n = compName (Proxy @(a, b)) tok n
-  int ← interpretate @i name db
+  int ← interpretate @i da
   pure $ W ( constDyn $ subscription tok (Proxy @a)
+           , leaf name <$> da
            , int)
 
-type HGLFW i t m = (t ~ (HoloAPIt i), m ~ (HoloAPIm i), RGLFW t m)
--- ← liftHoloDynStatic
--- ← liftDynWStaticSubs
+
+-- | Full lift pipeline: initial value to a widget.
+--
+-- ← default: immutable
+-- ← default: liftDynWStaticSubs
 liftWSeed ∷ ∀ i t m n a b.
   (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b, HGLFW i t m)
   ⇒ InputEventMux t → n → b → m (Widget i b)
@@ -229,7 +256,7 @@ liftWSeed imux n initial = do
   tok ← iNewToken $ Proxy @b
   mut ← mutate (forget initial) $ select imux $ Const2 tok
   liftDynW tok n mut
--- → liftW
+-- → default: liftW
 
 liftDynamic ∷ ∀ i t m n a b.
   (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b, HGLFW i t m)
@@ -241,48 +268,64 @@ liftDynamic n da = do
 liftPureDynamic ∷ ∀ i t m n a b.
   (As n, Denoted n ~ a,            Interp a b, Named a b, Holo i b, HGLFW i t m)
   ⇒ n → Dynamic t a → m (Widget i b)
-liftPureDynamic n db = do
+liftPureDynamic n da = do
   tok ← iNewToken $ Proxy @b
   let name ∷ Name n = compName (Proxy @(a, b)) tok n
-  int ← interpretate @i name db
+  int ← interpretate @i da
   pure $ W ( constDyn mempty
+           , leaf name <$> da
            , int)
 
 
 -- * The final lift:  W(-idget)
 --
-class Unconstr a where
+class    Unconstr a where
 instance Unconstr a where
 
-type Blank     i = Item Unconstr PBlank
-type BlankHolo i = Item (Holo i) PBlank
-type WH        i = (Dynamic (HoloAPIt i) Subscription, Dynamic (HoloAPIt i) (Blank i))
+type Blank     i   = Item Unconstr PBlank
+type BlankHolo i   = Item (Holo i) PBlank
+type WH        i   = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
+type WF        i b = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
 
--- Result of the lifts -- the Widget:
-type Widget    i a = Result i a
-data instance Result i a
-  = Reflex (HoloAPIt i) ⇒ W
-    { fromW ∷ (Dynamic (HoloAPIt i) Subscription, Dynamic (HoloAPIt i) (a, Blank i))
-    }
+type Widget    i b = Result i b
+data instance        Result i b =
+  Reflex (APIt i) ⇒ W { fromW ∷ WF i b }
 
-wWH ∷ Reflex (HoloAPIt i) ⇒ Widget i a → WH i
-wWH = (id *** (snd <$>)) ∘ fromW
+wSubD  ∷ Widget i a → Dynamic (APIt i) Subscription
+wSubD  (W (x,_,_)) = x
+
+wItemD ∷ Widget i a → Dynamic (APIt i) (Blank i)
+wItemD (W (_,x,_)) = x
+
+wValD  ∷ Widget i a → Dynamic (APIt i) a
+wValD  (W (_,_,x)) = x
+
+stripW ∷ Widget i a → WH i
+stripW (W (subs, item, _value)) = (subs, item)
+
+mapWSubs ∷ Reflex (APIt i) ⇒ (Subscription → Subscription) → WF i b → WF i b
+mapWSubs f (s,i,v) = (f <$> s,i,v)
+
+mapWItem ∷ Reflex (APIt i) ⇒ (Blank i → Blank i) → WF i b → WF i b
+mapWItem f (s,i,v) = (s,f <$> i,v)
+
+mapWVal  ∷ Reflex (APIt i) ⇒ (b → b) → WF i b → WF i b
+mapWVal  f (s,i,v) = (s,i,f <$> v)
 
 instance Functor (Result i) where
-  fmap f (W (subs, vals)) = W (subs, (f *** id) <$> vals)
+  fmap f (W (subs, item, val)) = W (subs, item, f <$> val)
 
-instance Reflex (HoloAPIt i) ⇒ Applicative (Result i) where
+instance Reflex (APIt i) ⇒ Applicative (Result i) where
   -- To allow nodes to have unique IdTokens
   -- ← must allow executing newId here
   -- ← work out how to unpack W
-  pure x = W (mempty, constDyn (x, vbox []))
-  W (fsubs, fvals) <*> W (xsubs, xvals) =
-    W $ (,)
+  pure x = W (mempty, constDyn (vbox []), constDyn x)
+  W (fsubs, fitem, fvals) <*> W (xsubs, xitem, xvals) =
+    W $ (,,)
     (zipDynWith (<>) fsubs xsubs)
-    (zipDynWith ((\(f,   fhb)
-                   (  x, xhb)→
-                   (f x, xhb & children %~ (fhb :))))
-      fvals xvals)
+    (zipDynWith ((\fhb xhb→ xhb & children %~ (fhb :)))
+                     fitem xitem)
+    (zipDynWith ($)  fvals xvals)
 
 -- instance {-# OVERLAPPABLE #-}
 --   (Typeable a

@@ -82,11 +82,11 @@ import qualified Flex
 import           HoloPrelude                       hiding ((<>))
 import           Holo.Instances
 import           Holo.Record
-import           Holo                                     ( As(..), Vis
+import           Holo                                     ( As(..), Vis, Vocab
                                                           , Holo, BlankHolo, Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
-                                                          , HGLFW, HoloAPIt, HoloAPIm
+                                                          , HGLFW, API, APIt, APIm
                                                           , Widget, liftW, liftPureDynamic, liftDynamic
-                                                          , WH, wWH
+                                                          , WH, stripW
                                                           , Result(..))
 import qualified Holo
 import qualified HoloCairo                         as Cr
@@ -171,12 +171,12 @@ mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
   -- (subD, textD) ← mkTextEntryStyleD mux styleB initialV
-  W (subD, textD) ← Holo.liftW @i @Text mux TextLine initialV
+  W (subD, itemD, textD) ← Holo.liftW @i @Text mux TextLine initialV
   initial ← sample $ current textD
-  foldDyn (\(new, newHoloi) (oldValid, _)→
-               (if testF new then new else oldValid, newHoloi))
+  foldDyn (\new oldValid→
+               if testF new then new else oldValid)
     initial (updated textD)
-    <&> W ∘ (subD,)
+    <&> W ∘ (subD,itemD,)
 
 vboxD ∷ ∀ i t m. (HGLFW i t m) ⇒ [WH i] → m (WH i)
 vboxD chi = do
@@ -243,8 +243,8 @@ instance Holo.Named (Text,Text) (Double,Double)
 (<:) ∷ Typeable b ⇒ TM.TypeMap a → (Proxy b, TM.Item a b) → TM.TypeMap a
 (<:) tm (k, v) = TM.insert k v tm
 
-defNameMap ∷ TypeAs i (Holo i)
-defNameMap = TypeAs
+defVocab ∷ Vocab i (Holo i)
+defVocab = Vocab
   (TM.empty
     <: (Proxy @Bool,    HoloName TextLine)
     <: (Proxy @Bool,    HoloName Switch)
@@ -299,15 +299,17 @@ scene pI defSettingsV eV statsValD frameNoD fpsValueD = mdo
   --                                 ,Labelled ("y", TextLine)))
   --                    (0,0)
 
-  xDD@(W (_, xDDv)) ← liftWRecord @AnObject @i
+  xDD@(W (_, _, xDDv)) ← liftWRecord @AnObject @i
                       ( eV
-                      , defNameMap
+                      , defVocab
                       , AnObject "yayyity" 3.14 True)
+  -- xDD@(W (_, xDDi, xDDv)) ← liftW @i eV (⊥) --(NRecord defNameMap)
+  --                           (AnObject "yayyity" 3.14 True)
   _                ← performEvent $ (updated xDDv) <&>
-                     \(x, _) → liftIO $ putStrLn (show x)
-  xDT@(W (_, xDTv)) ← liftWRecord @(Int, Text) @i
+                     \x → liftIO $ putStrLn (show x)
+  xDT@(W (_, _, _)) ← liftWRecord @(Int, Text) @i
                       ( eV
-                      , defNameMap
+                      , defVocab
                       , (42, "seriously?"))
   -- xSD@(W (_, xSDv)) ← liftWRecord @(Static t Port.Settings) (eV, defSettingsV)
 
@@ -315,27 +317,27 @@ scene pI defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
   let fontNameStyle name = Holo.defSty (Proxy @TextLine) & tsFontKey .~ Cr.FK name
 
-  W styleEntryD    ← mkTextEntryValidatedStyleD @i eV styleB "defaultSans" $
-                     (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
+  styleNameD@(W styleEntryD) ← mkTextEntryValidatedStyleD @i eV styleB "defaultSans" $
+                               (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
 
-  styleD           ← trackStyle $ fontNameStyle ∘ fst <$> (traceDynWith (show ∘ fst) (snd styleEntryD))
+  styleD           ← trackStyle $ fontNameStyle <$> (traceDynWith show $ Holo.wValD styleNameD)
   let styleB        = current styleD
 
   -- text2HoloQD      ← mkTextEntryStyleD muxV styleB "watch me"
 
-  vboxD @i [ wWH $ frameCountD
+  vboxD @i [ stripW $ frameCountD
         -- , (snd <$>) <$> text2HoloQD
-        , (snd <$>) <$> styleEntryD
-        -- , wWH xD
-        , wWH lolD
-        , wWH doubleD
-        , wWH xDD
-        , wWH xDT
-        , wWH $ rectD
-        , wWH $ fpsD
-        , wWH $ longStaticTextD
-        , wWH $ statsD
-        , wWH $ varlenTextD ]
+        , stripW styleNameD
+        -- , stripW xD
+        , stripW lolD
+        , stripW doubleD
+        , stripW xDD
+        , stripW xDT
+        , stripW $ rectD
+        , stripW $ fpsD
+        , stripW $ longStaticTextD
+        , stripW $ statsD
+        , stripW $ varlenTextD ]
 
 
 
@@ -395,7 +397,7 @@ holotype win evCtl windowFrameE inputE = mdo
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
   inputMux         ← routeInputEvent (Holo.InputEvent <$> ffilter (\case (U GLFW.EventMouseButton{}) → False; _ → True) inputE) clickedE subscriptionsD
   (,) subscriptionsD sceneD
-                   ← scene (Proxy @(Holo.HoloAPI t m)) Port.defaultSettings inputMux statsValD frameNoD fpsValueD
+                   ← scene (Proxy @(API t m)) Port.defaultSettings inputMux statsValD frameNoD fpsValueD
 
   -- * LAYOUT
   -- needs port because of DPI and fonts
