@@ -301,15 +301,13 @@ scene pI defSettingsV eV statsValD frameNoD fpsValueD = mdo
   --                    (0,0)
 
   xDD@(W(_,_,xDDv)) ← liftW @i eV defVocab
-                         (AnObject "yayyity" 3.14 True)
+                      (AnObject "yayyity" 3.14 True)
   -- xDD@(W (_, xDDi, xDDv)) ← liftW @i eV (⊥) --(NRecord defNameMap)
   --                           (AnObject "yayyity" 3.14 True)
   _                ← performEvent $ (updated xDDv) <&>
                      \x → liftIO $ putStrLn (show x)
-  xDT@(W (_, _, _)) ← liftWRecord @(Int, Text) @i
-                      ( eV
-                      , defVocab
-                      , (42, "seriously?"))
+  xDT@(W (_, _, _)) ← liftW @i @(Int, Text) eV defVocab
+                      (42, "seriously?")
   -- xSD@(W (_, xSDv)) ← liftWRecord @(Static t Port.Settings) (eV, defSettingsV)
 
   longStaticTextD  ← liftW @i eV (namely @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)

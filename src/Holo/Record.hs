@@ -34,7 +34,6 @@
 
 module Holo.Record
   ( Vocab(..)
-  , liftWRecord
   , HoloName(..)
   )
 where
