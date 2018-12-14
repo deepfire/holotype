@@ -50,7 +50,7 @@ cairostress: cairostress.c
 ccrs: cairostress
 	./cairostress
 
-SRCS=$(wildcard *.hs src/*.hs src/*/*.hs)
+SRCS=$(wildcard *.hs src/*.hs src/*/*.hs src/*/*/*.hs)
 BUILDBASE=dist/build
 HOLOTYPE=$(BUILDBASE)/holotype/holotype
 # BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-$(GHCD)/holotype-0.0.1/x

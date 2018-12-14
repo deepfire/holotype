@@ -63,6 +63,7 @@ import           Generics.SOP                        (NP(..), SOP(..), I(..), K(
                                                      )
 import           Generics.SOP.NP                     (pure_NP)
 import qualified Generics.SOP                     as SOP
+import qualified Generics.SOP.NP                  as SOP
 import qualified Generics.SOP.Lens                as SOP
 
 
@@ -143,10 +144,15 @@ recover  ∷ ∀ (t ∷ Type) m a s xss xs.
          ⇒ Proxy (t, a)
          → RecordCtx t a
          → (m :. Result t) s
-recover _pTA ctxR = O $ do
-    let ADT _ rName cInfos                              = datatypeInfo (Proxy @s) ∷ DatatypeInfo (Code s)
-        nCInfos ∷ NP ((,) Int :. ConstructorInfo) '[xs] = enumerate cInfos
-        sop     ∷                   SOP (m :. Result t) (Code s)  = SOP.SOP $ SOP.Z $ recoverCtor (Proxy @(t, a)) ctxR (pack rName) $ SOP.hd nCInfos
+recover _pTA ctxR = O $ case datatypeInfo (Proxy @s) ∷ DatatypeInfo (Code s) of
+  ADT _moduleName typeName cInfos → do
+    let nCInfos ∷ NP ((,) Int :. ConstructorInfo) '[xs] = enumerate cInfos
+        sop     ∷                   SOP (m :. Result t) (Code s)  = SOP.SOP $ SOP.Z $ recoverCtor (Proxy @(t, a)) ctxR (pack typeName) $ SOP.hd nCInfos
+        O mdsop ∷ (m :. Result t) (SOP I                (Code s)) = hsequence sop
+    (SOP.to <$>) <$> mdsop
+  Newtype _moduleName typeName cInfo → do
+    let nCInfos ∷ NP ((,) Int :. ConstructorInfo) '[xs] = enumerate $ cInfo :* Nil
+        sop     ∷                   SOP (m :. Result t) (Code s)  = SOP.SOP $ SOP.Z $ recoverCtor (Proxy @(t, a)) ctxR (pack typeName) $ SOP.hd nCInfos
         O mdsop ∷ (m :. Result t) (SOP I                (Code s)) = hsequence sop
     (SOP.to <$>) <$> mdsop
 
