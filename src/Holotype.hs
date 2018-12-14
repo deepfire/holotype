@@ -311,7 +311,6 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
   frameCountD ∷ Widget i Text
                    ← liftPureDynamic TextLine $ T.pack ∘ printf "frame #%04d" <$> frameNoD
-  -- varlenTextD      ← mkTextD portV (constDyn defStyle) (constDyn $ T.pack $ printf "even: %s" $ show True) --(T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD)
   varlenTextD ∷ Widget i Text
                    ← liftPureDynamic TextLine $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
@@ -327,18 +326,10 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
                       (AnObject "yayyity" 3.14 True)
   _                ← performEvent $ (updated xDDv) <&>
                      \x → liftIO $ putStrLn (show x)
-  -- tupleWD          ← present @i @(Int, Text) eV defVocab
-  --                     (42, "seriously?")
   tupleWD          ← present @i eV defVocab
-                      (V2 320 200 ∷ V2 Int)
-  -- sttsWD           ← liftW @i @Settings eV defVocab
-  --                     defSettings
-  -- • Couldn't match type ‘'[ '[(Cr.FontKey,  Either Cr.FontAlias [Cr.Font 'Cr.Spec 'PU]),
-  --                             [(Cr.FontKey, Either Cr.FontAlias [Cr.Font 'Cr.Spec 'PU])]
-  --                            ]
-  --                         ]’
-  --                  with ‘'[]’
-  --     arising from a use of ‘liftW’
+                      (unsafe'di 320 200 ∷ Di Int)
+  sttsWD           ← present @i eV defVocab
+                      defSettings
 
   longStaticTextD  ← present @i eV (namely' @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
@@ -353,11 +344,10 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
   vboxD @i [ stripW $ frameCountD
         -- , (snd <$>) <$> text2HoloQD
         , stripW styleNameD
-        -- , stripW xD
         , stripW lolD
         , stripW doubleD
         , stripW recWD
-        -- , stripW sttsWD
+        , stripW sttsWD
         , stripW tupleWD
         , stripW rectD
         , stripW fpsD
@@ -365,12 +355,28 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
         , stripW statsD
         , stripW varlenTextD ]
 
-instance Holo.Interp (a, a) (V2 a) where
+instance Holo.Interp (a, a)  (V2 a) where
   interp (x, y)   = Just (V2 x y)
   forget (V2 x y) = (x, y)
 instance SOP.Generic         (V2 a)
 instance SOP.HasDatatypeInfo (V2 a)
 type instance Structure      (V2 a) = (V2 a)
+
+deriving instance Generic    (Di a)
+instance Holo.Interp (a, a)  (Di a) where
+  interp (x, y)        = Just (Di (V2 x y))
+  forget (Di (V2 x y)) = (x, y)
+instance SOP.Generic         (Di a)
+instance SOP.HasDatatypeInfo (Di a)
+type instance Structure      (Di a) = (Di a)
+
+deriving instance Generic    (Port.ScreenDim (Di a))
+instance Holo.Interp (a, a)  (Port.ScreenDim (Di a)) where
+  interp (x, y)        = Just (Port.ScreenDim (Di (V2 x y)))
+  forget (Port.ScreenDim (Di (V2 x y))) = (x, y)
+instance SOP.Generic         (Port.ScreenDim (Di a))
+instance SOP.HasDatatypeInfo (Port.ScreenDim (Di a))
+type instance Structure      (Port.ScreenDim (Di a)) = (Port.ScreenDim (Di a))
 
 
 
