@@ -252,7 +252,7 @@ data AnObject where
     deriving (Eq, GHC.Generic, Show)
 instance SOP.Generic         AnObject
 instance SOP.HasDatatypeInfo AnObject
-type instance Structure AnObject = AnObject
+type instance Structure      AnObject = AnObject
 
 instance SOP.Generic         (Cr.FontPreferences PU)
 instance SOP.HasDatatypeInfo (Cr.FontPreferences PU)
@@ -327,8 +327,10 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
                       (AnObject "yayyity" 3.14 True)
   _                ← performEvent $ (updated xDDv) <&>
                      \x → liftIO $ putStrLn (show x)
-  tupleWD          ← present @i @(Int, Text) eV defVocab
-                      (42, "seriously?")
+  -- tupleWD          ← present @i @(Int, Text) eV defVocab
+  --                     (42, "seriously?")
+  tupleWD          ← present @i eV defVocab
+                      (V2 320 200 ∷ V2 Int)
   -- sttsWD           ← liftW @i @Settings eV defVocab
   --                     defSettings
   -- • Couldn't match type ‘'[ '[(Cr.FontKey,  Either Cr.FontAlias [Cr.Font 'Cr.Spec 'PU]),
@@ -362,6 +364,13 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
         , stripW longStaticTextD
         , stripW statsD
         , stripW varlenTextD ]
+
+instance Holo.Interp (a, a) (V2 a) where
+  interp (x, y)   = Just (V2 x y)
+  forget (V2 x y) = (x, y)
+instance SOP.Generic         (V2 a)
+instance SOP.HasDatatypeInfo (V2 a)
+type instance Structure      (V2 a) = (V2 a)
 
 
 

@@ -328,10 +328,6 @@ instance Interact i (Unit PU)
 --   1. rename liftWProduct ← liftWRecord
 --   2. make Interact instances for everything liftWProduct-able?
 
-instance Present  i a ⇒ Present  i (V2 a)
-instance Interact i a ⇒ Interact i (V2 a)
-
-instance Present  i (Di (Unit PU)) where
 instance Interact i (Di (Unit PU)) where
 
 
