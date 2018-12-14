@@ -45,18 +45,17 @@ module Holo
   , Subscription(..), subSingleton
   , InputEventMux
   --
-  , HoloName(..), Vocab(..), namely
-  , BlankHolo, Holo(..), API, APIt, APIm, HGLFW
-  , Blank,     Unconstr
-  , liftDynamic
-  , liftPureDynamic
+  , Definition(..), Vocab(..), namely, namely'
   --
+  , Interact(..), API, APIt, APIm, HGLFW
   , Widget
   , WH, WF, wSubD, wItemD, wValD, stripW, mapWSubs, mapWItem, mapWVal
+  , Blank, BlankWy, Unconstr
+  , newDynWidget
+  , liftPureDynamic
   --
+  , Present(..)
   , interpretate
-  , liftDynWStaticSubs
-  , liftWSeed
 
   -- * Re-exports
   , Structure, Result(..)
@@ -183,21 +182,38 @@ subSingleton tok im@(InputEventMask em) = Subscription $
 
 -- * The final type class assembly.
 --
--- | A name and the chain establishing its relevance to Holo 'b'.
-data HoloName i b where
-  HoloName ∷ (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b) ⇒ n → HoloName i b
+-- | Vocabulary stores two kinds of entries: interpretation
+data Definition i a where
+  WName  ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a) ⇒             n → Definition i a
+  IName  ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a b) ⇒ n → Definition i b
+  IWName ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Definition i a
 
 -- | 'Vocab' establishes names for a bunch of types.
 newtype Vocab i c = Vocab (TM.TypeMap (HoloTag i))
-type instance              TM.Item    (HoloTag i) b = HoloName i b
+type instance              TM.Item    (HoloTag i) a = Definition i a
 data                                   HoloTag i
 
 -- | Construct a singleton vocabulary easily.
-namely ∷ ∀ b n a i c. (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b) ⇒ n → Vocab i c
-namely n = Vocab $ TM.insert (Proxy @b) (HoloName n) TM.empty
+namely  ∷ ∀ b n a i c. (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a b, Typeable b) ⇒ n → Vocab i c
+namely  n = Vocab $ TM.insert (Proxy @a) (WName n)
+                  $ TM.insert (Proxy @b) (IName n) TM.empty
 
-vocHoloName ∷ Typeable b ⇒ Proxy b → Vocab i c → Maybe (HoloName i b)
-vocHoloName p (Vocab tm) = TM.lookup p tm
+namely' ∷ ∀ a n i c. (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Vocab i c
+namely' n = Vocab $ TM.insert (Proxy @a) (IWName n) TM.empty
+
+vocInteractName ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
+vocInteractName p (Vocab tm) = case TM.lookup p tm of
+  Nothing           → Nothing
+  Just (IName    _) → Nothing
+  Just d@(WName  _) → Just d
+  Just d@(IWName _) → Just d
+
+vocInterpName ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
+vocInterpName  p (Vocab tm) = case TM.lookup p tm of
+  Nothing           → Nothing
+  Just (WName    _) → Nothing
+  Just d@(IName  _) → Just d
+  Just d@(IWName _) → Just d
 
 
 -- | Global context.
@@ -218,18 +234,62 @@ type family APIm a ∷ (Type → Type) where
 
 -- | Turn values into interactive widgets.
 --
-class (Typeable b) ⇒ Holo i b where
-  liftDynW     ∷ (HGLFW i t m, Typeable b, As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b)
-               ⇒         IdToken → n                → Dynamic t a → m (Widget i b)
-  liftW        ∷ (HGLFW i t m, Typeable b, HasCallStack)
-               ⇒ InputEventMux t → Vocab i (Holo i) →           b → m (Widget i b)
+class (Typeable a) ⇒ Interact i a where
+  dynWidget    ∷ (HGLFW i t m, Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Interact i a)
+               ⇒         IdToken → n                 → Dynamic t a → m (Widget i a)
+  widget       ∷ (HGLFW i t m, Typeable a, HasCallStack)
+               ⇒ InputEventMux t → Vocab i (Present i) →        a → m (Widget i a)
   --
-  liftDynW     = liftDynWStaticSubs
-  liftW        = liftWSeed
+  widget       = newMutatedSeedWidget
+  dynWidget    = dynWidgetStaticSubs
+
+newMutatedSeedWidget ∷ ∀ i t m a. (HGLFW i t m, Typeable a, HasCallStack)
+          ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
+newMutatedSeedWidget imux voc initial = case vocInteractName (Proxy @a) voc of
+  Nothing        → error $ printf "Lift has no visual name for value of type %s." (show $ typeRep (Proxy @a))
+  Just (IName _) → error $ printf "Lift has no visual name for value of type %s." (show $ typeRep (Proxy @a))
+  Just (WName n ∷ Definition i a) → do
+    tok ← iNewToken $ Proxy @a
+    mut ← mutate (forget initial) $ select imux $ Const2 tok
+    dynWidget tok n mut
+  Just (IWName n ∷ Definition i a) → do
+    tok ← iNewToken $ Proxy @a
+    mut ← mutate (forget initial) $ select imux $ Const2 tok
+    dynWidget tok n mut
+
+dynWidgetStaticSubs ∷ ∀ i t m n a.
+  (As n, Denoted n ~ a, Mutable a, Named a, HGLFW i t m)
+  ⇒ IdToken → n → Dynamic t a → m (Widget i a)
+dynWidgetStaticSubs tok n da = do
+    let name ∷ Name n = compName (Proxy @a) tok n
+    pure $ W ( constDyn $ subscription tok (Proxy @a)
+             , leaf name <$> da
+             , da)
 
 
--- | Interpretation from the Denoted type and widget creation.
+-- * Present:  one up from Interact -- with interpretation
 --
+class (Typeable a) ⇒ Present i a where
+  present  ∷ (HGLFW i t m, HasCallStack)
+           ⇒ InputEventMux t → Vocab i (Present i) →        a → m (Widget i a)
+  present  = presentDef
+
+presentDef ∷ ∀ i a t m
+           . (HGLFW i t m, HasCallStack, Typeable a)
+           ⇒ InputEventMux t → Vocab i (Present i) →        a → m (Widget i a)
+presentDef mux voc seed = case vocInterpName (Proxy @a) voc of
+  Nothing        → error $ printf "Lift has no interpretive name for value of type %s." (show $ typeRep (Proxy @a))
+  Just (WName _) → error $ printf "Lift has no interpretive name for value of type %s." (show $ typeRep (Proxy @a))
+  Just (IName (_ ∷ n) ∷ Definition i a) → do
+    W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
+    ivD ← interpretate @i vD
+    pure $ W (sD,iD,ivD)
+  Just (IWName (_ ∷ n) ∷ Definition i a) → do
+    W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
+    ivD ← interpretate @i vD
+    pure $ W (sD,iD,ivD)
+
+-- | Interpretation from the Denoted type and widget creation.
 interpretate ∷ ∀ i t m a b.
   (Interp a b, HGLFW i t m, Typeable b)
   ⇒ Dynamic t a → m (Dynamic t b)
@@ -238,45 +298,25 @@ interpretate dyn = scanDynMaybe (fromMaybe $ error $ "Cannot interpret initial v
                    (interp <$> dyn)
 
 
--- | Final lift pipeline step: dynamic of a interpretation source to a widget.
-liftDynWStaticSubs ∷ ∀ i t m n a b.
-  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b, HGLFW i t m)
-  ⇒ IdToken → n → Dynamic t a → m (Widget i b)
-liftDynWStaticSubs tok n da = do
-    let name ∷ Name n = compName (Proxy @(a, b)) tok n
-    int ← interpretate @i da
-    pure $ W ( constDyn $ subscription tok (Proxy @a)
-             , leaf name <$> da
-             , int)
-
-
 -- | Full lift pipeline: initial value to a widget.
 --
 -- ← default: immutable
 -- ← default: liftDynWStaticSubs
-liftWSeed ∷ ∀ i t m b. (HGLFW i t m, Typeable b, HasCallStack)
-          ⇒ InputEventMux t → Vocab i (Holo i) → b → m (Widget i b)
-liftWSeed imux voc initial = case vocHoloName (Proxy @b) voc of
-  Nothing → error $ printf "Lift has no As element for value of type %s." (show $ typeRep (Proxy @b))
-  Just (HoloName n ∷ HoloName i b) → do
-    tok ← iNewToken $ Proxy @b
-    mut ← mutate (forget initial) $ select imux $ Const2 tok
-    liftDynW tok n mut
 -- → default: liftW
 
-liftDynamic ∷ ∀ i t m n a b.
-  (As n, Denoted n ~ a, Mutable a, Interp a b, Named a b, Holo i b, HGLFW i t m)
-  ⇒ n → Dynamic t a → m (Widget i b)
-liftDynamic n da = do
-  tok ← iNewToken $ Proxy @b
-  liftDynW tok n da
+newDynWidget ∷ ∀ i t m n a.
+  (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, HGLFW i t m)
+  ⇒ n → Dynamic t a → m (Widget i a)
+newDynWidget n da = do
+  tok ← iNewToken $ Proxy @a
+  dynWidget tok n da
 
-liftPureDynamic ∷ ∀ i t m n a b.
-  (As n, Denoted n ~ a,            Interp a b, Named a b, Holo i b, HGLFW i t m)
-  ⇒ n → Dynamic t a → m (Widget i b)
+liftPureDynamic ∷ ∀ i t m n a.
+  (As n, Denoted n ~ a,            Named a, Interact i a, HGLFW i t m)
+  ⇒ n → Dynamic t a → m (Widget i a)
 liftPureDynamic n da = do
-  tok ← iNewToken $ Proxy @b
-  let name ∷ Name n = compName (Proxy @(a, b)) tok n
+  tok ← iNewToken $ Proxy @a
+  let name ∷ Name n = compName (Proxy @a) tok n
   int ← interpretate @i da
   pure $ W ( constDyn mempty
            , leaf name <$> da
@@ -288,10 +328,10 @@ liftPureDynamic n da = do
 class    Unconstr a where
 instance Unconstr a where
 
-type Blank     i   = Item Unconstr PBlank
-type BlankHolo i   = Item (Holo i) PBlank
-type WH        i   = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
-type WF        i b = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
+type Blank   i   = Item Unconstr PBlank
+type BlankWy i   = Item (Interact i) PBlank -- XXX: dead code?
+type WH      i   = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
+type WF      i b = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
 
 type Widget    i b = Result i b
 data instance        Result i b =
@@ -315,7 +355,7 @@ mapWSubs f (W (s,i,v)) = W (f <$> s,i,v)
 mapWItem ∷ Reflex (APIt i) ⇒ (Blank i → Blank i) → Widget i b → Widget i b
 mapWItem f (W (s,i,v)) = W (s,f <$> i,v)
 
-mapWVal  ∷ Reflex (APIt i) ⇒ (b → b) → Widget i b → Widget i b
+mapWVal  ∷ Reflex (APIt i) ⇒ (a → b) → Widget i a → Widget i b
 mapWVal  f (W (s,i,v)) = W (s,i,f <$> v)
 
 instance Functor (Result i) where
@@ -355,7 +395,8 @@ instance Reflex (APIt i) ⇒ Applicative (Result i) where
 instance Mutable () where
   mutate = immutable
 
-instance Holo i () where
+instance Interact i () where
+instance Present  i () where
 
 instance Semigroup (Item Unconstr PBlank)  where _ <> _ = mempty
 instance Monoid    (Item Unconstr PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty

@@ -163,11 +163,11 @@ data Name a where
     } → Name a
 
 -- * Named, choice of presentation -- in parallel/independent to intepretation
-class Named a b where
-  compName ∷ (As n, Denoted n ~ a) ⇒ Proxy (a, b) → IdToken → n → Name n
+class Named a where
+  compName ∷ (As n, Denoted n ~ a) ⇒ Proxy a → IdToken → n → Name n
   compName = defStyGeoName
 
-defStyGeoName ∷ As n ⇒ Proxy (a, b) → IdToken → n → Name n
+defStyGeoName ∷ As n ⇒ Proxy a → IdToken → n → Name n
 defStyGeoName _ tok n = Name tok (initStyle $ compSty n) defGeo n
 
 

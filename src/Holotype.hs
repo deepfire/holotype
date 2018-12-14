@@ -84,13 +84,13 @@ import qualified Flex
 import           HoloPrelude                       hiding ((<>))
 import           Holo.Instances
 import           Holo.Record
-import           Holo                                     ( As(..), Vocab, namely
+import           Holo                                     ( As(..), Vocab, Definition(..), namely, namely'
                                                           , Vis
-                                                          , Holo, BlankHolo, Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
                                                           , HGLFW, API, APIt, APIm
-                                                          , Widget, liftW, liftPureDynamic, liftDynamic
-                                                          , WH, stripW
-                                                          , Result(..))
+                                                          , Interact(..), widget
+                                                          , BlankWy, Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
+                                                          , Result(..), Widget, WH, liftPureDynamic, stripW
+                                                          , Present(..), present)
 import qualified Holo
 import qualified HoloCairo                         as Cr
 import qualified HoloPort                          as Port
@@ -174,7 +174,7 @@ mkTextEntryValidatedStyleD mux styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
   -- (subD, textD) ← mkTextEntryStyleD mux styleB initialV
-  W (subD, itemD, textD) ← Holo.liftW @i @Text mux (namely @Text TextLine) initialV
+  W (subD, itemD, textD) ← widget @i @Text mux (namely' @Text TextLine) initialV
   initial ← sample $ current textD
   foldDyn (\new oldValid→
                if testF new then new else oldValid)
@@ -237,8 +237,9 @@ defSettings =
       sttsScreenMode      = Port.Windowed
       sttsScreenDim       = Port.ScreenDim $ di 800 600
   in Settings{..}
-instance Holo i (Port.ScreenMode)
-instance Typeable a ⇒ Holo i (Port.ScreenDim a)
+instance Interact i (Port.ScreenMode)
+instance Present  i (Port.ScreenMode)
+instance Typeable a ⇒ Interact i (Port.ScreenDim a)
 
 data AnObject where
   AnObject ∷
@@ -257,28 +258,24 @@ instance SOP.Generic         (Cr.FontPreferences PU)
 instance SOP.HasDatatypeInfo (Cr.FontPreferences PU)
 type instance Structure (Cr.FontPreferences 'PU) = (Cr.FontPreferences PU)
 
-instance {-# OVERLAPPABLE #-} Holo.Named a a
-instance {-# OVERLAPPABLE #-} Holo.Named Text a
-instance {-# OVERLAPS #-}     Holo.Named Text Text
-
-instance Holo.Named Text Double
-instance Holo.Named (Text,Text) (Double,Double)
+instance {-# OVERLAPPABLE #-} Holo.Named a
+instance {-# OVERLAPPABLE #-} Holo.Named Text
 
 (<:) ∷ Typeable b ⇒ TM.TypeMap a → (Proxy b, TM.Item a b) → TM.TypeMap a
 (<:) tm (k, v) = TM.insert k v tm
 
-defVocab ∷ Vocab i (Holo i)
+defVocab ∷ Vocab i (Present i)
 defVocab = Vocab
   (TM.empty
-    <: (Proxy @Bool,             HoloName TextLine)
-    <: (Proxy @Bool,             HoloName Switch)
-    <: (Proxy @Double,           HoloName TextLine)
-    <: (Proxy @DΠ,               HoloName TextLine)
-    <: (Proxy @Port.ScreenMode,  HoloName TextLine)
-    <: (Proxy @Float,            HoloName TextLine)
-    <: (Proxy @Int,              HoloName TextLine)
-    <: (Proxy @Integer,          HoloName TextLine)
-    <: (Proxy @Text,             HoloName TextLine)
+    <: (Proxy @Bool,             IName TextLine)
+    <: (Proxy @Bool,             IWName Switch)
+    <: (Proxy @Double,           IName TextLine)
+    <: (Proxy @DΠ,               IName TextLine)
+    <: (Proxy @Port.ScreenMode,  IName TextLine)
+    <: (Proxy @Float,            IName TextLine)
+    <: (Proxy @Int,              IName TextLine)
+    <: (Proxy @Integer,          IName TextLine)
+    <: (Proxy @Text,             IWName TextLine)
     -- <: (Proxy @(Port.ScreenDim (Di Int)),
     --                              HoloName TextLine)
   )
@@ -287,14 +284,13 @@ deriving         instance Read Port.ScreenMode
 
 scene ∷ ∀ i t m. ( HGLFW i t m
                  , Typeable t)
-  ⇒ Proxy i
-  → Port.Settings
+  ⇒ Port.Settings
   → InputEventMux   t
   → Dynamic    t Integer
   → Dynamic    t Int
   → Dynamic    t Double
   → m (WH i)
-scene pI defSettingsV eV statsValD frameNoD fpsValueD = mdo
+scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
 
   -- XXX: we have a conceptual conflict:
   --      1. Holo implies editability
@@ -320,18 +316,18 @@ scene pI defSettingsV eV statsValD frameNoD fpsValueD = mdo
                    ← liftPureDynamic TextLine $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
   doubleD ∷ Widget i Double
-                   ← liftW eV (namely @Double TextLine) 0
+                   ← present eV (namely @Double TextLine) 0
 
   -- dimD ∷ Widget i (Double, Double)
   --                  ← liftW eV (X, (Labelled ("x", TextLine)
   --                                 ,Labelled ("y", TextLine)))
   --                    (0,0)
 
-  recWD@(W(_,_,xDDv)) ← liftW @i eV defVocab
+  recWD@(W(_,_,xDDv)) ← present @i eV defVocab
                       (AnObject "yayyity" 3.14 True)
   _                ← performEvent $ (updated xDDv) <&>
                      \x → liftIO $ putStrLn (show x)
-  tupleWD          ← liftW @i @(Int, Text) eV defVocab
+  tupleWD          ← present @i @(Int, Text) eV defVocab
                       (42, "seriously?")
   -- sttsWD           ← liftW @i @Settings eV defVocab
   --                     defSettings
@@ -342,7 +338,7 @@ scene pI defSettingsV eV statsValD frameNoD fpsValueD = mdo
   --                  with ‘'[]’
   --     arising from a use of ‘liftW’
 
-  longStaticTextD  ← liftW @i eV (namely @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
+  longStaticTextD  ← present @i eV (namely' @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
   -- The loop demo (currently incapacitated due to definition of mkTextEntryValidatedStyleD)
   let fontNameStyle name = Holo.defSty (Proxy @TextLine) & tsFontKey .~ Cr.FK name
@@ -425,7 +421,7 @@ holotype win evCtl windowFrameE inputE = mdo
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
   inputMux         ← routeInputEvent (Holo.InputEvent <$> ffilter (\case (U GLFW.EventMouseButton{}) → False; _ → True) inputE) clickedE subscriptionsD
   (,) subscriptionsD sceneD
-                   ← scene (Proxy @(API t m)) Port.defaultSettings inputMux statsValD frameNoD fpsValueD
+                   ← scene @(API t m) Port.defaultSettings inputMux statsValD frameNoD fpsValueD
 
   -- * LAYOUT
   -- needs port because of DPI and fonts

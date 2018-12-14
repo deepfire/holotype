@@ -34,7 +34,7 @@
 
 module Holo.Record
   ( Vocab(..)
-  , HoloName(..)
+  , Definition(..)
   )
 where
 
@@ -50,33 +50,33 @@ import qualified HoloPort                          as Port
 import           Holo.Instances
 
 
--- * Lifted records (depends on Holo Text instance)
+-- * Lifted records (depends on Widgety Text instance)
 --
 instance SOP.Generic         Port.Settings
 instance SOP.HasDatatypeInfo Port.Settings
 
-liftWRecord ∷ ∀ a i t m s xs.
+liftWProduct ∷ ∀ a i t m s xs.
   ( HGLFW i t m, Record i m a, s ~ Structure a
   , SOP.Code s ~ '[xs]
   , SOP.All (HasReadField i m a) xs
+  , HasCallStack
   ) ⇒ RecordCtx i a → m (Widget i s)
-liftWRecord ctxR = unO $ recover (Proxy @(i, a)) ctxR
+liftWProduct ctxR = unO $ recover (Proxy @(i, a)) ctxR
 
 instance ( HGLFW i t m
          , d ~ Result i
-         , ConsCtx i u ~ (InputEventMux t, Vocab i (Holo i), Structure u)
+         , ConsCtx i u ~ (InputEventMux t, Vocab i (Present i), Structure u)
          ) ⇒
          HasFieldCtx i m u a where
-  type instance FieldCtx i a  = (InputEventMux (APIt i), Vocab i (Holo i), a)
+  type instance FieldCtx i a  = (InputEventMux (APIt i), Vocab i (Present i), a)
   fieldCtx _ (mux, tas, x) proj = (mux, tas, proj x)
 
 instance ( HGLFW i t m
-         , HasFieldCtx i m u a
          , d ~ Result i
-         , ConsCtx i u ~ (InputEventMux t, Vocab i (Holo i), Structure u)
-         , As TextLine, Holo i Text
+         , ConsCtx i u ~ (InputEventMux t, Vocab i (Present i), Structure u)
+         , As TextLine, Present i Text
          , Typeable b
-         , Holo i b
+         , Present i b
          ) ⇒
          HasReadField i m u b where
   readField _ (mux, voc, initV ∷ b) (FieldName fname) = O $ do
@@ -87,29 +87,29 @@ instance ( HGLFW i t m
                                 tok TextLine (lab <> ": ")
                               , x
                               ]
-    mapWItem @i (addLabel fname) <$> liftW @i mux voc initV
+    mapWItem @i (addLabel fname) <$> present @i mux voc initV
 
-type instance ConsCtx  i a = (InputEventMux (APIt i), Vocab i (Holo i), a)
+type instance ConsCtx  i a = (InputEventMux (APIt i), Vocab i (Present i), a)
 type instance Structure  a = a
 
 instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
          , HGLFW i t m
          ) ⇒ Record i m a where
-  type RecordCtx i a = (InputEventMux (APIt i), Vocab i (Holo i), a)
+  type RecordCtx i a = (InputEventMux (APIt i), Vocab i (Present i), a)
   prefixChars _ = 3
   consCtx _ _ _ (mux, ta, a) = (mux, ta, a)
 
-instance {-# OVERLAPPABLE #-} (Typeable b, SOP.Generic b, SOP.HasDatatypeInfo b
-         , SOP.Code b ~ '[xs]
-         , SOP.All (HasReadField i m b) xs
-         , Structure b ~ b
+instance {-# OVERLAPPABLE #-} (Typeable a, SOP.Generic a, SOP.HasDatatypeInfo a
+         , SOP.Code a ~ '[xs]
+         , SOP.All (HasReadField i m a) xs
+         , Structure a ~ a
          , HGLFW i t m
-         ) ⇒ Holo i b where
-  liftW mux voc initial =
-    liftWRecord (mux, voc, initial)
+         ) ⇒ Present i a where
+  present mux voc initial =
+    liftWProduct (mux, voc, initial)
 
 
--- * The below constitutes an attempt to allow Holo lifting of dynamic-supplied records.
+-- * The below constitutes an attempt to allow Widgety lifting of dynamic-supplied records.
 --
 -- type instance ConsCtx  t (Dynamic t a) = Dynamic t a
 -- type instance Structure    (Dynamic _ a) = a

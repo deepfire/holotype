@@ -304,24 +304,35 @@ instance (As a, As b) ⇒ As (Axis, (a, b)) where
 
 -- * Holo
 --
-instance Holo i Bool
-instance Holo i Double
-instance Holo i DΠ
-instance Holo i Float
-instance Holo i Int
-instance Holo i Integer
-instance Holo i String
-instance Holo i Text
-instance Holo i (Unit PU)
+instance Present  i Bool
+instance Interact i Bool
+instance Present  i Double
+instance Interact i Double
+instance Present  i DΠ
+instance Interact i DΠ
+instance Present  i Float
+instance Interact i Float
+instance Present  i Int
+instance Interact i Int
+instance Present  i Integer
+instance Interact i Integer
+instance Present  i String
+instance Interact i String
+instance Present  i Text
+instance Interact i Text
+instance Present  i (Unit PU)
+instance Interact i (Unit PU)
 
 -- So, liftWRecord works for (a, b) now, even if it's assigning empty field names.
 -- Next -- shall we:
 --   1. rename liftWProduct ← liftWRecord
---   2. make Holo instances for everything liftWProduct-able?
+--   2. make Interact instances for everything liftWProduct-able?
 
-instance Holo i a ⇒ Holo i (V2 a)
+instance Present  i a ⇒ Present  i (V2 a)
+instance Interact i a ⇒ Interact i (V2 a)
 
-instance Holo i (Di (Unit PU)) where
+instance Present  i (Di (Unit PU)) where
+instance Interact i (Di (Unit PU)) where
 
 
 -- * Settings
