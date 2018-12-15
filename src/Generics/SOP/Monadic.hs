@@ -46,11 +46,14 @@ module Generics.SOP.Monadic
 where
 
 import           Control.Compose
+-- import           Control.Lens
+-- import           Data.Generics.Product
 import qualified Data.List                        as L
 import           Data.Maybe
 import           Data.String
 import           Data.Text                           (Text, pack, unpack, toLower, drop, take)
 import           Data.Typeable
+-- import           GHC.Generics
 import           GHC.Types                           (Constraint, Type)
 import           Prelude                      hiding (read, take, drop, length)
 import           Prelude.Unicode
@@ -64,7 +67,8 @@ import           Generics.SOP                        (NP(..), SOP(..), I(..), K(
 import           Generics.SOP.NP                     (pure_NP)
 import qualified Generics.SOP                     as SOP
 import qualified Generics.SOP.NP                  as SOP
-import qualified Generics.SOP.Lens                as SOP
+-- import qualified Generics.SOP.Lens                as SOP
+import qualified Generics.SOP.Prism               as SOP
 
 
 -- * Somewhat generic
@@ -138,6 +142,7 @@ class ( Monad m, SOP.Generic (Structure a), SOP.HasDatatypeInfo (Structure a)
 recover  ∷ ∀ (t ∷ Type) m a s xss xs.
            ( Record t m a, s ~ Structure a
            , SOP.HasDatatypeInfo s
+           , Generic s
            , Code s ~ xss, xss ~ '[xs]
            , All2 (HasReadField t m a) xss
            , HasCallStack, Monad m, Applicative (Result t))
@@ -162,6 +167,7 @@ recoverCtor
   ∷ ∀ (t ∷ Type) m a s xs.
     ( Record t m a, s ~ Structure a
     , Code s ~ '[xs]
+    , Generic s
     , All (HasReadField t m a) xs
     , HasCallStack, Monad m)
   ⇒ Proxy (t, a) → RecordCtx t a → Text → (((,) Int) :. ConstructorInfo) xs
@@ -180,6 +186,7 @@ recoverFields
   ∷ ∀ (t ∷ Type) m u s xs.
     ( Record t m u, s ~ Structure u
     , Code s ~ '[xs]
+    , Generic s
     , All (HasReadField t m u) xs
     , SListI xs
     , HasCallStack, Monad m)
@@ -216,22 +223,23 @@ recoverFields _pTU _ctxR cctxU fss =
     --                  -> SOP.GLens r0 w0 a0 a -> (:.) m (Result t) a
     --     Actual type: K Text a
     --                  -> SOP.GLens (->) (->) s a -> (:.) m (Result t) a
-  hcliftA2 (Proxy @(HasReadField t m u)) recoverField fss SOP.glenses
+  hcliftA2 (Proxy @(HasReadField t m u)) recoverField fss SOP.gprisms
   where
     recoverField ∷ ∀ a. (HasReadField t m u a)
                  ⇒ K Text a
-                 → SOP.GLens (→) (→) s a
+                 → SOP.GPrism (→) (→) s a
                  → (m :. Result t) a
-    recoverField (K fi) glens =
+    recoverField (K fi) gprism =
   --   readField         ∷ HasCallStack
   --                     ⇒ Proxy c
   --                     → Proxy (t, u, a)
   --                     → FieldCtx t a
   --                     → FieldName
   --                     → (m :. Result t) a
-      readField
+      let xtract = SOP.get gprism ∷ s → a
+      in readField
          (Proxy @(t, u, a))
-         (fieldCtx (Proxy @(t, u, a, m a)) cctxU (SOP.get glens ∷ s → a))
+         (fieldCtx (Proxy @(t, u, a, m a)) cctxU xtract)
       -- fieldCtx ∷ Proxy (t, u, a, m a)
       --          → ConsCtx t u
       --          → (Structure u → a)

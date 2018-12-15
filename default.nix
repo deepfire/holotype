@@ -1,13 +1,13 @@
 { mkDerivation, aeson, aeson-pretty, base, base-unicode-symbols
 , binary, bytestring, cairo, clock, containers, data-default
 , dependent-sum, directory, dlist, exceptions, extra, fclabels
-, filepath, free, freer-simple, fused-effects, generics-sop
-, ghc-prim, gi-cairo, gi-gobject, gi-pango, gi-pangocairo, GLFW-b
-, Glob, hashable, haskell-gi-base, hedgehog, hspec, hxt
-, JuicyPixels, lambdacube-compiler, lambdacube-gl, lambdacube-ir
-, lens, lens-sop, linear, lub, metamorphic, MissingH, monadplus
-, MonadRandom, mono-traversable, monoidal-containers, mtl
-, newtype-generics, OpenGL, OpenGLRaw, optparse-applicative
+, filepath, free, freer-simple, fused-effects, generic-lens
+, generics-sop, ghc-prim, gi-cairo, gi-gobject, gi-pango
+, gi-pangocairo, GLFW-b, Glob, hashable, haskell-gi-base, hedgehog
+, hspec, hxt, JuicyPixels, lambdacube-compiler, lambdacube-gl
+, lambdacube-ir, lens, lens-sop, linear, lub, metamorphic, MissingH
+, monadplus, MonadRandom, mono-traversable, monoidal-containers
+, mtl, newtype-generics, OpenGL, OpenGLRaw, optparse-applicative
 , parsers, pretty, pretty-show, primitive, profunctors, proteaaudio
 , QuickCheck, random, ref-tf, reflex, reflex-glfw, semigroupoids
 , semigroups, singletons, sop-core, spool, stdenv, stm, tasty
@@ -28,10 +28,10 @@ mkDerivation {
     aeson aeson-pretty base base-unicode-symbols binary bytestring
     cairo clock containers data-default dependent-sum directory dlist
     exceptions extra fclabels filepath free freer-simple fused-effects
-    generics-sop ghc-prim gi-cairo gi-gobject gi-pango gi-pangocairo
-    GLFW-b hashable haskell-gi-base hedgehog hspec hxt JuicyPixels
-    lambdacube-compiler lambdacube-gl lambdacube-ir lens lens-sop
-    linear lub metamorphic MissingH monadplus MonadRandom
+    generic-lens generics-sop ghc-prim gi-cairo gi-gobject gi-pango
+    gi-pangocairo GLFW-b hashable haskell-gi-base hedgehog hspec hxt
+    JuicyPixels lambdacube-compiler lambdacube-gl lambdacube-ir lens
+    lens-sop linear lub metamorphic MissingH monadplus MonadRandom
     mono-traversable monoidal-containers mtl newtype-generics OpenGL
     OpenGLRaw optparse-applicative parsers pretty pretty-show primitive
     profunctors proteaaudio QuickCheck random ref-tf reflex reflex-glfw

@@ -23,6 +23,7 @@ with pkgs.haskell.lib; with lib; with self; {
     description = "True Sums of Products";
     license = stdenv.lib.licenses.bsd3;
   };
+  generic-lens = dontCheck super.generic-lens;
   generics-sop = overrideCabal super.generics-sop (drv: {
     src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./generics-sop.src.json)) ["date"]);
     doCheck         = false;

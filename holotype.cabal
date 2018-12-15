@@ -86,6 +86,7 @@ library
                      , fused-effects
                      -- , fsnotify
                      , generics-sop
+                     , generic-lens
                      , ghc-prim
                      , gi-cairo
                      , gi-gobject
