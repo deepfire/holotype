@@ -1,5 +1,33 @@
 :set -fobject-code
+
+:set -XAllowAmbiguousTypes
+:set -XApplicativeDo
+:set -XConstraintKinds
 :set -XDataKinds
+:set -XDeriveGeneric
+:set -XDerivingStrategies
+:set -XFlexibleContexts
+:set -XFlexibleInstances
+:set -XGADTs
+:set -XGeneralisedNewtypeDeriving
+:set -XInstanceSigs
+:set -XLambdaCase
+:set -XMultiParamTypeClasses
+:set -XNamedFieldPuns
 :set -XOverloadedStrings
+:set -XPackageImports
+:set -XRankNTypes
+:set -XRecordWildCards
+:set -XRecursiveDo
+:set -XScopedTypeVariables
+:set -XStandaloneDeriving
+:set -XTemplateHaskell
+:set -XTupleSections
+:set -XTypeApplications
+:set -XTypeFamilies
+:set -XTypeInType
+:set -XUndecidableInstances
+:set -XUnicodeSyntax
+:set -XViewPatterns
 
 :load HoloPrelude

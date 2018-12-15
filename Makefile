@@ -56,7 +56,7 @@ HOLOTYPE=$(BUILDBASE)/holotype/holotype
 # BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-$(GHCD)/holotype-0.0.1/x
 # HOLOTYPE=$(BUILDBASE)/holotype/build/holotype/holotype
 $(HOLOTYPE): $(SRCS)
-	cabal build -j4 exe:holotype
+	cabal build $(if $(GHCOPT),--ghc-option=$(GHCOPT)) -j4 exe:holotype $(GHCOUT)
 
 #
 #
@@ -110,12 +110,19 @@ new new-experiment:
 #
 leakcheck_extra_opts := $(and $(full),--track-origins=yes --expensive-definedness-checks=yes)
 
-tool      := $(and $(leakcheck),valgrind --leak-check=full --show-leak-kinds=all $(leakcheck_extra_opts)) \
+tool       = $(and $(leakcheck),valgrind --leak-check=full --show-leak-kinds=all $(leakcheck_extra_opts)) \
              $(and $(pprof),pprof)
-toollog   := $(and $(leakcheck), 2>&1 | ts -s | tee leakcheck.$(shell date +%s).report) \
+toollog    = $(and $(leakcheck), 2>&1 | ts -s | tee leakcheck.$(shell date +%s).report) \
              $(and $(pprof),     2>&1 | ts -s | tee     pprof.$(shell date +%s).report)
-traced: OPTS=--trace
-traced: holotype
+
+traced:      OPTS=--trace
+traced:      holotype
+ddump-deriv: GHCOPT=-ddump-deriv
+ddump-deriv: GHCOUT=2>&1 >ghc.out
+ddump-deriv: holotype
+ddump-tc:    GHCOPT=-ddump-tc-trace
+ddump-tc:    GHCOUT=2>&1 >ghc.out
+ddump-tc:    holotype
 holotype: $(HOLOTYPE)
 	$(tool) $< +RTS -T -RTS $(OPTS) $(toollog)
 pholotype: $(HOLOTYPE)
@@ -126,7 +133,7 @@ pholotype: $(HOLOTYPE)
 
 RESOURCE_CALLS='pango_font_map_create_context|pango_cairo_create_context|pango_layout_new|cairo_destroy|cairo_surface_destroy|cairo_create|cairo_image_surface_create'
 lholotype: $(HOLOTYPE)
-	ltrace $(LTRACE_OPTIONS) $< +RTS -T -RTS $(OPTS) $(toollog)
+	ltrace $(LTRACE_OPTIONS) $< +RTS -T -RTS $(OPTS) $(toollog) $(ghcoutlog)
 	cut -d '(' -f1 holotype.ltrace | sort | uniq -c | grep -v 'resumed>' | sort -n | tee holotype.lprof
 res resources:
 	egrep $(RESOURCE_CALLS) holotype.lprof

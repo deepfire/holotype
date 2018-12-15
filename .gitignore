@@ -36,6 +36,7 @@
 .ghc.environment*
 .stack-work/
 nohup.out
+ghc.out
 
 /Holo*
 /*stress
