@@ -28,6 +28,12 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-unused-imports -Wno-type-defaults -Wno-orphans -fconstraint-solver-iterations=0 #-}
+--{-# OPTIONS_GHC -ddump-deriv          #-} -- +
+--{-# OPTIONS_GHC -ddump-rn             #-} -- +
+--{-# OPTIONS_GHC -ddump-tc-trace       #-} -- +
+--{-# OPTIONS_GHC -ddump-tc             #-} -- -
+--{-# OPTIONS_GHC -ddump-rule-firings   #-} -- -
+--{-# OPTIONS_GHC -ddump-ds             #-} -- -
 module Holotype where
 
 import           Control.Arrow
@@ -217,14 +223,14 @@ trackStyle sof = do
 data Settings where
   Settings ∷
     { sttsDΠ              ∷ DΠ
-    -- , sttsFontPreferences ∷ Cr.FontPreferences PU
+    , sttsFontPreferences ∷ Cr.FontPreferences PU
     , sttsScreenMode      ∷ Port.ScreenMode
     , sttsScreenDim       ∷ Port.ScreenDim (Di Int)
     } → Settings
     deriving (Eq, GHC.Generic, Show)
 instance SOP.Generic         Settings
 instance SOP.HasDatatypeInfo Settings
-type instance Structure Settings = Settings
+type instance      Structure Settings = Settings
 defSettings ∷ Settings
 defSettings =
   let sttsDΠ ∷ DΠ         = 96
@@ -256,7 +262,7 @@ type instance Structure      AnObject = AnObject
 
 instance SOP.Generic         (Cr.FontPreferences PU)
 instance SOP.HasDatatypeInfo (Cr.FontPreferences PU)
-type instance Structure (Cr.FontPreferences 'PU) = (Cr.FontPreferences PU)
+type instance Structure      (Cr.FontPreferences PU) = Cr.FontPreferences PU
 
 instance {-# OVERLAPPABLE #-} Holo.Named a
 instance {-# OVERLAPPABLE #-} Holo.Named Text
@@ -328,8 +334,10 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
                      \x → liftIO $ putStrLn (show x)
   tupleWD          ← present @i eV defVocab
                       (unsafe'di 320 200 ∷ Di Int)
-  sttsWD           ← present @i eV defVocab
-                      defSettings
+  sttsWD ∷ Widget i (Cr.FontPreferences PU)
+                   ← present @i eV defVocab
+                      (Cr.FontPreferences [])
+                      --defSettings
 
   longStaticTextD  ← present @i eV (namely' @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 

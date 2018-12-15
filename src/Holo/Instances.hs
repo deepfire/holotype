@@ -316,12 +316,14 @@ instance Present  i Int
 instance Interact i Int
 instance Present  i Integer
 instance Interact i Integer
-instance Present  i String
-instance Interact i String
+-- instance Present  i String
+-- instance Interact i String
 instance Present  i Text
 instance Interact i Text
 instance Present  i (Unit PU)
 instance Interact i (Unit PU)
+
+instance Present i a ⇒ Present  i [a]
 
 -- So, liftWRecord works for (a, b) now, even if it's assigning empty field names.
 -- Next -- shall we:
