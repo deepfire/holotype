@@ -110,6 +110,17 @@ toLens (GPrism f g) = Lens.lens f g
   Generic computation of all lenses for a record type
 -------------------------------------------------------------------------------}
 
+glenses :: forall r w a xs. (Generic a, Code a ~ '[xs], Arrow r, ArrowApply w) => NP (GPrism r w a) xs
+glenses = case sList :: SList (Code a) of
+            SCons -> hliftA (\l ->
+                               (l   :: GPrism r w                 (NP I xs) _) .
+                               (sop :: GPrism r w   (SOP I '[xs]) (NP I xs)) .
+                               (rep :: GPrism r w a (Rep      a)))
+                     (np :: NP (GPrism r w (NP I xs)) xs)
+-- #if __GLASGOW_HASKELL__ < 800
+--             _     -> error "inaccessible"
+-- #endif
+
 type family Last (x :: [k]) where
   Last (x: '[]) = x
   Last (x:  xs) = Last xs
@@ -128,22 +139,12 @@ type family Last (x :: [k]) where
 --        w (x :* xs)  = S (w xs)
 --    in SOP . w)
 
-glenses :: forall r w a xs. (Generic a, Code a ~ '[xs], Arrow r, ArrowApply w) => NP (GPrism r w a) xs
-glenses = case sList :: SList (Code a) of
-            SCons -> hliftA (\l ->
-                               (l   :: GPrism r w                 (NP I xs) _) .
-                               (sop :: GPrism r w   (SOP I '[xs]) (NP I xs)) .
-                               (rep :: GPrism r w a (Rep      a)))
-                     (np :: NP (GPrism r w (NP I xs)) xs)
--- #if __GLASGOW_HASKELL__ < 800
---             _     -> error "inaccessible"
--- #endif
-
-sop' :: (Arrow r, ArrowApply w) => GPrism r w (SOP f xss) (NP (NP f) xss)
+sop' :: (Arrow r, ArrowApply w) => GPrism r w (SOP I yss) (NP I ys)
 sop' = undefined
 
-np' :: (Arrow r, ArrowApply w) => NP (NP (GPrism r w (NP (NP I) xss))) xss
-np' = undefined
+-- NP (NP (GPrism r w a)) xss    -- gprisms table of prisms, final
+--  - needs to be inductively built by destructuring sList / reconstructing via :*
+-- NP (GPrism r w a) x           -- single row of prisms, before :*
 
 gprisms :: forall r w a xss. (Generic a, Code a ~ xss, Arrow r, ArrowApply w) => NP (NP (GPrism r w a)) xss
 gprisms = go (sList :: SList (Code a))
@@ -151,23 +152,15 @@ gprisms = go (sList :: SList (Code a))
     go :: (SListI yss, All SListI yss) => SList yss -> NP (NP (GPrism r w a)) yss
     go x = case x of
       SNil -> Nil
-      SCons -> -- (undefined :: NP (NP (GPrism r w a)) (x : xs))
-        ((hliftA (\(l :: GPrism r w (NP (NP I) xss) _) ->
-                   (l       :: GPrism r w               (NP (NP I) xss)  _) .
-                   (sop'    :: GPrism r w   (SOP I xss) (NP (NP I) xss)) .
-                   (rep     :: GPrism r w a (SOP I xss)))
-                 np') :: NP (NP (GPrism r w a)) (x : xs))
+      SCons ->
+        (hliftA (\l ->
+                   l .                                               -- ::                  GPrism r w               (NP I ys) y
+                   (undefined :: GPrism r w (SOP I yss) (NP I ys)) .
+                   rep)                                              -- ::                  GPrism r w a (Rep     a)
+         np)                                                         -- :: SListI ys => NP (GPrism r w (NP I ys)) ys
+                                                                     -- :: SListI ys => NP (GPrism r w a)         ys
         :*
-        (undefined :: NP (NP (GPrism r w a)) xs)
-        -- np'  :: NP (NP I) xss -> x
-        -- rep  :: a -> SOP f xss
-        -- sop' :: SOP f xss -> NP (NP f) xss
-        -- l    :: NP (NP I) xss
-        -- (hliftA ((\l -> ( l :: GPrism r w (NP (NP I) xss) _) . sop' . rep)
-        --          :: _)
-        --   np' :: _)
-        --    --(np' :: NP (NP (GPrism r w (NP (NP I) xss))) xss))
-        --  :* _ --go sList
+        (go sList :: All SListI yss => NP (NP (GPrism r w a)) yss)
 
 {-------------------------------------------------------------------------------
   Generalized lenses for representation types
