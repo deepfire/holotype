@@ -147,10 +147,33 @@ i :: (Arrow r, ArrowApply w) => GPrism r w (I a) a
 i = fromIso $ Iso unI I
 
 head :: (Arrow r, ArrowApply w) => GPrism r w (NP f (x ': xs)) (f x)
-head = fromLens $ Lens.lens (\(x :* _) -> x) (\(f, x :* xs) -> (f x :* xs))
+head = fromLens $ Lens.lens
+  (\(x :* _) -> x)
+  (\(f, x :* xs) -> (f x :* xs))
 
 tail :: (Arrow r, ArrowApply w) => GPrism r w (NP f (x ': xs)) (NP f xs)
 tail = fromLens $ Lens.lens (\(_ :* xs) -> xs) (\(f, x :* xs) -> (x :* f xs))
+
+-- hetero-list of lenses - from a hetero-list of field values - to values
+np :: forall r w xs. (Arrow r, ArrowApply w, SListI xs) => NP (GPrism r w (NP I xs)) xs
+np = case sList :: SList xs of
+      SNil  -> Nil
+      SCons -> (i . head            ::                   GPrism r w (NP I (x : xs1)) x)
+               :*
+               (hliftA (. tail) (np :: SListI xs1 => NP (GPrism r w (NP I      xs1))  xs1)
+                                    :: SListI xs1 => NP (GPrism r w (NP I (x : xs1))) xs1)
+
+-- This can't work because the sum selection is (naturally) not available at type level,
+-- so we can't inductively drill down the list and choose a row in this way.
+nsp :: forall r w xs xss. (Arrow r, ArrowApply w, SListI xss, All SListI xss, All2 Top xss)
+  => GPrism r w (NS (NP I) (xs:xss)) (NP I xs)
+nsp = fromLens $ Lens.lens
+  (let r :: NS (NP I) (xs:xss) -> NP I xs
+       r = \case
+         Z xs -> xs
+         S v  -> r v
+   in r)
+  (undefined)
 
 -- this type sig seems fine, it's just unclear how to construct such an object..
 npp :: forall r w yss. (Arrow r, ArrowApply w, SListI yss, All SListI yss, All2 Top yss) => NP (NP (GPrism r w (NS (NP I) yss))) yss
@@ -165,15 +188,14 @@ npp = case sList :: SList yss of
               -- )
               -- (undefined :: I a -> GPrism r w (NS (NP I) (x : xs)) a)
               -- (undefined $ cpure_NP (Proxy @(All Top)) i)
-              (undefined)
-              (undefined)
+              (undefined :: I a -> GPrism r w (NS (NP I) (xs1 : xss1)) a)
+              -- (undefined :: NP I xs1)
+              (undefined $ (cpure_NP (Proxy @(All Top)) I))
               )
-            hd :: (SListI xs) =>
-                  NP (GPrism r w (NS (NP I) (xs : xss1))) xs
+            hd :: (SListI xs) =>                                      NP (GPrism r w (NS (NP I) (xs : xss1)))  xs
             --  list of lenses for the first constructor on the remainder of the list
-            tl :: (SListI (xs : xss1), All SListI (xs : xss1)) =>
-              NP (NP (GPrism r w (NS (NP I) (xs : xss1)))) xss1
-            --  table of lenses for the remaining constructors on the the list
+            tl :: (SListI (xs : xss1), All SListI (xs : xss1)) => NP (NP (GPrism r w (NS (NP I) (xs : xss1)))) xss1
+            --  table of lenses for the remaining constructors on the list
             tl = (
               hliftA -- (Proxy @(All Top))
                 ((hliftA -- (Proxy @Top)
@@ -190,8 +212,7 @@ npp = case sList :: SList yss of
                  -> NP (GPrism r w (NS (NP I) (xs : xss1))) xs
                 )
                 (npp
-                  :: All SListI xss1 =>
-                  NP (NP (GPrism r w (NS (NP I) xss1))) xss1
+                  :: All SListI xss1 =>                           NP (NP (GPrism r w (NS (NP I)       xss1))) xss1
                 )
               )
         in hd :* tl
@@ -200,19 +221,6 @@ tail' :: (Arrow r, ArrowApply w) => GPrism r w (NS (NP f) (x1 : xs1)) (NS (NP f)
 tail' = fromLens $ Lens.lens
   (\(S xs) -> xs)
   (\(f, S xs) -> (S $ f xs))
-
--- hetero-list of lenses
---     from a hetero-list of field values
---     to values
-np :: forall r w xs. (Arrow r, ArrowApply w, SListI xs) => NP (GPrism r w (NP I xs)) xs
-np = case sList :: SList xs of
-      SNil  -> Nil
-      SCons ->
-        (i . head
-         ::                   GPrism r w (NP I (x : xs1)) x)
-        :*
-        (hliftA (. tail) np
-         :: SListI xs1 => NP (GPrism r w (NP I (x : xs1))) xs1)
 
 rep :: (Arrow r, ArrowApply w, Generic a) => GPrism r w a (Rep a)
 rep = fromIso $ Iso from to
@@ -230,11 +238,12 @@ curry m a = m . (const a &&& id)
 uncurry :: ArrowApply cat => (a -> cat b c) -> cat (a, b) c
 uncurry a = app . arr (first a)
 
-data Ex = Num Int | Add { left :: Ex, right :: Ex } | Yay { x :: Ex }
+data Ex = Add { left :: Ex, right :: Ex } | Num Int | Yay { x :: Ex }
 instance Generic Ex where
   type Code Ex              = '[ '[Int], '[Ex, Ex], '[Ex]]
-  from (Num n)              = SOP $ (Z (I n :* Nil)            :: NS (NP I) ('[Int] : xs))
-  from (Add e f)            = SOP $ (S (Z (I e :* I f :* Nil)) :: NS (NP I) (x : '[Ex, Ex] : xs))
-  from (Yay x)              = SOP $ (S (S (Z (I x :* Nil)))    :: NS (NP I) (x0 : x1 : '[Ex] : xs))
+  from (Num x)              = SOP $       (Z (I x :* Nil)         :: NS (NP I) ('[Int] : '[Ex, Ex] : '[Ex] : '[]))
+  from (Add x y)            = SOP $    (S (Z (I x :* I y :* Nil)) :: NS (NP I) ('[Int] : '[Ex, Ex] : '[Ex] : '[]))
+  from (Yay x)              = SOP $ (S (S (Z (I x :* Nil)))       :: NS (NP I) ('[Int] : '[Ex, Ex] : '[Ex] : '[]))
   to (SOP (Z (I n :* Nil))) = Num n
   to (SOP (S (Z (I e :* I f :* Nil)))) = Add e f
+  to (SOP (S (S (Z (I x :* Nil))))) = Yay x
