@@ -108,28 +108,31 @@ toLens :: GPrism cat cat a b -> Lens cat a b
 toLens (GPrism f g) = Lens.lens f g
 
 {-------------------------------------------------------------------------------
-  Generic computation of all lenses for a record type
+  Generic computation of all prisms for a record type
 -------------------------------------------------------------------------------}
 
-glenses :: forall r w a xs. (Generic a, Code a ~ '[xs], Arrow r, ArrowApply w) => NP (GPrism r w a) xs
-glenses = case sList :: SList (Code a) of
-            SCons -> hliftA (\l ->
-                               (l   :: GPrism r w                 (NP I xs) _) . -- lens from constructor-pack to field
-                               (sop :: GPrism r w   (SOP I '[xs]) (NP I xs)) .
-                               (rep :: GPrism r w a (Rep      a)))
-                     (np :: NP (GPrism r w (NP I xs)) xs)
--- #if __GLASGOW_HASKELL__ < 800
---             _     -> error "inaccessible"
--- #endif
+-- | Prism for a some constructor
+data CPrisms r w xss xs
+  = (SListI xss, All SListI xss, SListI xs)
+  => CPrisms { unCPrisms :: GPrism r w (NS (NP I) xss) (NP I xs) }
 
-gprisms :: forall r w y xss. (Generic y, Code y ~ xss, Arrow r, ArrowApply w) => NP (NP (GPrism r w y)) xss
-gprisms = let (POP x) = hliftA
-                        (\l ->
-                           (l    :: GPrism r w               (NS (NP I) xss) _) .
-                           (sop' :: GPrism r w   (SOP I xss) (NS (NP I) xss)) .
-                           (rep  :: GPrism r w y (Rep     y)))
-                        (POP (npp :: (Arrow r, ArrowApply w, All SListI xss) => NP (NP (GPrism r w (NS (NP I) xss))) xss))
-          in x
+gprisms :: forall r w y xss . ( Generic y, Code y ~ xss
+                              , Arrow r, ArrowApply w
+                              , SListI xss
+                              , All SListI xss)
+        => NP (NP (GPrism r w y)) xss
+gprisms =
+  hliftA
+  (\(CPrisms p :: CPrisms r w xss xs)->
+   (hliftA
+    (\l -> l . p . sop' . rep)
+    np))
+  npprisms
+
+npprisms :: (SListI xss, All SListI xss) => NP (CPrisms r w xss) xss
+npprisms = case sList :: SList xss of
+      SNil  -> Nil
+      SCons -> (undefined :: ())
 
 sop  :: (Arrow r, ArrowApply w) => GPrism r w (SOP f '[xs]) (NP f xs)
 sop  = fromIso $ Iso (\(SOP (Z x)) -> x) (SOP . Z)
@@ -140,8 +143,6 @@ sop' = fromIso $ Iso (\(SOP x)     -> x)  SOP
 {-------------------------------------------------------------------------------
   Generalized lenses for representation types
 -------------------------------------------------------------------------------}
-
-data CPrisms r w xs = CPrisms { unCPrisms :: NP (GPrism r w (NP I xs)) xs }
 
 i :: (Arrow r, ArrowApply w) => GPrism r w (I a) a
 i = fromIso $ Iso unI I
@@ -163,60 +164,6 @@ np = case sList :: SList xs of
                (hliftA (. tail) (np :: SListI xs1 => NP (GPrism r w (NP I      xs1))  xs1)
                                     :: SListI xs1 => NP (GPrism r w (NP I (x : xs1))) xs1)
 
--- This can't work because the sum selection is (naturally) not available at type level,
--- so we can't inductively drill down the list and choose a row in this way.
-nsp :: forall r w xs xss. (Arrow r, ArrowApply w, SListI xss, All SListI xss, All2 Top xss)
-  => GPrism r w (NS (NP I) (xs:xss)) (NP I xs)
-nsp = fromLens $ Lens.lens
-  (let r :: NS (NP I) (xs:xss) -> NP I xs
-       r = \case
-         Z xs -> xs
-         S v  -> r v
-   in r)
-  (undefined)
-
--- this type sig seems fine, it's just unclear how to construct such an object..
-npp :: forall r w yss. (Arrow r, ArrowApply w, SListI yss, All SListI yss, All2 Top yss) => NP (NP (GPrism r w (NS (NP I) yss))) yss
-npp = case sList :: SList yss of
-      SNil  -> Nil
-      SCons ->
-        let hd = (
-              hliftA
-              -- ( i .
-              --   i . head
-              --   undefined
-              -- )
-              -- (undefined :: I a -> GPrism r w (NS (NP I) (x : xs)) a)
-              -- (undefined $ cpure_NP (Proxy @(All Top)) i)
-              (undefined :: I a -> GPrism r w (NS (NP I) (xs1 : xss1)) a)
-              -- (undefined :: NP I xs1)
-              (undefined $ (cpure_NP (Proxy @(All Top)) I))
-              )
-            hd :: (SListI xs) =>                                      NP (GPrism r w (NS (NP I) (xs : xss1)))  xs
-            --  list of lenses for the first constructor on the remainder of the list
-            tl :: (SListI (xs : xss1), All SListI (xs : xss1)) => NP (NP (GPrism r w (NS (NP I) (xs : xss1)))) xss1
-            --  table of lenses for the remaining constructors on the list
-            tl = (
-              hliftA -- (Proxy @(All Top))
-                ((hliftA -- (Proxy @Top)
-                  ((\(x :: GPrism r w (NS (NP I) xss1) x) ->
-                      (.)
-                     x
-                     tail'
-                   )
-                   :: GPrism r w (NS (NP I) xss1) x
-                   -> GPrism r w (NS (NP I) (xs : xss1)) x
-                  )
-                 )
-                 :: NP (GPrism r w (NS (NP I) xss1)) xs
-                 -> NP (GPrism r w (NS (NP I) (xs : xss1))) xs
-                )
-                (npp
-                  :: All SListI xss1 =>                           NP (NP (GPrism r w (NS (NP I)       xss1))) xss1
-                )
-              )
-        in hd :* tl
-
 tail' :: (Arrow r, ArrowApply w) => GPrism r w (NS (NP f) (x1 : xs1)) (NS (NP f) xs1)
 tail' = fromLens $ Lens.lens
   (\(S xs) -> xs)
@@ -237,13 +184,3 @@ curry m a = m . (const a &&& id)
 
 uncurry :: ArrowApply cat => (a -> cat b c) -> cat (a, b) c
 uncurry a = app . arr (first a)
-
-data Ex = Add { left :: Ex, right :: Ex } | Num Int | Yay { x :: Ex }
-instance Generic Ex where
-  type Code Ex              = '[ '[Int], '[Ex, Ex], '[Ex]]
-  from (Num x)              = SOP $       (Z (I x :* Nil)         :: NS (NP I) ('[Int] : '[Ex, Ex] : '[Ex] : '[]))
-  from (Add x y)            = SOP $    (S (Z (I x :* I y :* Nil)) :: NS (NP I) ('[Int] : '[Ex, Ex] : '[Ex] : '[]))
-  from (Yay x)              = SOP $ (S (S (Z (I x :* Nil)))       :: NS (NP I) ('[Int] : '[Ex, Ex] : '[Ex] : '[]))
-  to (SOP (Z (I n :* Nil))) = Num n
-  to (SOP (S (Z (I e :* I f :* Nil)))) = Add e f
-  to (SOP (S (S (Z (I x :* Nil))))) = Yay x
