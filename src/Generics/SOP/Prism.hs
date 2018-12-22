@@ -111,11 +111,6 @@ toLens (GPrism f g) = Lens.lens f g
   Generic computation of all prisms for a record type
 -------------------------------------------------------------------------------}
 
--- | Prism for a some constructor
-data CPrisms r w xss xs
-  = (SListI xss, All SListI xss, SListI xs)
-  => CPrisms { unCPrisms :: GPrism r w (NS (NP I) xss) (NP I xs) }
-
 gprisms :: forall r w y xss . ( Generic y, Code y ~ xss
                               , Arrow r, ArrowApply w
                               , SListI xss
@@ -125,20 +120,48 @@ gprisms =
   hliftA
   (\(CPrisms p :: CPrisms r w xss xs)->
    (hliftA
-    (\l -> l . p . sop' . rep)
+    (\l -> l . p . sop . rep)
     np))
   npprisms
 
-npprisms :: (SListI xss, All SListI xss) => NP (CPrisms r w xss) xss
+-- | Prism pack selector for some constructor
+data CPrisms r w xss xs
+  = (SListI xss, All SListI xss, SListI xs)
+  => CPrisms { unCPrisms :: GPrism r w (NS (NP I) xss) (NP I xs) }
+
+npprisms :: forall r w xss. (Arrow r, ArrowApply w, SListI xss, All SListI xss) => NP (CPrisms r w xss) xss
 npprisms = case sList :: SList xss of
+             SNil  -> Nil
+             SCons ->
+               (CPrisms
+                ((fromIso $ Iso (\(Z x) -> x) Z)
+                 :: GPrism r w (NS (NP I) (xs1 : xss')) (NP I xs1))
+               :: (SListI xss', All SListI xss', SListI xs) =>                CPrisms r w (xs : xss') xs)
+               :*
+               (hliftA
+                ((\(CPrisms x) -> CPrisms (x . tail'))
+                 :: (SListI xss', All SListI xss', SListI xs)
+                 => CPrisms r w       xss'  x
+                 -> CPrisms r w (xs : xss') x)
+                (npprisms :: (SListI xss', All SListI xss')            => NP (CPrisms r w       xss')  xss')
+                          :: (SListI xss', All SListI xss', SListI xs) => NP (CPrisms r w (xs : xss')) xss')
+
+tail' :: (Arrow r, ArrowApply w, SListI xss, SListI xs) => GPrism r w (NS (NP I) (xs : xss)) (NS (NP I) xss)
+tail' = fromLens $ Lens.lens (\(S xs) -> xs) (\(f, S xs) -> (S (f xs)))
+
+tail  :: (Arrow r, ArrowApply w) =>                        GPrism r w (NP f         (x ': xs))      (NP f       xs)
+tail  = fromLens $ Lens.lens (\(_ :* xs) -> xs) (\(f, x :* xs) -> (x :* f xs))
+
+np :: forall r w xs. (Arrow r, ArrowApply w, SListI xs) => NP (GPrism r w (NP I xs)) xs
+np = case sList :: SList xs of
       SNil  -> Nil
-      SCons -> (undefined :: ())
+      SCons -> (i . head            ::                   GPrism r w (NP I (x : xs1)) x)
+               :*
+               (hliftA (. tail) (np :: SListI xs1 => NP (GPrism r w (NP I      xs1))  xs1)
+                                    :: SListI xs1 => NP (GPrism r w (NP I (x : xs1))) xs1)
 
-sop  :: (Arrow r, ArrowApply w) => GPrism r w (SOP f '[xs]) (NP f xs)
-sop  = fromIso $ Iso (\(SOP (Z x)) -> x) (SOP . Z)
-
-sop' :: (Arrow r, ArrowApply w) => GPrism r w (SOP I xss) (NS (NP I) xss)
-sop' = fromIso $ Iso (\(SOP x)     -> x)  SOP
+sop :: (Arrow r, ArrowApply w) => GPrism r w (SOP I xss) (NS (NP I) xss)
+sop = fromIso $ Iso (\(SOP x)     -> x)  SOP
 
 {-------------------------------------------------------------------------------
   Generalized lenses for representation types
@@ -151,23 +174,6 @@ head :: (Arrow r, ArrowApply w) => GPrism r w (NP f (x ': xs)) (f x)
 head = fromLens $ Lens.lens
   (\(x :* _) -> x)
   (\(f, x :* xs) -> (f x :* xs))
-
-tail :: (Arrow r, ArrowApply w) => GPrism r w (NP f (x ': xs)) (NP f xs)
-tail = fromLens $ Lens.lens (\(_ :* xs) -> xs) (\(f, x :* xs) -> (x :* f xs))
-
--- hetero-list of lenses - from a hetero-list of field values - to values
-np :: forall r w xs. (Arrow r, ArrowApply w, SListI xs) => NP (GPrism r w (NP I xs)) xs
-np = case sList :: SList xs of
-      SNil  -> Nil
-      SCons -> (i . head            ::                   GPrism r w (NP I (x : xs1)) x)
-               :*
-               (hliftA (. tail) (np :: SListI xs1 => NP (GPrism r w (NP I      xs1))  xs1)
-                                    :: SListI xs1 => NP (GPrism r w (NP I (x : xs1))) xs1)
-
-tail' :: (Arrow r, ArrowApply w) => GPrism r w (NS (NP f) (x1 : xs1)) (NS (NP f) xs1)
-tail' = fromLens $ Lens.lens
-  (\(S xs) -> xs)
-  (\(f, S xs) -> (S $ f xs))
 
 rep :: (Arrow r, ArrowApply w, Generic a) => GPrism r w a (Rep a)
 rep = fromIso $ Iso from to
