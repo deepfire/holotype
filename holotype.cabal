@@ -51,6 +51,7 @@ library
                   AsNameItem
 
                   Generics.SOP.Monadic
+                  Generics.SOP.Traversal
                   Reflex.Random
 
                   Holotype

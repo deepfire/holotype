@@ -68,7 +68,7 @@ import           Generics.SOP.NP                     (pure_NP)
 import qualified Generics.SOP                     as SOP
 import qualified Generics.SOP.NP                  as SOP
 -- import qualified Generics.SOP.Lens                as SOP
-import qualified Generics.SOP.Prism               as SOP
+import qualified Generics.SOP.Traversal           as SOP
 
 
 -- * Somewhat generic
@@ -182,9 +182,8 @@ recover' pTDS ctxR (ADT _ name cs) =
   POP $ SOP.hcliftA2 (Proxy @(All (HasReadField t m a)))
         (recoverCtor (Proxy @(t, a)) ctxR (pack name))
         (enumerate cs)
-        (SOP.gprisms ∷ NP (NP (SOP.GPrism (→) (→) s)) xss)
+        (SOP.gtraversals ∷ NP (NP (SOP.GTraversal (→) (→) s)) xss)
 recover' _ _ _ = error "Non-ADTs not supported."
--- gprisms :: forall r w a xss. (Generic a, Code a ~ xss, Arrow r, ArrowApply w) => NP (NP (GPrism r w a)) xss
 
 -- * 1. Extract the constructor's product of field names
 --   2. Feed that to the field-name→action interpreter
@@ -197,12 +196,12 @@ recoverCtor
   → RecordCtx t a
   → Text
   → (((,) Int) :. ConstructorInfo) xs
-  → NP (SOP.GPrism (→) (→) s) xs
+  → NP (SOP.GTraversal (→) (→) s) xs
   → NP (m :. Result t) xs
-recoverCtor pTA ctxR _typeName (O (consNr, (Record consName fis)))  prisms =
-  recoverFields pTA ctxR (consCtx (Proxy @(t, m a)) (pack consName) consNr ctxR) (hliftA (K ∘ pack ∘ SOP.fieldName) fis) prisms
-recoverCtor pTA ctxR _typeName (O (consNr, (Constructor consName))) prisms =
-  recoverFields pTA ctxR (consCtx (Proxy @(t, m a)) (pack consName) consNr ctxR) (pure_NP (K ""))                        prisms
+recoverCtor pTA ctxR _typeName (O (consNr, (Record consName fis)))  traversals =
+  recoverFields pTA ctxR (consCtx (Proxy @(t, m a)) (pack consName) consNr ctxR) (hliftA (K ∘ pack ∘ SOP.fieldName) fis) traversals
+recoverCtor pTA ctxR _typeName (O (consNr, (Constructor consName))) traversals =
+  recoverFields pTA ctxR (consCtx (Proxy @(t, m a)) (pack consName) consNr ctxR) (pure_NP (K ""))                        traversals
 recoverCtor _ _ name _ _ =
   error $ printf "Non-Record (plain Constructor, Infix) ADTs not supported: type %s." (unpack name)
 
@@ -218,23 +217,23 @@ recoverFields
   → RecordCtx t u
   → ConsCtx t u ----------------------------v
   → NP (K Text) xs
-  → NP (SOP.GPrism (→) (→) s) xs
+  → NP (SOP.GTraversal (→) (→) s) xs
   → NP (m :. Result t) xs
-recoverFields _pTU _ctxR cctxU fss prisms =
-  hcliftA2 (Proxy @(HasReadField t m u)) recoverField fss prisms
+recoverFields _pTU _ctxR cctxU fss traversals =
+  hcliftA2 (Proxy @(HasReadField t m u)) recoverField fss traversals
   where
     recoverField ∷ ∀ a. (HasReadField t m u a)
                  ⇒ K Text a
-                 → SOP.GPrism (→) (→) s a
+                 → SOP.GTraversal (→) (→) s a
                  → (m :. Result t) a
-    recoverField (K fi) gprism =
+    recoverField (K fi) gtraversal =
   --   readField         ∷ HasCallStack
   --                     ⇒ Proxy c
   --                     → Proxy (t, u, a)
   --                     → FieldCtx t a
   --                     → FieldName
   --                     → (m :. Result t) a
-      let xtract = SOP.get gprism ∷ s → a
+      let xtract = SOP.get gtraversal ∷ s → a
       in readField
          (Proxy @(t, u, a))
          (fieldCtx (Proxy @(t, u, a, m a)) cctxU xtract)
