@@ -18,9 +18,10 @@ module HoloCairo
   , crMoveTo
 
   -- * Font types
+  , FontSpec(..)
   , Font(..), WFont, FKind(..)
   , FontSizeRequest(..)
-  , FamilyName, FaceName
+  , FamilyName(..), FaceName(..)
   , LayoutHeightLimit(..)
   , TextSizeSpec(..), tssWidth, tssHeight
 
@@ -247,15 +248,15 @@ fdSetSize fd (PUs  us)  = GIP.fontDescriptionSetAbsoluteSize fd $ us * fromInteg
 fdSetSize fd (PUIs is)  = GIP.fontDescriptionSetAbsoluteSize fd $ fromIntegral is
 fdSetSize fd (Pts  pts) = GIP.fontDescriptionSetSize         fd $ pts * GIP.SCALE
 
-data FontSizeRequest u where
-  Outline ∷ FromUnit u ⇒
-    { fsValue   ∷ Unit u
-    } → FontSizeRequest u
-  Bitmap  ∷ FromUnit u ⇒
-    { fsValue   ∷ Unit u
+data FontSizeRequest
+  = Outline
+    { fsValue   ∷ WUnit
+    }
+  | Bitmap
+    { fsValue   ∷ WUnit
     , fsbPolicy ∷ Ordering
-    } → FontSizeRequest u
-deriving instance Show (FontSizeRequest u)
+    }
+  deriving (Eq, Generic, Show)
 
 --- XXX/expressivity:
 -- let ascending = True in sortOn (if ascending then id else Down)
@@ -274,11 +275,17 @@ newtype FaceName   = FaceName   { fromFaceName   ∷ Text } deriving (Eq, Show, 
 
 data FKind = Spec | Found | Bound
 
-data Font (k ∷ FKind) u where
+data FontSpec where
   FontSpec ∷
     { frFamilyName     ∷ FamilyName
     , frFaceName       ∷ FaceName
-    , frSizeRequest    ∷ FontSizeRequest u
+    , frSizeRequest    ∷ FontSizeRequest
+    } → FontSpec
+    deriving (Eq, Generic)
+
+data Font (k ∷ FKind) u where
+  FontSpec' ∷
+    { frFontSpec       ∷ FontSpec
     } → Font Spec u
   Font ∷
     { fFamilyName      ∷ FamilyName
@@ -296,14 +303,13 @@ data Font (k ∷ FKind) u where
     { fbFont           ∷ Font Found u
     , fbContext        ∷ GIP.Context
     } → Font Bound u
-deriving instance Eq   (FontSizeRequest u)
 
 data WFont (k ∷ FKind) where
   WFont ∷ FromUnit u ⇒
     { _fromWFont ∷ Font k u
     } → WFont k
 
-instance Show (Font Spec u) where
+instance Show FontSpec where
   show FontSpec{..} =
     printf "FontSpec { family = %s, face = %s, size = %s }"
     (fromFamilyName frFamilyName) (fromFaceName frFaceName) (show frSizeRequest)
@@ -313,8 +319,8 @@ instance Show (Font Found u) where
     (fromFamilyName fFamilyName) (fromFaceName fFaceName) (show fSize)
 
 instance Eq   (Font Spec  u) where
-  FontSpec famnl facnl fsrl          == FontSpec famnr facnr fsrr =
-    famnl ≡ famnr ∧ facnl ≡ facnr ∧ fsrl ≡ fsrr
+  FontSpec' fs == FontSpec' fs' =
+    fs == fs'
 instance Eq   (Font Found u) where
   Font famnl facnl fszl fdπl _ _ _ _ _ == Font famnr facnr fszr fdπr _ _ _ _ _ =
     famnl ≡ famnr ∧ facnl ≡ facnr ∧ fszl ≡ fszr ∧ fdπl ≡ fdπr
@@ -323,14 +329,14 @@ instance Eq   (Font Bound u) where
     fl ≡ fr
 
 validateFont ∷ (MonadIO m) ⇒ FromUnit u ⇒ GIPC.FontMap → Font Spec u → m (Either String (Font Found u))
-validateFont fFontMap (FontSpec
-                       fFamilyName@(FamilyName ffamname)
-                       fFaceName@(FaceName ffacename)
-                       fSizeRequest) =
+validateFont fFontMap (FontSpec' (FontSpec
+                                  fFamilyName@(FamilyName ffamname)
+                                  fFaceName@(FaceName ffacename)
+                                  fSizeRequest)) =
   let fams  = filter ((≡ ffamname)  ∘ ffamName) $ fmFamilies fFontMap
       faces = filter ((≡ ffacename) ∘ ffaceName) $ concat $ ffamFaces <$> fams
       fDΠ   = fmResolution fFontMap
-      fPI   = fromUnit fDΠ $ fsValue fSizeRequest
+      fPI   = fromWUnit fDΠ $ fsValue fSizeRequest
   in case (fams, faces) of
     ([],_)   → pure ∘ Left $ printf "Missing font family '%s'." ffamname
     (_:_,[]) → pure ∘ Left $ printf "No face '%s' in family '%s'." ffacename ffamname
@@ -353,7 +359,7 @@ validateFont fFontMap (FontSpec
                                             | otherwise   → ((<), sortOn id   fPISizes)
                   in case find (findp fPI) ordered of
                        Nothing → Left failure
-                       Just sz → Right $ fromUnit fDΠ sz
+                       Just sz → Right $ UnitPUI $ fromUnit fDΠ sz
               where failure = printf "Bitmap font face '%s' of family '%s' does not have font sizes matching policy %s against size %s, among %s."
                               ffacename ffamname (show policy) (show $ fromPU $ fromUnit fDΠ fPI) (show $ (fromPU ∘ fromUnit fDΠ) <$> fPISizes)
           fontQueryMaxHeight ∷ ∀ m u. (MonadIO m, FromUnit u) ⇒ GIP.Layout → m (He (Unit u))
@@ -362,7 +368,8 @@ validateFont fFontMap (FontSpec
             He ∘ (^.di'v._y) <$> layRunTextForSize fDetachedLayout fDΠ (Nothing ∷ Maybe (Wi (Unit u))) "ly"
       case eifSizeFail of
         Left failure → pure $ Left failure
-        Right  fSize → do
+        Right wfSize → do
+          let fSize = fromWUnit fDΠ wfSize
           fdSetSize fDesc fSize
           -- liftIO $ putStrLn $ printf "---------------\n  fdesc: %s" (show fDesc)
           fDetachedContext ← GIP.fontMapCreateContext fFontMap
@@ -373,11 +380,11 @@ validateFont fFontMap (FontSpec
           pure $ Right $ Font{..}
 
 
-chooseFont ∷ (MonadIO m) ⇒ FromUnit u ⇒ GIPC.FontMap → [Font Spec u] → m (Maybe (Font Found u), [String])
+chooseFont ∷ (MonadIO m) ⇒ FromUnit u ⇒ GIPC.FontMap → [FontSpec] → m (Maybe (Font Found u), [String])
 chooseFont fMap freqs = loop freqs []
-  where loop ∷ (MonadIO m) ⇒ FromUnit u ⇒ [Font Spec u] → [String] → m (Maybe (Font Found u), [String])
+  where loop ∷ (MonadIO m) ⇒ FromUnit u ⇒ [FontSpec] → [String] → m (Maybe (Font Found u), [String])
         loop [] failures  = pure (Nothing, failures)
-        loop (fr:rest) fs = validateFont fMap fr
+        loop (fr:rest) fs = validateFont fMap (FontSpec' fr)
                             >>= (\case
                                     Right font → pure (Just font, fs)
                                     Left  fail → loop rest $ fail:fs)
@@ -554,14 +561,14 @@ layDrawText cairo dGIC lay (Po (V2 cvx cvy)) tColor text =
 
 newtype FontKey
   =     FK { fromFK ∷ T.Text }
-  deriving (Eq, Ord, Show, IsString)
+  deriving (Eq, Ord, Show, IsString, Generic)
 
 newtype FontAlias
   =     Alias { fromAlias ∷ FontKey }
-  deriving (Eq, Ord, Show, IsString)
+  deriving (Eq, Ord, Show, IsString, Generic)
 
-data    FontPreferences u
-  =     FontPreferences [(FontKey, Either FontAlias [Font Spec u])]
+data    FontPreferences
+  =     FontPreferences [(FontKey, Either FontAlias [FontSpec])]
   deriving (Eq, Generic, Show)
 
 data FontMap u where
@@ -572,7 +579,7 @@ data FontMap u where
     } → FontMap u
 deriving instance Show (FontMap u)
 
-makeFontMap ∷ (MonadIO m, FromUnit u) ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences u → m (FontMap u)
+makeFontMap ∷ (MonadIO m, FromUnit u) ⇒ HasCallStack ⇒ DΠ → GIPC.FontMap → FontPreferences → m (FontMap u)
 makeFontMap dπ gipcFM (FontPreferences prefsAndAliases) = do
   pass1 ← foldM resolvePrefs Map.empty  ((id *** fromRight (⊥)) <$> prefs)
   let pass2  = foldl resolveAlias pass1 ((id *** fromLeft  (⊥)) <$> aliases)

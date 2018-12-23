@@ -223,7 +223,7 @@ trackStyle sof = do
 data Settings where
   Settings ∷
     { sttsDΠ              ∷ DΠ
-    , sttsFontPreferences ∷ Cr.FontPreferences PU
+    , sttsFontPreferences ∷ Cr.FontPreferences
     , sttsScreenMode      ∷ Port.ScreenMode
     , sttsScreenDim       ∷ Port.ScreenDim (Di Int)
     } → Settings
@@ -236,9 +236,9 @@ defSettings =
   let sttsDΠ ∷ DΠ         = 96
       sttsFontPreferences = Cr.FontPreferences
         [ ("default",     Left $ Cr.Alias "defaultMono" )
-        , ("defaultSans", Right $ [ Cr.FontSpec "Bitstream Charter" "Regular" $ Cr.Outline (PUs 16)
-                                  , Cr.FontSpec "Aurulent Sans"     "Regular" $ Cr.Outline (PUs 16) ])
-        , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (PUs 15) LT ])
+        , ("defaultSans", Right $ [ Cr.FontSpec "Bitstream Charter" "Regular" $ Cr.Outline (UnitPU $ PUs 16)
+                                  , Cr.FontSpec "Aurulent Sans"     "Regular" $ Cr.Outline (UnitPU $ PUs 16) ])
+        , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (UnitPU $ PUs 15) LT ])
         ]
       sttsScreenMode      = Port.Windowed
       sttsScreenDim       = Port.ScreenDim $ di 800 600
@@ -260,9 +260,9 @@ instance SOP.Generic         AnObject
 instance SOP.HasDatatypeInfo AnObject
 type instance Structure      AnObject = AnObject
 
-instance SOP.Generic         (Cr.FontPreferences PU)
-instance SOP.HasDatatypeInfo (Cr.FontPreferences PU)
-type instance Structure      (Cr.FontPreferences PU) = Cr.FontPreferences PU
+instance SOP.Generic         Cr.FontPreferences
+instance SOP.HasDatatypeInfo Cr.FontPreferences
+type instance Structure      Cr.FontPreferences = Cr.FontPreferences
 
 instance {-# OVERLAPPABLE #-} Holo.Named a
 instance {-# OVERLAPPABLE #-} Holo.Named Text
@@ -334,7 +334,7 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
                      \x → liftIO $ putStrLn (show x)
   tupleWD          ← present @i eV defVocab
                       (unsafe'di 320 200 ∷ Di Int)
-  sttsWD ∷ Widget i (Cr.FontPreferences PU)
+  sttsWD ∷ Widget i Cr.FontPreferences
                    ← present @i eV defVocab
                       (Cr.FontPreferences [])
                       --defSettings

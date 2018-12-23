@@ -122,7 +122,7 @@ newtype ScreenDim a = ScreenDim a
 data Settings where
   Settings ∷
     { sttsDΠ              ∷ DΠ
-    , sttsFontPreferences ∷ Cr.FontPreferences PU
+    , sttsFontPreferences ∷ Cr.FontPreferences
     , sttsScreenMode      ∷ ScreenMode
     , sttsScreenDim       ∷ ScreenDim (Di Int)
     } → Settings
@@ -178,9 +178,9 @@ defaultSettings =
   let sttsDΠ ∷ DΠ         = 96
       sttsFontPreferences = Cr.FontPreferences
         [ ("default",     Left $ Cr.Alias "defaultMono" )
-        , ("defaultSans", Right $ [ Cr.FontSpec "Bitstream Charter" "Regular" $ Cr.Outline (PUs 16)
-                                  , Cr.FontSpec "Aurulent Sans"     "Regular" $ Cr.Outline (PUs 16) ])
-        , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (PUs 15) LT ])
+        , ("defaultSans", Right $ [ Cr.FontSpec "Bitstream Charter" "Regular" $ Cr.Outline (UnitPU $ PUs 16)
+                                  , Cr.FontSpec "Aurulent Sans"     "Regular" $ Cr.Outline (UnitPU $ PUs 16) ])
+        , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (UnitPU $ PUs 15) LT ])
         ]
       sttsScreenMode      = Windowed
       sttsScreenDim       = ScreenDim $ di 800 600

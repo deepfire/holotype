@@ -9,7 +9,8 @@
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 module Flatland
-  ( Unit(..), UnitK(..), pu'val, pui'val, pt'val
+  ( WUnit(..), fromWUnit
+  , Unit(..), UnitK(..), pu'val, pui'val, pt'val
   , FromUnit, FromUnit'(..), StandardUnit(..)
   --
   , DΠ(..)
@@ -39,46 +40,32 @@ module Flatland
   )
 where
 
--- Basis
-import           HoloPrelude
-
--- Type-level
-import           GHC.TypeLits
-
--- General types
 import           Control.Applicative.Free
-import           Control.Lens                      hiding (children)
+import           Control.Lens                      hiding (children, from, to)
 import           Control.Monad.Random              hiding (lift)
 import           Control.Monad.State               hiding (lift)
 import           Data.Complex
-import           Data.Lub
 import           Data.Glb
+import           Data.Lub
 import           Data.MonoTraversable
 import           Data.Singletons
 import           Data.Singletons.Prelude
 import           Data.Singletons.TH                hiding ((%~))
 import           Data.Text.Format
+import           Data.Type.Bool
+import           Elsewhere
+import           GHC.TypeLits
+import           GHC.Types
+import           HoloPrelude                       hiding (from, to)
+import           Linear                            hiding (trace)
+import           Text.PrettyPrint.Leijen.Text      hiding ((<$>), space)
+import qualified Data.Map                          as Map
 import qualified Data.Text.Format                  as T
 import qualified Data.Text.Lazy                    as TL
-import           Data.Type.Bool
-
--- Algebra
-import           Linear                            hiding (trace)
-
--- glib-introspection -based Pango
-import qualified GI.Pango                          as GIP (unitsToDouble, unitsFromDouble)
-
--- Misc
-import           Text.PrettyPrint.Leijen.Text      hiding ((<$>), space)
-
--- Dirty stuff
 import qualified Foreign                           as F
+import qualified GI.Pango                          as GIP (unitsToDouble, unitsFromDouble)
+import qualified Generics.SOP                      as SOP
 import qualified System.IO.Unsafe                  as UN
-
--- Local
-import           Elsewhere
-
-import qualified Data.Map                          as Map
 
 
 -- * Dimensional density.
@@ -127,6 +114,20 @@ type family UnitType a = r | r → a where
   UnitType (Unit PUI)   = PUI
   UnitType (Unit Pt)    = Pt
 
+data WUnit where
+  UnitPU  ∷ Unit PU  → WUnit
+  UnitPUI ∷ Unit PUI → WUnit
+  UnitPt  ∷ Unit Pt  → WUnit
+  deriving (Eq, Generic)
+instance Show WUnit where
+  show (UnitPU  a) = show a
+  show (UnitPUI a) = show a
+  show (UnitPt  a) = show a
+instance SOP.Generic         WUnit
+instance SOP.HasDatatypeInfo WUnit
+
+
+
 pu'val  ∷ Lens' (Unit PU)  (Element (Unit PU))
 pu'val  f (PUs x)  = PUs  <$> f x
 pui'val ∷ Lens' (Unit PUI) (Element (Unit PUI))
@@ -173,8 +174,13 @@ instance Random a ⇒ Random (V4 a) where
 -- | Conversion between unit sizes -- See Note [Pango resolution & unit conversion]
 -- class a ~ (Unit (UnitType a)) ⇒ FromUnit a where
 --   fromUnit ∷ FromUnit b ⇒ DΠ → b → a
-class Ord a ⇒ FromUnit' a where
-  fromUnit ∷ FromUnit' (Unit b) ⇒ DΠ → (Unit b) → a
+class (Eq a, Ord a) ⇒ FromUnit' a where
+  fromUnit ∷ FromUnit' (Unit b) ⇒ DΠ → Unit b → a
+
+fromWUnit ∷ FromUnit' a ⇒ DΠ → WUnit → a
+fromWUnit dπ (UnitPU  x) = fromUnit dπ x
+fromWUnit dπ (UnitPUI x) = fromUnit dπ x
+fromWUnit dπ (UnitPt  x) = fromUnit dπ x
 
 type FromUnit u = FromUnit' (Unit u)
 
