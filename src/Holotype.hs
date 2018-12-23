@@ -58,6 +58,7 @@ import           Prelude                           hiding (id, Word)
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.Host.Class                        (ReflexHost, MonadReflexHost)
 import           Reflex.GLFW                              (RGLFW, RGLFWGuest, InputU(..))
+import           Text.Read
 import qualified Codec.Picture                     as Juicy
 import qualified Codec.Picture.Saving              as Juicy
 import qualified Control.Concurrent.STM            as STM
@@ -243,8 +244,19 @@ defSettings =
       sttsScreenMode      = Port.Windowed
       sttsScreenDim       = Port.ScreenDim $ di 800 600
   in Settings{..}
+
 instance Interact i (Port.ScreenMode)
 instance Present  i (Port.ScreenMode)
+
+instance Interact i (Cr.FaceName)
+instance Present  i (Cr.FaceName)
+instance Interact i (Cr.FamilyName)
+instance Present  i (Cr.FamilyName)
+instance Interact i (Cr.FontAlias)
+instance Present  i (Cr.FontAlias)
+instance Interact i (Cr.FontKey)
+instance Present  i (Cr.FontKey)
+
 instance Typeable a ⇒ Interact i (Port.ScreenDim a)
 
 data AnObject where
@@ -282,11 +294,35 @@ defVocab = Vocab
     <: (Proxy @Int,              IName TextLine)
     <: (Proxy @Integer,          IName TextLine)
     <: (Proxy @Text,             IWName TextLine)
+    <: (Proxy @([(Cr.FontKey,(Either Cr.FontAlias [Cr.FontSpec]))])
+       ,                         IName TextLine)
     -- <: (Proxy @(Port.ScreenDim (Di Int)),
     --                              HoloName TextLine)
   )
 deriving newtype instance Read DΠ
 deriving         instance Read Port.ScreenMode
+deriving newtype instance Read Cr.FontKey
+deriving newtype instance Read Cr.FontAlias
+deriving newtype instance Read Cr.FaceName
+deriving newtype instance Read Cr.FamilyName
+deriving         instance Read Cr.FontSizeRequest
+deriving         instance Read Cr.FontSpec
+deriving         instance Read WUnit
+instance                  Read (Unit PU) where
+  readPrec = prec 10 $ do
+    Ident "PU" <- lexP
+    m <- step readPrec
+    return (PUs m)
+instance                  Read (Unit PUI) where
+  readPrec = prec 10 $ do
+    Ident "PUI" <- lexP
+    m <- step readPrec
+    return (PUIs m)
+instance                  Read (Unit Pt) where
+  readPrec = prec 10 $ do
+    Ident "Pt" <- lexP
+    m <- step readPrec
+    return (Pts m)
 
 scene ∷ ∀ i t m. ( HGLFW i t m
                  , Typeable t)

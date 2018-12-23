@@ -322,6 +322,10 @@ instance Present  i Text
 instance Interact i Text
 instance Present  i (Unit PU)
 instance Interact i (Unit PU)
+instance Present  i (Unit PUI)
+instance Interact i (Unit PUI)
+instance Present  i (Unit Pt)
+instance Interact i (Unit Pt)
 
 instance Present i a ⇒ Present  i [a]
 

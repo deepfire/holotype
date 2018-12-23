@@ -44,9 +44,11 @@ import           Data.Typeable
 import           Generics.SOP.Monadic
 import qualified Generics.SOP                      as SOP
 
+import           Flatland
 import           HoloPrelude
 import           Holo
 import qualified HoloPort                          as Port
+import qualified HoloCairo                         as Cr
 import           Holo.Instances
 
 
@@ -54,6 +56,10 @@ import           Holo.Instances
 --
 instance SOP.Generic         Port.Settings
 instance SOP.HasDatatypeInfo Port.Settings
+instance SOP.Generic         Cr.FontSpec
+instance SOP.HasDatatypeInfo Cr.FontSpec
+instance SOP.Generic         Cr.FontSizeRequest
+instance SOP.HasDatatypeInfo Cr.FontSizeRequest
 
 liftWProduct ∷ ∀ a i t m s xss.
   ( HGLFW i t m, Record i m a, s ~ Structure a
