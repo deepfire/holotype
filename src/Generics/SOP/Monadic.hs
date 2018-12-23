@@ -162,11 +162,16 @@ recover _pTA ctxR = O $ case datatypeInfo (Proxy @s) ∷ DatatypeInfo (Code s) o
         O msop ∷ (m :. Result t) (SOP I (Code s)) = hsequence ct
     case SOP.sList ∷ SOP.SList (Code s) of
       SOP.SCons → (SOP.to <$>) <$> msop
-  -- Newtype _moduleName typeName cInfo → do
-  --   let nCInfos ∷ NP ((,) Int :. ConstructorInfo) '[xs] = enumerate $ cInfo :* Nil
-  --       sop     ∷                   SOP (m :. Result t) (Code s)  = SOP.SOP $ SOP.Z $ recoverCtor (Proxy @(t, a)) ctxR (pack typeName) $ SOP.hd nCInfos
-  --       O mdsop ∷ (m :. Result t) (SOP I                (Code s)) = hsequence sop
-  --   (SOP.to <$>) <$> mdsop
+  Newtype _moduleName typeName cInfo → do
+    let nCInfos -- ∷ NP ((,) Int :. ConstructorInfo) '[ '[x]]
+          = enumerate $ cInfo :* Nil
+        sop     ∷                  SOP (m :. Result t) (Code s)  = SOP.SOP $ SOP.Z $
+          recoverCtor (Proxy @(t, a)) ctxR (pack typeName)
+                      (SOP.hd nCInfos)
+                      (SOP.hd ((SOP.gtraversals -- ∷ NP (NP (SOP.GTraversal (→) (→) s)) '[ '[x]]
+                               )))
+        O mdsop ∷ (m :. Result t) (SOP I               (Code s)) = hsequence sop
+    (SOP.to <$>) <$> mdsop
 
 recover'
   ∷ ∀ (t ∷ Type) m a s xss xs.
