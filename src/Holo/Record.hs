@@ -55,10 +55,10 @@ import           Holo.Instances
 instance SOP.Generic         Port.Settings
 instance SOP.HasDatatypeInfo Port.Settings
 
-liftWProduct ∷ ∀ a i t m s xs.
+liftWProduct ∷ ∀ a i t m s xss.
   ( HGLFW i t m, Record i m a, s ~ Structure a
-  , SOP.Code s ~ '[xs]
-  , SOP.All (HasReadField i m a) xs
+  , SOP.Code s ~ xss
+  , SOP.All2 (HasReadField i m a) xss
   , HasCallStack
   ) ⇒ RecordCtx i a → m (Widget i s)
 liftWProduct ctxR = unO $ recover (Proxy @(i, a)) ctxR
@@ -96,12 +96,13 @@ instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
          , HGLFW i t m
          ) ⇒ Record i m a where
   type RecordCtx i a = (InputEventMux (APIt i), Vocab i (Present i), a)
+  restoreChoice _p _rctx = pure 0
   prefixChars _ = 3
   consCtx _ _ _ (mux, ta, a) = (mux, ta, a)
 
 instance {-# OVERLAPPABLE #-} (Typeable a, SOP.Generic a, SOP.HasDatatypeInfo a
-         , SOP.Code a ~ '[xs]
-         , SOP.All (HasReadField i m a) xs
+         , SOP.Code a ~ xss
+         , SOP.All2 (HasReadField i m a) xss
          , Structure a ~ a
          , HGLFW i t m
          ) ⇒ Present i a where
