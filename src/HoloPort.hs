@@ -119,12 +119,15 @@ data ScreenMode
 newtype ScreenDim a = ScreenDim a
   deriving (Eq, Newtype, Show)
 
+newtype WaitVSync = WaitVSync Bool deriving (Eq, Show)
+
 data Settings where
   Settings ∷
     { sttsDΠ              ∷ DΠ
     , sttsFontPreferences ∷ Cr.FontPreferences
     , sttsScreenMode      ∷ ScreenMode
     , sttsScreenDim       ∷ ScreenDim (Di Int)
+    , sttsWaitVSync       ∷ WaitVSync
     } → Settings
     deriving (Eq, GHC.Generic, Show)
 
@@ -168,10 +171,10 @@ newtype ObjArrayNameS = ObjArrayNameS { fromOANS ∷ String }        deriving (E
 portDΠ ∷ Port f → DΠ
 portDΠ = sttsDΠ ∘ portSettings
 
-portSetVSync ∷ (MonadIO m) ⇒ Bool → m ()
+portSetVSync ∷ (MonadIO m) ⇒ WaitVSync → m ()
 portSetVSync x = liftIO $ GL.swapInterval $ case x of
-                                              True  → 1
-                                              False → 0
+                                              WaitVSync True  → 1
+                                              WaitVSync False → 0
 
 defaultSettings ∷ Settings
 defaultSettings =
@@ -184,6 +187,7 @@ defaultSettings =
         ]
       sttsScreenMode      = Windowed
       sttsScreenDim       = ScreenDim $ di 800 600
+      sttsWaitVSync       = WaitVSync False
   in Settings{..}
 
 portCreate ∷ (RGLFW t m) ⇒ Dynamic t GL.Window → Dynamic t Settings → m (Dynamic t (Maybe (Port f)))
@@ -212,7 +216,7 @@ portCreate winD sttsD = do
       let portPipelines = Map.fromList [(PipePick, pipePick)
                                        ,(PipeDraw, pipeDraw)]
 
-      portSetVSync False
+      portSetVSync sttsWaitVSync
       pure $ Just Port{..}
 
   holdDyn Nothing portE

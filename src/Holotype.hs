@@ -287,6 +287,7 @@ defVocab = Vocab
   (TM.empty
     <: (Proxy @Bool,             IName TextLine)
     <: (Proxy @Bool,             IWName Switch)
+    <: (Proxy @Port.WaitVSync,   IName Switch)
     <: (Proxy @Double,           IName TextLine)
     <: (Proxy @DΠ,               IName TextLine)
     <: (Proxy @Port.ScreenMode,  IName TextLine)
@@ -370,10 +371,10 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
                      \x → liftIO $ putStrLn (show x)
   tupleWD          ← present @i eV defVocab
                       (unsafe'di 320 200 ∷ Di Int)
-  sttsWD ∷ Widget i Cr.FontPreferences
+  sttsWD ∷ Widget i Port.Settings
                    ← present @i eV defVocab
-                      (Cr.FontPreferences [])
-                      --defSettings
+                      -- (Cr.FontPreferences [])
+                      defSettingsV
 
   longStaticTextD  ← present @i eV (namely' @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
@@ -387,17 +388,18 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
   --
   vboxD @i [ stripW $ frameCountD
         -- , (snd <$>) <$> text2HoloQD
-        , stripW styleNameD
-        , stripW lolD
-        , stripW doubleD
-        , stripW recWD
+        -- , stripW styleNameD
+        -- , stripW lolD
+        -- , stripW doubleD
+        -- , stripW recWD
         , stripW sttsWD
         , stripW tupleWD
-        , stripW rectD
+        -- , stripW rectD
         , stripW fpsD
         , stripW longStaticTextD
         , stripW statsD
-        , stripW varlenTextD ]
+        , stripW varlenTextD
+        ]
 
 instance Holo.Interp (a, a)  (V2 a) where
   interp (x, y)   = Just (V2 x y)
@@ -421,6 +423,11 @@ instance Holo.Interp (a, a)  (Port.ScreenDim (Di a)) where
 instance SOP.Generic         (Port.ScreenDim (Di a))
 instance SOP.HasDatatypeInfo (Port.ScreenDim (Di a))
 type instance Structure      (Port.ScreenDim (Di a)) = (Port.ScreenDim (Di a))
+
+instance Holo.Interp Bool Port.WaitVSync where
+  interp = Just ∘ Port.WaitVSync
+  forget (Port.WaitVSync x) = x
+instance Present i Port.WaitVSync
 
 
 
@@ -457,13 +464,20 @@ holotype win evCtl windowFrameE inputE = mdo
   winD             ← holdDyn win $ win <$ initE
   liftIO $ GLFW.enableEvent evCtl GLFW.FramebufferSize
 
+  worldE ∷ Event t WorldEvent
+                   ← performEvent $ inputE <&> translateEvent
+
   (Di (V2 initW initH))
                    ← Port.portWindowSize win
-  let fbSizeE       = ffilter (\case (U GLFW.EventFramebufferSize{}) → True; _ → False) $
-                      leftmost [inputE, (U (GLFW.EventFramebufferSize win initW initH)) <$ initE]
-  settingsD        ← foldDyn (\(U (GLFW.EventFramebufferSize _ w h)) oldStts →
-                                 oldStts { Port.sttsScreenDim = Port.ScreenDim $ unsafe'di w h } )
-                     Port.defaultSettings fbSizeE
+  -- let fbSizeE       = ffilter (\case (U GLFW.EventFramebufferSize{}) → True; _ → False) $
+  --                     leftmost [inputE, (U (GLFW.EventFramebufferSize win initW initH)) <$ initE]
+  settingsD        ← foldDyn (\ev oldStts@Port.Settings{sttsWaitVSync=Port.WaitVSync vsync,..} →
+                                case ev of
+                                  WinSize dim → oldStts { Port.sttsScreenDim = dim }
+                                  VSyncToggle → oldStts { Port.sttsWaitVSync = Port.WaitVSync $ not vsync } )
+                     Port.defaultSettings $
+                     ffilter (\case VSyncToggle → True; WinSize{} → True; _ → False) $
+                     leftmost [worldE, WinSize (Port.ScreenDim (unsafe'di initW initH)) <$ initE]
 
   maybePortD       ← Port.portCreate winD settingsD
   portFrameE       ← newPortFrame $ fmapMaybe id $ fst <$> attachPromptlyDyn maybePortD windowFrameE
@@ -518,12 +532,6 @@ holotype win evCtl windowFrameE inputE = mdo
   performEvent_ $ clickedE <&>
     \Holo.ClickEvent{..}→ liftIO $ printf "pick=0x%x\n" (Port.tokenHash inIdToken)
 
-  -- * Limit frame rate to vsync.  XXX:  also, flicker.
-  worldE ∷ Event t WorldEvent
-                   ← performEvent $ inputE <&> translateEvent
-  waitForVSyncD    ← toggle True $ ffilter (\case VSyncToggle → True; _ → False) worldE
-  performEvent_ $ Port.portSetVSync <$> updated waitForVSyncD
-
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
 
@@ -549,8 +557,13 @@ data WorldEvent where
   Spawn       ∷ WorldEvent
   Shutdown    ∷ WorldEvent
   NonEvent    ∷ WorldEvent
+  WinSize ∷
+    {
+      weWinSize ∷ Port.ScreenDim (Di Int)
+    } → WorldEvent
 
 translateEvent ∷ (MonadIO m) ⇒ InputU → m WorldEvent
+translateEvent (U (GLFW.EventFramebufferSize _ w h))                                 = pure $ WinSize $ Port.ScreenDim $ unsafe'di w h
 translateEvent (U (GLFW.EventMouseButton w button GLFW.MouseButtonState'Pressed _)) = do
   (,) x y ← liftIO $ GLFW.getCursorPos w
   pure $ Click button (po x y)
