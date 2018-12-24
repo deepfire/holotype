@@ -10,6 +10,7 @@ module HoloPrelude
   ( module Control.Applicative
   , module Control.Lens
   , module Data.Function
+  , module Data.Functor
   , module Data.List
   , module Elsewhere
   , module GHC.Types
@@ -53,6 +54,7 @@ import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import           Control.Exception                        (assert)
 import           Data.Either                              (either)
 import           Data.Function
+import           Data.Functor
 import           Data.List                         hiding (uncons)
 import           Data.Maybe                               (fromMaybe)
 import           Data.Monoid                              ((<>))

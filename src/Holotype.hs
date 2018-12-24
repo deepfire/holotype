@@ -221,30 +221,6 @@ trackStyle sof = do
 
 
 
-data Settings where
-  Settings ∷
-    { sttsDΠ              ∷ DΠ
-    , sttsFontPreferences ∷ Cr.FontPreferences
-    , sttsScreenMode      ∷ Port.ScreenMode
-    , sttsScreenDim       ∷ Port.ScreenDim (Di Int)
-    } → Settings
-    deriving (Eq, GHC.Generic, Show)
-instance SOP.Generic         Settings
-instance SOP.HasDatatypeInfo Settings
-type instance      Structure Settings = Settings
-defSettings ∷ Settings
-defSettings =
-  let sttsDΠ ∷ DΠ         = 96
-      sttsFontPreferences = Cr.FontPreferences
-        [ ("default",     Left $ Cr.Alias "defaultMono" )
-        , ("defaultSans", Right $ [ Cr.FontSpec "Bitstream Charter" "Regular" $ Cr.Outline (UnitPU $ PUs 16)
-                                  , Cr.FontSpec "Aurulent Sans"     "Regular" $ Cr.Outline (UnitPU $ PUs 16) ])
-        , ("defaultMono", Right $ [ Cr.FontSpec "Terminus"          "Regular" $ Cr.Bitmap  (UnitPU $ PUs 15) LT ])
-        ]
-      sttsScreenMode      = Port.Windowed
-      sttsScreenDim       = Port.ScreenDim $ di 800 600
-  in Settings{..}
-
 instance Interact i (Port.ScreenMode)
 instance Present  i (Port.ScreenMode)
 
@@ -462,24 +438,27 @@ holotype win evCtl windowFrameE inputE = mdo
   initE            ← getPostBuild
 
   winD             ← holdDyn win $ win <$ initE
+  initWinDimV      ← Port.portWindowSize win
   liftIO $ GLFW.enableEvent evCtl GLFW.FramebufferSize
 
   worldE ∷ Event t WorldEvent
                    ← performEvent $ inputE <&> translateEvent
 
-  (Di (V2 initW initH))
-                   ← Port.portWindowSize win
-  -- let fbSizeE       = ffilter (\case (U GLFW.EventFramebufferSize{}) → True; _ → False) $
-  --                     leftmost [inputE, (U (GLFW.EventFramebufferSize win initW initH)) <$ initE]
-  settingsD        ← foldDyn (\ev oldStts@Port.Settings{sttsWaitVSync=Port.WaitVSync vsync,..} →
-                                case ev of
-                                  WinSize dim → oldStts { Port.sttsScreenDim = dim }
-                                  VSyncToggle → oldStts { Port.sttsWaitVSync = Port.WaitVSync $ not vsync } )
-                     Port.defaultSettings $
-                     ffilter (\case VSyncToggle → True; WinSize{} → True; _ → False) $
-                     leftmost [worldE, WinSize (Port.ScreenDim (unsafe'di initW initH)) <$ initE]
+  sttsE            ← do
+    let Port.Settings{sttsWaitVSync=Port.WaitVSync defvsync,..} = Port.defaultSettings
+    vsyncD ← foldDyn (\VSyncToggle (Port.WaitVSync cur) → Port.WaitVSync (not cur)) (Port.WaitVSync $ not defvsync)
+             $ ffilter (\case VSyncToggle → True; _ → False)
+             $ leftmost [worldE, VSyncToggle <$ initE]
+    let sttsE' = Port.ESettings
+                 (initE $> (sttsDΠ, sttsFontPreferences))
+                 (fmap (\(WinSize dim)→
+                          (sttsScreenMode, dim))
+                  $ ffilter (\case WinSize{} → True; _ → False)
+                  $ leftmost [worldE, WinSize (Port.ScreenDim initWinDimV) <$ initE])
+                 (updated vsyncD)
+    pure sttsE'
 
-  maybePortD       ← Port.portCreate winD settingsD
+  maybePortD       ← Port.portCreate winD sttsE
   portFrameE       ← newPortFrame $ fmapMaybe id $ fst <$> attachPromptlyDyn maybePortD windowFrameE
 
   -- * EXTERNAL STIMULI

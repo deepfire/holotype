@@ -111,26 +111,6 @@ data Port f where
     } → Port f
     deriving (GHC.Generic)
 
-data ScreenMode
-  = FullScreen
-  | Windowed
-  deriving (Eq, GHC.Generic, Show)
-
-newtype ScreenDim a = ScreenDim a
-  deriving (Eq, Newtype, Show)
-
-newtype WaitVSync = WaitVSync Bool deriving (Eq, Show)
-
-data Settings where
-  Settings ∷
-    { sttsDΠ              ∷ DΠ
-    , sttsFontPreferences ∷ Cr.FontPreferences
-    , sttsScreenMode      ∷ ScreenMode
-    , sttsScreenDim       ∷ ScreenDim (Di Int)
-    , sttsWaitVSync       ∷ WaitVSync
-    } → Settings
-    deriving (Eq, GHC.Generic, Show)
-
 data Drawable where
   Drawable ∷
     { dObjectStream       ∷ ObjectStream
@@ -176,6 +156,26 @@ portSetVSync x = liftIO $ GL.swapInterval $ case x of
                                               WaitVSync True  → 1
                                               WaitVSync False → 0
 
+data ScreenMode
+  = FullScreen
+  | Windowed
+  deriving (Eq, GHC.Generic, Show)
+
+newtype ScreenDim a = ScreenDim a
+  deriving (Eq, Newtype, Show)
+
+newtype WaitVSync = WaitVSync Bool deriving (Eq, Show)
+
+data Settings where
+  Settings ∷
+    { sttsDΠ              ∷ DΠ
+    , sttsFontPreferences ∷ Cr.FontPreferences
+    , sttsScreenMode      ∷ ScreenMode
+    , sttsScreenDim       ∷ ScreenDim (Di Int)
+    , sttsWaitVSync       ∷ WaitVSync
+    } → Settings
+    deriving (Eq, GHC.Generic, Show)
+
 defaultSettings ∷ Settings
 defaultSettings =
   let sttsDΠ ∷ DΠ         = 96
@@ -190,8 +190,18 @@ defaultSettings =
       sttsWaitVSync       = WaitVSync False
   in Settings{..}
 
-portCreate ∷ (RGLFW t m) ⇒ Dynamic t GL.Window → Dynamic t Settings → m (Dynamic t (Maybe (Port f)))
-portCreate winD sttsD = do
+data ESettings t where
+  ESettings ∷
+    { esDΠFontPrefs       ∷ Event t (DΠ, Cr.FontPreferences)
+    , esScreenModeDim     ∷ Event t (ScreenMode, ScreenDim (Di Int))
+    , esWaitVSync         ∷ Event t WaitVSync
+    } → ESettings t
+
+(⋈) ∷ Reflex t ⇒ Dynamic t a → Dynamic t b → Dynamic t (a, b)
+(⋈) = zipDynWith (,)
+
+portCreate ∷ (RGLFW t m) ⇒ Dynamic t GL.Window → ESettings t → m (Dynamic t (Maybe (Port f)))
+portCreate winD ESettings{..} = do
   liftIO $ blankIdToken'setup
   portVisualTracker ← mkTIMap
 
@@ -201,22 +211,43 @@ portCreate winD sttsD = do
   let portObjectStream   = ObjectStream portGLStorage osName uniName
   pipeDraw      ← buildPipelineForStorage portGLStorage "PipeDraw.lc"
 
-  let winSettingsD = (zipDynWith (,) winD sttsD)
+  fontmapE      ← performEvent $ esDΠFontPrefs <&>
+    \(dπ, fontPrefs) → do
+      portFontmap ← Cr.makeFontMap dπ Cr.fmDefault fontPrefs
+      liftIO $ putStrLn $ printf "%s" (show portFontmap)
+      pure (dπ, fontPrefs, portFontmap)
+  fontmapD      ← foldDyn (\e _→ Just e) Nothing fontmapE
 
-  portE ← performEvent $ updated winSettingsD <&>
-    \(portWindow, portSettings@Settings{sttsScreenDim=ScreenDim dim@(Di (V2 w h)),..}) → do
-      case sttsScreenMode of
+  pipelinesE    ← performEvent $ esScreenModeDim <&>
+    \(scrMode, scrDim@(ScreenDim dim@(Di (V2 w h)))) → do
+      case scrMode of
         Windowed   → liftIO $ printf "window size: %dx%d\n" w h--GL.setWindowSize win w h
         FullScreen → error "XXX: implement fullscreen"
-      portFontmap ← Cr.makeFontMap sttsDΠ Cr.fmDefault sttsFontPreferences
-      liftIO $ putStrLn $ printf "%s" (show portFontmap)
-
       liftIO $ SB.writeFile "lc/PipePick.lc" $ mkPipePickText osName dim
       pipePick      ← buildPipelineForStorage portGLStorage "PipePick.lc"
-      let portPipelines = Map.fromList [(PipePick, pipePick)
-                                       ,(PipeDraw, pipeDraw)]
+      pure $ (,,) scrMode scrDim
+                  (Map.fromList [(PipePick, pipePick)
+                                ,(PipeDraw, pipeDraw)])
+  pipelinesD    ← foldDyn (\e _→ Just e) Nothing pipelinesE
 
-      portSetVSync sttsWaitVSync
+  vsyncE        ← performEvent $ esWaitVSync <&>
+    \waitVSync → do
+      portSetVSync waitVSync
+      pure waitVSync
+  vsyncD        ← foldDyn (\e _→ Just e) Nothing vsyncE
+
+  let composeD   = winD ⋈ fontmapD ⋈ pipelinesD ⋈ vsyncD
+      filteredE  = fmapMaybe (\case
+                                 (((a, Just b), Just c), Just d) → Just (a, b, c, d)
+                                 _ → Nothing)
+                   (updated composeD)
+
+  portE ← performEvent $ filteredE <&>
+    \(portWindow
+     ,(sttsDΠ, sttsFontPreferences, portFontmap)
+     ,(sttsScreenMode, sttsScreenDim, portPipelines)
+     ,sttsWaitVSync) → do
+      let portSettings = Settings{..}
       pure $ Just Port{..}
 
   holdDyn Nothing portE
