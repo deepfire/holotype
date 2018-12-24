@@ -58,7 +58,7 @@ module Holo
   , interpretate
 
   -- * Re-exports
-  , Structure, Result(..)
+  , Result(..)
   , Frame(..)
   )
 where
@@ -270,9 +270,9 @@ dynWidgetStaticSubs tok n da = do
 -- * Present:  one up from Interact -- with interpretation
 --
 class (Typeable a) ⇒ Present i a where
-  present  ∷ (HGLFW i t m, HasCallStack)
-           ⇒ InputEventMux t → Vocab i (Present i) →        a → m (Widget i a)
-  present  = presentDef
+  present     ∷ (HGLFW i t m, HasCallStack)
+              ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
+  present     = presentDef
 
 presentDef ∷ ∀ i a t m
            . (HGLFW i t m, HasCallStack, Typeable a)

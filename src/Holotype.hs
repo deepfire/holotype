@@ -246,11 +246,9 @@ data AnObject where
     deriving (Eq, GHC.Generic, Show)
 instance SOP.Generic         AnObject
 instance SOP.HasDatatypeInfo AnObject
-type instance Structure      AnObject = AnObject
 
 instance SOP.Generic         Cr.FontPreferences
 instance SOP.HasDatatypeInfo Cr.FontPreferences
-type instance Structure      Cr.FontPreferences = Cr.FontPreferences
 
 instance {-# OVERLAPPABLE #-} Holo.Named a
 instance {-# OVERLAPPABLE #-} Holo.Named Text
@@ -382,7 +380,6 @@ instance Holo.Interp (a, a)  (V2 a) where
   forget (V2 x y) = (x, y)
 instance SOP.Generic         (V2 a)
 instance SOP.HasDatatypeInfo (V2 a)
-type instance Structure      (V2 a) = (V2 a)
 
 deriving instance Generic    (Di a)
 instance Holo.Interp (a, a)  (Di a) where
@@ -390,7 +387,6 @@ instance Holo.Interp (a, a)  (Di a) where
   forget (Di (V2 x y)) = (x, y)
 instance SOP.Generic         (Di a)
 instance SOP.HasDatatypeInfo (Di a)
-type instance Structure      (Di a) = (Di a)
 
 deriving instance Generic    (Port.ScreenDim (Di a))
 instance Holo.Interp (a, a)  (Port.ScreenDim (Di a)) where
@@ -398,7 +394,6 @@ instance Holo.Interp (a, a)  (Port.ScreenDim (Di a)) where
   forget (Port.ScreenDim (Di (V2 x y))) = (x, y)
 instance SOP.Generic         (Port.ScreenDim (Di a))
 instance SOP.HasDatatypeInfo (Port.ScreenDim (Di a))
-type instance Structure      (Port.ScreenDim (Di a)) = (Port.ScreenDim (Di a))
 
 instance Holo.Interp Bool Port.WaitVSync where
   interp = Just ∘ Port.WaitVSync
