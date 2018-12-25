@@ -37,7 +37,6 @@
 module Holotype where
 
 import           Control.Arrow
-import           Control.Compose
 import           Control.Monad
 import           Control.Monad.Fix
 import           Control.Monad.Primitive

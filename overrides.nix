@@ -83,16 +83,6 @@ with pkgs.haskell.lib; with self; {
   });
 
   ## Upstreamed, awaiting a Hackage release
-  TypeCompose = overrideCabal super.TypeCompose (drv: {
-    src = pkgs.fetchFromGitHub {
-      owner  = "conal";
-      repo   = "TypeCompose";
-      rev    = "5100cd68b68382b6b65c8c0598a3f34dc9481db3";
-      sha256 = "0kh3lncszb66agcsnnhfy6pfxv1jpm8ymrynw5dnavrialbrm9v4";
-    };
-  });
-
-  ## Upstreamed, awaiting a Hackage release
   type-map = overrideCabal super.type-map (drv: {
     src = pkgs.fetchFromGitHub {
       owner  = "Lysxia";

@@ -14,7 +14,7 @@
 , tasty-discover, tasty-expected-failure, tasty-hedgehog
 , tasty-hspec, tasty-hunit, tasty-quickcheck, tasty-smallcheck
 , template-haskell, text, text-format, text-lens, text-zipper
-, these, time, transformers, trifecta, type-map, TypeCompose
+, these, time, transformers, trifecta, type-map
 , unordered-containers, vect, vector, wl-pprint-extras
 , wl-pprint-text
 }:
@@ -39,7 +39,7 @@ mkDerivation {
     tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
     tasty-quickcheck tasty-smallcheck template-haskell text text-format
     text-lens text-zipper these time transformers trifecta type-map
-    TypeCompose unordered-containers vect vector wl-pprint-extras
+    unordered-containers vect vector wl-pprint-extras
     wl-pprint-text
   ];
   executableHaskellDepends = [
@@ -47,7 +47,7 @@ mkDerivation {
     directory free generics-sop gi-cairo gi-gobject gi-pango
     gi-pangocairo GLFW-b haskell-gi-base lambdacube-compiler
     lambdacube-gl lambdacube-ir lens linear mtl OpenGLRaw pretty-show
-    ref-tf reflex reflex-glfw text text-zipper time TypeCompose vector
+    ref-tf reflex reflex-glfw text text-zipper time vector
   ];
   testHaskellDepends = [
     base base-unicode-symbols containers directory filepath Glob

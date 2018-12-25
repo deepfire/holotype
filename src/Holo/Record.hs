@@ -38,7 +38,6 @@ module Holo.Record
   )
 where
 
-import           Control.Compose
 import           Data.Text                                (Text, pack)
 import           Data.Typeable
 import           Generics.SOP.Monadic
@@ -66,7 +65,7 @@ liftWProduct ∷ ∀ a i t m xss.
   , SOP.All2 (HasReadField i m a) xss
   , HasCallStack
   ) ⇒ RecordCtx i a → m (Widget i a)
-liftWProduct ctxR = unO $ recover (Proxy @(i, a)) ctxR
+liftWProduct ctxR = SOP.unComp $ recover (Proxy @(i, a)) ctxR
 
 instance ( HGLFW i t m
          , d ~ Result i
@@ -75,7 +74,7 @@ instance ( HGLFW i t m
          , Present i a
          ) ⇒
          HasReadField i m u a where
-  readField _ (mux, voc, initV ∷ u) _dtinfo _consNr _cinfo (FieldInfo fname) proj = O $ do
+  readField _ (mux, voc, initV ∷ u) _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
     tok ← liftIO $ Port.newId $ "record label '" <> pack fname <> "'"
     let addLabel ""  x = x
         addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Unconstr (Denoted x))

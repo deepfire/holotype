@@ -82,7 +82,7 @@ $(foreach x,$(experiments),$(eval $(call defexperiment,$(x))))
 n          ?= new
 exnm       := $(n)
 exdir       = ./experiments/$(exnm)
-exdepsbase := base, base-unicode-symbols, containers, lens, TypeCompose
+exdepsbase := base, base-unicode-symbols, containers, lens
 deps       ?=
 exdeps     := $(exdepsbase)$(if $(deps), $(deps))
 ls:
