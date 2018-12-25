@@ -39,8 +39,7 @@ mkDerivation {
     tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
     tasty-quickcheck tasty-smallcheck template-haskell text text-format
     text-lens text-zipper these time transformers trifecta type-map
-    unordered-containers vect vector wl-pprint-extras
-    wl-pprint-text
+    unordered-containers vect vector wl-pprint-extras wl-pprint-text
   ];
   executableHaskellDepends = [
     aeson base base-unicode-symbols bytestring cairo clock containers
