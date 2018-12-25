@@ -301,13 +301,13 @@ instance                  Read (Unit Pt) where
 
 scene ∷ ∀ i t m. ( HGLFW i t m
                  , Typeable t)
-  ⇒ Port.Settings
-  → InputEventMux   t
+  ⇒ InputEventMux   t
+  → Dynamic    t Port.Settings
   → Dynamic    t Integer
   → Dynamic    t Int
   → Dynamic    t Double
   → m (WH i)
-scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
+scene eV sttsD statsValD frameNoD fpsValueD = mdo
 
   -- XXX: we have a conceptual conflict:
   --      1. Holo implies editability
@@ -340,15 +340,15 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
   --                    (0,0)
 
   recWD@(W(_,_,xDDv)) ← present @i eV defVocab
-                      (AnObject "yayyity" 3.14 True)
+                        (AnObject "yayyity" 3.14 True)
   _                ← performEvent $ (updated xDDv) <&>
                      \x → liftIO $ putStrLn (show x)
   tupleWD          ← present @i eV defVocab
                       (unsafe'di 320 200 ∷ Di Int)
-  sttsWD ∷ Widget i Port.Settings
-                   ← present @i eV defVocab
-                      -- (Cr.FontPreferences [])
-                      defSettingsV
+  -- sttsWD ∷ Widget i Port.Settings
+  --                  ← present @i eV defVocab
+  --                     -- (Cr.FontPreferences [])
+  --                     defSettingsV
 
   longStaticTextD  ← present @i eV (namely' @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
@@ -366,7 +366,7 @@ scene defSettingsV eV statsValD frameNoD fpsValueD = mdo
         -- , stripW lolD
         -- , stripW doubleD
         -- , stripW recWD
-        , stripW sttsWD
+        -- , stripW sttsWD
         , stripW tupleWD
         -- , stripW rectD
         , stripW fpsD
@@ -439,25 +439,24 @@ holotype win evCtl windowFrameE inputE = mdo
   worldE ∷ Event t WorldEvent
                    ← performEvent $ inputE <&> translateEvent
 
-  sttsE            ← do
+  sttsE            ←
     let Port.Settings{sttsWaitVSync=Port.WaitVSync defvsync,..} = Port.defaultSettings
-    vsyncD ← foldDyn (\VSyncToggle (Port.WaitVSync cur) → Port.WaitVSync (not cur)) (Port.WaitVSync $ not defvsync)
-             $ ffilter (\case VSyncToggle → True; _ → False)
-             $ leftmost [worldE, VSyncToggle <$ initE]
-    let sttsE' = Port.ESettings
-                 (initE $> (sttsDΠ, sttsFontPreferences))
-                 (fmap (\(WinSize dim)→
+    in Port.ESettings
+       <$> pure (initE $> (sttsDΠ, sttsFontPreferences))
+       <*> pure (fmap (\(WinSize dim)→
                           (sttsScreenMode, dim))
                   $ ffilter (\case WinSize{} → True; _ → False)
                   $ leftmost [worldE, WinSize (Port.ScreenDim initWinDimV) <$ initE])
-                 (updated vsyncD)
-    pure sttsE'
+       <*> fmap updated
+           (foldDyn (\VSyncToggle (Port.WaitVSync cur) → Port.WaitVSync (not cur))
+             (Port.WaitVSync $ not defvsync)
+             (ffilter (\case VSyncToggle → True; _ → False) $
+               leftmost [worldE, VSyncToggle <$ initE]))
 
   maybePortD       ← Port.portCreate winD sttsE
   portFrameE       ← newPortFrame $ fmapMaybe id $ fst <$> attachPromptlyDyn maybePortD windowFrameE
 
-  -- * EXTERNAL STIMULI
-
+  -- * Random data: stats
   fpsValueD        ← fpsCounterD  $ snd <$> portFrameE
   frameNoD ∷ Dynamic t Int
                    ← count       portFrameE
@@ -468,7 +467,7 @@ holotype win evCtl windowFrameE inputE = mdo
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
   inputMux         ← routeInputEvent (Holo.InputEvent <$> ffilter (\case (U GLFW.EventMouseButton{}) → False; _ → True) inputE) clickedE subscriptionsD
   (,) subscriptionsD sceneD
-                   ← scene @(API t m) Port.defaultSettings inputMux statsValD frameNoD fpsValueD
+                   ← scene @(API t m) inputMux (constDyn Port.defaultSettings) statsValD frameNoD fpsValueD
 
   -- * LAYOUT
   -- needs port because of DPI and fonts
