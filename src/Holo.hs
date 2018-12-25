@@ -236,12 +236,12 @@ type family APIm a ∷ (Type → Type) where
 --
 class (Typeable a) ⇒ Interact i a where
   dynWidget    ∷ (HGLFW i t m, Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Interact i a)
-               ⇒         IdToken → n                 → Dynamic t a → m (Widget i a)
+               ⇒         IdToken → n                   → Dynamic t a → m (Widget i a)
   widget       ∷ (HGLFW i t m, Typeable a, HasCallStack)
-               ⇒ InputEventMux t → Vocab i (Present i) →        a → m (Widget i a)
+               ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
   --
-  widget       = newMutatedSeedWidget
   dynWidget    = dynWidgetStaticSubs
+  widget       = newMutatedSeedWidget
 
 newMutatedSeedWidget ∷ ∀ i t m a. (HGLFW i t m, Typeable a, HasCallStack)
           ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
