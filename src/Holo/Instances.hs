@@ -329,35 +329,4 @@ instance Interact i (Unit Pt)
 
 instance Present i a ⇒ Present  i [a]
 
--- So, liftWRecord works for (a, b) now, even if it's assigning empty field names.
--- Next -- shall we:
---   1. rename liftWProduct ← liftWRecord
---   2. make Interact instances for everything liftWProduct-able?
-
 instance Interact i (Di (Unit PU)) where
-
-
--- * Settings
---
-
--- * Plan for ScreenDim
--- 1. Need a new As for two fields
--- 2. Co-opt lifted records?
--- 3. If not, what?
--- instance Holo a ⇒ Holo (Port.ScreenDim a) where
---   subscription tok _ = subSingleton tok $ InputEventMask GLFW.eventMaskFramebufferSize
-
--- instance Holo Port.ScreenMode where
---   subscription tok _ = subSingleton tok editMaskKeys
-
--- instance Holo (Cr.FontPreferences PU) where
---   subscription tok _ = subSingleton tok editMaskKeys
-
--- instance Holo a ⇒ Holo (Di a) where
---   subscription tok _ = subSingleton tok editMaskKeys
-
--- instance Holo DΠ where
---   subscription tok _ = subSingleton tok editMaskKeys
-
--- instance Holo Int where
---   subscription tok _ = subSingleton tok editMaskKeys

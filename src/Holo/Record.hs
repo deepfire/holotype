@@ -59,14 +59,6 @@ instance SOP.HasDatatypeInfo Cr.FontSpec
 instance SOP.Generic         Cr.FontSizeRequest
 instance SOP.HasDatatypeInfo Cr.FontSizeRequest
 
-liftWProduct ∷ ∀ a i t m xss.
-  ( HGLFW i t m, Record i m a
-  , SOP.Code a ~ xss
-  , SOP.All2 (HasReadField i m a) xss
-  , HasCallStack
-  ) ⇒ RecordCtx i a → m (Widget i a)
-liftWProduct ctxR = SOP.unComp $ recover (Proxy @(i, a)) ctxR
-
 instance ( HGLFW i t m
          , d ~ Result i
          , As TextLine, Present i Text
@@ -96,4 +88,4 @@ instance {-# OVERLAPPABLE #-} (Typeable a, SOP.Generic a, SOP.HasDatatypeInfo a
          , HGLFW i t m
          ) ⇒ Present i a where
   present mux voc initial =
-    liftWProduct (mux, voc, initial)
+    SOP.unComp $ recover (Proxy @(i, a)) (mux, voc, initial)
