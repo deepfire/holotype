@@ -45,6 +45,7 @@ module Holo
   , InputEventMux
   --
   , Definition(..), Vocab(..), namely, namely'
+  , vocInteractName
   --
   , Interact(..), API, APIt, APIm, HGLFW
   , Widget

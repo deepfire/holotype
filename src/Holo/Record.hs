@@ -42,6 +42,7 @@ import           Data.Text                                (Text, pack)
 import           Data.Typeable
 import           Generics.SOP.Monadic
 import qualified Generics.SOP                      as SOP
+import           Reflex
 
 import           HoloPrelude
 import           Holo
@@ -58,6 +59,17 @@ instance SOP.Generic         Cr.FontSpec
 instance SOP.HasDatatypeInfo Cr.FontSpec
 instance SOP.Generic         Cr.FontSizeRequest
 instance SOP.HasDatatypeInfo Cr.FontSizeRequest
+
+instance {-# OVERLAPPABLE #-}
+  (Typeable a, SOP.Generic a, SOP.HasDatatypeInfo a
+  , SOP.Code a ~ xss
+  , SOP.All2 (Present i) xss
+  , HGLFW i t m
+  ) ⇒ Present i a where
+  present mux voc initial =
+    SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
+    (\_p _dti → pure 0)
+    (recoverFieldPresent (mux, voc, initial))
 
 recoverFieldPresent ∷ ∀ i t m u a xss xs.
   ( HGLFW i t m
@@ -78,13 +90,51 @@ recoverFieldPresent (mux, voc, initV ∷ u) _pC _ _dtinfo _consNr _cinfo (FieldI
                               ]
     mapWItem @i (addLabel fname) <$> present @i mux voc (proj initV)
 
-instance {-# OVERLAPPABLE #-}
-  (Typeable a, SOP.Generic a, SOP.HasDatatypeInfo a
-  , SOP.Code a ~ xss
-  , SOP.All2 (Present i) xss
-  , HGLFW i t m
-  ) ⇒ Present i a where
-  present mux voc initial =
-    SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
-    (\_p _dti → pure 0)
-    (recoverFieldPresent (mux, voc, initial))
+instance ( Typeable a, HGLFW i t m
+         , SOP.Generic a, SOP.HasDatatypeInfo a, SOP.Code a ~ xss, SOP.All2 (Interact i) xss
+         ) ⇒ Interact i a where
+  dynWidget = dynWidgetStaticSubsRecord
+
+recoverFieldInteractDynamic
+  ∷ ∀ i t m a f xss xs.
+    ( Typeable f
+    , Mutable a, Named a, HGLFW i t m
+    , SOP.Generic a
+    , SOP.HasDatatypeInfo a
+    , SOP.Code a ~ xss, SOP.All2 (Interact i) xss
+    )
+  ⇒ (Port.IdToken, Vocab i (Present i), Dynamic t a)
+  → Proxy (Interact i)
+  → Proxy (i, a, f)
+  → DatatypeInfo xss
+  → SumChoiceT
+  → ConstructorInfo xs
+  → FieldInfo f
+  → (a → f)
+  → (:.:) m (Result i) f
+recoverFieldInteractDynamic (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _finfo proj =
+  Comp $ do
+    let fieldD = proj <$> dRec
+    case Holo.vocInteractName (Proxy @f) voc of
+      Nothing        → error $ printf "Dynamic lift has no visual name for value of type %s." (show $ typeRep (Proxy @f))
+      Just (IName _) → error $ printf "Dynamic lift has no visual name for value of type %s." (show $ typeRep (Proxy @f))
+      Just (WName n) → do
+        dynWidget tok n fieldD
+      Just (IWName n) → do
+        dynWidget tok n fieldD
+
+dynWidgetStaticSubsRecord ∷ ∀ i t m n a xss.
+  (As n, Denoted n ~ a, Mutable a, Named a, HGLFW i t m
+  , SOP.Generic a
+  , SOP.HasDatatypeInfo a
+  , SOP.Code a ~ xss, SOP.All2 (Interact i) xss
+  )
+  ⇒ Port.IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+dynWidgetStaticSubsRecord tok voc da =
+    SOP.unComp $ recover (Proxy @(Interact i)) (Proxy @(i, a))
+      (\_px _dti→ pure 0)
+      (recoverFieldInteractDynamic (tok, voc, da))
+    -- let name ∷ Name n = compName (Proxy @a) tok n
+    -- pure $ W ( constDyn $ subscription tok (Proxy @a)
+    --          , leaf name <$> da
+    --          , da)
