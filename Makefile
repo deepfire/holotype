@@ -63,7 +63,7 @@ $(HOLOTYPE): $(SRCS)
 clean:
 	cabal clean
 	rm dist dist-newstyle .ghc.environment.* -rf
-	rm -f {,src/}*.{o,hi,dyn_hi,dyn_o,hs~} *~ *.hp *.lprof *.bin
+	sh -c "rm -f {,doc/,doc/*/,src/,src/*/,src/*/*/,te/,tests/}*.{o,hi,dyn_hi,dyn_o,hs~} *~ *.{aux,bin,eventlog,hp,lprof,out}"
 cls:
 	echo -en '\ec'
 

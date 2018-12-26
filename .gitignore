@@ -12,6 +12,7 @@
 *.graphml
 *.hi
 *.hp
+*.log
 *.lprof
 *.ltrace*
 *.o
