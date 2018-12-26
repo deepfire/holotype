@@ -203,7 +203,7 @@ fpsCounterD ∷ RGLFW t m ⇒ Event t Port.Frame → m (Dynamic t Double)
 fpsCounterD frameE = do
   frameMomentE     ← performEvent $ fmap (\_ → HOS.fromSec <$> HOS.getTime) frameE
   frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
-  avgFrameΔD       ← average 20 $ updated frameΔD
+  avgFrameΔD       ← average 300 $ updated frameΔD
   pure (recip <$> avgFrameΔD)
 
 nextFrame ∷ RGLFW t m ⇒ GLFW.Window → Event t () → m (Event t ())
