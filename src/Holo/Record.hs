@@ -65,9 +65,10 @@ recoverFieldPresent ∷ ∀ i t m u a xss xs.
   , As TextLine, Present i Text
   , Typeable a
   , Present i a
-  ) ⇒
-  ReadFieldT (Present i) i m u a xss xs
-recoverFieldPresent _pC _ (mux, voc, initV ∷ u) _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
+  )
+  ⇒ (InputEventMux t, Vocab i (Present i), u)
+  → ReadFieldT (Present i) i m u a xss xs
+recoverFieldPresent (mux, voc, initV ∷ u) _pC _ _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
     tok ← liftIO $ Port.newId $ "record label '" <> pack fname <> "'"
     let addLabel ""  x = x
         addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Unconstr (Denoted x))
@@ -77,17 +78,13 @@ recoverFieldPresent _pC _ (mux, voc, initV ∷ u) _dtinfo _consNr _cinfo (FieldI
                               ]
     mapWItem @i (addLabel fname) <$> present @i mux voc (proj initV)
 
-instance ( Monad m, SOP.Generic a, SOP.HasDatatypeInfo a
-         , HGLFW i t m
-         ) ⇒ Record i m a where
-  type RecordCtx i a = (InputEventMux (APIt i), Vocab i (Present i), a)
-  restoreChoice _p _rctx = pure 0
-
-instance {-# OVERLAPPABLE #-} (Typeable a, SOP.Generic a, SOP.HasDatatypeInfo a
-         , SOP.Code a ~ xss
-         , SOP.All2 (Present i) xss
-         , HGLFW i t m
-         ) ⇒ Present i a where
+instance {-# OVERLAPPABLE #-}
+  (Typeable a, SOP.Generic a, SOP.HasDatatypeInfo a
+  , SOP.Code a ~ xss
+  , SOP.All2 (Present i) xss
+  , HGLFW i t m
+  ) ⇒ Present i a where
   present mux voc initial =
-    SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a)) (mux, voc, initial)
-    recoverFieldPresent
+    SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
+    (\_p _dti → pure 0)
+    (recoverFieldPresent (mux, voc, initial))
