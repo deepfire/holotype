@@ -56,7 +56,7 @@ HOLOTYPE=$(BUILDBASE)/holotype/holotype
 # BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-$(GHCD)/holotype-0.0.1/x
 # HOLOTYPE=$(BUILDBASE)/holotype/build/holotype/holotype
 $(HOLOTYPE): $(SRCS)
-	cabal build $(if $(GHCOPT),--ghc-option=$(GHCOPT)) -j4 exe:holotype $(GHCOUT)
+	cabal build --ghc-option=-fprint-explicit-kinds $(if $(GHCOPT),--ghc-option=$(GHCOPT)) -j4 exe:holotype $(GHCOUT)
 
 #
 #
