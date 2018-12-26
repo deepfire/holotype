@@ -59,15 +59,15 @@ instance SOP.HasDatatypeInfo Cr.FontSpec
 instance SOP.Generic         Cr.FontSizeRequest
 instance SOP.HasDatatypeInfo Cr.FontSizeRequest
 
-readField ∷ ∀ i t m u a xss xs.
+recoverFieldPresent ∷ ∀ i t m u a xss xs.
   ( HGLFW i t m
   , SOP.HasDatatypeInfo u, SOP.Code u ~ xss
   , As TextLine, Present i Text
   , Typeable a
   , Present i a
   ) ⇒
-  ReadFieldT i m u a xss xs
-readField _ (mux, voc, initV ∷ u) _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
+  ReadFieldT (Present i) i m u a xss xs
+recoverFieldPresent _pC _ (mux, voc, initV ∷ u) _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
     tok ← liftIO $ Port.newId $ "record label '" <> pack fname <> "'"
     let addLabel ""  x = x
         addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Unconstr (Denoted x))
@@ -89,4 +89,5 @@ instance {-# OVERLAPPABLE #-} (Typeable a, SOP.Generic a, SOP.HasDatatypeInfo a
          , HGLFW i t m
          ) ⇒ Present i a where
   present mux voc initial =
-    SOP.unComp $ recover (Proxy @(i, a)) (mux, voc, initial) readField
+    SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a)) (mux, voc, initial)
+    recoverFieldPresent

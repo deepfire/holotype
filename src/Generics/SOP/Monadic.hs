@@ -72,19 +72,6 @@ enumerate cs = SOP.hliftA2 (\c (K n)→ Comp (n, c)) cs (fromJust $ SOP.fromList
 
 data family Result    t s ∷ Type
 
-type ReadFieldT t m u a xss xs
-  = Proxy (t, u, a)
-  → RecordCtx t u
-  → DatatypeInfo xss
-  → SumChoiceT
-  → ConstructorInfo xs
-  → FieldInfo a
-  → (u → a)
-  → (m :.: Result t) a
-
--- class (Monad m) ⇒ HasReadField t m u a where
---   readField         ∷ ReadFieldT t m u a xs xss
-
 type SumChoiceT        = Int
 type ADTChoice   m xss = m SumChoiceT
 
@@ -97,21 +84,34 @@ class ( Monad m, SOP.Generic a, HasDatatypeInfo a
                     → ADTChoice m xss          -- ^ action to determine the record's constructor index.
 
 
-recover
-  ∷ ∀ (t ∷ Type) m a xss.
-    ( Record t m a, Code a ~ xss, HasDatatypeInfo a
-    -- , All2 (HasReadField t m a) xss
-    , HasCallStack, Monad m, Applicative (Result t))
-  ⇒ Proxy (t, a)
-  → RecordCtx t a
-  → (forall f xs. ReadFieldT t m a f xss xs)
+type ReadFieldT c t m u a xss xs
+  = (All c xs, c a)
+  ⇒ Proxy c
+  → Proxy (t, u, a)
+  → RecordCtx t u
+  → DatatypeInfo xss
+  → SumChoiceT
+  → ConstructorInfo xs
+  → FieldInfo a
+  → (u → a)
   → (m :.: Result t) a
-recover _pTA ctxR f = let dti = datatypeInfo (Proxy @a) ∷ DatatypeInfo xss
+
+recover
+  ∷ ∀ a (c ∷ Type → Constraint) (t ∷ Type) m xss.
+    ( Record t m a, Code a ~ xss, HasDatatypeInfo a
+    , All2 c xss
+    , HasCallStack, Monad m, Applicative (Result t))
+  ⇒ Proxy c
+  → Proxy (t, a)
+  → RecordCtx t a
+  → (forall f xs. (c f, All c xs, All2 c xss) ⇒ ReadFieldT c t m a f xss xs)
+  → (m :.: Result t) a
+recover pC pTA ctxR f = let dti = datatypeInfo (Proxy @a) ∷ DatatypeInfo xss
   in Comp $
   case dti of
     ADT _moduleName typeName cInfos → do
-      choice ← restoreChoice (Proxy @(t, a)) ctxR
-      let pop       ∷ POP (m :.: Result t) xss     = recover' (Proxy @(t, a)) f ctxR $ (datatypeInfo (Proxy @a) ∷ DatatypeInfo xss)
+      choice ← restoreChoice pTA ctxR
+      let pop       ∷ POP (m :.: Result t) xss     = recover' pC pTA f ctxR $ (datatypeInfo (Proxy @a) ∷ DatatypeInfo xss)
           ct        ∷ SOP (m :.: Result t) xss     = (!! choice) $ SOP.apInjs_POP pop
           Comp msop ∷ (m :.: Result t) (SOP I xss) = hsequence ct
       case SOP.sList ∷ SOP.SList xss of
@@ -120,7 +120,7 @@ recover _pTA ctxR f = let dti = datatypeInfo (Proxy @a) ∷ DatatypeInfo xss
       let nCInfos -- ~∷ NP ((,) Int :.: ConstructorInfo) '[ '[x]]
             = enumerate $ cInfo :* Nil
           sop     ∷                  SOP (m :.: Result t) xss  = SOP.SOP $ SOP.Z $
-            recoverCtor (Proxy @(t, a)) f ctxR dti
+            recoverCtor pC pTA f ctxR dti
             (SOP.hd nCInfos)
             (SOP.hd ((SOP.gtraversals -- ~∷ NP (NP (SOP.GTraversal (→) (→) s)) '[ '[x]]
                         )))
@@ -128,52 +128,55 @@ recover _pTA ctxR f = let dti = datatypeInfo (Proxy @a) ∷ DatatypeInfo xss
       (SOP.to <$>) <$> mdsop
 
 recover'
-  ∷ ∀ (t ∷ Type) m a xss.
+  ∷ ∀ a (c ∷ Type → Constraint) (t ∷ Type) m xss.
     ( Record t m a, Code a ~ xss
-    -- , All2 (HasReadField t m a) xss
+    , All2 c xss
     , HasCallStack, Monad m)
-  ⇒ Proxy (t, a)
-  → (forall f xs. ReadFieldT t m a f xss xs)
+  ⇒ Proxy c
+  → Proxy (t, a)
+  → (forall f xs. c f ⇒ ReadFieldT c t m a f xss xs)
   → RecordCtx t a
   → DatatypeInfo xss
   → POP (m :.: Result t) xss
-recover' pTDS f ctxR dti@(ADT _ name cs) =
-  POP $ SOP.hcliftA2 (Proxy @(All Top))
+recover' pC pTA f ctxR dti@(ADT _ name cs) =
+  POP $ SOP.hcliftA2 (Proxy @(All c))
                      --(Proxy @(All (HasReadField t m a)))
-        (recoverCtor (Proxy @(t, a)) f ctxR dti)
+        (recoverCtor pC pTA f ctxR dti)
         (enumerate cs)
         (SOP.gtraversals ∷ NP (NP (SOP.GTraversal (→) (→) a)) xss)
-recover' _ _ _ _ = error "Non-ADTs not supported."
+recover' _ _ _ _ _ = error "Non-ADTs not supported."
 
 -- * 1. Extract the constructor's product of field names
 --   2. Feed that to the field-name→action interpreter
 recoverCtor
-  ∷ ∀ (t ∷ Type) m a xss xs.
+  ∷ ∀ a (c ∷ Type → Constraint) (t ∷ Type) m xss xs.
     ( Record t m a, Code a ~ xss
-    -- , All (HasReadField t m a) xs
+    , All c xs
     , HasCallStack, Monad m)
-  ⇒ Proxy (t, a)
-  → (forall f. ReadFieldT t m a f xss xs)
+  ⇒ Proxy c
+  → Proxy (t, a)
+  → (forall f. c f ⇒ ReadFieldT c t m a f xss xs)
   → RecordCtx t a
   → DatatypeInfo xss
   → (((,) SumChoiceT) :.: ConstructorInfo) xs
   → NP (SOP.GTraversal (→) (→) a) xs
   → NP (m :.: Result t) xs
-recoverCtor pTA f ctxR dti (Comp (consNr, consi@(Record _ finfos))) travs = recoverFields pTA f ctxR dti consNr consi travs finfos
-recoverCtor pTA f ctxR dti (Comp (consNr, consi@Constructor{}))     travs = recoverFields pTA f ctxR dti consNr consi travs (SOP.hpure (FieldInfo ""))
-recoverCtor _ _ _ (ADT _ name _) _ _ =
+recoverCtor pC pTA f ctxR dti (Comp (consNr, consi@(Record _ finfos))) travs = recoverFields pC pTA f ctxR dti consNr consi travs finfos
+recoverCtor pC pTA f ctxR dti (Comp (consNr, consi@Constructor{}))     travs = recoverFields pC pTA f ctxR dti consNr consi travs (SOP.hpure (FieldInfo ""))
+recoverCtor _ _ _ _ (ADT _ name _) _ _ =
   error $ printf "Infix ADTs not supported: type %s." name
 
 -- * Key part:  NP (K Text) xs → NP m xs
 --   convert a product of field names to a product of monadic actions yielding 'a'
 recoverFields
-  ∷ ∀ (t ∷ Type) m u xss xs.
+  ∷ ∀ (c ∷ Type → Constraint) (t ∷ Type) m u xss xs.
     ( Record t m u, Code u ~ xss
-    -- , All (HasReadField t m u) xs
+    , All c xs
     , SListI xs
     , HasCallStack, Monad m)
-  ⇒ Proxy (t, u)
-  → (forall a. ReadFieldT t m u a xss xs)
+  ⇒ Proxy c
+  → Proxy (t, u)
+  → (forall a. ReadFieldT c t m u a xss xs)
   → RecordCtx t u
   → DatatypeInfo xss
   → SumChoiceT
@@ -181,15 +184,13 @@ recoverFields
   → NP (SOP.GTraversal (→) (→) u) xs
   → NP (FieldInfo) xs
   → NP (m :.: Result t) xs
-recoverFields _pTU f ctxR dtinfo consNr cinfo traversals finfos =
-  hcliftA2 (Proxy @Top)
-           --(Proxy @(HasReadField t m u))
+recoverFields pC _pTU f ctxR dtinfo consNr cinfo traversals finfos =
+  hcliftA2 pC
   (recoverField ctxR dtinfo consNr cinfo)
   finfos
   traversals
   where
-    recoverField ∷ ∀ a. ()
-                 --(HasReadField t m u a)
+    recoverField ∷ ∀ a. (c a)
                  ⇒ RecordCtx t u
                  → DatatypeInfo xss
                  → SumChoiceT
@@ -198,6 +199,5 @@ recoverFields _pTU f ctxR dtinfo consNr cinfo traversals finfos =
                  → SOP.GTraversal (→) (→) u a
                  → (m :.: Result t) a
     recoverField ctxR dtinfo consNr cinfo finfo trav =
-      f (Proxy @(t, u, a))
-      -- readField (Proxy @(t, u, a))
+      f (Proxy @c) (Proxy @(t, u, a))
       ctxR dtinfo consNr cinfo finfo (SOP.get trav ∷ u → a)
