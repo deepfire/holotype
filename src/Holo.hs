@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -234,11 +235,14 @@ type family APIm a ∷ (Type → Type) where
 -- | Turn values into interactive widgets.
 --
 class (Typeable a) ⇒ Interact i a where
-  dynWidget'   ∷ (HGLFW i t m, Typeable a, Mutable a, Named a, Interact i a)
+  dynWidget'   ∷ (HGLFW i t m, Typeable a, Named a, Interact i a)
                ⇒         IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
   widget       ∷ (HGLFW i t m, Typeable a, HasCallStack)
                ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
   --
+  default dynWidget'
+               ∷ (HGLFW i t m, Mutable a, Named a)
+               ⇒         IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
   dynWidget'   = dynWidgetStaticSubs
   widget       = newMutatedSeedWidget
 
