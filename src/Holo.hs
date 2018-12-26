@@ -48,10 +48,9 @@ module Holo
   , vocInteractName
   --
   , Interact(..), API, APIt, APIm, HGLFW
-  , Widget
+  , Widget, dynWidget
   , WH, WF, wSubD, wItemD, wValD, stripW, mapWSubs, mapWItem, mapWVal
   , Blank, BlankWy, Unconstr
-  , newDynWidget
   , liftPureDynamic
   --
   , Present(..)
@@ -235,33 +234,51 @@ type family APIm a ∷ (Type → Type) where
 -- | Turn values into interactive widgets.
 --
 class (Typeable a) ⇒ Interact i a where
-  dynWidget    ∷ (HGLFW i t m, Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Interact i a)
-               ⇒         IdToken → n                   → Dynamic t a → m (Widget i a)
+  dynWidget'   ∷ (HGLFW i t m, Typeable a, Mutable a, Named a, Interact i a)
+               ⇒         IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
   widget       ∷ (HGLFW i t m, Typeable a, HasCallStack)
                ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
   --
-  dynWidget    = dynWidgetStaticSubs
+  dynWidget'   = dynWidgetStaticSubs
   widget       = newMutatedSeedWidget
 
-newMutatedSeedWidget ∷ ∀ i t m a. (HGLFW i t m, Typeable a, HasCallStack)
-          ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
+dynWidget
+  ∷ ∀ i t m a
+  . (HGLFW i t m, Mutable a, Named a, Interact i a)
+  ⇒ Vocab i (Present i) → Dynamic t a → m (Widget i a)
+dynWidget voc dyn = do
+  tok ← iNewToken $ Proxy @a
+  dynWidget' tok voc dyn
+
+newMutatedSeedWidget
+  ∷ ∀ i t m a
+  . (HGLFW i t m, Typeable a, HasCallStack)
+  ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
 newMutatedSeedWidget imux voc initial = case vocInteractName (Proxy @a) voc of
   Nothing        → error $ printf "Lift has no visual name for value of type %s." (show $ typeRep (Proxy @a))
   Just (IName _) → error $ printf "Lift has no visual name for value of type %s." (show $ typeRep (Proxy @a))
-  Just (WName n ∷ Definition i a) → do
+  Just (WName _ ∷ Definition i a) → do
     tok ← iNewToken $ Proxy @a
     mut ← mutate (forget initial) $ select imux $ Const2 tok
-    dynWidget tok n mut
-  Just (IWName n ∷ Definition i a) → do
+    dynWidget' tok voc mut
+  Just (IWName _ ∷ Definition i a) → do
     tok ← iNewToken $ Proxy @a
     mut ← mutate (forget initial) $ select imux $ Const2 tok
-    dynWidget tok n mut
+    dynWidget' tok voc mut
 
-dynWidgetStaticSubs ∷ ∀ i t m n a.
-  (As n, Denoted n ~ a, Mutable a, Named a, HGLFW i t m)
-  ⇒ IdToken → n → Dynamic t a → m (Widget i a)
-dynWidgetStaticSubs tok n da = do
-    let name ∷ Name n = compName (Proxy @a) tok n
+dynWidgetStaticSubs ∷ ∀ i t m a.
+  (Typeable a, Mutable a, Named a, HGLFW i t m)
+  ⇒ IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+dynWidgetStaticSubs tok voc da = case vocInteractName (Proxy @a) voc of
+  Nothing        → error $ printf "Lift has no visual name for value of type %s." (show $ typeRep (Proxy @a))
+  Just (IName _) → error $ printf "Lift has no visual name for value of type %s." (show $ typeRep (Proxy @a))
+  Just (WName n ∷ Definition i a) → do
+    let name = compName (Proxy @a) tok n
+    pure $ W ( constDyn $ subscription tok (Proxy @a)
+             , leaf name <$> da
+             , da)
+  Just (IWName n ∷ Definition i a) → do
+    let name = compName (Proxy @a) tok n
     pure $ W ( constDyn $ subscription tok (Proxy @a)
              , leaf name <$> da
              , da)
@@ -270,13 +287,13 @@ dynWidgetStaticSubs tok n da = do
 -- * Present:  one up from Interact -- with interpretation
 --
 class (Typeable a) ⇒ Present i a where
-  present     ∷ (HGLFW i t m, HasCallStack)
-              ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
-  present     = presentDef
+  present  ∷ (HGLFW i t m, HasCallStack)
+           ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
+  present  = presentDef
 
 presentDef ∷ ∀ i a t m
            . (HGLFW i t m, HasCallStack, Typeable a)
-           ⇒ InputEventMux t → Vocab i (Present i) →        a → m (Widget i a)
+           ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
 presentDef mux voc seed = case vocInterpName (Proxy @a) voc of
   Nothing        → error $ printf "Lift has no interpretive name for value of type %s." (show $ typeRep (Proxy @a))
   Just (WName _) → error $ printf "Lift has no interpretive name for value of type %s." (show $ typeRep (Proxy @a))
@@ -304,13 +321,6 @@ interpretate dyn = scanDynMaybe (fromMaybe $ error $ "Cannot interpret initial v
 -- ← default: liftDynWStaticSubs
 -- → default: liftW
 
-newDynWidget ∷ ∀ i t m n a.
-  (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, HGLFW i t m)
-  ⇒ n → Dynamic t a → m (Widget i a)
-newDynWidget n da = do
-  tok ← iNewToken $ Proxy @a
-  dynWidget tok n da
-
 liftPureDynamic ∷ ∀ i t m n a.
   (As n, Denoted n ~ a,            Named a, Interact i a, HGLFW i t m)
   ⇒ n → Dynamic t a → m (Widget i a)
@@ -333,8 +343,8 @@ type BlankWy i   = Item (Interact i) PBlank -- XXX: dead code?
 type WH      i   = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
 type WF      i b = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
 
-type Widget    i b = Result i b
-data instance        Result i b =
+type Widget  i b = Result i b
+data instance      Result i b =
   Reflex (APIt i) ⇒ W { fromW ∷ WF i b }
 
 wSubD  ∷ Widget i a → Dynamic (APIt i) Subscription

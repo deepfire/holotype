@@ -61,8 +61,8 @@ instance SOP.Generic         Cr.FontSizeRequest
 instance SOP.HasDatatypeInfo Cr.FontSizeRequest
 
 instance {-# OVERLAPPABLE #-}
-  (Typeable a, SOP.Generic a, SOP.HasDatatypeInfo a
-  , SOP.Code a ~ xss
+  (Typeable a
+  , SOP.Generic a, SOP.HasDatatypeInfo a, SOP.Code a ~ xss
   , SOP.All2 (Present i) xss
   , HGLFW i t m
   ) ⇒ Present i a where
@@ -90,10 +90,13 @@ recoverFieldPresent (mux, voc, initV ∷ u) _pC _ _dtinfo _consNr _cinfo (FieldI
                               ]
     mapWItem @i (addLabel fname) <$> present @i mux voc (proj initV)
 
-instance ( Typeable a, HGLFW i t m
-         , SOP.Generic a, SOP.HasDatatypeInfo a, SOP.Code a ~ xss, SOP.All2 (Interact i) xss
-         ) ⇒ Interact i a where
-  dynWidget = dynWidgetStaticSubsRecord
+instance {-# OVERLAPPABLE #-}
+  ( Typeable a
+  , SOP.Generic a, SOP.HasDatatypeInfo a, SOP.Code a ~ xss
+  , SOP.All2 (Interact i) xss
+  , HGLFW i t m
+  ) ⇒ Interact i a where
+  dynWidget' = dynWidgetStaticSubsRecord
 
 recoverFieldInteractDynamic
   ∷ ∀ i t m a f xss xs.
@@ -118,13 +121,13 @@ recoverFieldInteractDynamic (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _f
     case Holo.vocInteractName (Proxy @f) voc of
       Nothing        → error $ printf "Dynamic lift has no visual name for value of type %s." (show $ typeRep (Proxy @f))
       Just (IName _) → error $ printf "Dynamic lift has no visual name for value of type %s." (show $ typeRep (Proxy @f))
-      Just (WName n) → do
-        dynWidget tok n fieldD
-      Just (IWName n) → do
-        dynWidget tok n fieldD
+      Just (WName _) → do
+        dynWidget' tok voc fieldD
+      Just (IWName _) → do
+        dynWidget' tok voc fieldD
 
-dynWidgetStaticSubsRecord ∷ ∀ i t m n a xss.
-  (As n, Denoted n ~ a, Mutable a, Named a, HGLFW i t m
+dynWidgetStaticSubsRecord ∷ ∀ i t m a xss.
+  ( Mutable a, Named a, HGLFW i t m
   , SOP.Generic a
   , SOP.HasDatatypeInfo a
   , SOP.Code a ~ xss, SOP.All2 (Interact i) xss
@@ -134,7 +137,3 @@ dynWidgetStaticSubsRecord tok voc da =
     SOP.unComp $ recover (Proxy @(Interact i)) (Proxy @(i, a))
       (\_px _dti→ pure 0)
       (recoverFieldInteractDynamic (tok, voc, da))
-    -- let name ∷ Name n = compName (Proxy @a) tok n
-    -- pure $ W ( constDyn $ subscription tok (Proxy @a)
-    --          , leaf name <$> da
-    --          , da)
