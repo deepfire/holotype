@@ -27,16 +27,17 @@
 
 /pkgs/build/
 /pkgs/overrides.nix
-/dist/
-/dist-newstyle/
-/experiments/dist/
 
 /lc/PipePick.lc
 
+dist
+dist-newstyle
 .ghc.environment*
 .stack-work/
 nohup.out
 ghc.out
+result
+src/holotype.cabal
 
 /Holo*
 /*stress
