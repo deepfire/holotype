@@ -119,13 +119,11 @@ recoverFieldInteractDynamic
 recoverFieldInteractDynamic (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _finfo proj =
   Comp $ do
     let fieldD = proj <$> dRec
-    case Holo.vocInteractName (Proxy @f) voc of
-      Nothing        → error $ printf "Dynamic lift has no visual name for value of type %s." (show $ typeRep (Proxy @f))
-      Just (IName _) → error $ printf "Dynamic lift has no visual name for value of type %s." (show $ typeRep (Proxy @f))
-      Just (WName _) → do
-        dynWidget' tok voc fieldD
-      Just (IWName _) → do
-        dynWidget' tok voc fieldD
+    case Holo.vocDenoted (Proxy @f) voc of
+      Nothing             → error $ printf "Dynamic lift has no Denot for value of type %s." (show $ typeRep (Proxy @f))
+      Just (Desig _)      → error $ printf "Dynamic lift has no Denot for value of type %s." (show $ typeRep (Proxy @f))
+      Just (Denot _)      → dynWidget' tok voc fieldD
+      Just (DesigDenot _) → dynWidget' tok voc fieldD
 
 dynWidgetStaticSubsRecord ∷ ∀ i t m a xss.
   ( HasCallStack, Named a, HGLFW i t m

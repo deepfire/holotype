@@ -46,7 +46,7 @@ module Holo
   , InputEventMux
   --
   , Definition(..), Vocab(..), namely, namely'
-  , vocInteractName
+  , vocDesigned, vocDenoted
   --
   , Interact(..), API, APIt, APIm, HGLFW
   , Widget, dynWidget
@@ -188,9 +188,9 @@ subSingleton tok im@(InputEventMask em) = Subscription $
 --
 -- | Vocabulary stores two kinds of entries: interpretation
 data Definition i a where
-  WName  ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a) ⇒             n → Definition i a
-  IName  ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a b) ⇒ n → Definition i b
-  IWName ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Definition i a
+  Denot      ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a) ⇒             n → Definition i a
+  Desig      ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a b) ⇒ n → Definition i b
+  DesigDenot ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Definition i a
 
 -- | 'Vocab' establishes names for a bunch of types.
 newtype Vocab i c = Vocab (TM.TypeMap (HoloTag i))
@@ -199,25 +199,25 @@ data                                   HoloTag i
 
 -- | Construct a singleton vocabulary easily.
 namely  ∷ ∀ b n a i c. (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a b, Typeable b) ⇒ n → Vocab i c
-namely  n = Vocab $ TM.insert (Proxy @a) (WName n)
-                  $ TM.insert (Proxy @b) (IName n) TM.empty
+namely  n = Vocab $ TM.insert (Proxy @a) (Denot n)
+                  $ TM.insert (Proxy @b) (Desig n) TM.empty
 
 namely' ∷ ∀ a n i c. (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Vocab i c
-namely' n = Vocab $ TM.insert (Proxy @a) (IWName n) TM.empty
+namely' n = Vocab $ TM.insert (Proxy @a) (DesigDenot n) TM.empty
 
-vocInteractName ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
-vocInteractName p (Vocab tm) = case TM.lookup p tm of
-  Nothing           → Nothing
-  Just (IName    _) → Nothing
-  Just d@(WName  _) → Just d
-  Just d@(IWName _) → Just d
+vocDenoted ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
+vocDenoted p (Vocab tm) = case TM.lookup p tm of
+  Nothing               → Nothing
+  Just (Denot        _) → Nothing
+  Just d@(Desig      _) → Just d
+  Just d@(DesigDenot _) → Just d
 
-vocInterpName ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
-vocInterpName  p (Vocab tm) = case TM.lookup p tm of
+vocDesigned ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
+vocDesigned  p (Vocab tm) = case TM.lookup p tm of
   Nothing           → Nothing
-  Just (WName    _) → Nothing
-  Just d@(IName  _) → Just d
-  Just d@(IWName _) → Just d
+  Just (Denot    _) → Nothing
+  Just d@(Desig  _) → Just d
+  Just d@(DesigDenot _) → Just d
 
 
 -- | Global context.
@@ -262,14 +262,14 @@ newMutatedSeedWidget
   ∷ ∀ i t m a
   . (HGLFW i t m, Typeable a, HasCallStack)
   ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
-newMutatedSeedWidget imux voc initial = case vocInteractName (Proxy @a) voc of
-  Nothing        → error $ printf "Lift has no visual name for value of type %s." (show $ typeRep (Proxy @a))
-  Just (IName _) → error $ printf "Lift has no visual name for value of type %s." (show $ typeRep (Proxy @a))
-  Just (WName _ ∷ Definition i a) → do
+newMutatedSeedWidget imux voc initial = case vocDenoted (Proxy @a) voc of
+  Nothing        → error $ printf "Lift has no Denot for value of type %s." (show $ typeRep (Proxy @a))
+  Just (Desig _) → error $ printf "Lift has no Denot for value of type %s." (show $ typeRep (Proxy @a))
+  Just (Denot _ ∷ Definition i a) → do
     tok ← iNewToken $ Proxy @a
     mut ← mutate (forget initial) $ select imux $ Const2 tok
     dynWidget' tok voc mut
-  Just (IWName _ ∷ Definition i a) → do
+  Just (DesigDenot _ ∷ Definition i a) → do
     tok ← iNewToken $ Proxy @a
     mut ← mutate (forget initial) $ select imux $ Const2 tok
     dynWidget' tok voc mut
@@ -277,15 +277,15 @@ newMutatedSeedWidget imux voc initial = case vocInteractName (Proxy @a) voc of
 dynWidgetStaticSubs ∷ ∀ i t m a.
   (Typeable a, Mutable a, Named a, HGLFW i t m)
   ⇒ IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-dynWidgetStaticSubs tok voc da = case vocInteractName (Proxy @a) voc of
-  Nothing        → error $ printf "Lift has no visual name for value of type %s." (show $ typeRep (Proxy @a))
-  Just (IName _) → error $ printf "Lift has no visual name for value of type %s." (show $ typeRep (Proxy @a))
-  Just (WName n ∷ Definition i a) → do
+dynWidgetStaticSubs tok voc da = case vocDenoted (Proxy @a) voc of
+  Nothing        → error $ printf "Lift has no Denot for value of type %s." (show $ typeRep (Proxy @a))
+  Just (Desig _) → error $ printf "Lift has no Denot for value of type %s." (show $ typeRep (Proxy @a))
+  Just (Denot n ∷ Definition i a) → do
     let name = compName (Proxy @a) tok n
     pure $ W ( constDyn $ subscription tok (Proxy @a)
              , leaf name <$> da
              , da)
-  Just (IWName n ∷ Definition i a) → do
+  Just (DesigDenot n ∷ Definition i a) → do
     let name = compName (Proxy @a) tok n
     pure $ W ( constDyn $ subscription tok (Proxy @a)
              , leaf name <$> da
@@ -302,14 +302,14 @@ class (Typeable a) ⇒ Present i a where
 presentDef ∷ ∀ i a t m
            . (HGLFW i t m, HasCallStack, Typeable a)
            ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
-presentDef mux voc seed = case vocInterpName (Proxy @a) voc of
-  Nothing        → error $ printf "Lift has no interpretive name for value of type %s." (show $ typeRep (Proxy @a))
-  Just (WName _) → error $ printf "Lift has no interpretive name for value of type %s." (show $ typeRep (Proxy @a))
-  Just (IName (_ ∷ n) ∷ Definition i a) → do
+presentDef mux voc seed = case vocDesigned (Proxy @a) voc of
+  Nothing        → error $ printf "Lift has no Desig for value of type %s." (show $ typeRep (Proxy @a))
+  Just (Denot _) → error $ printf "Lift has no Desig for value of type %s." (show $ typeRep (Proxy @a))
+  Just (Desig (_ ∷ n) ∷ Definition i a) → do
     W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
     ivD ← interpretate @i vD
     pure $ W (sD,iD,ivD)
-  Just (IWName (_ ∷ n) ∷ Definition i a) → do
+  Just (DesigDenot (_ ∷ n) ∷ Definition i a) → do
     W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
     ivD ← interpretate @i vD
     pure $ W (sD,iD,ivD)
