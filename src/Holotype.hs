@@ -93,7 +93,8 @@ import           Holo.Record
 import           Holo                                     ( As(..), Vocab, Definition(..), namely, namely'
                                                           , Vis
                                                           , HGLFW, API, APIt, APIm
-                                                          , Interact(..), widget
+                                                          , Mutable(..)
+                                                          , Interact(..), widget, dynWidget
                                                           , BlankWy, Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
                                                           , Result(..), Widget, WH, liftPureDynamic, stripW
                                                           , Present(..), present)
@@ -220,18 +221,19 @@ trackStyle sof = do
 
 
 
-instance Interact i (Port.ScreenMode)
 instance Present  i (Port.ScreenMode)
+instance Interact i (Port.ScreenMode)
 
-instance Interact i (Cr.FaceName)
 instance Present  i (Cr.FaceName)
-instance Interact i (Cr.FamilyName)
+instance Interact i (Cr.FaceName)
 instance Present  i (Cr.FamilyName)
-instance Interact i (Cr.FontAlias)
+instance Interact i (Cr.FamilyName)
 instance Present  i (Cr.FontAlias)
-instance Interact i (Cr.FontKey)
+instance Interact i (Cr.FontAlias)
 instance Present  i (Cr.FontKey)
+instance Interact i (Cr.FontKey)
 
+instance Typeable a ⇒ Mutable    (Port.ScreenDim a)
 instance Typeable a ⇒ Interact i (Port.ScreenDim a)
 
 data AnObject where
@@ -344,6 +346,8 @@ scene eV sttsD statsValD frameNoD fpsValueD = mdo
                      \x → liftIO $ putStrLn (show x)
   tupleWD          ← present @i eV defVocab
                       (unsafe'di 320 200 ∷ Di Int)
+  sttsWD ∷ Widget i Port.Settings
+                   ← dynWidget defVocab sttsD
   -- sttsWD ∷ Widget i Port.Settings
   --                  ← present @i eV defVocab
   --                     -- (Cr.FontPreferences [])
@@ -397,7 +401,8 @@ instance SOP.HasDatatypeInfo (Port.ScreenDim (Di a))
 instance Holo.Interp Bool Port.WaitVSync where
   interp = Just ∘ Port.WaitVSync
   forget (Port.WaitVSync x) = x
-instance Present i Port.WaitVSync
+instance Present  i Port.WaitVSync
+instance Interact i Port.WaitVSync
 
 
 

@@ -93,6 +93,7 @@ recoverFieldPresent (mux, voc, initV ∷ u) _pC _ _dtinfo _consNr _cinfo (FieldI
 instance {-# OVERLAPPABLE #-}
   ( Typeable a
   , SOP.Generic a, SOP.HasDatatypeInfo a, SOP.Code a ~ xss
+  , SOP.All2 Mutable      xss
   , SOP.All2 (Interact i) xss
   , HGLFW i t m
   ) ⇒ Interact i a where
@@ -100,8 +101,8 @@ instance {-# OVERLAPPABLE #-}
 
 recoverFieldInteractDynamic
   ∷ ∀ i t m a f xss xs.
-    ( Typeable f
-    , Mutable a, Named a, HGLFW i t m
+    ( HasCallStack, Typeable f
+    , Named a, HGLFW i t m
     , SOP.Generic a
     , SOP.HasDatatypeInfo a
     , SOP.Code a ~ xss, SOP.All2 (Interact i) xss
@@ -127,7 +128,7 @@ recoverFieldInteractDynamic (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _f
         dynWidget' tok voc fieldD
 
 dynWidgetStaticSubsRecord ∷ ∀ i t m a xss.
-  ( Mutable a, Named a, HGLFW i t m
+  ( HasCallStack, Named a, HGLFW i t m
   , SOP.Generic a
   , SOP.HasDatatypeInfo a
   , SOP.Code a ~ xss, SOP.All2 (Interact i) xss

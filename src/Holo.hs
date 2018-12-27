@@ -94,6 +94,10 @@ class Mutable a where
   mutate       ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
   mutate       = immutable            -- ..then effectuate it
 
+instance {-# OVERLAPPABLE #-} Mutable a where
+  subscription = const mempty         -- declare ignorance..
+  mutate       = immutable
+
 immutable ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
 immutable init _ev = pure $ constDyn init
 
@@ -235,7 +239,7 @@ type family APIm a ∷ (Type → Type) where
 -- | Turn values into interactive widgets.
 --
 class (Typeable a) ⇒ Interact i a where
-  dynWidget'   ∷ (HGLFW i t m, Typeable a, Named a, Interact i a)
+  dynWidget'   ∷ (HGLFW i t m, Typeable a, Named a, Interact i a, HasCallStack)
                ⇒         IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
   widget       ∷ (HGLFW i t m, Typeable a, HasCallStack)
                ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
@@ -248,7 +252,7 @@ class (Typeable a) ⇒ Interact i a where
 
 dynWidget
   ∷ ∀ i t m a
-  . (HGLFW i t m, Mutable a, Named a, Interact i a)
+  . (HasCallStack, HGLFW i t m, Named a, Interact i a)
   ⇒ Vocab i (Present i) → Dynamic t a → m (Widget i a)
 dynWidget voc dyn = do
   tok ← iNewToken $ Proxy @a
