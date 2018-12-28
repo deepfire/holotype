@@ -47,6 +47,7 @@ module Holo
   --
   , Definition(..), Vocab(..), namely, namely'
   , vocDesigned, vocDenoted
+  , ppVocab, traceVocab
   --
   , Interact(..), API, APIt, APIm, HGLFW
   , Widget, dynWidget
@@ -192,11 +193,23 @@ data Definition i a where
   Desig      ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a b) ⇒ n → Definition i b
   DesigDenot ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Definition i a
 
+ppDefinition ∷ ∀ (i ∷ Type) t. Proxy t → TM.Item (HoloTag i) t → TM.Item (TM.OfType T.Text) t
+ppDefinition _p x = case x of
+  Denot (_ ∷ n)      → "Denot "<>showT (typeRep (Proxy @n))<>" → "<>showT (typeRep (Proxy @(Denoted n)))
+  Desig (_ ∷ n)      → "Desig "<>showT (typeRep (Proxy @n))<>" → "<>showT (typeRep (Proxy @(Denoted n)))<>" → "<>showT (typeRep (Proxy @t))
+  DesigDenot (_ ∷ n) → "DesDe "<>showT (typeRep (Proxy @n))<>" → "<>showT (typeRep (Proxy @(Denoted n)))<>" → "<>showT (typeRep (Proxy @t))
+
 -- | 'Vocab' establishes names for a bunch of types.
 newtype Vocab i c = Vocab (TM.TypeMap (HoloTag i))
 type instance              TM.Item    (HoloTag i) a = Definition i a
 data                                   HoloTag i
 
+ppVocab ∷ ∀ (i ∷ Type) c. Vocab i c → T.Text
+ppVocab (Vocab (tm ∷ TM.TypeMap (HoloTag i))) = T.intercalate "\n" $
+  TM.collapse (ppDefinition @i) tm
+
+traceVocab ∷ ∀ (i ∷ Type) c. String → Vocab i c → Vocab i c
+traceVocab desc voc = trace (desc <>" "<> T.unpack (ppVocab voc)) voc
 -- | Construct a singleton vocabulary easily.
 namely  ∷ ∀ b n a i c. (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a b, Typeable b) ⇒ n → Vocab i c
 namely  n = Vocab $ TM.insert (Proxy @a) (Denot n)
