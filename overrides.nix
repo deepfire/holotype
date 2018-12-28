@@ -85,10 +85,10 @@ with pkgs.haskell.lib; with self; {
   ## Upstreamed, awaiting a Hackage release
   type-map = overrideCabal super.type-map (drv: {
     src = pkgs.fetchFromGitHub {
-      owner  = "Lysxia";
+      owner  = "deepfire";
       repo   = "type-map";
-      rev    = "2e039e9426976a074a66a31c5750093b52ffafc1";
-      sha256 = "15jczrvqyz4alywa9mbmlbav2l4j7k9ql2gv2bxpym3809k8plvj";
+      rev    = "98dd2962434c19bddb5db150c4246ece85c79970";
+      sha256 = "0bdyn8h08bvs79pblzc38w9hb4awy61mpgqd2njp9cw8p2bydr4k";
     };
     jailbreak       = true;
   });
