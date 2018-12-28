@@ -94,29 +94,22 @@ instance {-# OVERLAPPABLE #-}
   ( Typeable a
   , SOP.Generic a, SOP.HasDatatypeInfo a, SOP.Code a ~ xss
   , SOP.All2 Mutable      xss
-  , SOP.All2 (Interact i) xss
+  , SOP.All2 (Widgety i) xss
   , HGLFW i t m
-  ) ⇒ Interact i a where
+  ) ⇒ Widgety i a where
   dynWidget' = dynWidgetStaticSubsRecord
 
-recoverFieldInteractDynamic
+recoverFieldWidgetyDynamic
   ∷ ∀ i t m a f xss xs.
     ( HasCallStack, Typeable f
     , Named a, HGLFW i t m
     , SOP.Generic a
     , SOP.HasDatatypeInfo a
-    , SOP.Code a ~ xss, SOP.All2 (Interact i) xss
+    , SOP.Code a ~ xss, SOP.All2 (Widgety i) xss
     )
   ⇒ (Port.IdToken, Vocab i (Present i), Dynamic t a)
-  → Proxy (Interact i)
-  → Proxy (i, a, f)
-  → DatatypeInfo xss
-  → SumChoiceT
-  → ConstructorInfo xs
-  → FieldInfo f
-  → (a → f)
-  → (:.:) m (Result i) f
-recoverFieldInteractDynamic (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _finfo proj =
+  → ReadFieldT (Widgety i) i m a f xss xs
+recoverFieldWidgetyDynamic (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _finfo proj =
   Comp $ do
     let fieldD = proj <$> dRec
         -- XXX:  face the need for dynPresent
@@ -131,10 +124,10 @@ dynWidgetStaticSubsRecord ∷ ∀ i t m a xss.
   ( HasCallStack, Named a, HGLFW i t m
   , SOP.Generic a
   , SOP.HasDatatypeInfo a
-  , SOP.Code a ~ xss, SOP.All2 (Interact i) xss
+  , SOP.Code a ~ xss, SOP.All2 (Widgety i) xss
   )
   ⇒ Port.IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
 dynWidgetStaticSubsRecord tok voc da =
-    SOP.unComp $ recover (Proxy @(Interact i)) (Proxy @(i, a))
+    SOP.unComp $ recover (Proxy @(Widgety i)) (Proxy @(i, a))
       (\_px _dti→ pure 0)
-      (recoverFieldInteractDynamic (tok, voc, da))
+      (recoverFieldWidgetyDynamic (tok, voc, da))

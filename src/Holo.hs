@@ -50,7 +50,7 @@ module Holo
   , desNDen, desDen
   , vocDesig, vocDenot
   --
-  , Interact(..), API, APIt, APIm, HGLFW
+  , Widgety(..), API, APIt, APIm, HGLFW
   , Widget, dynWidget
   , WH, WF, wSubD, wItemD, wValD, stripW, mapWSubs, mapWItem, mapWVal
   , Blank, BlankWy, Unconstr
@@ -191,9 +191,9 @@ subSingleton tok im@(InputEventMask em) = Subscription $
 --
 -- | Vocabulary stores two kinds of entries: interpretation
 data Definition i a where
-  Denot      ∷ (Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Interact i a) ⇒             n → Definition i a
-  Desig      ∷ (Typeable a, As n, Denoted n ~ b, Mutable b, Named b, Interact i b, Interp b a) ⇒ n → Definition i a
-  DesigDenot ∷ (Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Definition i a
+  Denot      ∷ (Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Widgety i a) ⇒             n → Definition i a
+  Desig      ∷ (Typeable a, As n, Denoted n ~ b, Mutable b, Named b, Widgety i b, Interp b a) ⇒ n → Definition i a
+  DesigDenot ∷ (Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Widgety i a, Interp a a) ⇒ n → Definition i a
 
 ppDefinition ∷ ∀ (i ∷ Type) t. Proxy t → TM.Item (HoloTag i) t → TM.Item (TM.OfType T.Text) t
 ppDefinition _p x = case x of
@@ -214,11 +214,11 @@ traceVocab ∷ ∀ (i ∷ Type) c. String → Vocab i c → Vocab i c
 traceVocab desc voc = trace (desc <>" "<> T.unpack (ppVocab voc)) voc
 
 -- | Construct a singleton vocabulary easily.
-desNDen  ∷ ∀ b n a i c. (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a b, Typeable b) ⇒ n → Vocab i c
+desNDen  ∷ ∀ b n a i c. (As n, Denoted n ~ a, Mutable a, Named a, Widgety i a, Interp a b, Typeable b) ⇒ n → Vocab i c
 desNDen  n = Vocab $ TM.insert (Proxy @a) (Denot n)
                    $ TM.insert (Proxy @b) (Desig n) TM.empty
 
-desDen ∷ ∀ a n i c. (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Vocab i c
+desDen ∷ ∀ a n i c. (As n, Denoted n ~ a, Mutable a, Named a, Widgety i a, Interp a a) ⇒ n → Vocab i c
 desDen   n = Vocab $ TM.insert (Proxy @a) (DesigDenot n) TM.empty
 
 vocDenot ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
@@ -254,8 +254,8 @@ type family APIm a ∷ (Type → Type) where
 
 -- | Turn values into interactive widgets.
 --
-class (Typeable a) ⇒ Interact i a where
-  dynWidget'   ∷ (HGLFW i t m, Typeable a, Named a, Interact i a, HasCallStack)
+class (Typeable a) ⇒ Widgety i a where
+  dynWidget'   ∷ (HGLFW i t m, Typeable a, Named a, Widgety i a, HasCallStack)
                ⇒         IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
   widget       ∷ (HGLFW i t m, Typeable a, HasCallStack)
                ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
@@ -268,7 +268,7 @@ class (Typeable a) ⇒ Interact i a where
 
 dynWidget
   ∷ ∀ i t m a
-  . (HasCallStack, HGLFW i t m, Named a, Interact i a)
+  . (HasCallStack, HGLFW i t m, Named a, Widgety i a)
   ⇒ Vocab i (Present i) → Dynamic t a → m (Widget i a)
 dynWidget voc dyn = do
   tok ← iNewToken $ Proxy @a
@@ -314,7 +314,7 @@ dynWidgetStaticSubs tok voc da =
                , da)
 
 
--- * Present:  one up from Interact -- with interpretation
+-- * Present:  one up from Widgety -- with interpretation
 --
 class (Typeable a) ⇒ Present i a where
   present  ∷ (HGLFW i t m, HasCallStack)
@@ -355,7 +355,7 @@ interpretate dyn = scanDynMaybe (fromMaybe $ error $ "Cannot interpret initial v
 -- → default: liftW
 
 liftPureDynamic ∷ ∀ i t m n a.
-  (As n, Denoted n ~ a,            Named a, Interact i a, HGLFW i t m)
+  (As n, Denoted n ~ a,            Named a, Widgety i a, HGLFW i t m)
   ⇒ n → Dynamic t a → m (Widget i a)
 liftPureDynamic n da = do
   tok ← iNewToken $ Proxy @a
@@ -372,7 +372,7 @@ class    Unconstr a where
 instance Unconstr a where
 
 type Blank   i   = Item Unconstr PBlank
-type BlankWy i   = Item (Interact i) PBlank -- XXX: dead code?
+type BlankWy i   = Item (Widgety i) PBlank -- XXX: dead code?
 type WH      i   = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
 type WF      i b = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
 
@@ -416,21 +416,6 @@ instance Reflex (APIt i) ⇒ Applicative (Result i) where
                      fitem xitem)
     (zipDynWith ($)  fvals xvals)
 
--- instance {-# OVERLAPPABLE #-}
---   (Typeable a
---   , DefStyleOf (StyleOf a)
---   , ∀ xs. SOP.Code a ~ '[xs]
---   ) ⇒ Holo a where
---   type CLiftW t m a = ()
---   liftW ∷ (RGLFW t m, CLiftW t m a) ⇒ InputEventMux t → a → m (W t a)
---   liftW = liftRecord
-
--- liftWStatic ∷ ∀ t m n a. (As n, Denoted n ~ a, Holo a, RGLFW t m) ⇒ InputEventMux t → n → Static t a → m (Widget t a)
--- liftWStatic _imux n (Static initial) = do
---   tok ← compToken $ Proxy @a
---   pure $ W ( constDyn $ subscription tok (Proxy @a)
---            , constDyn (initial, leaf (compName (Proxy @a) tok n) initial))
-
 
 
 -- * Concrete, minimal case, to keep us in check
@@ -438,20 +423,10 @@ instance Reflex (APIt i) ⇒ Applicative (Result i) where
 instance Mutable () where
   mutate = immutable
 
-instance Interact i () where
-instance Present  i () where
+instance Widgety i () where
+instance Present i () where
 
 instance Semigroup (Item Unconstr PBlank)  where _ <> _ = mempty
 instance Monoid    (Item Unconstr PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
 instance Semigroup (Item Unconstr PLayout) where _ <> _ = mempty
 instance Monoid    (Item Unconstr PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
-
--- instance (Typeable c, Typeable p) ⇒ Holo (Node c k p) where
-
--- instance Semigroup (Item PLayout) where
---   l <> r = vbox [l, r]
--- instance Monoid    (Item PLayout) where
---   mempty      = Item () blankIdToken mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty ()
--- instance Monoid (Item Visual) where
---   mappend l r = holoVBox [l, r]
---   mempty      = Item () blankIdToken SPU mempty UnitStyle [] (Di $ V2 Nothing Nothing) mempty UnitVisual

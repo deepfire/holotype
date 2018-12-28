@@ -94,7 +94,7 @@ import           Holo                                     ( As(..), Vocab, Defin
                                                           , Vis
                                                           , HGLFW, API, APIt, APIm
                                                           , Mutable(..)
-                                                          , Interact(..), widget, dynWidget
+                                                          , Widgety(..), widget, dynWidget
                                                           , BlankWy, Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
                                                           , Result(..), Widget, WH, liftPureDynamic, stripW
                                                           , Present(..), present)
@@ -221,20 +221,20 @@ trackStyle sof = do
 
 
 
-instance Present  i (Port.ScreenMode)
-instance Interact i (Port.ScreenMode)
+instance Present i (Port.ScreenMode)
+instance Widgety i (Port.ScreenMode)
 
-instance Present  i (Cr.FaceName)
-instance Interact i (Cr.FaceName)
-instance Present  i (Cr.FamilyName)
-instance Interact i (Cr.FamilyName)
-instance Present  i (Cr.FontAlias)
-instance Interact i (Cr.FontAlias)
-instance Present  i (Cr.FontKey)
-instance Interact i (Cr.FontKey)
+instance Present i (Cr.FaceName)
+instance Widgety i (Cr.FaceName)
+instance Present i (Cr.FamilyName)
+instance Widgety i (Cr.FamilyName)
+instance Present i (Cr.FontAlias)
+instance Widgety i (Cr.FontAlias)
+instance Present i (Cr.FontKey)
+instance Widgety i (Cr.FontKey)
 
-instance Typeable a ⇒ Mutable    (Port.ScreenDim a)
-instance Typeable a ⇒ Interact i (Port.ScreenDim a)
+instance Typeable a ⇒ Mutable   (Port.ScreenDim a)
+instance Typeable a ⇒ Widgety i (Port.ScreenDim a)
 
 data AnObject where
   AnObject ∷
@@ -402,8 +402,8 @@ instance SOP.HasDatatypeInfo (Port.ScreenDim (Di a))
 instance Holo.Interp Bool Port.WaitVSync where
   interp = Just ∘ Port.WaitVSync
   forget (Port.WaitVSync x) = x
-instance Present  i Port.WaitVSync
-instance Interact i Port.WaitVSync
+instance Present i Port.WaitVSync
+instance Widgety i Port.WaitVSync
 
 
 
