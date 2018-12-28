@@ -45,9 +45,10 @@ module Holo
   , Subscription(..), subSingleton
   , InputEventMux
   --
-  , Definition(..), Vocab(..), namely, namely'
-  , vocDesigned, vocDenoted
+  , Definition(..), Vocab(..)
   , ppVocab, traceVocab
+  , desNDen, desDen
+  , vocDesig, vocDenot
   --
   , Interact(..), API, APIt, APIm, HGLFW
   , Widget, dynWidget
@@ -77,6 +78,7 @@ import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Data.Map.Monoidal.Strict          as MMap
 import qualified Data.Sequence                     as Seq
 import qualified Data.Set                          as Set
+import qualified Data.Text                         as T
 import qualified Reflex.GLFW                       as GLFW
 
 -- Local imports
@@ -189,9 +191,9 @@ subSingleton tok im@(InputEventMask em) = Subscription $
 --
 -- | Vocabulary stores two kinds of entries: interpretation
 data Definition i a where
-  Denot      ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a) ⇒             n → Definition i a
-  Desig      ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a b) ⇒ n → Definition i b
-  DesigDenot ∷ (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Definition i a
+  Denot      ∷ (Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Interact i a) ⇒             n → Definition i a
+  Desig      ∷ (Typeable a, As n, Denoted n ~ b, Mutable b, Named b, Interact i b, Interp b a) ⇒ n → Definition i a
+  DesigDenot ∷ (Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Definition i a
 
 ppDefinition ∷ ∀ (i ∷ Type) t. Proxy t → TM.Item (HoloTag i) t → TM.Item (TM.OfType T.Text) t
 ppDefinition _p x = case x of
@@ -210,26 +212,27 @@ ppVocab (Vocab (tm ∷ TM.TypeMap (HoloTag i))) = T.intercalate "\n" $
 
 traceVocab ∷ ∀ (i ∷ Type) c. String → Vocab i c → Vocab i c
 traceVocab desc voc = trace (desc <>" "<> T.unpack (ppVocab voc)) voc
+
 -- | Construct a singleton vocabulary easily.
-namely  ∷ ∀ b n a i c. (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a b, Typeable b) ⇒ n → Vocab i c
-namely  n = Vocab $ TM.insert (Proxy @a) (Denot n)
-                  $ TM.insert (Proxy @b) (Desig n) TM.empty
+desNDen  ∷ ∀ b n a i c. (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a b, Typeable b) ⇒ n → Vocab i c
+desNDen  n = Vocab $ TM.insert (Proxy @a) (Denot n)
+                   $ TM.insert (Proxy @b) (Desig n) TM.empty
 
-namely' ∷ ∀ a n i c. (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Vocab i c
-namely' n = Vocab $ TM.insert (Proxy @a) (DesigDenot n) TM.empty
+desDen ∷ ∀ a n i c. (As n, Denoted n ~ a, Mutable a, Named a, Interact i a, Interp a a) ⇒ n → Vocab i c
+desDen   n = Vocab $ TM.insert (Proxy @a) (DesigDenot n) TM.empty
 
-vocDenoted ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
-vocDenoted p (Vocab tm) = case TM.lookup p tm of
+vocDenot ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
+vocDenot p (Vocab tm) = case TM.lookup p tm of
+  Nothing               → Nothing
+  Just (Desig        _) → Nothing
+  Just d@(Denot      _) → Just d
+  Just d@(DesigDenot _) → Just d
+
+vocDesig ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
+vocDesig  p (Vocab tm) = case TM.lookup p tm of
   Nothing               → Nothing
   Just (Denot        _) → Nothing
   Just d@(Desig      _) → Just d
-  Just d@(DesigDenot _) → Just d
-
-vocDesigned ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
-vocDesigned  p (Vocab tm) = case TM.lookup p tm of
-  Nothing           → Nothing
-  Just (Denot    _) → Nothing
-  Just d@(Desig  _) → Just d
   Just d@(DesigDenot _) → Just d
 
 
@@ -275,34 +278,40 @@ newMutatedSeedWidget
   ∷ ∀ i t m a
   . (HGLFW i t m, Typeable a, HasCallStack)
   ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
-newMutatedSeedWidget imux voc initial = case vocDenoted (Proxy @a) voc of
-  Nothing        → error $ printf "Lift has no Denot for value of type %s." (show $ typeRep (Proxy @a))
-  Just (Desig _) → error $ printf "Lift has no Denot for value of type %s." (show $ typeRep (Proxy @a))
-  Just (Denot _ ∷ Definition i a) → do
-    tok ← iNewToken $ Proxy @a
-    mut ← mutate (forget initial) $ select imux $ Const2 tok
-    dynWidget' tok voc mut
-  Just (DesigDenot _ ∷ Definition i a) → do
-    tok ← iNewToken $ Proxy @a
-    mut ← mutate (forget initial) $ select imux $ Const2 tok
-    dynWidget' tok voc mut
+newMutatedSeedWidget imux voc initial =
+  let vocabErr (desc ∷ String) = error $ printf "Lift has no Denot for value of type %s (%s).\n%s" (show $ typeRep (Proxy @a)) desc (ppVocab voc)
+  in
+  case vocDenot (Proxy @a) voc of
+    Nothing        → vocabErr "Nothing"
+    Just (Desig _) → vocabErr "Just Desig"
+    Just (Denot _ ∷ Definition i a) → do
+      tok ← iNewToken $ Proxy @a
+      mut ← mutate (forget initial) $ select imux $ Const2 tok
+      dynWidget' tok voc mut
+    Just (DesigDenot _ ∷ Definition i a) → do
+      tok ← iNewToken $ Proxy @a
+      mut ← mutate (forget initial) $ select imux $ Const2 tok
+      dynWidget' tok voc mut
 
 dynWidgetStaticSubs ∷ ∀ i t m a.
   (Typeable a, Mutable a, Named a, HGLFW i t m)
   ⇒ IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-dynWidgetStaticSubs tok voc da = case vocDenoted (Proxy @a) voc of
-  Nothing        → error $ printf "Lift has no Denot for value of type %s." (show $ typeRep (Proxy @a))
-  Just (Desig _) → error $ printf "Lift has no Denot for value of type %s." (show $ typeRep (Proxy @a))
-  Just (Denot n ∷ Definition i a) → do
-    let name = compName (Proxy @a) tok n
-    pure $ W ( constDyn $ subscription tok (Proxy @a)
-             , leaf name <$> da
-             , da)
-  Just (DesigDenot n ∷ Definition i a) → do
-    let name = compName (Proxy @a) tok n
-    pure $ W ( constDyn $ subscription tok (Proxy @a)
-             , leaf name <$> da
-             , da)
+dynWidgetStaticSubs tok voc da =
+  let vocabErr (desc ∷ String) = error $ printf "Lift has no Denot for value of type %s (%s).\n%s" (show $ typeRep (Proxy @a)) desc (ppVocab voc)
+  in
+  case vocDenot (Proxy @a) voc of
+    Nothing        → vocabErr "Nothing"
+    Just (Desig _) → vocabErr "Just Desig"
+    Just (Denot n ∷ Definition i a) → do
+      let name = compName (Proxy @a) tok n
+      pure $ W ( constDyn $ subscription tok (Proxy @a)
+               , leaf name <$> da
+               , da)
+    Just (DesigDenot n ∷ Definition i a) → do
+      let name = compName (Proxy @a) tok n
+      pure $ W ( constDyn $ subscription tok (Proxy @a)
+               , leaf name <$> da
+               , da)
 
 
 -- * Present:  one up from Interact -- with interpretation
@@ -315,17 +324,20 @@ class (Typeable a) ⇒ Present i a where
 presentDef ∷ ∀ i a t m
            . (HGLFW i t m, HasCallStack, Typeable a)
            ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
-presentDef mux voc seed = case vocDesigned (Proxy @a) voc of
-  Nothing        → error $ printf "Lift has no Desig for value of type %s." (show $ typeRep (Proxy @a))
-  Just (Denot _) → error $ printf "Lift has no Desig for value of type %s." (show $ typeRep (Proxy @a))
-  Just (Desig (_ ∷ n) ∷ Definition i a) → do
-    W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
-    ivD ← interpretate @i vD
-    pure $ W (sD,iD,ivD)
-  Just (DesigDenot (_ ∷ n) ∷ Definition i a) → do
-    W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
-    ivD ← interpretate @i vD
-    pure $ W (sD,iD,ivD)
+presentDef mux voc seed =
+  let vocabErr (desc ∷ String) = error $ printf "Lift has no Desig for value of type %s (%s).\n%s" (show $ typeRep (Proxy @a)) desc (ppVocab voc)
+  in
+  case vocDesig (Proxy @a) voc of
+    Nothing        → vocabErr "Nothing"
+    Just (Denot _) → vocabErr "Just Denot"
+    Just (Desig (_ ∷ n) ∷ Definition i a) → do
+      W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
+      ivD ← interpretate @i vD
+      pure $ W (sD,iD,ivD)
+    Just (DesigDenot (_ ∷ n) ∷ Definition i a) → do
+      W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
+      ivD ← interpretate @i vD
+      pure $ W (sD,iD,ivD)
 
 -- | Interpretation from the Denoted type and widget creation.
 interpretate ∷ ∀ i t m a b.

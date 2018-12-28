@@ -119,9 +119,10 @@ recoverFieldInteractDynamic
 recoverFieldInteractDynamic (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _finfo proj =
   Comp $ do
     let fieldD = proj <$> dRec
-    case Holo.vocDenoted (Proxy @f) voc of
-      Nothing             → error $ printf "Dynamic lift has no Denot for value of type %s." (show $ typeRep (Proxy @f))
-      Just (Desig _)      → error $ printf "Dynamic lift has no Denot for value of type %s." (show $ typeRep (Proxy @f))
+        vocabErr (desc ∷ String) = error $ printf "Dynamic record lift has no Denot for value of type %s (%s).\n%s" (show $ typeRep (Proxy @f)) desc (ppVocab voc)
+    case Holo.vocDenot (Proxy @f) voc of
+      Nothing        → vocabErr "Nothing"
+      Just (Desig _) → vocabErr "Just Desig"
       Just (Denot _)      → dynWidget' tok voc fieldD
       Just (DesigDenot _) → dynWidget' tok voc fieldD
 
