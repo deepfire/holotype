@@ -29,7 +29,7 @@
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
 
-module Holo.Classes
+module Holo.Name
   ( As(..), defName
   , Style(..), sStyle, sStyleGene, initStyle, defStyle
   , StyleGene(..), fromStyleGene
@@ -66,58 +66,79 @@ where
 
 import           Data.Foldable
 import           Data.Maybe
+import           Data.Proxy                               (Proxy)
 import           Data.Text                                (Text)
 import           Data.Typeable
 import           GHC.Types                                (Constraint)
-import           Generics.SOP                             (Proxy)
 import           Linear                            hiding (trace)
 import           Text.Read                                (readMaybe)
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Text                         as T
-import qualified Unsafe.Coerce                     as Co
 
 -- Local imports
 import           Graphics.Flatland
 import           Graphics.Flex                            (Geo, defGeo, Flex(..))
-import qualified Graphics.Flex                     as Flex
 
+import           Holo.Classes
 import           Holo.Prelude
 import           Holo.Port                                (IdToken, Drawable, Frame)
 import qualified Holo.Port                         as Port
 
 
--- * As -- assigning representation
---
-class Typeable r  ⇒ As r where
-  type         Denoted r ∷ Type
-  type             Sty r ∷ Type
-  type instance    Sty r = ()
-  type          IStruc r ∷ Type
-  type instance IStruc r = ()
-  type             Vis r ∷ Type
-  type instance    Vis r = ()
-  defAs       ∷               Proxy r             → r
-  defSty      ∷               Proxy r             → Sty r
-  compSty     ∷                     r             → Sty r
-  compSty                           x             = defSty (proxy x)
-  sizeRequest ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → m (IStruc r, Di (Maybe Double))
-  setupVis    ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Area'LU Double → Drawable → m (Vis r)
-  render      ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Po Double      → Drawable → Vis r → m () -- ^ Update visual.
-  freeVis     ∷ MonadIO m ⇒   Proxy r                                                         → Vis r → m ()
-  freeVis                           _                                                               _ = pure ()
+-- * Name
+--    ..as per Пиотровский Р. Г. Текст, машина, человек — Л.: Наука, 1975
+--    Which is supposed to make sense in context of As/Denoted
+data Name a where
+  Name ∷
+    { nToken     ∷ IdToken
+    , nStyle     ∷ Style a
+    , nGeo       ∷ Geo
+    , n          ∷ a
+    } → Name a
+
+defName ∷ ∀ a. As a ⇒ IdToken → a → Name a
+defName tok n = Name tok defStyle defGeo n
+
+-- default of Named.compName
+defStyGeoName ∷ As n ⇒ Proxy a → IdToken → n → Name n
+defStyGeoName _ tok n = Name tok (initStyle $ compSty n) defGeo n
 
 
--- * Interp -- assigning interpretation
+-- * Style wrapper
 --
-class Interp (a ∷ Type) (b ∷ Type) where
-  interp        ∷ a → Maybe b
-  forget        ∷ b → a
+newtype StyleGene = StyleGene { _fromStyleGene ∷ Int } deriving (Eq, Ord)
+fromStyleGene ∷ Lens' StyleGene Int
+fromStyleGene f (StyleGene x) = f x <&> StyleGene
+
+data Style a where
+  Style ∷
+    { _sStyle      ∷ Sty a
+    , _sStyleGene  ∷ StyleGene
+    } → Style a
+
+sStyle     ∷ Lens' (Style a) (Sty a)
+sStyle     f s@Style{..} = f _sStyle     <&> \x→ s{_sStyle=x}
+sStyleGene ∷ Lens' (Style a) StyleGene
+sStyleGene f s@Style{..} = f _sStyleGene <&> \x→ s{_sStyleGene=x}
+
+initStyle ∷ Sty a → Style a
+initStyle s = Style { _sStyle = s, _sStyleGene = StyleGene 0 }
+
+defStyle ∷ ∀ a. As a ⇒ Style a
+defStyle = initStyle $ defSty (Proxy @a)
 
 
--- * Mutability:  Mutable, InputEvent & Subscription
+-- * Visual wrapper
 --
-class Mutable a where
-  subscription ∷                    IdToken → Proxy a → Subscription
-  subscription = const mempty         -- declare ignorance..
-  mutate       ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
-  mutate       = immutable            -- ..then effectuate it
+data Visual a where
+  Visual ∷ As a ⇒
+    { vVisual   ∷ Vis a
+    , vDrawable ∷ Drawable
+    } → Visual a
+
+type VPort = Port.Port Visual
+
+instance Port.PortVisual Visual where
+  pvDrawable = vDrawable
+  pvFree _pC pA = \case
+    Visual{..} → freeVis pA vVisual

@@ -49,8 +49,12 @@ library
 
                   Holo
                   Holo.Classes
+                  Holo.Input
                   Holo.Instances
+                  Holo.Instances.As
+                  Holo.Instances.Mutable
                   Holo.Item
+                  Holo.Name
                   Holo.Port
                   Holo.Prelude
                   Holo.Record
