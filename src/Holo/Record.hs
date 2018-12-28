@@ -44,11 +44,11 @@ import           Generics.SOP.Monadic
 import qualified Generics.SOP                      as SOP
 import           Reflex
 
-import           HoloPrelude
+import qualified Graphics.Cairo                    as Cr
 import           Holo
-import qualified HoloPort                          as Port
-import qualified HoloCairo                         as Cr
 import           Holo.Instances
+import           Holo.Prelude
+import qualified Holo.Port                         as Port
 
 
 -- * Lifted records (depends on Widgety Text instance)

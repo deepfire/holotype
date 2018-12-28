@@ -35,27 +35,28 @@ library
   exposed-modules:
 
                   Elsewhere
-
-                  Flatland
-                  FlatDraw
-                  Flex
-
-                  Holo
-                  Holo.Instances
-                  Holo.Record
-                  HoloCairo
-                  HoloOS
-                  HoloPort
-                  HoloPrelude
-                  AsNameItem
+                  Pretty
+                  Tracer
 
                   Generics.SOP.Monadic
                   Generics.SOP.Traversal
                   Reflex.Random
 
-                  Holotype
+                  Graphics.Cairo
+                  Graphics.FlatDraw
+                  Graphics.Flatland
+                  Graphics.Flex
 
-                  Tracer
+                  Holo
+                  Holo.Classes
+                  Holo.Instances
+                  Holo.Item
+                  Holo.Port
+                  Holo.Prelude
+                  Holo.Record
+                  Holo.System
+
+                  Holotype
 
   build-depends:       GLFW-b
                      , JuicyPixels

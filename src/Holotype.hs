@@ -84,10 +84,12 @@ import qualified Text.Trifecta.Result              as P
 
 -- Local imports
 import           Elsewhere
-import           Flatland
-import qualified Flex
+import qualified Graphics.Cairo                    as Cr
+import           Graphics.Flatland
+import qualified Graphics.Flex                     as Flex
 
-import           HoloPrelude                       hiding ((<>))
+import           Holo.Prelude                      hiding ((<>))
+import           Holo.Classes
 import           Holo.Instances
 import           Holo.Record
 import           Holo                                     ( As(..), Vocab, Definition(..), desNDen, desDen, traceVocab
@@ -99,10 +101,9 @@ import           Holo                                     ( As(..), Vocab, Defin
                                                           , Result(..), Widget, WH, liftPureDynamic, stripW
                                                           , Present(..), present)
 import qualified Holo
-import qualified HoloCairo                         as Cr
-import qualified HoloPort                          as Port
-import           HoloPort                             (Port(..), IdToken)
-import qualified HoloOS                            as HOS
+import qualified Holo.Port                         as Port
+import           Holo.Port                                (Port(..), IdToken)
+import qualified Holo.System                       as HOS
 
 -- TEMPORARY
 import           Generics.SOP                             (Proxy)

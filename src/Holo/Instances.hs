@@ -56,13 +56,13 @@ import qualified Reflex.GLFW                       as GLFW
 
 -- Local imports
 import           Elsewhere
-import           Flatland
-import           FlatDraw
-import           HoloPrelude
+import           Graphics.Flatland
+import           Graphics.FlatDraw
+import           Graphics.Cairo                           (FKind(..))
+import qualified Graphics.Cairo                    as Cr
 import           Holo
-import           HoloCairo                            (FKind(..))
-import qualified HoloCairo                         as Cr
-import qualified HoloPort                          as Port
+import           Holo.Prelude
+import qualified Holo.Port                         as Port
 
 
 

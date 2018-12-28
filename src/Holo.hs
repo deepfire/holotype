@@ -34,7 +34,8 @@
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
 
 module Holo
-  ( module AsNameItem
+  ( module Holo.Classes
+  , module Holo.Item
   --
   , Mutable(..), immutable
   , InputEvent(..)
@@ -82,11 +83,10 @@ import qualified Data.Text                         as T
 import qualified Reflex.GLFW                       as GLFW
 
 -- Local imports
-import           HoloPrelude
-
-import           HoloPort                                 (IdToken, Drawable, Frame)
-import qualified HoloPort                          as Port
-import           AsNameItem
+import           Holo.Classes
+import           Holo.Item
+import           Holo.Port
+import           Holo.Prelude
 
 
 -- * Mutability:  Mutable, InputEvent & Subscription
@@ -172,7 +172,7 @@ newtype Subscription = Subscription (MMap.MonoidalMap GLFW.EventType (Seq.Seq (I
 instance Show Subscription where
   show (Subscription map) = ("(Subs"<>) ∘ (<>")") $ concat $
     [ " "<>show et<>"::"<> intercalate "+" [ printf "0x%x:%s" tok (show em)
-                                           | (Port.tokenHash → tok,(InputEventMask em)) ← toList subs]
+                                           | (tokenHash → tok,(InputEventMask em)) ← toList subs]
     | (et, subs) ← MMap.toList map]
 
 instance Semigroup Subscription where
@@ -427,6 +427,6 @@ instance Widgety i () where
 instance Present i () where
 
 instance Semigroup (Item Unconstr PBlank)  where _ <> _ = mempty
-instance Monoid    (Item Unconstr PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
+instance Monoid    (Item Unconstr PBlank)  where mempty = Leaf (Name blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
 instance Semigroup (Item Unconstr PLayout) where _ <> _ = mempty
-instance Monoid    (Item Unconstr PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
+instance Monoid    (Item Unconstr PLayout) where mempty = Leaf (Name blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
