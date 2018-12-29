@@ -1,10 +1,3 @@
-{-# LANGUAGE DataKinds, KindSignatures, TypeApplications, TypeInType #-}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, NoMonomorphismRestriction, RankNTypes, TypeSynonymInstances, UndecidableInstances #-}
-{-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies #-}
-{-# LANGUAGE BangPatterns, MultiWayIf, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TypeOperators #-}
-{-# LANGUAGE DeriveFoldable, DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
 module Graphics.FlatDraw
   ( -- * Colors

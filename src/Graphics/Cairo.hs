@@ -1,10 +1,4 @@
-{-# LANGUAGE DataKinds, GADTs, KindSignatures, TypeFamilies #-}
-{-# LANGUAGE DeriveFunctor, DeriveGeneric, GeneralizedNewtypeDeriving, StandaloneDeriving #-}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
-{-# LANGUAGE LambdaCase, MultiWayIf, OverloadedStrings, RecordWildCards, ScopedTypeVariables, TupleSections #-}
-{-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wall -Wno-orphans -Wno-unticked-promoted-constructors #-}
-
 module Graphics.Cairo
   (
     Cairo(..), cairoCreate, cairoDestroy

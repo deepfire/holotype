@@ -1,11 +1,6 @@
-{-# LANGUAGE AllowAmbiguousTypes, ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}
-{-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
-{-# LANGUAGE LambdaCase, OverloadedStrings, PartialTypeSignatures, RecordWildCards, ScopedTypeVariables, StandaloneDeriving, TemplateHaskell, TupleSections, TypeOperators #-}
-{-# LANGUAGE ViewPatterns, UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wextra #-}
 {-# OPTIONS_GHC -Wno-implicit-prelude -Wno-missing-import-lists -Wno-missed-specialisations #-}
 {-# OPTIONS_GHC -Wno-unsafe #-}
-
 module Holo.Prelude
   ( module Control.Applicative
   , module Control.Lens

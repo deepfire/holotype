@@ -1,7 +1,4 @@
-{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable, GeneralizedNewtypeDeriving, StandaloneDeriving #-}      -- Deriving
-{-# LANGUAGE FlexibleInstances, GADTs, InstanceSigs, RankNTypes, ScopedTypeVariables, TypeFamilies #-}          -- Types
-{-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings, RecordWildCards #-}       -- Syntactic
-{-# LANGUAGE TemplateHaskell, TupleSections, UnicodeSyntax, ViewPatterns #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wextra #-}
 -- Development-only muffles.
 {-# OPTIONS_GHC -Wno-unused-binds -Wno-unused-matches #-}

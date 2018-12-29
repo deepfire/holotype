@@ -1,4 +1,3 @@
-{-# LANGUAGE GADTs, ViewPatterns, UnicodeSyntax #-}
 module Tracer
   (setupTracer, trev, trevE, TraceKind(..), TraceEntity(..), TraceAction(..))
 where

@@ -1,12 +1,6 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wextra #-}
 {-# OPTIONS_GHC -Wno-implicit-prelude -Wno-missing-import-lists -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-unsafe #-}
-
 module Elsewhere
   ( textZipper, zipperText
   , everything

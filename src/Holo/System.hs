@@ -1,10 +1,4 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors #-}
-
 module Holo.System
   (
     Sec(..), getTime

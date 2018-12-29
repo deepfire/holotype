@@ -62,6 +62,45 @@ library
 
                   Holotype
 
+  default-extensions:
+
+             AllowAmbiguousTypes
+           , BangPatterns
+           , ApplicativeDo
+           , ConstraintKinds
+           , DataKinds
+           , DeriveFoldable
+           , DeriveFunctor
+           , DeriveGeneric
+           , DerivingStrategies
+           , FlexibleContexts
+           , FlexibleInstances
+           , GADTs
+           , GeneralizedNewtypeDeriving
+           , InstanceSigs
+           , LambdaCase
+           , MultiParamTypeClasses
+           , MultiWayIf
+           , NamedFieldPuns
+           , OverloadedStrings
+           , PackageImports
+           , PartialTypeSignatures
+           , RankNTypes
+           , RecordWildCards
+           , RecursiveDo
+           , RoleAnnotations
+           , ScopedTypeVariables
+           , StandaloneDeriving
+           , TupleSections
+           , TypeApplications
+           , TypeFamilies
+           , TypeFamilyDependencies
+           , TypeInType
+           , TypeOperators
+           , UndecidableInstances
+           , UnicodeSyntax
+           , ViewPatterns
+
   build-depends:       GLFW-b
                      , JuicyPixels
                      , MissingH

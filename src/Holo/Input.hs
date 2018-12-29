@@ -1,6 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE UnicodeSyntax #-}
-{-# OPTIONS_GHC -Weverything #-}
+{-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults #-}
 
 module Holo.Input
