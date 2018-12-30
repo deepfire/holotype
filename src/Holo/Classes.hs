@@ -29,7 +29,7 @@ import           Holo.Instances.Mutable
 import           Holo.Name
 import           Holo.Port                                (IdToken, Drawable)
 import           Holo.Prelude
-import           Holo.Widget
+import           Holo.Widget2
 
 
 -- * As -- assigning representation

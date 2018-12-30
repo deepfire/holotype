@@ -62,7 +62,7 @@ library
                   Holo.Prelude
                   Holo.Record
                   Holo.System
-                  Holo.Widget
+                  Holo.Widget2
 
                   Holotype
 

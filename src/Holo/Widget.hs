@@ -129,7 +129,7 @@ newMutatedSeedWidget imux voc initial =
     Just (Desig _) → vocabErr "Just Desig"
     Just (Denot _ ∷ Definition i a) → do
       tok ← iNewToken $ Proxy @a
-      mut ← mutate ((forget ∷ a → a) initial) $ select imux $ Const2 tok
+      mut ← mutate ((forget ∷ Interp a a ⇒ a → a) initial) $ select imux $ Const2 tok
       dynWidget' tok voc mut
     Just (DesigDenot _ ∷ Definition i a) → do
       tok ← iNewToken $ Proxy @a

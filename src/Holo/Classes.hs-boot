@@ -16,7 +16,7 @@ import {-# SOURCE #-}
                  Holo.Name
 import           Holo.Port
 import {-# SOURCE #-}
-                 Holo.Widget
+                 Holo.Widget2
 
 class Typeable r ⇒ As r where
   type         Denoted r ∷ Type
