@@ -1,14 +1,24 @@
 module Holo.Instances.As
 where
 
+import           Control.Lens                             (Lens', Traversal')
+import           Data.Text                                (Text)
+import           Data.Proxy                               (Proxy(..))
 import qualified GI.Pango                          as GIP
 import           Prelude.Unicode
+import           Linear                                   (V2(..))
 
+import           Elsewhere
 import           Graphics.Flatland
 import           Graphics.FlatDraw
 import           Graphics.Cairo                           (FKind(..))
 import qualified Graphics.Cairo                    as Cr
 import           Holo.Classes
+import           Holo.Item
+import           Holo.Prelude
+import           Holo.Port                                (Drawable(..), Port(..), Settings(..))
+import qualified Holo.Port                         as Port
+import           Pretty
 
 
 instance As () where

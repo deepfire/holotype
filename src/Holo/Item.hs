@@ -1,15 +1,35 @@
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
-
 module Holo.Item
 where
 
-import           Data.Proxy                               (Proxy)
-import           GHC.Types                                (Constraint)
+import           Control.Monad.IO.Class
+import           Control.Lens                             ((^.), (.~), (&))
+import           Data.Foldable
+import           Data.Maybe                               (fromMaybe)
+import           Data.Proxy                               (Proxy(..))
+import           Data.Typeable                            (Typeable, typeRep)
+import           GHC.Stack                                (HasCallStack)
+import           GHC.Types                                (Constraint, Type)
+import           Linear                                   (zero)
+import           Numeric.Extra                            (doubleToFloat)
+import           Prelude.Unicode
+import qualified Data.Map                          as Map
 import qualified Unsafe.Coerce                     as Co
 
-import           Holo.Classes
-import           Holo.Name
+import           Elsewhere
+import           Graphics.Flatland
+import           Graphics.Flex
+import qualified Graphics.Flex                     as Flex
+import           Pretty
+import           Tracer
+
+import {-# SOURCE #-}
+                 Holo.Classes
+import {-# SOURCE #-}
+                 Holo.Name
+import           Holo.Port                                (Frame, IdToken)
+import qualified Holo.Port                         as Port
 
 
 -- Note [Granularity and composite structures]

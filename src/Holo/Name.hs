@@ -1,66 +1,32 @@
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
-
 module Holo.Name
-  ( As(..), defName
+  ( Name(..)
+  , As(..), defName, defStyGeoName
   , Style(..), sStyle, sStyleGene, initStyle, defStyle
   , StyleGene(..), fromStyleGene
   , Visual(..), VPort
-  --
-  , Interp(..)
-  --
-  , Name(..)
-  , Named(..), defStyGeoName
-  --
-  , Phase(..)
-  , IStrucP
-  , VisualP
-  , Item(..), iLeafP, iNewToken, iCompToken, iToken, iGeo, iStyleGene, diNothing
-  , Node(..)
-  , node, leaf
-  , hbox, vbox
-  , defLeaf
-  --
-  , traceIGeoDiff
-  , iSizeRequest
-  , iMandateVisual, iUnvisual
-  , iRender
-  --
-  , treeLeaves
-  , ensureTreeVisuals
-  , renderTreeVisuals
-  , showTreeVisuals
-  -- * reёxports
-  , Drawable(..)
-  , module Flex
   )
 where
 
-import           Data.Foldable
-import           Data.Maybe
 import           Data.Proxy                               (Proxy)
-import           Data.Text                                (Text)
+import           Data.Kind                                (Type)
 import           Data.Typeable
-import           GHC.Types                                (Constraint)
-import           Linear                            hiding (trace)
-import           Text.Read                                (readMaybe)
-import qualified Data.Map.Strict                   as Map
-import qualified Data.Text                         as T
 
 -- Local imports
-import           Graphics.Flatland
-import           Graphics.Flex                            (Geo, defGeo, Flex(..))
+import           Graphics.Flex                            (Geo, defGeo)
 
-import           Holo.Classes
+import {-# SOURCE #-}
+                 Holo.Classes
 import           Holo.Prelude
-import           Holo.Port                                (IdToken, Drawable, Frame)
+import           Holo.Port                                (IdToken, Drawable)
 import qualified Holo.Port                         as Port
 
 
 -- * Name
 --    ..as per Пиотровский Р. Г. Текст, машина, человек — Л.: Наука, 1975
 --    Which is supposed to make sense in context of As/Denoted
-data Name a where
+data Name (a ∷ Type) where
   Name ∷
     { nToken     ∷ IdToken
     , nStyle     ∷ Style a
@@ -102,7 +68,7 @@ defStyle = initStyle $ defSty (Proxy @a)
 
 -- * Visual wrapper
 --
-data Visual a where
+data Visual (a ∷ Type) where
   Visual ∷ As a ⇒
     { vVisual   ∷ Vis a
     , vDrawable ∷ Drawable

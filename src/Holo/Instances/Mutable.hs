@@ -3,13 +3,16 @@ where
 
 import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
-import qualified Data.Text.Zipper                  as T
-import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 import           Prelude.Unicode
 import           Reflex
-import           Reflex.GLFW                              (InputU(..))
+import           Reflex.GLFW                              (RGLFW, InputU(..))
+import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
+import qualified Data.Text.Zipper                  as T
+import qualified Reflex.GLFW                       as GLFW
 
-import           Holo.Classes
+import           Elsewhere
+import {-# SOURCE #-}
+                 Holo.Classes
 import           Holo.Input
 
 
@@ -19,6 +22,10 @@ instance {-# OVERLAPPABLE #-} Mutable a where
 
 immutable ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
 immutable init _ev = pure $ constDyn init
+
+
+instance Mutable () where
+  mutate = immutable
 
 
 instance Mutable Bool where

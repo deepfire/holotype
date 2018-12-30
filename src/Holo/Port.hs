@@ -10,7 +10,6 @@
 {-# OPTIONS_GHC -Wno-unsafe #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
-
 module Holo.Port where
 
 import           Control.Monad

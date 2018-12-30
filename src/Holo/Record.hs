@@ -12,10 +12,10 @@ import qualified Generics.SOP                      as SOP
 import           Reflex
 
 import qualified Graphics.Cairo                    as Cr
-import           Holo
 import           Holo.Instances
 import           Holo.Prelude
 import qualified Holo.Port                         as Port
+import           Holo.Widget
 
 
 -- * Lifted records (depends on Widgety Text instance)
@@ -50,7 +50,7 @@ recoverFieldPresent ∷ ∀ i t m u a xss xs.
 recoverFieldPresent (mux, voc, initV ∷ u) _pC _ _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
     tok ← liftIO $ Port.newId $ "record label '" <> pack fname <> "'"
     let addLabel ""  x = x
-        addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Unconstr (Denoted x))
+        addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Top (Denoted x))
                                   ⇒ Port.IdToken → x → Denoted x → Blank i)
                                 tok TextLine (pack lab <> ": ")
                               , x

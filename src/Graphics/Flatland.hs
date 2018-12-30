@@ -1,7 +1,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-imports -Wno-unused-top-binds #-}
 module Graphics.Flatland
   ( WUnit(..), fromWUnit
   , Unit(..), UnitK(..), pu'val, pui'val, pt'val
@@ -643,8 +643,8 @@ area'split'start axis spli a =
      , from'area $ Area (LU $ p & po'd axis %~ (+ spli)) (Size $ d & di'd axis %~ (flip (-) spli)))
 area'split'end   ∷ RealFrac d ⇒ FromArea a b LU Size d ⇒ FromArea LU Size a b d ⇒ Axis → d → Area' a b d → (Area' a b d, Area' a b d)
 area'split'end   axis spli a =
-  let Area (LU p) (Size d) = from'area a
-      axis'dim             = d^.di'd axis
+  let Area (LU _p) (Size d) = from'area a
+      axis'dim              = d^.di'd axis
   in area'split'start axis (axis'dim - spli) a
 
 instance (FromArea a b LU Size d, RealFrac d) ⇒ Pretty (Area' a b d) where

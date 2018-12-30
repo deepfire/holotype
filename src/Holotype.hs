@@ -63,15 +63,13 @@ import           Holo.Prelude                      hiding ((<>))
 import           Holo.Classes
 import           Holo.Instances
 import           Holo.Record
-import           Holo                                     ( As(..), Vocab, Definition(..), desNDen, desDen, traceVocab
+import           Holo.Widget                              ( Vocab, Definition(..), desNDen, desDen, traceVocab
                                                           , Vis
-                                                          , HGLFW, API, APIt, APIm
-                                                          , Mutable(..)
-                                                          , Widgety(..), widget, dynWidget
-                                                          , BlankWy, Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
+                                                          , widget, dynWidget
+                                                          , Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
                                                           , Result(..), Widget, WH, liftPureDynamic, stripW
-                                                          , Present(..), present)
-import qualified Holo
+                                                          , present)
+import qualified Holo.Widget                       as Widget
 import qualified Holo.Port                         as Port
 import           Holo.Port                                (Port(..), IdToken)
 import qualified Holo.System                       as HOS
@@ -222,9 +220,6 @@ instance SOP.HasDatatypeInfo AnObject
 
 instance SOP.Generic         Cr.FontPreferences
 instance SOP.HasDatatypeInfo Cr.FontPreferences
-
-instance {-# OVERLAPPABLE #-} Holo.Named a
-instance {-# OVERLAPPABLE #-} Holo.Named Text
 
 (<:) ∷ Typeable b ⇒ TM.TypeMap a → (Proxy b, TM.Item a b) → TM.TypeMap a
 (<:) tm (k, v) = TM.insert k v tm
@@ -452,7 +447,7 @@ holotype win evCtl windowFrameE inputE = mdo
                      attachPromptlyDyn sceneD portFrameE
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
 
-  let sceneLaidTreeD ∷ Dynamic t (Item Holo.Unconstr Holo.PLayout)
+  let sceneLaidTreeD ∷ Dynamic t (Item Top Holo.PLayout)
       sceneLaidTreeD = Flex.layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
 
   -- * RENDER

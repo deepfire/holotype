@@ -47,18 +47,22 @@ library
                   Graphics.Flatland
                   Graphics.Flex
 
-                  Holo
                   Holo.Classes
                   Holo.Input
                   Holo.Instances
                   Holo.Instances.As
+                  Holo.Instances.Interp
                   Holo.Instances.Mutable
+                  Holo.Instances.Named
+                  Holo.Instances.Present
+                  Holo.Instances.Widgety
                   Holo.Item
                   Holo.Name
                   Holo.Port
                   Holo.Prelude
                   Holo.Record
                   Holo.System
+                  Holo.Widget
 
                   Holotype
 
@@ -69,6 +73,7 @@ library
            , ApplicativeDo
            , ConstraintKinds
            , DataKinds
+           , DefaultSignatures
            , DeriveFoldable
            , DeriveFunctor
            , DeriveGeneric

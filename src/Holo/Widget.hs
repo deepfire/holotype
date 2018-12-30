@@ -1,10 +1,10 @@
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
-module Holo
+module Holo.Widget
   ( module Holo.Classes
   , module Holo.Item
   --
-  , Mutable(..), immutable
+  , immutable
   , InputEvent(..)
   , inputEventType, inputMatch
   , InputEventMask(..)
@@ -18,13 +18,11 @@ module Holo
   , desNDen, desDen
   , vocDesig, vocDenot
   --
-  , Widgety(..), API, APIt, APIm, HGLFW
   , Widget, dynWidget
   , WH, WF, wSubD, wItemD, wValD, stripW, mapWSubs, mapWItem, mapWVal
-  , Blank, BlankWy, Unconstr
+  , Blank
   , liftPureDynamic
   --
-  , Present(..)
   , interpretate
 
   -- * Re-exports
@@ -37,7 +35,7 @@ import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Typeable
 import qualified Data.TypeMap.Dynamic              as TM
-import           Generics.SOP                             (Proxy)
+import           Generics.SOP                             (Proxy, Top)
 import           Generics.SOP.Monadic
 import           GHC.TypeLits
 import           Reflex                            hiding (Query, Query(..))
@@ -50,8 +48,13 @@ import qualified Data.Text                         as T
 import qualified Reflex.GLFW                       as GLFW
 
 -- Local imports
-import           Holo.Classes
-import           Holo.Item
+import {-# SOURCE #-}
+                 Holo.Classes
+import           Holo.Input
+import {-# SOURCE #-}
+                 Holo.Item
+import {-# SOURCE #-}
+                 Holo.Name
 import           Holo.Port
 import           Holo.Prelude
 
@@ -106,36 +109,6 @@ vocDesig  p (Vocab tm) = case TM.lookup p tm of
   Just d@(DesigDenot _) → Just d
 
 
--- | Global context.
-type HGLFW i t m = (t ~ (APIt i), m ~ (APIm i), RGLFW t m)
-
--- | Package types supplying necessary global context (see 'HGLFW') into a single abstract type
---   available for threading.
-data API t m
-
-type family APIt a ∷ Type where
-  APIt (API t _) = t
-  APIt _         = TypeError ('Text "APIt on non-API.")
-
-type family APIm a ∷ (Type → Type) where
-  APIm (API _ m) = m
-  APIm _         = TypeError ('Text "APIm on non-API.")
-
-
--- | Turn values into interactive widgets.
---
-class (Typeable a) ⇒ Widgety i a where
-  dynWidget'   ∷ (HGLFW i t m, Typeable a, Named a, Widgety i a, HasCallStack)
-               ⇒         IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-  widget       ∷ (HGLFW i t m, Typeable a, HasCallStack)
-               ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
-  --
-  default dynWidget'
-               ∷ (HGLFW i t m, Mutable a, Named a)
-               ⇒         IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-  dynWidget'   = dynWidgetStaticSubs
-  widget       = newMutatedSeedWidget
-
 dynWidget
   ∷ ∀ i t m a
   . (HasCallStack, HGLFW i t m, Named a, Widgety i a)
@@ -156,7 +129,7 @@ newMutatedSeedWidget imux voc initial =
     Just (Desig _) → vocabErr "Just Desig"
     Just (Denot _ ∷ Definition i a) → do
       tok ← iNewToken $ Proxy @a
-      mut ← mutate (forget initial) $ select imux $ Const2 tok
+      mut ← mutate ((forget ∷ a → a) initial) $ select imux $ Const2 tok
       dynWidget' tok voc mut
     Just (DesigDenot _ ∷ Definition i a) → do
       tok ← iNewToken $ Proxy @a
@@ -182,14 +155,6 @@ dynWidgetStaticSubs tok voc da =
       pure $ W ( constDyn $ subscription tok (Proxy @a)
                , leaf name <$> da
                , da)
-
-
--- * Present:  one up from Widgety -- with interpretation
---
-class (Typeable a) ⇒ Present i a where
-  present  ∷ (HGLFW i t m, HasCallStack)
-           ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
-  present  = presentDef
 
 presentDef ∷ ∀ i a t m
            . (HGLFW i t m, HasCallStack, Typeable a)
@@ -238,11 +203,19 @@ liftPureDynamic n da = do
 
 -- * The final lift:  W(-idget)
 --
-class    Unconstr a where
-instance Unconstr a where
+type HGLFW i t m = (t ~ (APIt i), m ~ (APIm i), RGLFW t m)
 
-type Blank   i   = Item Unconstr PBlank
-type BlankWy i   = Item (Widgety i) PBlank -- XXX: dead code?
+data API t m
+
+type family APIt a ∷ Type where
+  APIt (API t _) = t
+  APIt _         = TypeError ('Text "APIt on non-API.")
+
+type family APIm a ∷ (Type → Type) where
+  APIm (API _ m) = m
+  APIm _         = TypeError ('Text "APIm on non-API.")
+
+type Blank   i   = Item Top PBlank
 type WH      i   = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
 type WF      i b = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
 
@@ -290,13 +263,7 @@ instance Reflex (APIt i) ⇒ Applicative (Result i) where
 
 -- * Concrete, minimal case, to keep us in check
 --
-instance Mutable () where
-  mutate = immutable
-
-instance Widgety i () where
-instance Present i () where
-
-instance Semigroup (Item Unconstr PBlank)  where _ <> _ = mempty
-instance Monoid    (Item Unconstr PBlank)  where mempty = Leaf (Name blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
-instance Semigroup (Item Unconstr PLayout) where _ <> _ = mempty
-instance Monoid    (Item Unconstr PLayout) where mempty = Leaf (Name blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
+instance Semigroup (Item Top PBlank)  where _ <> _ = mempty
+instance Monoid    (Item Top PBlank)  where mempty = Leaf (Name blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
+instance Semigroup (Item Top PLayout) where _ <> _ = mempty
+instance Monoid    (Item Top PLayout) where mempty = Leaf (Name blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty

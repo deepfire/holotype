@@ -1,15 +1,21 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults #-}
-
 module Holo.Input
 where
 
-import qualified Data.Set                          as Set
-import "GLFW-b"  Graphics.UI.GLFW                  as GL
+import           Data.Functor.Misc                        (Const2(..))
+import           Data.Foldable                            (toList)
+import           Data.List                                (intercalate)
 import           Prelude.Unicode
+import           Reflex
+import           Text.Printf                              (printf)
+import "GLFW-b"  Graphics.UI.GLFW                  as GL
+import qualified Data.Map.Monoidal.Strict          as MMap
+import qualified Data.Sequence                     as Seq
+import qualified Data.Set                          as Set
 import qualified Reflex.GLFW                       as GLFW
 
-import           Holo.Port                                (IdToken)
+import           Holo.Port                                (IdToken, tokenHash)
 
 
 -- * InputEvent
