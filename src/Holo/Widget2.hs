@@ -4,6 +4,8 @@
 module Holo.Widget2
   ( module Holo.Classes
   , module Holo.Item
+  , Vocab(..)
+  , Definition(..)
   )
 where
 
@@ -48,32 +50,14 @@ newtype Vocab (i ∷ Type) (c ∷ Type → Constraint) = Vocab (TM.TypeMap (Holo
 type instance              TM.Item    (HoloTag i) a = Definition i a
 data                                   HoloTag i
 
-type HGLFW i t m = (t ~ (APIt i), m ~ (APIm i), RGLFW t m)
-
-data API t m
-
-type family APIt a ∷ Type where
-  APIt (API t _) = t
-  APIt _         = TypeError ('Text "APIt on non-API.")
-
-type family APIm a ∷ (Type → Type) where
-  APIm (API _ m) = m
-  APIm _         = TypeError ('Text "APIm on non-API.")
-
-type Blank   i   = Item Top PBlank
-type WH      i   = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
-type WF      i b = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
-
 type Widget  i b = Result i b
-data instance      Result i b =
-  Reflex (APIt i) ⇒ W { fromW ∷ WF i b }
 
 vocDenot ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
 vocDenot = undefined
 
 newMutatedSeedWidget
   ∷ ∀ i t m a
-  . (HGLFW i t m, Typeable a, HasCallStack)
+  . (Typeable a, HasCallStack)
   ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
 newMutatedSeedWidget imux voc initial =
   case vocDenot (Proxy @a) voc of

@@ -18,16 +18,4 @@ data Definition i a
 newtype Vocab i c = Vocab (TM.TypeMap (HoloTag i))
 data                                   HoloTag i
 
-type Blank   i     = Item Top PBlank
-
-type HGLFW i t m   = (t ~ (APIt i), m ~ (APIm i), RGLFW t m)
-
-data API t m
-
-type family APIt a ∷ Type
-type family APIm a ∷ Type → Type
-
-type WH        i   = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
-type WF        i b = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
-
 type Widget    i b = Result i b
