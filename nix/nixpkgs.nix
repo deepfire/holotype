@@ -1,6 +1,6 @@
 { compiler    ? import ./default-compiler.nix
 , local       ? false
-, lib         ? import ./nix/lib.nix
+, lib         ? import ./lib.nix
 , nixpkgs     ? lib.nixpkgs
 }:
 

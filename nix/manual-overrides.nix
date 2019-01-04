@@ -17,7 +17,7 @@ with pkgs.haskell.lib; with lib; with self; {
   sop-core = mkDerivation {
     pname = "sop-core";
     version = "0.4.0.0";
-    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./generics-sop.src.json)) ["date"]);
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./pins/generics-sop.src.json)) ["date"]);
     prePatch        = "cd sop-core; ";
     libraryHaskellDepends = [ base deepseq ];
     description = "True Sums of Products";
@@ -25,7 +25,7 @@ with pkgs.haskell.lib; with lib; with self; {
   };
   generic-lens = dontCheck super.generic-lens;
   generics-sop = overrideCabal super.generics-sop (drv: {
-    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./generics-sop.src.json)) ["date"]);
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./pins/generics-sop.src.json)) ["date"]);
     doCheck         = false;
     jailbreak       = true;
     editedCabalFile = null;
@@ -35,7 +35,7 @@ with pkgs.haskell.lib; with lib; with self; {
   });
 
   reflex = overrideCabal super.reflex (drv: {
-    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./reflex.src.json)) ["date"]);
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./pins/reflex.src.json)) ["date"]);
     editedCabalFile = null;
     revision        = null;
     doCheck         = false;
@@ -46,7 +46,7 @@ with pkgs.haskell.lib; with lib; with self; {
   mkDerivation {
     pname = "reflex-glfw";
     version = "0.1.0";
-    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./reflex-glfw.src.json)) ["date"]);
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./pins/reflex-glfw.src.json)) ["date"]);
     isLibrary = true;
     isExecutable = true;
     jailbreak = true;
@@ -65,7 +65,7 @@ with pkgs.haskell.lib; with lib; with self; {
 
   ## Upstreamed, awaiting a Hackage release
   lambdacube-compiler = overrideCabal super.lambdacube-compiler (drv: {
-    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-compiler.src.json)) ["date"]);
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./pins/lambdacube-compiler.src.json)) ["date"]);
     libraryHaskellDepends = (drv.libraryHaskellDepends or []) ++ (with self; [ aeson semigroups exceptions megaparsec ansi-wl-pprint pretty-show lambdacube-ir vector ]);
     jailbreak       = true;
     # enableLibraryProfiling = false;
@@ -73,14 +73,14 @@ with pkgs.haskell.lib; with lib; with self; {
 
   ## Upstreamed, awaiting a Hackage release
   lambdacube-gl = overrideCabal super.lambdacube-gl (drv: {
-    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-gl.src.json)) ["date"]);
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./pins/lambdacube-gl.src.json)) ["date"]);
     jailbreak       = true;
     # enableLibraryProfiling = false;
   });
 
   ## Upstreamed, awaiting a Hackage release
   lambdacube-ir = overrideCabal super.lambdacube-ir (drv: {
-    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./lambdacube-ir.src.json)) ["date"]);
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./pins/lambdacube-ir.src.json)) ["date"]);
     prePatch        = "cd lambdacube-ir.haskell; ";
     jailbreak       = true;
     # enableLibraryProfiling = false;

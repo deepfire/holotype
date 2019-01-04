@@ -1,11 +1,11 @@
-{ compiler    ? import ./default-compiler.nix
+{ compiler    ? import ./nix/default-compiler.nix
 , local       ? false
 , lib         ? import ./nix/lib.nix
 , nixpkgs     ? lib.nixpkgs
 , tools       ? false
 }:
 let
-  pkgs     = import ./nixpkgs.nix { inherit compiler local nixpkgs; };   # Nixpkgs with overlays.
+  pkgs     = import ./nix/nixpkgs.nix { inherit compiler local nixpkgs; };   # Nixpkgs with overlays.
   ghc      = pkgs.haskell.packages."${compiler}";                        # :: nixpkgs/pkgs/development/haskell-modules/make-package-set.nix
   extras   = [
                ghc.ghc-events

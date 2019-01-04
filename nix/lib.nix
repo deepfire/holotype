@@ -1,5 +1,5 @@
 let
-  nixpkgsJson  = ./nixpkgs-pins/default-nixpkgs-src.json;
+  nixpkgsJson  = ./pins/default-nixpkgs-src.json;
   fetchNixpkgs = import ./fetch-nixpkgs.nix;
   nixpkgs      = fetchNixpkgs nixpkgsJson;
   debugBuild   = pkg: nixpkgs.haskell.lib.overrideCabal pkg (drv: {
