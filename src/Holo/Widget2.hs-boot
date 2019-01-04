@@ -3,6 +3,7 @@ where
 
 import           Data.Kind                                (Type)
 import qualified Data.TypeMap.Dynamic              as TM
+import           GHC.Types                                (Constraint)
 import           Generics.SOP                             (Top)
 import           Generics.SOP.Monadic                     (Result)
 import           Reflex                                   (Dynamic)
@@ -15,7 +16,7 @@ import {-# SOURCE #-}
 
 data Definition i a
 
-newtype Vocab i c = Vocab (TM.TypeMap (HoloTag i))
+newtype Vocab (i ∷ Type) (c ∷ Type → Constraint) = Vocab (TM.TypeMap (HoloTag i))
 data                                   HoloTag i
 
 type Blank   i     = Item Top PBlank
