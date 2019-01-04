@@ -10,6 +10,7 @@ where
 import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Typeable
+import           GHC.Types                                (Constraint)
 import qualified Data.TypeMap.Dynamic              as TM
 import           Generics.SOP                             (Proxy, Top)
 import           Generics.SOP.Monadic
@@ -39,11 +40,11 @@ import           Holo.Prelude
 -- * The final type class assembly.
 --
 -- | Vocabulary stores two kinds of entries: interpretation
-data Definition i a where
+data Definition (i ∷ Type) (a ∷ Type) where
   Denot      ∷ (Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Widgety i a) ⇒             n → Definition i a
 
 -- | 'Vocab' establishes names for a bunch of types.
-newtype Vocab i c = Vocab (TM.TypeMap (HoloTag i))
+newtype Vocab (i ∷ Type) (c ∷ Type → Constraint) = Vocab (TM.TypeMap (HoloTag i))
 type instance              TM.Item    (HoloTag i) a = Definition i a
 data                                   HoloTag i
 

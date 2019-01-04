@@ -71,7 +71,7 @@ class Named a where
 
 -- | Widgety: turn values into interactive widgets.
 --
-class (Typeable a) ⇒ Widgety i a where
+class (Typeable a) ⇒ Widgety (i ∷ Type) (a ∷ Type) where
   dynWidget'   ∷ (HGLFW i t m, Typeable a, Named a, Widgety i a, HasCallStack)
                ⇒         IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
   widget       ∷ (HGLFW i t m, Typeable a, HasCallStack)
