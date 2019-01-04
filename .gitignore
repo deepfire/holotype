@@ -36,7 +36,7 @@ dist-newstyle
 .ghc.environment*
 .stack-work/
 nohup.out
-ghc.out
+ghc.out*
 result
 src/holotype.cabal
 
