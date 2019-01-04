@@ -1,20 +1,20 @@
-{ nixpkgs     ? import <nixpkgs> {}
-, compiler    ? import ./default-compiler.nix
-, tools       ? false
-, intero      ? tools
+{ compiler    ? import ./default-compiler.nix
 , local       ? false
+, lib         ? import ./nix/lib.nix
+, nixpkgs     ? lib.nixpkgs
+, tools       ? false
 }:
 let
-  pkgs    = nixpkgs.pkgs;
-  ghc     = import ./packages.nix { inherit nixpkgs compiler local; }; # :: nixpkgs/pkgs/development/haskell-modules/make-package-set.nix
-  extras  =  [
+  pkgs     = import ./nixpkgs.nix { inherit compiler local nixpkgs; };   # Nixpkgs with overlays.
+  ghc      = pkgs.haskell.packages."${compiler}";                        # :: nixpkgs/pkgs/development/haskell-modules/make-package-set.nix
+  extras   = [
                ghc.ghc-events
                ghc.ghcid
                ghc.graphmod
                ghc.stylish-haskell
                pkgs.cabal-install
                pkgs.graphviz
-             ] ++ (if intero then [ ghc.intero ] else []);
+             ];
 in
   ghc.shellFor {
     packages    = p: [p.holotype];
