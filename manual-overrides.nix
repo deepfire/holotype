@@ -21,7 +21,7 @@ with pkgs.haskell.lib; with lib; with self; {
     prePatch        = "cd sop-core; ";
     libraryHaskellDepends = [ base deepseq ];
     description = "True Sums of Products";
-    license = stdenv.lib.licenses.bsd3;
+    license = pkgs.stdenv.lib.licenses.bsd3;
   };
   generic-lens = dontCheck super.generic-lens;
   generics-sop = overrideCabal super.generics-sop (drv: {
@@ -60,7 +60,7 @@ with pkgs.haskell.lib; with lib; with self; {
     ];
     homepage = "https://github.com/deepfire/reflex-glfw/";
     description = "A GLFW-b adapter for Reflex FRP";
-    license = stdenv.lib.licenses.bsd3;
+    license = pkgs.stdenv.lib.licenses.bsd3;
   };
 
   ## Upstreamed, awaiting a Hackage release
