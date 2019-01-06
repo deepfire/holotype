@@ -385,6 +385,17 @@ holotype win evCtl windowFrameE inputE = mdo
   worldE ∷ Event t WorldEvent
                    ← performEvent $ inputE <&> translateEvent
 
+  -- Closing-the-circle issues:
+  -- 1. To even receive events, the switch needs to be subscribed to <F3> -- but its subscriptions are default.
+  -- 2. For #1 we need a way to express subscription customisation.
+  -- 3. Tearing the Settings apart again to form ESettings?  ESettings looks way artificial now.
+  -- 4. Should Settings even be a single structure?
+  -- 5. EventBinding: Addresses (object names) to IdTokens.
+  -- 6. Event is routed -- then interpreted how?  Currently event interpretation is hard-coded.
+  -- 7. So we need names (and types) for events -- SemanticEvent (akin to WorldEvent).
+  -- 8. Then we can express the problem: Named entities handling named events.
+  -- 9. SemanticEvents, EventBindings and Addresses seem to be only needed during decision of how to compile subscriptions.
+  -- 10. Objects declare SemanticEvents they can handle and their sub-Addresses.
   sttsE            ←
     let Port.Settings{sttsWaitVSync=Port.WaitVSync defvsync,..} = Port.defaultSettings
     in Port.ESettings
