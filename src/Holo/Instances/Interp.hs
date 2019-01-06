@@ -43,3 +43,5 @@ instance Interp (a, a)  (Port.ScreenDim (Di a)) where
   forget (Port.ScreenDim (Di (V2 x y))) = (x, y)
 
 instance Interp Bool Port.WaitVSync where
+  interp               = Just ∘ Port.WaitVSync
+  forget (Port.WaitVSync x) = x

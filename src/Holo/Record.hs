@@ -60,44 +60,44 @@ recoverFieldPresent (mux, voc, initV ∷ u) _pC _ _dtinfo _consNr _cinfo (FieldI
                               ]
     mapWItem @i (addLabel fname) <$> present @i mux voc (proj initV)
 
-instance {-# OVERLAPPABLE #-}
-  ( Typeable a
-  , SOP.Generic a, SOP.HasDatatypeInfo a, SOP.Code a ~ xss
-  , SOP.All2 Mutable      xss
-  , SOP.All2 (Widgety i) xss
-  , HGLFW i t m
-  ) ⇒ Widgety i a where
-  dynWidget' = dynWidgetStaticSubsRecord
+-- instance {-# OVERLAPPABLE #-}
+--   ( Typeable a
+--   , SOP.Generic a, SOP.HasDatatypeInfo a, SOP.Code a ~ xss
+--   , SOP.All2 Mutable      xss
+--   , SOP.All2 (Present i) xss
+--   , HGLFW i t m
+--   ) ⇒ Present i a where
+--   dynPresent = dynPresentStaticSubsRecord
 
-recoverFieldWidgetyDynamic
-  ∷ ∀ i t m a f xss xs.
-    ( HasCallStack, Typeable f
-    , Named a, HGLFW i t m
-    , SOP.Generic a
-    , SOP.HasDatatypeInfo a
-    , SOP.Code a ~ xss, SOP.All2 (Widgety i) xss
-    )
-  ⇒ (Port.IdToken, Vocab i (Present i), Dynamic t a)
-  → ReadFieldT (Widgety i) i m a f xss xs
-recoverFieldWidgetyDynamic (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _finfo proj =
-  Comp $ do
-    let fieldD = proj <$> dRec
-        -- XXX:  face the need for dynPresent
-        vocabErr (desc ∷ String) = error $ printf "Dynamic record lift has no Denot for value of type %s (%s).\n%s" (show $ typeRep (Proxy @f)) desc (ppVocab voc)
-    case vocDenot (Proxy @f) voc of
-      Nothing        → vocabErr "Nothing"
-      Just (Desig _) → vocabErr "Just Desig"
-      Just (Denot _)      → dynWidget' tok voc fieldD
-      Just (DesigDenot _) → dynWidget' tok voc fieldD
+-- recoverFieldWidgetyDynamic
+--   ∷ ∀ i t m a f xss xs.
+--     ( HasCallStack, Typeable f
+--     , Named a, HGLFW i t m
+--     , SOP.Generic a
+--     , SOP.HasDatatypeInfo a
+--     , SOP.Code a ~ xss, SOP.All2 (Present i) xss
+--     )
+--   ⇒ (InputEventMux t, Vocab i (Present i), Dynamic t a)
+--   → ReadFieldT (Present i) i m a f xss xs
+-- recoverFieldWidgetyDynamic (mux, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _finfo proj =
+--   Comp $ do
+--     let fieldD = proj <$> dRec
+--         -- XXX:  face the need for dynPresent
+--         vocabErr (desc ∷ String) = error $ printf "Dynamic record lift has no Denot for value of type %s (%s).\n%s" (show $ typeRep (Proxy @f)) desc (ppVocab voc)
+--     case vocDenot (Proxy @f) voc of
+--       Nothing        → vocabErr "Nothing"
+--       Just (Desig _) → vocabErr "Just Desig"
+--       Just (Denot _)      → present mux voc fieldD
+--       Just (DesigDenot _) → present mux voc fieldD
 
-dynWidgetStaticSubsRecord ∷ ∀ i t m a xss.
-  ( HasCallStack, Named a, HGLFW i t m
-  , SOP.Generic a
-  , SOP.HasDatatypeInfo a
-  , SOP.Code a ~ xss, SOP.All2 (Widgety i) xss
-  )
-  ⇒ Port.IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-dynWidgetStaticSubsRecord tok voc da =
-    SOP.unComp $ recover (Proxy @(Widgety i)) (Proxy @(i, a))
-      (\_px _dti→ pure 0)
-      (recoverFieldWidgetyDynamic (tok, voc, da))
+-- dynPresentStaticSubsRecord ∷ ∀ i t m a xss.
+--   ( HasCallStack, Named a, HGLFW i t m
+--   , SOP.Generic a
+--   , SOP.HasDatatypeInfo a
+--   , SOP.Code a ~ xss, SOP.All2 (Present i) xss
+--   )
+--   ⇒ InputEventMux t → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+-- dynPresentStaticSubsRecord tok voc da =
+--     SOP.unComp $ recover (Proxy @(Widgety i)) (Proxy @(i, a))
+--       (\_px _dti→ pure 0)
+--       (recoverFieldWidgetyDynamic (tok, voc, da))

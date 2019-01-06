@@ -94,6 +94,7 @@ class Interp (a ∷ Type) (b ∷ Type) where
 -- | Present:  Widgety with added interpretation
 --
 class (Typeable a) ⇒ Present (i ∷ Type) (a ∷ Type) where
-  present  ∷ (HGLFW i t m, HasCallStack)
-           ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
-  present  = presentDef
+  present       ∷ (HGLFW i t m, HasCallStack)
+                ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
+  --
+  present       = presentDef

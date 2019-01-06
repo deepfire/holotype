@@ -315,12 +315,13 @@ scene eV sttsD statsValD frameNoD fpsValueD = mdo
                      \x → liftIO $ putStrLn (show x)
   tupleWD          ← present @i eV defVocab
                       (unsafe'di 320 200 ∷ Di Int)
-  sttsWD ∷ Widget i Port.Settings
-                   ← dynWidget defVocab sttsD
-  -- sttsWD ∷ Widget i Port.Settings
-  --                  ← present @i eV defVocab
-  --                     -- (Cr.FontPreferences [])
-  --                     defSettingsV
+  -- sttsWDCurr ∷ Widget i Port.Settings
+  --                  ← dynWidget defVocab sttsD
+  initSttsV        ← sample $ current sttsD
+  sttsWDSeeded ∷ Widget i Port.Settings
+                   ← present @i eV defVocab
+                      -- (Cr.FontPreferences [])
+                      initSttsV
 
   longStaticTextD  ← present @i eV (desDen @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
@@ -338,7 +339,8 @@ scene eV sttsD statsValD frameNoD fpsValueD = mdo
         -- , stripW lolD
         -- , stripW doubleD
         -- , stripW recWD
-        -- , stripW sttsWD
+        -- , stripW sttsWDCurr
+        , stripW sttsWDSeeded
         , stripW tupleWD
         -- , stripW rectD
         , stripW fpsD
