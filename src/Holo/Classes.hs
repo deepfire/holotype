@@ -32,7 +32,7 @@ import           Holo.Prelude
 import           Holo.Widget
 
 
--- * As -- assigning representation
+-- | As -- assigning representation
 --
 class Typeable r  ⇒ As r where
   type         Denoted r ∷ Type
@@ -49,8 +49,8 @@ class Typeable r  ⇒ As r where
   sizeRequest ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → m (IStruc r, Di (Maybe Double))
   setupVis    ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Area'LU Double → Drawable → m (Vis r)
   render      ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Po Double      → Drawable → Vis r → m () -- ^ Update visual.
-  freeVis     ∷ MonadIO m ⇒   Proxy r                                                         → Vis r → m ()
-  freeVis                           _                                                               _ = pure ()
+  freeVis     ∷ MonadIO m ⇒   Proxy r                                                            → Vis r → m ()
+  freeVis                           _                                                                  _ = pure ()
 
 
 -- | Mutability: making values dynamic and declare their relevant InputEvent's.

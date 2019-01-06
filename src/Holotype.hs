@@ -207,18 +207,6 @@ instance Widgety i (Cr.FontKey)
 instance Typeable a ⇒ Mutable   (Port.ScreenDim a)
 instance Typeable a ⇒ Widgety i (Port.ScreenDim a)
 
-data AnObject where
-  AnObject ∷
-    { objName   ∷ Text
-    , objLol    ∷ Double
-    , objYay    ∷ Bool
-    -- , objDPI    ∷ DΠ
-    -- , objDim    ∷ Di Int
-    } → AnObject
-    deriving (Eq, GHC.Generic, Show)
-instance SOP.Generic         AnObject
-instance SOP.HasDatatypeInfo AnObject
-
 instance SOP.Generic         Cr.FontPreferences
 instance SOP.HasDatatypeInfo Cr.FontPreferences
 
@@ -238,7 +226,7 @@ defVocab = Vocab
     <: (Proxy @Int,              Desig TextLine)
     <: (Proxy @Integer,          Desig TextLine)
     <: (Proxy @Text,             DesigDenot TextLine)
-    -- XXX:  this is atrocious, but the suspicion is we have a generic solution : -)
+    -- XXX:  this is atrocious, but the suspicion is we have a generic solution : -
     <: (Proxy @([(Cr.FontKey,(Either Cr.FontAlias [Cr.FontSpec]))])
        ,                         Desig TextLine)
     -- <: (Proxy @(Port.ScreenDim (Di Int)),
@@ -279,10 +267,6 @@ scene ∷ ∀ i t m. ( HGLFW i t m
   → m (WH i)
 scene eV sttsD statsValD frameNoD fpsValueD = mdo
 
-  -- XXX: we have a conceptual conflict:
-  --      1. Holo implies editability
-  --      2. liftWDynamic takes an already formed dynamic and turns into a visual
-  --      3. ..yet it requires Holo, which insists on Mutable, which we don't care about..
   fpsD ∷ Widget i Text
                    ← dynPresent eV defVocab (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
   statsD ∷ Widget i Text
@@ -309,14 +293,10 @@ scene eV sttsD statsValD frameNoD fpsValueD = mdo
   --                                 ,Labelled ("y", TextLine)))
   --                    (0,0)
 
-  recWD@(W(_,_,xDDv)) ← present @i eV defVocab
-                        (AnObject "yayyity" 3.14 True)
-  _                ← performEvent $ (updated xDDv) <&>
-                     \x → liftIO $ putStrLn (show x)
   tupleWD          ← present @i eV defVocab
                       (unsafe'di 320 200 ∷ Di Int)
-  -- sttsWDCurr ∷ Widget i Port.Settings
-  --                  ← dynWidget defVocab sttsD
+  sttsWDCurr ∷ Widget i Port.Settings
+                   ← dynPresent eV defVocab sttsD
   initSttsV        ← sample $ current sttsD
   sttsWDSeeded ∷ Widget i Port.Settings
                    ← present @i eV defVocab
@@ -339,8 +319,8 @@ scene eV sttsD statsValD frameNoD fpsValueD = mdo
         -- , stripW lolD
         -- , stripW doubleD
         -- , stripW recWD
-        -- , stripW sttsWDCurr
-        , stripW sttsWDSeeded
+        , stripW $ Widget.traceWVal "sttsWDCurr: " sttsWDCurr
+        -- , stripW sttsWDSeeded
         , stripW tupleWD
         -- , stripW rectD
         , stripW fpsD
@@ -373,6 +353,9 @@ parseOptions ∷ Opt.Parser Options
 parseOptions =
   Options
   <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
+
+holdDynMaybe ∷ (Reflex t, MonadHold t m, MonadFix m) ⇒ a → Event t (Maybe a) -> m (Dynamic t a)
+holdDynMaybe init ev = accumMaybeDyn (\_old mNew→ mNew) init ev
 
 -- * Top level network
 --
@@ -415,22 +398,21 @@ holotype win evCtl windowFrameE inputE = mdo
              (Port.WaitVSync $ not defvsync)
              (ffilter (\case VSyncToggle → True; _ → False) $
                leftmost [worldE, VSyncToggle <$ initE]))
+  sttsD            ← accumMaybeDyn (flip const) Port.defaultSettings $ (fmap Port.portSettings) <$> updated maybePortD
 
   maybePortD       ← Port.portCreate winD sttsE
   portFrameE       ← newPortFrame $ fmapMaybe id $ fst <$> attachPromptlyDyn maybePortD windowFrameE
 
   -- * Random data: stats
-  fpsValueD        ← fpsCounterD  $ snd <$> portFrameE
-  frameNoD ∷ Dynamic t Int
-                   ← count       portFrameE
-  statsValE        ← performEvent $ portFrameE <&> const HOS.gcKBytesUsed
-  statsValD        ← holdDyn 0 statsValE
+  fpsValueD        ← fpsCounterD $ snd <$> portFrameE
+  frameNoD         ← count portFrameE
+  statsValD        ← holdDyn 0 =<< performEvent (portFrameE <&> const HOS.gcKBytesUsed)
 
   -- * SCENE
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
   inputMux         ← routeInputEvent (InputEvent <$> ffilter (\case (U GLFW.EventMouseButton{}) → False; _ → True) inputE) clickedE subscriptionsD
   (,) subscriptionsD sceneD
-                   ← scene @(API t m) inputMux (constDyn Port.defaultSettings) statsValD frameNoD fpsValueD
+                   ← scene @(API t m) inputMux sttsD statsValD frameNoD fpsValueD
 
   -- * LAYOUT
   -- needs port because of DPI and fonts

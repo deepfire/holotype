@@ -30,4 +30,4 @@
 :set -XUnicodeSyntax
 :set -XViewPatterns
 
-:load HoloPrelude
+

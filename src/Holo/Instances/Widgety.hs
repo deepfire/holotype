@@ -9,6 +9,7 @@ import {-# SOURCE #-}
                  Holo.Classes
 import           Holo.Instances.As
 import           Holo.Instances.Mutable
+import           Holo.Port
 
 
 instance Widgety i ()
@@ -22,5 +23,6 @@ instance Widgety i Float
 instance Widgety i Int
 instance Widgety i Integer
 instance Widgety i Text
+instance Widgety i a ⇒ Widgety  i [a]
 
 instance Widgety i (Di (Unit PU))

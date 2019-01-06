@@ -35,11 +35,50 @@ instance {-# OVERLAPPABLE #-}
   , SOP.Generic a, SOP.HasDatatypeInfo a, SOP.Code a ~ xss
   , SOP.All2 (Present i) xss
   , HGLFW i t m
+  ) ⇒ Widgety i a where
+  dynWidget' tok voc da =
+    SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
+    (\_p _dti → pure 0)
+    (recoverFieldWidget (tok, voc, da))
+
+instance {-# OVERLAPPABLE #-}
+  (Typeable a
+  , SOP.Generic a, SOP.HasDatatypeInfo a, SOP.Code a ~ xss
+  , SOP.All2 (Present i) xss
+  , HGLFW i t m
   ) ⇒ Present i a where
   present mux voc initial =
     SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
     (\_p _dti → pure 0)
     (recoverFieldPresent (mux, voc, initial))
+  dynPresent mux voc da  =
+    SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
+    (\_px _dti→ pure 0)
+    (recoverFieldPresentDynamic (mux, voc, da))
+
+recoverFieldWidget ∷ ∀ i t m u f xss xs.
+  ( HGLFW i t m
+  , SOP.HasDatatypeInfo u, SOP.Code u ~ xss
+  , As TextLine, Present i Text
+  , Typeable f
+  , Present i f
+  )
+  ⇒ (Port.IdToken, Vocab i (Present i), Dynamic t u)
+  → ReadFieldT (Present i) i m u f xss xs
+recoverFieldWidget (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _fname proj = Comp $
+  let vocabErr (desc ∷ String) = error $ printf "Dynamic record lift/Widgety has no Desig for value of type %s (%s).\n%s" (show $ typeRep (Proxy @f)) desc (ppVocab voc)
+  in
+  case vocDesig (Proxy @f) voc of
+    Nothing        → vocabErr "Nothing"
+    Just (Denot _) → vocabErr "Just Denot"
+    Just (Desig      (_ ∷ n)) → do
+      W (sD,iD,vD) ← dynWidget' @i @(Denoted n) tok voc (forget ∘ proj <$> dRec)
+      ivD ← interpretate @i vD
+      pure $ W (sD,iD,ivD)
+    Just (DesigDenot (_ ∷ n)) → do
+      W (sD,iD,vD) ← dynWidget' tok voc (proj <$> dRec)
+      ivD ← interpretate @i vD
+      pure $ W (sD,iD,ivD)
 
 recoverFieldPresent ∷ ∀ i t m u a xss xs.
   ( HGLFW i t m
@@ -50,54 +89,32 @@ recoverFieldPresent ∷ ∀ i t m u a xss xs.
   )
   ⇒ (InputEventMux t, Vocab i (Present i), u)
   → ReadFieldT (Present i) i m u a xss xs
-recoverFieldPresent (mux, voc, initV ∷ u) _pC _ _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
-    tok ← liftIO $ Port.newId $ "record label '" <> pack fname <> "'"
-    let addLabel ""  x = x
-        addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Top (Denoted x))
-                                  ⇒ Port.IdToken → x → Denoted x → Blank i)
-                                tok TextLine (pack lab <> ": ")
-                              , x
-                              ]
-    mapWItem @i (addLabel fname) <$> present @i mux voc (proj initV)
+recoverFieldPresent (mux, voc, initV ∷ u) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
+  tok ← liftIO $ Port.newId $ "record label '" <> pack fname <> "'"
+  let addLabel ""  x = x
+      addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Top (Denoted x))
+                                ⇒ Port.IdToken → x → Denoted x → Blank i)
+                              tok TextLine (pack lab <> ": ")
+                            , x
+                            ]
+  mapWItem @i (addLabel fname) <$> present @i mux voc (proj initV)
 
--- instance {-# OVERLAPPABLE #-}
---   ( Typeable a
---   , SOP.Generic a, SOP.HasDatatypeInfo a, SOP.Code a ~ xss
---   , SOP.All2 Mutable      xss
---   , SOP.All2 (Present i) xss
---   , HGLFW i t m
---   ) ⇒ Present i a where
---   dynPresent = dynPresentStaticSubsRecord
-
--- recoverFieldWidgetyDynamic
---   ∷ ∀ i t m a f xss xs.
---     ( HasCallStack, Typeable f
---     , Named a, HGLFW i t m
---     , SOP.Generic a
---     , SOP.HasDatatypeInfo a
---     , SOP.Code a ~ xss, SOP.All2 (Present i) xss
---     )
---   ⇒ (InputEventMux t, Vocab i (Present i), Dynamic t a)
---   → ReadFieldT (Present i) i m a f xss xs
--- recoverFieldWidgetyDynamic (mux, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _finfo proj =
---   Comp $ do
---     let fieldD = proj <$> dRec
---         -- XXX:  face the need for dynPresent
---         vocabErr (desc ∷ String) = error $ printf "Dynamic record lift has no Denot for value of type %s (%s).\n%s" (show $ typeRep (Proxy @f)) desc (ppVocab voc)
---     case vocDenot (Proxy @f) voc of
---       Nothing        → vocabErr "Nothing"
---       Just (Desig _) → vocabErr "Just Desig"
---       Just (Denot _)      → present mux voc fieldD
---       Just (DesigDenot _) → present mux voc fieldD
-
--- dynPresentStaticSubsRecord ∷ ∀ i t m a xss.
---   ( HasCallStack, Named a, HGLFW i t m
---   , SOP.Generic a
---   , SOP.HasDatatypeInfo a
---   , SOP.Code a ~ xss, SOP.All2 (Present i) xss
---   )
---   ⇒ InputEventMux t → Vocab i (Present i) → Dynamic t a → m (Widget i a)
--- dynPresentStaticSubsRecord tok voc da =
---     SOP.unComp $ recover (Proxy @(Widgety i)) (Proxy @(i, a))
---       (\_px _dti→ pure 0)
---       (recoverFieldWidgetyDynamic (tok, voc, da))
+recoverFieldPresentDynamic
+  ∷ ∀ i t m a f xss xs.
+    ( HasCallStack, Typeable f
+    , Named a, HGLFW i t m
+    , SOP.Generic a
+    , SOP.HasDatatypeInfo a
+    , SOP.Code a ~ xss, SOP.All2 (Present i) xss
+    )
+  ⇒ (InputEventMux t, Vocab i (Present i), Dynamic t a)
+  → ReadFieldT (Present i) i m a f xss xs
+recoverFieldPresentDynamic (mux, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
+  tok ← liftIO $ Port.newId $ "record label '" <> pack fname <> "'"
+  let addLabel ""  x = x
+      addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Top (Denoted x))
+                                ⇒ Port.IdToken → x → Denoted x → Blank i)
+                              tok TextLine (pack lab <> ": ")
+                            , x
+                            ]
+  mapWItem @i (addLabel fname) <$> dynPresent @i mux voc (proj <$> dRec)

@@ -246,14 +246,17 @@ wValD  (W (_,_,x)) = x
 stripW ∷ Widget i a → WH i
 stripW (W (subs, item, _value)) = (subs, item)
 
-mapWSubs ∷ Reflex (APIt i) ⇒ (Subscription → Subscription) → Widget i b → Widget i b
-mapWSubs f (W (s,i,v)) = W (f <$> s,i,v)
+mapWSubs  ∷ Reflex (APIt i) ⇒ (Subscription → Subscription) → Widget i b → Widget i b
+mapWSubs  f (W (s,i,v)) = W (f <$> s,i,v)
 
-mapWItem ∷ Reflex (APIt i) ⇒ (Blank i → Blank i) → Widget i b → Widget i b
-mapWItem f (W (s,i,v)) = W (s,f <$> i,v)
+mapWItem  ∷ Reflex (APIt i) ⇒ (Blank i → Blank i) → Widget i b → Widget i b
+mapWItem  f (W (s,i,v)) = W (s,f <$> i,v)
 
-mapWVal  ∷ Reflex (APIt i) ⇒ (a → b) → Widget i a → Widget i b
-mapWVal  f (W (s,i,v)) = W (s,i,f <$> v)
+mapWVal   ∷ Reflex (APIt i) ⇒ (a → b) → Widget i a → Widget i b
+mapWVal   f (W (s,i,v)) = W (s,i,f <$> v)
+
+traceWVal ∷ (Reflex (APIt i), Show a) ⇒ String → Widget i a → Widget i a
+traceWVal m (W (s,i,v)) = W (s,i,traceDyn m v)
 
 instance Functor (Result i) where
   fmap f (W (subs, item, val)) = W (subs, item, f <$> val)
