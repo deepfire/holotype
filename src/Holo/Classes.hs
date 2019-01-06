@@ -29,7 +29,7 @@ import           Holo.Instances.Mutable
 import           Holo.Name
 import           Holo.Port                                (IdToken, Drawable)
 import           Holo.Prelude
-import           Holo.Widget2
+import           Holo.Widget
 
 
 -- * As -- assigning representation
@@ -93,7 +93,7 @@ class Interp (a ∷ Type) (b ∷ Type) where
 
 -- | Present:  Widgety with added interpretation
 --
-class (Typeable a) ⇒ Present i a where
+class (Typeable a) ⇒ Present (i ∷ Type) (a ∷ Type) where
   present  ∷ (HGLFW i t m, HasCallStack)
            ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
   present  = presentDef

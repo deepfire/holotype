@@ -1,7 +1,16 @@
 module Holo.Instances.Interp
 where
 
-import           Holo.Classes
+import           Data.Text                                (Text)
+import qualified Data.Text                         as T
+import           Linear.V2                                (V2(..))
+import           Prelude.Unicode
+import           Text.Read                                (readMaybe)
+
+import           Graphics.Flatland
+
+import {-# SOURCE #-}
+                 Holo.Classes
 import qualified Holo.Port                         as Port
 
 

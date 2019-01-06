@@ -16,7 +16,7 @@ import {-# SOURCE #-}
                  Holo.Name
 import           Holo.Port
 import {-# SOURCE #-}
-                 Holo.Widget2
+                 Holo.Widget
 
 class Typeable r ⇒ As r where
   type         Denoted r ∷ Type
@@ -62,4 +62,7 @@ class Interp (a ∷ Type) (b ∷ Type) where
   interp        ∷ a → Maybe b
   forget        ∷ b → a
 
-class (Typeable a) ⇒ Present i a
+class (Typeable a) ⇒ Present (i ∷ Type) (a ∷ Type) where
+  present  ∷ (HGLFW i t m, HasCallStack)
+           ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
+  present  = presentDef

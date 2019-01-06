@@ -14,11 +14,13 @@ data Phase
   | PLayout
   | PVisual
 
+type role Item nominal nominal
 data Item (c ∷ Type → Constraint) (p ∷ Phase)
 
 data KNode
 
-data Node c (k ∷ KNode) (p ∷ Phase)
+type role Node phantom nominal phantom
+data Node (c ∷ Type → Constraint) (k ∷ KNode) (p ∷ Phase)
 
 
 iNewToken ∷ (MonadIO m, Typeable a) ⇒ Proxy a → m Port.IdToken

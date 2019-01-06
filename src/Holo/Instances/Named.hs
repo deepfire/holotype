@@ -1,10 +1,13 @@
 module Holo.Instances.Named
 where
 
-import Graphics.Flatland
+import           Data.Text                                (Text)
 
-import Holo.Classes
+import           Graphics.Flatland
+
+import {-# SOURCE #-}
+                 Holo.Classes
 
 
-instance {-# OVERLAPPABLE #-} Holo.Named a
-instance {-# OVERLAPPABLE #-} Holo.Named Text
+instance {-# OVERLAPPABLE #-} Named a
+instance {-# OVERLAPPABLE #-} Named Text

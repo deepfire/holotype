@@ -8,11 +8,14 @@ where
 import           Data.Text                                (Text, pack)
 import           Data.Typeable
 import           Generics.SOP.Monadic
+import           Generics.SOP                             (Top)
 import qualified Generics.SOP                      as SOP
 import           Reflex
 
 import qualified Graphics.Cairo                    as Cr
 import           Holo.Instances
+import           Holo.Input
+import           Holo.Item
 import           Holo.Prelude
 import qualified Holo.Port                         as Port
 import           Holo.Widget
@@ -81,7 +84,7 @@ recoverFieldWidgetyDynamic (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _fi
     let fieldD = proj <$> dRec
         -- XXX:  face the need for dynPresent
         vocabErr (desc ∷ String) = error $ printf "Dynamic record lift has no Denot for value of type %s (%s).\n%s" (show $ typeRep (Proxy @f)) desc (ppVocab voc)
-    case Holo.vocDenot (Proxy @f) voc of
+    case vocDenot (Proxy @f) voc of
       Nothing        → vocabErr "Nothing"
       Just (Desig _) → vocabErr "Just Desig"
       Just (Denot _)      → dynWidget' tok voc fieldD

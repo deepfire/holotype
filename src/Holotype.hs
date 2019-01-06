@@ -62,20 +62,21 @@ import qualified Graphics.Flex                     as Flex
 import           Holo.Prelude                      hiding ((<>))
 import           Holo.Classes
 import           Holo.Instances
+import           Holo.Input
+import           Holo.Item
+import           Holo.Name
 import           Holo.Record
 import           Holo.Widget                              ( Vocab, Definition(..), desNDen, desDen, traceVocab
-                                                          , Vis
-                                                          , widget, dynWidget
-                                                          , Blank, InputEvent, InputEventMux, Item, Style(..), Sty, StyleGene(..), Subscription(..), VPort
-                                                          , Result(..), Widget, WH, liftPureDynamic, stripW
-                                                          , present)
+                                                          , dynWidget
+                                                          , Blank
+                                                          , Result(..), Widget, WH, liftPureDynamic, stripW, wValD)
 import qualified Holo.Widget                       as Widget
 import qualified Holo.Port                         as Port
 import           Holo.Port                                (Port(..), IdToken)
 import qualified Holo.System                       as HOS
 
 -- TEMPORARY
-import           Generics.SOP                             (Proxy)
+import           Generics.SOP                             (Proxy, Top)
 import qualified Generics.SOP                      as SOP
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 
@@ -105,7 +106,7 @@ routeInputEvent ∷ ∀ t m. (RGLFW t m)
            → Dynamic t Subscription      -- ^ The total mass of subscriptions
            → m (InputEventMux t)         -- ^ Global event wire for all IdTokens
 routeInputEvent inputE clickedE subsD = do
-  pickeD ← holdDyn Nothing $ Just ∘ Holo.inIdToken <$> clickedE -- Compute the latest focus (or just a mouse click)
+  pickeD ← holdDyn Nothing $ Just ∘ inIdToken <$> clickedE -- Compute the latest focus (or just a mouse click)
   -- XXX: filter the above on the left click -- as it stands any mouse button changes selection
   let fullInputE = leftmost [clickedE, inputE]
       inputsD = zipDynWith (,) pickeD (traceDyn "===== new subs: " subsD)
@@ -114,12 +115,12 @@ routeInputEvent inputE clickedE subsD = do
       routedE = routeSingle <$> attachPromptlyDyn inputsD fullInputE
       routeSingle ∷ ((Maybe IdToken, Subscription), InputEvent) → M.Map IdToken InputEvent
       routeSingle ((mClickOrPicked, Subscription ss), ev) =
-        let eventType = Holo.inputEventType ev
+        let eventType = inputEventType ev
         in case MMap.lookup eventType ss of
            Nothing         → mempty -- no-one cares about this type of events
            Just eventTypeSubscribers  →
-             let eventListenerSet ∷ Seq.Seq (IdToken, Holo.InputEventMask) =
-                   flip Seq.filter eventTypeSubscribers (flip Holo.inputMatch ev ∘ snd)
+             let eventListenerSet ∷ Seq.Seq (IdToken, InputEventMask) =
+                   flip Seq.filter eventTypeSubscribers (flip inputMatch ev ∘ snd)
              in case (eventType, trace ("routing: "<>show mClickOrPicked) mClickOrPicked, toList eventListenerSet) of
                   (_, _, []) → mempty -- no-one's event mask matches this event
                   -- --------------- here we need the click, not the accumulated pick
@@ -142,8 +143,8 @@ routeInputEvent inputE clickedE subsD = do
 --   let editE = select mux $ Const2 tokenV
 --   valD         ← liftDyn initialV editE
 --   setupE       ← getPostBuild
---   let holoE     = attachWith (Holo.leafStyled tokenV) styleB $ leftmost [updated valD, initialV <$ setupE]
---   holdDyn (initialV, Holo.emptyHolo) (attachPromptlyDyn valD holoE)
+--   let holoE     = attachWith (leafStyled tokenV) styleB $ leftmost [updated valD, initialV <$ setupE]
+--   holdDyn (initialV, emptyHolo) (attachPromptlyDyn valD holoE)
 --    <&> (,) editMaskKeys
 
 mkTextEntryValidatedStyleD ∷ ∀ i t m. HGLFW i t m ⇒ InputEventMux t → Behavior t (Style TextLine) → Text → (Text → Bool) → m (Result i Text)
@@ -166,7 +167,7 @@ vboxD chi = do
                       , zipDynWith (:) hb hbs ))
             (constDyn mempty, constDyn [])
             chi
-  pure $ (id *** (Holo.vbox <$>)) dyn
+  pure $ (id *** (vbox <$>)) dyn
 
 
 
@@ -324,10 +325,10 @@ scene eV sttsD statsValD frameNoD fpsValueD = mdo
   longStaticTextD  ← present @i eV (desDen @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
   -- The loop demo (currently incapacitated due to definition of mkTextEntryValidatedStyleD)
-  let fontNameStyle name = Holo.defSty (Proxy @TextLine) & tsFontKey .~ Cr.FK name
+  let fontNameStyle name = defSty (Proxy @TextLine) & tsFontKey .~ Cr.FK name
   styleNameD       ← mkTextEntryValidatedStyleD @i eV styleB "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-  styleD           ← trackStyle $ fontNameStyle <$> (traceDynWith show $ Holo.wValD styleNameD)
+  styleD           ← trackStyle $ fontNameStyle <$> (traceDynWith show $ wValD styleNameD)
   let styleB        = current styleD
 
   --
@@ -346,29 +347,17 @@ scene eV sttsD statsValD frameNoD fpsValueD = mdo
         , stripW varlenTextD
         ]
 
-instance Holo.Interp (a, a)  (V2 a) where
-  interp (x, y)   = Just (V2 x y)
-  forget (V2 x y) = (x, y)
 instance SOP.Generic         (V2 a)
 instance SOP.HasDatatypeInfo (V2 a)
 
 deriving instance Generic    (Di a)
-instance Holo.Interp (a, a)  (Di a) where
-  interp (x, y)        = Just (Di (V2 x y))
-  forget (Di (V2 x y)) = (x, y)
 instance SOP.Generic         (Di a)
 instance SOP.HasDatatypeInfo (Di a)
 
 deriving instance Generic    (Port.ScreenDim (Di a))
-instance Holo.Interp (a, a)  (Port.ScreenDim (Di a)) where
-  interp (x, y)        = Just (Port.ScreenDim (Di (V2 x y)))
-  forget (Port.ScreenDim (Di (V2 x y))) = (x, y)
 instance SOP.Generic         (Port.ScreenDim (Di a))
 instance SOP.HasDatatypeInfo (Port.ScreenDim (Di a))
 
-instance Holo.Interp Bool Port.WaitVSync where
-  interp = Just ∘ Port.WaitVSync
-  forget (Port.WaitVSync x) = x
 instance Present i Port.WaitVSync
 instance Widgety i Port.WaitVSync
 
@@ -437,17 +426,17 @@ holotype win evCtl windowFrameE inputE = mdo
 
   -- * SCENE
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
-  inputMux         ← routeInputEvent (Holo.InputEvent <$> ffilter (\case (U GLFW.EventMouseButton{}) → False; _ → True) inputE) clickedE subscriptionsD
+  inputMux         ← routeInputEvent (InputEvent <$> ffilter (\case (U GLFW.EventMouseButton{}) → False; _ → True) inputE) clickedE subscriptionsD
   (,) subscriptionsD sceneD
                    ← scene @(API t m) inputMux (constDyn Port.defaultSettings) statsValD frameNoD fpsValueD
 
   -- * LAYOUT
   -- needs port because of DPI and fonts
-  sceneQueriedE    ← performEvent $ (\(s, (p, _f))→ Holo.iSizeRequest p s) <$>
+  sceneQueriedE    ← performEvent $ (\(s, (p, _f))→ iSizeRequest p s) <$>
                      attachPromptlyDyn sceneD portFrameE
   sceneQueriedD    ← holdDyn mempty sceneQueriedE
 
-  let sceneLaidTreeD ∷ Dynamic t (Item Top Holo.PLayout)
+  let sceneLaidTreeD ∷ Dynamic t (Item Top PLayout)
       sceneLaidTreeD = Flex.layout (Size $ fromPU <$> di 800 600) <$> sceneQueriedD
 
   -- * RENDER
@@ -455,16 +444,16 @@ holotype win evCtl windowFrameE inputE = mdo
   drawnPortE       ← performEvent $ sceneDrawE <&>
                      \(tree, (,) port f@Port.Frame{..}) → do
                        -- let ppItem = \case
-                       --       x@Holo.Node{..} → "N: "<>Flex.ppItemArea x<>" ← "<>Flex.ppItemSize x<>" geoΔ: "<>Flex.ppdefGeoDiff (Holo.iGeo x)
-                       --       x@Holo.Leaf{..} → "L: "<>Flex.ppItemArea x<>" ← "<>Flex.ppItemSize x<>" geoΔ: "<>Flex.ppdefGeoDiff (Holo.iGeo x)
+                       --       x@Node{..} → "N: "<>Flex.ppItemArea x<>" ← "<>Flex.ppItemSize x<>" geoΔ: "<>Flex.ppdefGeoDiff (iGeo x)
+                       --       x@Leaf{..} → "L: "<>Flex.ppItemArea x<>" ← "<>Flex.ppItemSize x<>" geoΔ: "<>Flex.ppdefGeoDiff (iGeo x)
                        -- Flex.dump ppItem tree
-                       let leaves = Holo.treeLeaves tree
+                       let leaves = treeLeaves tree
                        -- liftIO $ printf "   leaves: %d\n" $ M.size leaves
                        Port.portGarbageCollectVisuals port leaves
-                       tree' ← Holo.ensureTreeVisuals port tree
+                       tree' ← ensureTreeVisuals port tree
                        -- XXX: 'render' is called every frame for everything
-                       Holo.renderTreeVisuals port tree'
-                       Holo.showTreeVisuals f tree'
+                       renderTreeVisuals port tree'
+                       showTreeVisuals f tree'
                        pure port
   drawnPortD       ← holdDyn Nothing $ Just <$> drawnPortE
 
@@ -475,16 +464,16 @@ holotype win evCtl windowFrameE inputE = mdo
                         (Just x, y)  → Just (x, y)
   clickedE          ← mousePointId $ (id *** (\(U x@GLFW.EventMouseButton{})→ x)) <$> pickE
   performEvent_ $ clickedE <&>
-    \Holo.ClickEvent{..}→ liftIO $ printf "pick=0x%x\n" (Port.tokenHash inIdToken)
+    \ClickEvent{..}→ liftIO $ printf "pick=0x%x\n" (Port.tokenHash inIdToken)
 
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
 
 mousePointId ∷ RGLFW t m ⇒ Event t (VPort, GLFW.Input 'GLFW.MouseButton) → m (Event t InputEvent)
-mousePointId ev = (ffilter ((≢ 0) ∘ Port.tokenHash ∘ Holo.inIdToken) <$>) <$>
+mousePointId ev = (ffilter ((≢ 0) ∘ Port.tokenHash ∘ inIdToken) <$>) <$>
                   performEvent $ ev <&> \(port@Port{..}, e@(GLFW.EventMouseButton _ _ _ _)) → do
                     (,) x y ← liftIO $ (GLFW.getCursorPos portWindow)
-                    Holo.ClickEvent e <$> (Port.portPick port $ floor <$> po x y)
+                    ClickEvent e <$> (Port.portPick port $ floor <$> po x y)
 
 
 

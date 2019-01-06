@@ -13,7 +13,8 @@ import           Graphics.Flatland
 import           Graphics.FlatDraw
 import           Graphics.Cairo                           (FKind(..))
 import qualified Graphics.Cairo                    as Cr
-import           Holo.Classes
+import {-# SOURCE #-}
+                 Holo.Classes
 import           Holo.Item
 import           Holo.Prelude
 import           Holo.Port                                (Drawable(..), Port(..), Settings(..))

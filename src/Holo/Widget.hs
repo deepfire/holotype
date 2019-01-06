@@ -1,37 +1,36 @@
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
 module Holo.Widget
-  ( module Holo.Classes
-  , module Holo.Item
-  --
-  , immutable
-  , InputEvent(..)
-  , inputEventType, inputMatch
-  , InputEventMask(..)
-  , inputMaskKeys, inputMaskButtons, inputMaskChars, editMaskKeys
-  , inputMaskClick, inputMaskClick1Press, inputMaskClick1Release
-  , Subscription(..), subSingleton
-  , InputEventMux
-  --
-  , Definition(..), Vocab(..)
-  , ppVocab, traceVocab
-  , desNDen, desDen
-  , vocDesig, vocDenot
-  --
-  , Widget, dynWidget
-  , WH, WF, wSubD, wItemD, wValD, stripW, mapWSubs, mapWItem, mapWVal
-  , Blank
-  , liftPureDynamic
-  --
-  , interpretate
+  -- ( module Holo.Classes
+  -- , module Holo.Item
+  -- --
+  -- , immutable
+  -- , InputEvent(..)
+  -- , inputEventType, inputMatch
+  -- , InputEventMask(..)
+  -- , inputMaskKeys, inputMaskButtons, inputMaskChars, editMaskKeys
+  -- , inputMaskClick, inputMaskClick1Press, inputMaskClick1Release
+  -- , Subscription(..), subSingleton
+  -- , InputEventMux
+  -- --
+  -- , Definition(..), Vocab(..)
+  -- , ppVocab, traceVocab
+  -- , desNDen, desDen
+  -- , vocDesig, vocDenot
+  -- --
+  -- , Widget, dynWidget
+  -- , WH, WF, wSubD, wItemD, wValD, stripW, mapWSubs, mapWItem, mapWVal
+  -- , Blank
+  -- , liftPureDynamic
+  -- --
+  -- , interpretate
 
-  -- * Re-exports
-  , Result(..)
-  , Frame(..)
-  )
+  -- -- * Re-exports
+  -- , Result(..)
+  -- , Frame(..)
+  -- )
 where
 
-import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Typeable
 import qualified Data.TypeMap.Dynamic              as TM
@@ -40,16 +39,13 @@ import           Generics.SOP.Monadic
 import           GHC.TypeLits
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW                              (RGLFW)
-import "GLFW-b"  Graphics.UI.GLFW                  as GL
-import qualified Data.Map.Monoidal.Strict          as MMap
-import qualified Data.Sequence                     as Seq
-import qualified Data.Set                          as Set
 import qualified Data.Text                         as T
-import qualified Reflex.GLFW                       as GLFW
 
 -- Local imports
+import           Graphics.Flex
 import {-# SOURCE #-}
                  Holo.Classes
+import           Holo.Instances()
 import           Holo.Input
 import {-# SOURCE #-}
                  Holo.Item
@@ -63,7 +59,7 @@ import           Holo.Prelude
 -- * The final type class assembly.
 --
 -- | Vocabulary stores two kinds of entries: interpretation
-data Definition i a where
+data Definition (i ∷ Type) (a ∷ Type) where
   Denot      ∷ (Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Widgety i a) ⇒             n → Definition i a
   Desig      ∷ (Typeable a, As n, Denoted n ~ b, Mutable b, Named b, Widgety i b, Interp b a) ⇒ n → Definition i a
   DesigDenot ∷ (Typeable a, As n, Denoted n ~ a, Mutable a, Named a, Widgety i a, Interp a a) ⇒ n → Definition i a
@@ -77,7 +73,7 @@ ppDefinition _p x = case x of
 -- | 'Vocab' establishes names for a bunch of types.
 newtype Vocab i c = Vocab (TM.TypeMap (HoloTag i))
 type instance              TM.Item    (HoloTag i) a = Definition i a
-data                                   HoloTag i
+data                                   HoloTag (i ∷ Type)
 
 ppVocab ∷ ∀ (i ∷ Type) c. Vocab i c → T.Text
 ppVocab (Vocab (tm ∷ TM.TypeMap (HoloTag i))) = T.intercalate "\n" $
@@ -129,7 +125,7 @@ newMutatedSeedWidget imux voc initial =
     Just (Desig _) → vocabErr "Just Desig"
     Just (Denot _ ∷ Definition i a) → do
       tok ← iNewToken $ Proxy @a
-      mut ← mutate ((forget ∷ Interp a a ⇒ a → a) initial) $ select imux $ Const2 tok
+      mut ← mutate ((forget ∷ a → a) initial) $ select imux $ Const2 tok
       dynWidget' tok voc mut
     Just (DesigDenot _ ∷ Definition i a) → do
       tok ← iNewToken $ Proxy @a
@@ -205,7 +201,7 @@ liftPureDynamic n da = do
 --
 type HGLFW i t m = (t ~ (APIt i), m ~ (APIm i), RGLFW t m)
 
-data API t m
+data API (t ∷ Type) (m ∷ Type → Type)
 
 type family APIt a ∷ Type where
   APIt (API t _) = t

@@ -1,9 +1,12 @@
 module Holo.Instances.Present
 where
 
-import Graphics.Flatland
+import           Data.Text                                (Text)
 
-import Holo.Classes
+import           Graphics.Flatland
+
+import {-# SOURCE #-}
+                 Holo.Classes
 
 
 instance Present i ()

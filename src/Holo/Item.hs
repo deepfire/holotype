@@ -170,7 +170,7 @@ data KNode
   = VBox
   | HBox
 
-data Node c (k ∷ KNode) (p ∷ Phase) where
+data Node  (c ∷ Type → Constraint) (k ∷ KNode) (p ∷ Phase) where
   -- Safety note: once Phase-dependent fields are added,
   -- make sure to update nodeName*to*
   HBoxN ∷ Node c HBox p

@@ -1,9 +1,14 @@
 module Holo.Instances.Widgety
 where
 
-import Graphics.Flatland
+import           Data.Text                                (Text)
 
-import Holo.Classes
+import           Graphics.Flatland
+
+import {-# SOURCE #-}
+                 Holo.Classes
+import           Holo.Instances.As
+import           Holo.Instances.Mutable
 
 
 instance Widgety i ()

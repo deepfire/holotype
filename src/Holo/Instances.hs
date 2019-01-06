@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-dodgy-exports #-}
 module Holo.Instances
   ( module Holo.Classes
 
@@ -11,11 +11,12 @@ module Holo.Instances
   )
 where
 
-import     Holo.Classes
+import {-# SOURCE #-}
+           Holo.Classes
 
 import     Holo.Instances.As
-import     Holo.Instances.Interp
+import     Holo.Instances.Interp    ()
 import     Holo.Instances.Mutable
-import     Holo.Instances.Named
-import     Holo.Instances.Present
-import     Holo.Instances.Widgety
+import     Holo.Instances.Named     ()
+import     Holo.Instances.Present   ()
+import     Holo.Instances.Widgety   ()
