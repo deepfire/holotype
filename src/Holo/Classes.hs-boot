@@ -63,7 +63,10 @@ class Interp (a ∷ Type) (b ∷ Type) where
   forget        ∷ b → a
 
 class (Typeable a) ⇒ Present (i ∷ Type) (a ∷ Type) where
+  dynPresent    ∷ (HGLFW i t m, HasCallStack)
+                ⇒ InputEventMux t → Vocab i (Present i) → Dynamic t a → m (Widget i a)
   present       ∷ (HGLFW i t m, HasCallStack)
                 ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
   --
+  dynPresent    = dynPresentDef
   present       = presentDef

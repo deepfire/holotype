@@ -67,9 +67,9 @@ import           Holo.Item
 import           Holo.Name
 import           Holo.Record
 import           Holo.Widget                              ( Vocab, Definition(..), desNDen, desDen, traceVocab
-                                                          , dynWidget
+                                                          , dynWidget, liftPureDynamic
                                                           , Blank
-                                                          , Result(..), Widget, WH, liftPureDynamic, stripW, wValD)
+                                                          , Result(..), Widget, WH, stripW, wValD)
 import qualified Holo.Widget                       as Widget
 import qualified Holo.Port                         as Port
 import           Holo.Port                                (Port(..), IdToken)
@@ -284,12 +284,12 @@ scene eV sttsD statsValD frameNoD fpsValueD = mdo
   --      2. liftWDynamic takes an already formed dynamic and turns into a visual
   --      3. ..yet it requires Holo, which insists on Mutable, which we don't care about..
   fpsD ∷ Widget i Text
-                   ← liftPureDynamic TextLine (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+                   ← dynPresent eV defVocab (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
   statsD ∷ Widget i Text
-                   ← liftPureDynamic TextLine $ statsValD <&>
+                   ← dynPresent eV defVocab $ statsValD <&>
                      \(mem)→ T.pack $ printf "mem: %d" mem
   lolD ∷ Widget i Text
-                   ← liftPureDynamic (Labelled ("mem", TextLine)) $ statsValD <&>
+                   ← dynPresent eV (desDen @Text $ Labelled ("mem", TextLine)) $ statsValD <&>
                      \(mem)→ T.pack $ printf "%d" mem
 
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
@@ -297,12 +297,12 @@ scene eV sttsD statsValD frameNoD fpsValueD = mdo
                    ← liftPureDynamic Rect rectDiD
 
   frameCountD ∷ Widget i Text
-                   ← liftPureDynamic TextLine $ T.pack ∘ printf "frame #%04d" <$> frameNoD
+                   ← dynPresent eV defVocab $ T.pack ∘ printf "frame #%04d" <$> frameNoD
   varlenTextD ∷ Widget i Text
-                   ← liftPureDynamic TextLine $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
+                   ← dynPresent eV defVocab $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
   doubleD ∷ Widget i Double
-                   ← present eV (desNDen @Double TextLine) 0
+                   ← present eV defVocab 0
 
   -- dimD ∷ Widget i (Double, Double)
   --                  ← liftW eV (X, (Labelled ("x", TextLine)

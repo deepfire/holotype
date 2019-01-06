@@ -178,12 +178,27 @@ interpretate dyn = scanDynMaybe (fromMaybe $ error $ "Cannot interpret initial v
                    const
                    (interp <$> dyn)
 
-
--- | Full lift pipeline: initial value to a widget.
---
--- ← default: immutable
--- ← default: liftDynWStaticSubs
--- → default: liftW
+dynPresentDef ∷ ∀ i a t m
+           . (HGLFW i t m, HasCallStack, Typeable a)
+           ⇒ InputEventMux t → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+dynPresentDef _mux voc da =
+  let vocabErr (desc ∷ String) = error $ printf "Lift has no Desig for value of type %s (%s).\n%s" (show $ typeRep (Proxy @a)) desc (ppVocab voc)
+  in
+  case vocDesig (Proxy @a) voc of
+    Nothing        → vocabErr "Nothing"
+    Just (Denot _) → vocabErr "Just Denot"
+    Just (Desig (n ∷ n) ∷ Definition i a) → do
+      tok ← iNewToken $ Proxy @a
+      let name = compName (Proxy @(Denoted n)) tok n
+      pure $ W ( constDyn $ subscription tok (Proxy @(Denoted n))
+               , leaf name ∘ forget <$> da
+               , da)
+    Just (DesigDenot (n ∷ n) ∷ Definition i a) → do
+      tok ← iNewToken $ Proxy @a
+      let name = compName (Proxy @a) tok n
+      pure $ W ( constDyn $ subscription tok (Proxy @a)
+               , leaf name <$> da
+               , da)
 
 liftPureDynamic ∷ ∀ i t m n a.
   (As n, Denoted n ~ a,            Named a, Widgety i a, HGLFW i t m)
