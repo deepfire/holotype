@@ -273,12 +273,3 @@ instance Reflex (APIt i) ⇒ Applicative (Result i) where
     (zipDynWith ((\fhb xhb→ xhb & children %~ (fhb :)))
                      fitem xitem)
     (zipDynWith ($)  fvals xvals)
-
-
-
--- * Concrete, minimal case, to keep us in check
---
-instance Semigroup (Item Top PBlank)  where _ <> _ = mempty
-instance Monoid    (Item Top PBlank)  where mempty = Leaf (Name blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
-instance Semigroup (Item Top PLayout) where _ <> _ = mempty
-instance Monoid    (Item Top PLayout) where mempty = Leaf (Name blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty

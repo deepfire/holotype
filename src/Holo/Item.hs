@@ -9,6 +9,7 @@ import           Data.Foldable
 import           Data.Maybe                               (fromMaybe)
 import           Data.Proxy                               (Proxy(..))
 import           Data.Typeable                            (Typeable, typeRep)
+import           Generics.SOP                             (Top)
 import           GHC.Stack                                (HasCallStack)
 import           GHC.Types                                (Constraint, Type)
 import           Linear                                   (zero)
@@ -75,6 +76,12 @@ data Item (c ∷ Type → Constraint) (p ∷ Phase) where
     , iSize       ∷ Di (Maybe Double) -- Flex input:  the desired size
     , iArea       ∷ Area'LU Double    -- Flex output: the resultant size + coords
     } → Item c p
+
+instance Semigroup (Item Top PBlank)  where _ <> _ = mempty
+instance Monoid    (Item Top PBlank)  where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
+
+instance Semigroup (Item Top PLayout) where _ <> _ = mempty
+instance Monoid    (Item Top PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
 
 iLeafP ∷ Item c p → Bool
 iLeafP = \case
