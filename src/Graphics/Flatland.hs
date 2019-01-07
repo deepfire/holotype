@@ -15,7 +15,7 @@ module Graphics.Flatland
   , An(..), an'val
   , An2(..), an2
   , Po(..), po, po'd, po'add, po'sub
-  , Di(..), di, di'd, di'v, unsafe'di
+  , Di(..), di, di'd, di'v, unsafe'di, diNothing
   , Wi(..), wi'val, He(..), he'val, Th(..), th'val
   , Pad(..), pad'val, Mgn(..), mgn'val
   , Co(..), co, coMult
@@ -313,19 +313,35 @@ instance Show a ⇒ Pretty (Po a) where pretty = text ∘ ("#<Po " <>) ∘ (<> "
 
 unsafe'di ∷ a → a → Di a
 unsafe'di x y = Di $ V2 x y
+{-# INLINE unsafe'di #-}
+
 di ∷ Wi a → He a  → Di a
 di  (Wi x) (He y) = Di $ V2 x y
+{-# INLINE di #-}
+
 po ∷ a → a → Po a
 po x y = Po $ V2 x y
+{-# INLINE po #-}
+
 rpo ∷ Floating a ⇒ R a → An a → RPo a
 rpo (R r) (An a) = RPo (mkPolar r a)
+{-# INLINE rpo #-}
+
 an2 ∷ a → a → An2 a
 an2 x y = An2 $ V2 x y
+{-# INLINE an2 #-}
+
 co ∷ a → a → a → a → Co a
 co r g b a = Co $ V4 r g b a
+{-# INLINE co #-}
+
+diNothing ∷ Di (Maybe a)
+diNothing = unsafe'di Nothing Nothing
+{-# INLINE diNothing #-}
 
 infinite ∷ Di Double
 infinite = Di $ V2  infinity infinity
+{-# INLINE infinite #-}
 
 po2rpo ∷ Po a → RPo a
 po2rpo (Po (V2 x y))  = RPo $ x :+ y
@@ -338,6 +354,8 @@ rotateRPo (An a) (RPo c) = RPo $ mkPolar (magnitude c) (phase c + a)
 po'add, po'sub ∷ Num a ⇒ V2 a → Po a → Po a
 po'add v _po = Po (_po'v _po ^+^ v)
 po'sub v _po = Po (_po'v _po ^-^ v)
+{-# INLINE po'add #-}
+{-# INLINE po'sub #-}
 
 poDelta ∷ Num a ⇒ Po a → Po a → Di a
 poDelta (Po v) (Po v') = Di $ v ^-^ v'

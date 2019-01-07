@@ -104,9 +104,6 @@ iStyleGene = \case
   Leaf{name=Name{..},..} → _sStyleGene nStyle
   Node{name=Name{..},..} → _sStyleGene nStyle
 
-diNothing ∷ Di (Maybe Double)
-diNothing = unsafe'di Nothing Nothing
-
 instance Eq (Item c a) where
   (==)    a b = iToken a ≡ iToken b
 

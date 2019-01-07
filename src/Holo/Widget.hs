@@ -42,6 +42,7 @@ import           Reflex.GLFW                              (RGLFW)
 import qualified Data.Text                         as T
 
 -- Local imports
+import           Graphics.Flatland                        (diNothing)
 import           Graphics.Flex
 import {-# SOURCE #-}
                  Holo.Classes
