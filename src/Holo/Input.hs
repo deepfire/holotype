@@ -21,7 +21,7 @@ import           Data.Functor.Misc                        (Const2(..))
 import           Data.Foldable                            (toList)
 import           Data.List                                (intercalate)
 import qualified Data.Text                         as T
-import qualified Data.Unique                       as U
+import qualified Data.IntUnique                    as U
 import           GHC.Stack                                (HasCallStack)
 import           Prelude.Unicode
 import           Reflex

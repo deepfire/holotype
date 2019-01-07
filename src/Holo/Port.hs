@@ -37,7 +37,7 @@ import qualified Data.List                         as L
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Text                         as T
 import qualified Data.TypeMap.Dynamic              as TM
-import qualified Data.Unique                       as U
+import qualified Data.IntUnique                    as U
 import qualified Data.Vect                         as Vc
 import qualified Data.Vector                       as V
 import qualified Data.Vector.Storable.ByteString   as B

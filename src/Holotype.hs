@@ -41,7 +41,7 @@ import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
 import qualified Data.Time.Clock                   as Time
 import qualified Data.TypeMap.Dynamic              as TM
-import qualified Data.Unique                       as U
+import qualified Data.IntUnique                    as U
 import qualified GHC.Generics                      as GHC
 import qualified Graphics.GL.Core33                as GL
 import qualified Options.Applicative               as Opt
