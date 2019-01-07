@@ -1,11 +1,28 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults #-}
 module Holo.Input
+  (
+  --
+    Sem, SemW, mkSem
+  --
+  , InputEvent(..)
+  , inputEventType
+  , InputEventMask
+  , inputMatch, inputMaskKeys, inputMaskChars, inputMaskButtons, inputMaskClick1Press, inputMaskClick1Release, editMaskKeys
+  --
+  , InputEventMux
+  , Subscription
+  , subSingleton, subsByType
+  )
 where
 
+import           Control.Monad.IO.Class
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Foldable                            (toList)
 import           Data.List                                (intercalate)
+import qualified Data.Text                         as T
+import qualified Data.Unique                       as U
+import           GHC.Stack                                (HasCallStack)
 import           Prelude.Unicode
 import           Reflex
 import           Text.Printf                              (printf)
@@ -16,6 +33,29 @@ import qualified Data.Set                          as Set
 import qualified Reflex.GLFW                       as GLFW
 
 import           Holo.Port                                (IdToken, tokenHash)
+
+
+-- * Sem
+--
+data Sem a where
+  Sem ∷
+    { semId   ∷ !U.Unique
+    , semDesc ∷ !T.Text
+    } → Sem a
+    deriving Eq
+
+data SemW = ∀ a. SemW { _fromSemW ∷ Sem a }
+
+instance Eq SemW where
+  SemW (Sem idA _) == SemW (Sem idB _) = idA ≡ idB
+
+instance Ord SemW where
+  SemW (Sem idA _) `compare` SemW (Sem idB _) = compare idA idB
+
+mkSem ∷ (HasCallStack, MonadIO m) ⇒ T.Text → m SemW
+mkSem semDesc = liftIO $ do
+  semId ← U.newUnique
+  pure $ SemW $ Sem{..}
 
 
 -- * InputEvent
