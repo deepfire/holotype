@@ -106,3 +106,6 @@ subSingleton ∷ IdToken → InputEventMask → Subscription
 subSingleton tok im@(InputEventMask em) = Subscription $
   MMap.fromList [ (evty, Seq.singleton (tok, im))
                 | evty ← GLFW.eventMaskTypes em ]
+
+subsByType ∷ Subscription → GLFW.EventType → Maybe (Seq.Seq (IdToken, InputEventMask))
+subsByType (Subscription ss) ty = MMap.lookup ty ss

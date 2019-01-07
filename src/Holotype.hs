@@ -34,7 +34,6 @@ import qualified Codec.Picture.Saving              as Juicy
 import qualified Control.Concurrent.STM            as STM
 import qualified Control.Monad.Ref
 import qualified Data.ByteString.Lazy              as B
-import qualified Data.Map.Monoidal.Strict          as MMap
 import qualified Data.Map.Strict                   as M
 import qualified Data.Sequence                     as Seq
 import qualified Data.Set                          as Set
@@ -114,9 +113,9 @@ routeInputEvent inputE clickedE subsD = do
       routedE ∷ Event t (M.Map IdToken InputEvent)
       routedE = routeSingle <$> attachPromptlyDyn inputsD fullInputE
       routeSingle ∷ ((Maybe IdToken, Subscription), InputEvent) → M.Map IdToken InputEvent
-      routeSingle ((mClickOrPicked, Subscription ss), ev) =
+      routeSingle ((mClickOrPicked, subs), ev) =
         let eventType = inputEventType ev
-        in case MMap.lookup eventType ss of
+        in case subsByType subs eventType of
            Nothing         → mempty -- no-one cares about this type of events
            Just eventTypeSubscribers  →
              let eventListenerSet ∷ Seq.Seq (IdToken, InputEventMask) =
