@@ -48,8 +48,7 @@ import {-# SOURCE #-}
                  Holo.Classes
 import           Holo.Instances()
 import           Holo.Input
-import {-# SOURCE #-}
-                 Holo.Item
+import           Holo.Item
 import {-# SOURCE #-}
                  Holo.Name
 import           Holo.Port

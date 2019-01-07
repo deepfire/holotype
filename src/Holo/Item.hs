@@ -1,6 +1,18 @@
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
 module Holo.Item
+  ( Phase(..)
+  , Item
+  , iNewToken, iSizeRequest
+  , leaf, defLeaf
+  , Node, KNode
+  , vbox, hbox
+  --
+  , treeLeaves
+  , ensureTreeVisuals
+  , renderTreeVisuals
+  , showTreeVisuals
+  )
 where
 
 import           Control.Monad.IO.Class
@@ -27,6 +39,7 @@ import           Tracer
 
 import {-# SOURCE #-}
                  Holo.Classes
+import           Holo.Instances.As()
 import {-# SOURCE #-}
                  Holo.Name
 import           Holo.Port                                (Frame, IdToken)
