@@ -42,7 +42,6 @@ import           Reflex.GLFW                              (RGLFW)
 import qualified Data.Text                         as T
 
 -- Local imports
-import           Graphics.Flatland                        (diNothing)
 import           Graphics.Flex
 import {-# SOURCE #-}
                  Holo.Classes
@@ -90,6 +89,7 @@ desNDen  n = Vocab $ TM.insert (Proxy @a) (Denot n)
 desDen ∷ ∀ a n i c. (As n, Denoted n ~ a, Mutable a, Named a, Widgety i a, Interp a a) ⇒ n → Vocab i c
 desDen   n = Vocab $ TM.insert (Proxy @a) (DesigDenot n) TM.empty
 
+-- XXX: consider inlining, since there's no users beyond mapDe*
 vocDenot ∷ Typeable a ⇒ Proxy a → Vocab i c → Maybe (Definition i a)
 vocDenot p (Vocab tm) = case TM.lookup p tm of
   Nothing               → Nothing
@@ -103,6 +103,27 @@ vocDesig  p (Vocab tm) = case TM.lookup p tm of
   Just (Denot        _) → Nothing
   Just d@(Desig      _) → Just d
   Just d@(DesigDenot _) → Just d
+
+vocErr ∷ Typeable a ⇒ Proxy a → Vocab i c → String → String → String → b
+vocErr pA v env miss desc = error $ printf "%s has no %s for value of type %s (%s).\n%s" env miss (show $ typeRep pA) desc (ppVocab v)
+
+mapDenot ∷ ∀ i a b. (HasCallStack, Typeable a) ⇒ Vocab i (Present i) → (∀ n. (As n, Denoted n ~ a, Mutable a, Named a, Widgety i a) ⇒ n → b) → b
+mapDenot v f =
+  let pA = Proxy @a
+  in case vocDenot pA v of
+       Nothing        → vocErr pA v "Lift" "Denot" "Nothing"
+       Just (Desig _) → vocErr pA v "Lift" "Denot" "Just Desig"
+       Just (Denot      n) → f n
+       Just (DesigDenot n) → f n
+
+mapDesig ∷ ∀ i a b. (HasCallStack, Typeable a) ⇒ Vocab i (Present i) → (∀ n c. (Typeable a, As n, Denoted n ~ c, Mutable c, Named c, Widgety i c, Interp c a) ⇒ n → b) → b
+mapDesig v f =
+  let pA = Proxy @a
+  in case vocDesig pA v of
+       Nothing        → vocErr pA v "Lift" "Desig" "Nothing"
+       Just (Denot _) → vocErr pA v "Lift" "Desig" "Just Denot"
+       Just (Desig      n) → f n
+       Just (DesigDenot n) → f n
 
 
 dynWidget
@@ -118,57 +139,43 @@ newMutatedSeedWidget
   . (HGLFW i t m, Typeable a, HasCallStack)
   ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
 newMutatedSeedWidget imux voc initial =
-  let vocabErr (desc ∷ String) = error $ printf "Lift has no Denot for value of type %s (%s).\n%s" (show $ typeRep (Proxy @a)) desc (ppVocab voc)
-  in
-  case vocDenot (Proxy @a) voc of
-    Nothing        → vocabErr "Nothing"
-    Just (Desig _) → vocabErr "Just Desig"
-    Just (Denot _ ∷ Definition i a) → do
-      tok ← iNewToken $ Proxy @a
-      mut ← mutate ((forget ∷ a → a) initial) $ select imux $ Const2 tok
-      dynWidget' tok voc mut
-    Just (DesigDenot _ ∷ Definition i a) → do
-      tok ← iNewToken $ Proxy @a
-      mut ← mutate (forget initial) $ select imux $ Const2 tok
-      dynWidget' tok voc mut
+  mapDenot @i @a voc
+  \_→ do
+    tok ← iNewToken $ Proxy @a
+    mut ← mutate (forget initial) $ select imux $ Const2 tok
+    dynWidget' tok voc mut
 
 dynWidgetStaticSubs ∷ ∀ i t m a.
   (Typeable a, Mutable a, Named a, HGLFW i t m)
   ⇒ IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
 dynWidgetStaticSubs tok voc da =
-  let vocabErr (desc ∷ String) = error $ printf "Lift has no Denot for value of type %s (%s).\n%s" (show $ typeRep (Proxy @a)) desc (ppVocab voc)
-  in
-  case vocDenot (Proxy @a) voc of
-    Nothing        → vocabErr "Nothing"
-    Just (Desig _) → vocabErr "Just Desig"
-    Just (Denot n ∷ Definition i a) → do
-      let name = compName (Proxy @a) tok n
-      pure $ W ( constDyn $ subscription tok (Proxy @a)
-               , leaf name <$> da
-               , da)
-    Just (DesigDenot n ∷ Definition i a) → do
-      let name = compName (Proxy @a) tok n
-      pure $ W ( constDyn $ subscription tok (Proxy @a)
-               , leaf name <$> da
-               , da)
+  mapDenot @i @a voc
+  \n→ let name = compName (Proxy @a) tok n
+      in pure $ W ( constDyn $ subscription tok (Proxy @a)
+                    , leaf name <$> da
+                    , da)
 
 presentDef ∷ ∀ i a t m
            . (HGLFW i t m, HasCallStack, Typeable a)
            ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
 presentDef mux voc seed =
-  let vocabErr (desc ∷ String) = error $ printf "Lift has no Desig for value of type %s (%s).\n%s" (show $ typeRep (Proxy @a)) desc (ppVocab voc)
-  in
-  case vocDesig (Proxy @a) voc of
-    Nothing        → vocabErr "Nothing"
-    Just (Denot _) → vocabErr "Just Denot"
-    Just (Desig (_ ∷ n) ∷ Definition i a) → do
-      W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
-      ivD ← interpretate @i vD
-      pure $ W (sD,iD,ivD)
-    Just (DesigDenot (_ ∷ n) ∷ Definition i a) → do
-      W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
-      ivD ← interpretate @i vD
-      pure $ W (sD,iD,ivD)
+  mapDesig @i @a voc
+  \(_ ∷ n)→ do
+    W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
+    ivD ← interpretate @i vD
+    pure $ W (sD,iD,ivD)
+
+dynPresentDef ∷ ∀ i a t m
+           . (HGLFW i t m, HasCallStack, Typeable a)
+           ⇒ InputEventMux t → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+dynPresentDef _mux voc da =
+  mapDesig @i @a voc
+  \(n ∷ n)→ do
+    tok ← iNewToken $ Proxy @a
+    let name = compName (Proxy @(Denoted n)) tok n
+    pure $ W ( constDyn $ subscription tok (Proxy @(Denoted n))
+             , leaf name ∘ forget <$> da
+             , da)
 
 -- | Interpretation from the Denoted type and widget creation.
 interpretate ∷ ∀ i t m a b.
@@ -177,28 +184,6 @@ interpretate ∷ ∀ i t m a b.
 interpretate dyn = scanDynMaybe (fromMaybe $ error $ "Cannot interpret initial value into type " <> show (typeRep $ Proxy @b))
                    const
                    (interp <$> dyn)
-
-dynPresentDef ∷ ∀ i a t m
-           . (HGLFW i t m, HasCallStack, Typeable a)
-           ⇒ InputEventMux t → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-dynPresentDef _mux voc da =
-  let vocabErr (desc ∷ String) = error $ printf "Lift has no Desig for value of type %s (%s).\n%s" (show $ typeRep (Proxy @a)) desc (ppVocab voc)
-  in
-  case vocDesig (Proxy @a) voc of
-    Nothing        → vocabErr "Nothing"
-    Just (Denot _) → vocabErr "Just Denot"
-    Just (Desig (n ∷ n) ∷ Definition i a) → do
-      tok ← iNewToken $ Proxy @a
-      let name = compName (Proxy @(Denoted n)) tok n
-      pure $ W ( constDyn $ subscription tok (Proxy @(Denoted n))
-               , leaf name ∘ forget <$> da
-               , da)
-    Just (DesigDenot (n ∷ n) ∷ Definition i a) → do
-      tok ← iNewToken $ Proxy @a
-      let name = compName (Proxy @a) tok n
-      pure $ W ( constDyn $ subscription tok (Proxy @a)
-               , leaf name <$> da
-               , da)
 
 liftPureDynamic ∷ ∀ i t m n a.
   (As n, Denoted n ~ a,            Named a, Widgety i a, HGLFW i t m)

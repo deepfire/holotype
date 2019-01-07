@@ -66,17 +66,9 @@ recoverFieldWidget ∷ ∀ i t m u f xss xs.
   ⇒ (Port.IdToken, Vocab i (Present i), Dynamic t u)
   → ReadFieldT (Present i) i m u f xss xs
 recoverFieldWidget (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _fname proj = Comp $
-  let vocabErr (desc ∷ String) = error $ printf "Dynamic record lift/Widgety has no Desig for value of type %s (%s).\n%s" (show $ typeRep (Proxy @f)) desc (ppVocab voc)
-  in
-  case vocDesig (Proxy @f) voc of
-    Nothing        → vocabErr "Nothing"
-    Just (Denot _) → vocabErr "Just Denot"
-    Just (Desig      (_ ∷ n)) → do
+  mapDesig @i @f voc
+  \(_ ∷ n)→ do
       W (sD,iD,vD) ← dynWidget' @i @(Denoted n) tok voc (forget ∘ proj <$> dRec)
-      ivD ← interpretate @i vD
-      pure $ W (sD,iD,ivD)
-    Just (DesigDenot (_ ∷ n)) → do
-      W (sD,iD,vD) ← dynWidget' tok voc (proj <$> dRec)
       ivD ← interpretate @i vD
       pure $ W (sD,iD,ivD)
 
