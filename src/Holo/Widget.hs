@@ -134,21 +134,21 @@ dynWidget voc dyn = do
   tok ← iNewToken $ Proxy @a
   dynWidget' tok voc dyn
 
-newMutatedSeedWidget
+widgetDef
   ∷ ∀ i t m a
   . (HGLFW i t m, Typeable a, HasCallStack)
   ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
-newMutatedSeedWidget imux voc initial =
+widgetDef imux voc initial =
   mapDenot @i @a voc
   \_→ do
     tok ← iNewToken $ Proxy @a
     mut ← mutate (forget initial) $ select imux $ Const2 tok
     dynWidget' tok voc mut
 
-dynWidgetStaticSubs ∷ ∀ i t m a.
+dynWidget'Def ∷ ∀ i t m a.
   (Typeable a, Mutable a, Named a, HGLFW i t m)
   ⇒ IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-dynWidgetStaticSubs tok voc da =
+dynWidget'Def tok voc da =
   mapDenot @i @a voc
   \n→ let name = compName (Proxy @a) tok n
       in pure $ W ( constDyn $ subscription tok (Proxy @a)

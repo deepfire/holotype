@@ -80,8 +80,8 @@ class (Typeable a) ⇒ Widgety (i ∷ Type) (a ∷ Type) where
   default dynWidget'
                ∷ (HGLFW i t m, Mutable a, Named a)
                ⇒         IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-  dynWidget'   = dynWidgetStaticSubs
-  widget       = newMutatedSeedWidget
+  dynWidget'   = dynWidget'Def
+  widget       = widgetDef
 
 
 -- | Interp: assigning interpretation
