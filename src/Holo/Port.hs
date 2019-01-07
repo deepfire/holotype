@@ -34,6 +34,7 @@ import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
 import qualified Data.IORef                        as IO
 import qualified Data.List                         as L
+import qualified Data.IntMap.Strict                as IntMap
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Text                         as T
 import qualified Data.TypeMap.Dynamic              as TM
@@ -539,6 +540,7 @@ instance Show IdToken where
 
 fromIdToken ∷ IdToken → U.Unique
 fromIdToken = fromIdToken'
+{-# INLINE fromIdToken #-}
 
 newId ∷ (HasCallStack, MonadIO m) ⇒ T.Text → m IdToken
 newId desc = liftIO $ do
@@ -556,13 +558,14 @@ blankIdToken       = IO.unsafePerformIO $ IO.readIORef blankIdToken'
 
 tokenHash ∷ IdToken → Int
 tokenHash = U.hashUnique ∘ fromIdToken
+{-# INLINE tokenHash #-}
 
 data IdTokenMap f
 
 data CTIMap f a where
   CTIMap ∷ c a ⇒
     { ctimCstr ∷ Proxy (c ∷ Type → Constraint)
-    , ctimMap  ∷ Map.Map IdToken (f a)
+    , ctimMap  ∷ IntMap.IntMap (f a)
     } → CTIMap f a
 
 type instance TM.Item (IdTokenMap f) a = CTIMap f a
@@ -586,8 +589,8 @@ tiMapAdd ∷ (Typeable a, MonadIO m, c a)
   → m ()
 tiMapAdd pC pA k v (TyIdMap tm) = liftIO $ STM.atomically $ STM.modifyTVar' tm $
   \tm → TM.insert pA (case TM.lookup pA tm of
-                        Nothing             → CTIMap pC $ Map.singleton k v
-                        Just (CTIMap _ idm) → CTIMap pC $ Map.insert    k v idm)
+                        Nothing             → CTIMap pC $ IntMap.singleton (tokenHash k) v
+                        Just (CTIMap _ idm) → CTIMap pC $ IntMap.insert    (tokenHash k) v idm)
         tm
 
 tiMapReplace ∷ (MonadIO m) ⇒ TyIdMap f → TM.TypeMap (IdTokenMap f) → m ()
@@ -620,7 +623,7 @@ portEnsureVisual Port{..} newDim@(Di (V2 newW newH)) hiC hitok pHi keepTest hif 
     TyIdMap _ → do
       tm ← tiMapAccess portVisualTracker
       (vis ∷ f x, updated ∷ Bool)
-        ← case join $ Map.lookup hitok ∘ ctimMap <$> TM.lookup pHi tm of
+        ← case join $ IntMap.lookup (tokenHash hitok) ∘ ctimMap <$> TM.lookup pHi tm of
             Nothing → do
               trev MISSALLOC VIS (newW, newH) (tokenHash hitok)
               (,True) <$> (hif =<< makeDrawable portObjectStream hitok newDim)
@@ -643,16 +646,16 @@ class PortVisual f where
   pvDrawable    ∷ f a → Drawable
   pvFree        ∷ (MonadIO m, c a) ⇒ Proxy c → Proxy a → f a → m ()
 
-portGarbageCollectVisuals ∷ ∀ m f a. (MonadIO m, PortVisual f) ⇒ Port f → Map.Map IdToken a → m ()
+portGarbageCollectVisuals ∷ ∀ m f a. (MonadIO m, PortVisual f) ⇒ Port f → IntMap.IntMap a → m ()
 portGarbageCollectVisuals Port{..} validLeaves = do
   case portVisualTracker of
     TyIdMap _ → do
       tm ← tiMapAccess portVisualTracker
       let gcTM ∷ Proxy b -> CTIMap f b -> m (CTIMap f b)
           gcTM _pA (CTIMap pC vismap) = do
-            let used   = Map.intersection vismap validLeaves
-                unused = Map.difference   vismap used
-            _ ← flip Map.traverseWithKey unused $ \_tok pv→ do
+            let used   = IntMap.intersection vismap validLeaves
+                unused = IntMap.difference   vismap used
+            _ ← flip IntMap.traverseWithKey unused $ \_tok pv→ do
               pvFree pC Proxy pv
               -- flip (trev FREE VIS (tokenHash k)) $
               --   case vDrawable of

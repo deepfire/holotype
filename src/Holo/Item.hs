@@ -14,7 +14,7 @@ import           GHC.Types                                (Constraint, Type)
 import           Linear                                   (zero)
 import           Numeric.Extra                            (doubleToFloat)
 import           Prelude.Unicode
-import qualified Data.Map                          as Map
+import qualified Data.IntMap                       as IntMap
 import qualified Unsafe.Coerce                     as Co
 
 import           Elsewhere
@@ -232,10 +232,10 @@ defLeaf tok a denoted = leaf (defName tok a) denoted
 
 -- * Tree-wise ops
 --
-treeLeaves ∷ Item c a → Map.Map IdToken (Item c a)
-treeLeaves root = Map.fromList $ walk root
-  where walk ∷ Item c a → [(IdToken, Item c a)]
-        walk x@Leaf{..} = [(iToken x, x)]
+treeLeaves ∷ Item c a → IntMap.IntMap (Item c a)
+treeLeaves root = IntMap.fromList $ walk root
+  where walk ∷ Item c a → [(Int, Item c a)]
+        walk x@Leaf{..} = [(Port.tokenHash $ iToken x, x)]
         walk   Node{..} = concat $ walk <$> denoted
 
 ensureTreeVisuals ∷ (MonadIO m) ⇒ VPort → Item c PLayout → m (Item c PVisual)

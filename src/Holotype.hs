@@ -354,7 +354,7 @@ parseOptions =
   <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
 
 holdDynMaybe ∷ (Reflex t, MonadHold t m, MonadFix m) ⇒ a → Event t (Maybe a) -> m (Dynamic t a)
-holdDynMaybe init ev = accumMaybeDyn (\_old mNew→ mNew) init ev
+holdDynMaybe initial ev = accumMaybeDyn (\_old mNew→ mNew) initial ev
 
 -- * Top level network
 --
