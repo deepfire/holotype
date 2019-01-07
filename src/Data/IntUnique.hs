@@ -39,7 +39,7 @@ import Data.IORef
  -- :}
  -- True
  -- False
- 
+
 newtype Unique = Unique Int deriving (Eq,Ord)
 
 uniqSource :: IORef Int
@@ -49,7 +49,7 @@ uniqSource = unsafePerformIO (newIORef 0)
 -- | Creates a new object of type 'Unique'.  The value returned will
 -- not compare equal to any other value of type 'Unique' returned by
 -- previous calls to 'newUnique'.  The Int overflow is the limit on
--- the number of valid 'newUnique' calls.  
+-- the number of valid 'newUnique' calls.
 newUnique :: IO Unique
 newUnique = do
   r <- atomicModifyIORef' uniqSource $ \x -> let z = x+1 in (z,z)

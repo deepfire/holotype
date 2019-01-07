@@ -9,7 +9,7 @@ import           GHC.TypeLits
 import           Reflex                                   (Dynamic)
 import           Reflex.GLFW                              (RGLFW)
 
-import           Holo.Input                               (Subscription)
+import           Holo.Input                               (AElt, SemSubs, Subscription)
 import {-# SOURCE #-}
                  Holo.Item
 
@@ -36,7 +36,7 @@ type family APIm a ∷ (Type → Type) where
   APIm (API _ m) = m
   APIm _         = TypeError ('Text "APIm on non-API.")
 
-type WH        i   = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
-type WF        i b = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
+type WH      i   = (AElt, SemSubs → Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
+type WF      i b = (AElt, SemSubs → Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
 
-type Widget    i b = Result i b
+type Widget  i b = Result i b

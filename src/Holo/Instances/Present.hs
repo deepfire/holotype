@@ -3,10 +3,12 @@ where
 
 import           Data.Text                                (Text)
 
+import qualified Graphics.Cairo                    as Cr
 import           Graphics.Flatland
 
 import {-# SOURCE #-}
                  Holo.Classes
+import qualified Holo.Port                         as Port
 
 
 
@@ -23,3 +25,9 @@ instance Present i Int
 instance Present i Integer
 instance Present i Text
 instance Present i a ⇒ Present  i [a]
+
+instance Present i (Cr.FaceName)
+instance Present i (Cr.FamilyName)
+instance Present i (Cr.FontAlias)
+instance Present i (Cr.FontKey)
+instance Present i (Port.ScreenMode)

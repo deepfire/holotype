@@ -1,7 +1,7 @@
 module Holo.Item
 where
 
-import           Control.Monad.IO.Class                   (MonadIO) 
+import           Control.Monad.IO.Class                   (MonadIO)
 import           Data.Kind                                (Constraint, Type)
 import           Data.Proxy                               (Proxy)
 import           Data.Typeable                            (Typeable)

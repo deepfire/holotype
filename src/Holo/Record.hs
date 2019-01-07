@@ -36,10 +36,10 @@ instance {-# OVERLAPPABLE #-}
   , SOP.All2 (Present i) xss
   , HGLFW i t m
   ) ⇒ Widgety i a where
-  dynWidget' tok voc da =
+  dynWidget' lbs input tok voc da =
     SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
     (\_p _dti → pure 0)
-    (recoverFieldWidget (tok, voc, da))
+    (recoverFieldWidget (lbs, input, tok, voc, da))
 
 instance {-# OVERLAPPABLE #-}
   (Typeable a
@@ -47,14 +47,14 @@ instance {-# OVERLAPPABLE #-}
   , SOP.All2 (Present i) xss
   , HGLFW i t m
   ) ⇒ Present i a where
-  present mux voc initial =
+  present lbs input voc initial =
     SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
     (\_p _dti → pure 0)
-    (recoverFieldPresent (mux, voc, initial))
-  dynPresent mux voc da  =
+    (recoverFieldPresent (lbs, input, voc, initial))
+  dynPresent lbs input voc da  =
     SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
     (\_px _dti→ pure 0)
-    (recoverFieldPresentDynamic (mux, voc, da))
+    (recoverFieldPresentDynamic (lbs, input, voc, da))
 
 recoverFieldWidget ∷ ∀ i t m u f xss xs.
   ( HGLFW i t m
@@ -63,14 +63,15 @@ recoverFieldWidget ∷ ∀ i t m u f xss xs.
   , Typeable f
   , Present i f
   )
-  ⇒ (Port.IdToken, Vocab i (Present i), Dynamic t u)
+  ⇒ (LBinds, Input t, Port.IdToken, Vocab i (Present i), Dynamic t u)
   → ReadFieldT (Present i) i m u f xss xs
-recoverFieldWidget (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo _fname proj = Comp $
+recoverFieldWidget (lbs@(LBinds (_as, _own, chibinds)), input, tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $
   mapDesig @i @f voc
   \(_ ∷ n)→ do
-      W (sD,iD,vD) ← dynWidget' @i @(Denoted n) tok voc (forget ∘ proj <$> dRec)
+      let chiLBS@(LBinds (_, subs, _)) = childBinds lbs (AElt $ pack fname)
+      Widget' (ae, sDf,iD,vD) ← dynWidget' @i @(Denoted n) chiLBS input tok voc (forget ∘ proj <$> dRec)
       ivD ← interpretate @i vD
-      pure $ W (sD,iD,ivD)
+      pure $ Widget' (ae, const $ sDf subs,iD,ivD)
 
 recoverFieldPresent ∷ ∀ i t m u a xss xs.
   ( HGLFW i t m
@@ -79,17 +80,21 @@ recoverFieldPresent ∷ ∀ i t m u a xss xs.
   , Typeable a
   , Present i a
   )
-  ⇒ (InputEventMux t, Vocab i (Present i), u)
+  ⇒ (LBinds, Input t, Vocab i (Present i), u)
   → ReadFieldT (Present i) i m u a xss xs
-recoverFieldPresent (mux, voc, initV ∷ u) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
-  tok ← liftIO $ Port.newId $ "record label '" <> pack fname <> "'"
+recoverFieldPresent (lbs, input, voc, initV ∷ u) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
+  let fname' = pack fname
+  tok ← liftIO $ Port.newId $ "record label '" <> fname' <> "'"
   let addLabel ""  x = x
       addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Top (Denoted x))
                                 ⇒ Port.IdToken → x → Denoted x → Blank i)
                               tok TextLine (pack lab <> ": ")
                             , x
                             ]
-  mapWItem @i (addLabel fname) <$> present @i mux voc (proj initV)
+      chiLBS@(LBinds (_, subs, _)) = childBinds lbs (AElt $ pack fname)
+  Widget' (ae, subsF, item, val) ←  present @i chiLBS input voc (proj initV)
+  pure $ Widget' (ae, const $ subsF subs, addLabel fname <$> item, val)
+
 
 recoverFieldPresentDynamic
   ∷ ∀ i t m a f xss xs.
@@ -99,14 +104,17 @@ recoverFieldPresentDynamic
     , SOP.HasDatatypeInfo a
     , SOP.Code a ~ xss, SOP.All2 (Present i) xss
     )
-  ⇒ (InputEventMux t, Vocab i (Present i), Dynamic t a)
+  ⇒ (LBinds, Input t, Vocab i (Present i), Dynamic t a)
   → ReadFieldT (Present i) i m a f xss xs
-recoverFieldPresentDynamic (mux, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
-  tok ← liftIO $ Port.newId $ "record label '" <> pack fname <> "'"
+recoverFieldPresentDynamic (lbs, input, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
+  let fname' = pack fname
+  tok ← liftIO $ Port.newId $ "record label '" <> fname' <> "'"
   let addLabel ""  x = x
       addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Top (Denoted x))
                                 ⇒ Port.IdToken → x → Denoted x → Blank i)
                               tok TextLine (pack lab <> ": ")
                             , x
                             ]
-  mapWItem @i (addLabel fname) <$> dynPresent @i mux voc (proj <$> dRec)
+      chiLBS@(LBinds (_, subs, _)) = childBinds lbs (AElt $ pack fname)
+  Widget' (ae, subsF, item, val) ←  dynPresent @i chiLBS input voc (proj <$> dRec)
+  pure $ Widget' (ae, const $ subsF subs, addLabel fname <$> item, val)

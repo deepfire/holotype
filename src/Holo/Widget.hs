@@ -126,56 +126,59 @@ mapDesig v f =
        Just (DesigDenot n) → f n
 
 
-dynWidget
-  ∷ ∀ i t m a
-  . (HasCallStack, HGLFW i t m, Named a, Widgety i a)
-  ⇒ Vocab i (Present i) → Dynamic t a → m (Widget i a)
-dynWidget voc dyn = do
-  tok ← iNewToken $ Proxy @a
-  dynWidget' tok voc dyn
-
 widgetDef
   ∷ ∀ i t m a
   . (HGLFW i t m, Typeable a, HasCallStack)
-  ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
-widgetDef imux voc initial =
+  ⇒ LBinds → Input t → Vocab i (Present i) → a → m (Widget i a)
+widgetDef lbs input voc initial =
   mapDenot @i @a voc
   \_→ do
     tok ← iNewToken $ Proxy @a
-    mut ← mutate (forget initial) $ select imux $ Const2 tok
-    dynWidget' tok voc mut
+    mut ← mutate (forget initial) $ select (inMux input) $ Const2 tok
+    dynWidget' lbs input tok voc mut
 
 dynWidget'Def ∷ ∀ i t m a.
   (Typeable a, Mutable a, Named a, HGLFW i t m)
-  ⇒ IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-dynWidget'Def tok voc da =
+  ⇒ LBinds → Input t → IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+dynWidget'Def lbs input tok voc da =
   mapDenot @i @a voc
   \n→ let name = compName (Proxy @a) tok n
-      in pure $ W ( constDyn $ subscription tok (Proxy @a)
-                    , leaf name <$> da
-                    , da)
+      in pure $ Widget' ( lbsAE lbs
+                        , \subs→ (subscription tok (Proxy @a) <>) <$> resolveSubs input tok subs
+                        , leaf name <$> da
+                        , da)
+
+dynWidget
+  ∷ ∀ i t m a
+  . (HasCallStack, HGLFW i t m, Named a, Widgety i a)
+  ⇒ LBinds → Input t → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+dynWidget lbs input voc dyn = do
+  tok ← iNewToken $ Proxy @a
+  dynWidget' lbs input tok voc dyn
 
 presentDef ∷ ∀ i a t m
-           . (HGLFW i t m, HasCallStack, Typeable a)
-           ⇒ InputEventMux t → Vocab i (Present i) → a → m (Widget i a)
-presentDef mux voc seed =
+  . (HGLFW i t m, HasCallStack, Typeable a)
+  ⇒ LBinds → Input t → Vocab i (Present i) → a → m (Widget i a)
+presentDef lbs input voc seed =
   mapDesig @i @a voc
   \(_ ∷ n)→ do
-    W (sD,iD,vD) ← widget @i @(Denoted n) mux voc (forget seed)
+    Widget' (_, sD,iD,vD) ← widget @i @(Denoted n) lbs input voc (forget seed)
     ivD ← interpretate @i vD
-    pure $ W (sD,iD,ivD)
+    pure $ Widget' (lbsAE lbs, sD,iD,ivD)
 
 dynPresentDef ∷ ∀ i a t m
-           . (HGLFW i t m, HasCallStack, Typeable a)
-           ⇒ InputEventMux t → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-dynPresentDef _mux voc da =
+  . (HGLFW i t m, HasCallStack, Typeable a)
+  ⇒ LBinds → Input t → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+dynPresentDef lbs input voc da =
   mapDesig @i @a voc
   \(n ∷ n)→ do
     tok ← iNewToken $ Proxy @a
     let name = compName (Proxy @(Denoted n)) tok n
-    pure $ W ( constDyn $ subscription tok (Proxy @(Denoted n))
-             , leaf name ∘ forget <$> da
-             , da)
+    pure $ Widget'
+      ( lbsAE lbs
+      , \subs→ (subscription tok (Proxy @(Denoted n)) <>) <$> resolveSubs input tok subs
+      , leaf name ∘ forget <$> da
+      , da)
 
 -- | Interpretation from the Denoted type and widget creation.
 interpretate ∷ ∀ i t m a b.
@@ -187,14 +190,15 @@ interpretate dyn = scanDynMaybe (fromMaybe $ error $ "Cannot interpret initial v
 
 liftPureDynamic ∷ ∀ i t m n a.
   (As n, Denoted n ~ a,            Named a, Widgety i a, HGLFW i t m)
-  ⇒ n → Dynamic t a → m (Widget i a)
-liftPureDynamic n da = do
+  ⇒ LBinds → n → Dynamic t a → m (Widget i a)
+liftPureDynamic lbs n da = do
   tok ← iNewToken $ Proxy @a
   let name ∷ Name n = compName (Proxy @a) tok n
   int ← interpretate @i da
-  pure $ W ( constDyn mempty
-           , leaf name <$> da
-           , int)
+  pure $ Widget' ( lbsAE lbs
+                 , const $ constDyn mempty
+                 , leaf name <$> da
+                 , int)
 
 
 -- * The final lift:  W(-idget)
@@ -212,48 +216,51 @@ type family APIm a ∷ (Type → Type) where
   APIm _         = TypeError ('Text "APIm on non-API.")
 
 type Blank   i   = Item Top PBlank
-type WH      i   = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
-type WF      i b = (Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
+type WH      i   = (AElt, SemSubs → Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
+type WF      i b = (AElt, SemSubs → Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
+type FH      i   = (AElt,           Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
+type FW      i b = (AElt,           Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
 
+data instance
+     Result  i b = Reflex (APIt i)
+                 ⇒ Widget' { fromWidget ∷ WF i b } -- LRR ≡ Lifted Record Result
 type Widget  i b = Result i b
-data instance      Result i b =
-  Reflex (APIt i) ⇒ W { fromW ∷ WF i b }
+newtype
+     FinalH  i   = FinalH  { fromFinalW ∷ FH i }
 
-wSubD  ∷ Widget i a → Dynamic (APIt i) Subscription
-wSubD  (W (x,_,_)) = x
+wAElt  ∷ Widget i a → AElt
+wAElt  (Widget' (ae,_,_,_)) = ae
 
 wItemD ∷ Widget i a → Dynamic (APIt i) (Blank i)
-wItemD (W (_,x,_)) = x
+wItemD (Widget' (_,_,x,_)) = x
 
 wValD  ∷ Widget i a → Dynamic (APIt i) a
-wValD  (W (_,_,x)) = x
+wValD  (Widget' (_,_,_,x)) = x
 
 stripW ∷ Widget i a → WH i
-stripW (W (subs, item, _value)) = (subs, item)
-
-mapWSubs  ∷ Reflex (APIt i) ⇒ (Subscription → Subscription) → Widget i b → Widget i b
-mapWSubs  f (W (s,i,v)) = W (f <$> s,i,v)
+stripW (Widget' (ae, subs, item, _value)) = (ae, subs, item)
 
 mapWItem  ∷ Reflex (APIt i) ⇒ (Blank i → Blank i) → Widget i b → Widget i b
-mapWItem  f (W (s,i,v)) = W (s,f <$> i,v)
+mapWItem  f (Widget' (a,s,i,v)) = Widget' (a,s,f <$> i,v)
 
 mapWVal   ∷ Reflex (APIt i) ⇒ (a → b) → Widget i a → Widget i b
-mapWVal   f (W (s,i,v)) = W (s,i,f <$> v)
+mapWVal   f (Widget' (a,s,i,v)) = Widget' (a,s,i,f <$> v)
 
 traceWVal ∷ (Reflex (APIt i), Show a) ⇒ String → Widget i a → Widget i a
-traceWVal m (W (s,i,v)) = W (s,i,traceDyn m v)
+traceWVal m (Widget' (a,s,i,v)) = Widget' (a,s,i,traceDyn m v)
 
 instance Functor (Result i) where
-  fmap f (W (subs, item, val)) = W (subs, item, f <$> val)
+  fmap f (Widget' (ae, subs, item, val)) = Widget' (ae, subs, item, f <$> val)
 
 instance Reflex (APIt i) ⇒ Applicative (Result i) where
   -- To allow nodes to have unique IdTokens
   -- ← must allow executing newId here
   -- ← work out how to unpack W
-  pure x = W (mempty, constDyn (vbox []), constDyn x)
-  W (fsubs, fitem, fvals) <*> W (xsubs, xitem, xvals) =
-    W $ (,,)
-    (zipDynWith (<>) fsubs xsubs)
+  pure x = Widget' ("", mempty, constDyn (vbox []), constDyn x)
+  Widget' (ael, fsubs, fitem, fvals) <*> Widget' (_aer, xsubs, xitem, xvals) =
+    Widget' $ (,,,)
+    ael
+    (const $ zipDynWith (<>) (fsubs mempty) (xsubs mempty))
     (zipDynWith ((\fhb xhb→ xhb & children %~ (fhb :)))
                      fitem xitem)
     (zipDynWith ($)  fvals xvals)

@@ -715,4 +715,3 @@ instance (AreaDict d, Monoid (po d), Monoid (di d)) ⇒ Semigroup (Area' po di d
   Area lpo ldi <> Area rpo' rdi = Area (lpo <> rpo') (ldi <> rdi)
 instance (AreaDict d, Monoid (po d), Monoid (di d)) ⇒ Monoid    (Area' po di d) where
   mempty = Area mempty mempty
-

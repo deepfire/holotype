@@ -171,6 +171,7 @@ library
                      , ref-tf
                      , reflex
                      , reflex-glfw
+                     , safe
                      , semigroupoids
                      , semigroups
                      , singletons

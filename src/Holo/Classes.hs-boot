@@ -48,13 +48,13 @@ class Named a where
 
 class (Typeable a) ⇒ Widgety (i ∷ Type) (a ∷ Type) where
   dynWidget'   ∷ (HGLFW i t m, Typeable a, Named a, Widgety i a, HasCallStack)
-               ⇒         IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+               ⇒ LBinds → Input t → IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
   widget       ∷ (HGLFW i t m, Typeable a, HasCallStack)
-               ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
+               ⇒ LBinds → Input t           → Vocab i (Present i) →           a → m (Widget i a)
   --
   default dynWidget'
                ∷ (HGLFW i t m, Mutable a, Named a)
-               ⇒         IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+               ⇒ LBinds → Input t → IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
   dynWidget'   = dynWidget'Def
   widget       = widgetDef
 
@@ -64,9 +64,9 @@ class Interp (a ∷ Type) (b ∷ Type) where
 
 class (Typeable a) ⇒ Present (i ∷ Type) (a ∷ Type) where
   dynPresent    ∷ (HGLFW i t m, HasCallStack)
-                ⇒ InputEventMux t → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+                ⇒ LBinds → Input t          → Vocab i (Present i) → Dynamic t a → m (Widget i a)
   present       ∷ (HGLFW i t m, HasCallStack)
-                ⇒ InputEventMux t → Vocab i (Present i) →           a → m (Widget i a)
+                ⇒ LBinds → Input t          → Vocab i (Present i) →           a → m (Widget i a)
   --
   dynPresent    = dynPresentDef
   present       = presentDef

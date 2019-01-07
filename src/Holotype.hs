@@ -146,27 +146,29 @@ routeInputEvent inputE clickedE subsD = do
 --   holdDyn (initialV, emptyHolo) (attachPromptlyDyn valD holoE)
 --    <&> (,) editMaskKeys
 
-mkTextEntryValidatedStyleD ∷ ∀ i t m. HGLFW i t m ⇒ InputEventMux t → Behavior t (Style TextLine) → Text → (Text → Bool) → m (Result i Text)
-mkTextEntryValidatedStyleD mux styleB initialV testF = do
+mkTextEntryValidatedStyleD ∷ ∀ i t m. HGLFW i t m ⇒ LBinds → Input t → Behavior t (Style TextLine) → Text → (Text → Bool) → m (Result i Text)
+mkTextEntryValidatedStyleD lbs input styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV
   -- (subD, textD) ← mkTextEntryStyleD mux styleB initialV
-  W (subD, itemD, textD) ← widget @i @Text mux (desDen @Text TextLine) initialV
+  Widget' (_, subD, itemD, textD) ← widget @i @Text lbs input (desDen @Text TextLine) initialV
   initial ← sample $ current textD
   foldDyn (\new oldValid→
                if testF new then new else oldValid)
     initial (updated textD)
-    <&> W ∘ (subD,itemD,)
+    <&> Widget' ∘ (lbsAE lbs, subD,itemD,)
 
-vboxD ∷ ∀ i t m. (HGLFW i t m) ⇒ [WH i] → m (WH i)
-vboxD chi = do
-  let dyn ∷ (Dynamic t Subscription, Dynamic t [Blank i])
-      dyn = foldr (\(s, hb) (ss, hbs)→
-                      ( zipDynWith (<>) s ss
-                      , zipDynWith (:) hb hbs ))
-            (constDyn mempty, constDyn [])
-            chi
-  pure $ (id *** (vbox <$>)) dyn
+vboxD ∷ ∀ i t m. (HGLFW i t m) ⇒ Input t → [WH i] → ListenerBinds → m (Widget.FH i)
+vboxD input chi lbs = do
+  let (subsD, chiD) = foldr (\(sae, s, hb) (ss, hbs)→
+                               ( zipDynWith (<>)
+                                 (let LBinds (_,subs,_) = childBinds lbs sae
+                                  in s subs)
+                                 ss
+                               , zipDynWith (:) hb hbs ))
+                      (constDyn mempty, constDyn [])
+                      chi
+  pure $ (lbsAE lbs, subsD, vbox <$> chiD)
 
 
 
@@ -190,18 +192,6 @@ trackStyle sof = do
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
 
 
-
-instance Present i (Port.ScreenMode)
-instance Widgety i (Port.ScreenMode)
-
-instance Present i (Cr.FaceName)
-instance Widgety i (Cr.FaceName)
-instance Present i (Cr.FamilyName)
-instance Widgety i (Cr.FamilyName)
-instance Present i (Cr.FontAlias)
-instance Widgety i (Cr.FontAlias)
-instance Present i (Cr.FontKey)
-instance Widgety i (Cr.FontKey)
 
 instance Typeable a ⇒ Mutable   (Port.ScreenDim a)
 instance Typeable a ⇒ Widgety i (Port.ScreenDim a)
@@ -258,75 +248,79 @@ instance                  Read (Unit Pt) where
 
 scene ∷ ∀ i t m. ( HGLFW i t m
                  , Typeable t)
-  ⇒ InputEventMux   t
+  ⇒ Input t
   → Dynamic    t Port.Settings
   → Dynamic    t Integer
   → Dynamic    t Int
   → Dynamic    t Double
-  → m (WH i)
-scene eV sttsD statsValD frameNoD fpsValueD = mdo
+  → m (Widget.FH i)
+scene input sttsD statsValD frameNoD fpsValueD = mdo
 
   fpsD ∷ Widget i Text
-                   ← dynPresent eV defVocab (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+                   ← dynPresent "fps" input defVocab (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
   statsD ∷ Widget i Text
-                   ← dynPresent eV defVocab $ statsValD <&>
+                   ← dynPresent "mem" input defVocab $ statsValD <&>
                      \(mem)→ T.pack $ printf "mem: %d" mem
   lolD ∷ Widget i Text
-                   ← dynPresent eV (desDen @Text $ Labelled ("mem", TextLine)) $ statsValD <&>
+                   ← dynPresent "lol" input (desDen @Text $ Labelled ("mem", TextLine)) $ statsValD <&>
                      \(mem)→ T.pack $ printf "%d" mem
 
   let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
   rectD ∷ Widget i (Di (Unit PU))
-                   ← liftPureDynamic Rect rectDiD
+                   ← liftPureDynamic "rect" Rect rectDiD
 
   frameCountD ∷ Widget i Text
-                   ← dynPresent eV defVocab $ T.pack ∘ printf "frame #%04d" <$> frameNoD
+                   ← dynPresent "nframes" input defVocab $ T.pack ∘ printf "frame #%04d" <$> frameNoD
   varlenTextD ∷ Widget i Text
-                   ← dynPresent eV defVocab $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
+                   ← dynPresent "truefalse" input defVocab $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
   doubleD ∷ Widget i Double
-                   ← present eV defVocab 0
+                   ← present "zero" input defVocab 0
 
   -- dimD ∷ Widget i (Double, Double)
   --                  ← liftW eV (X, (Labelled ("x", TextLine)
   --                                 ,Labelled ("y", TextLine)))
   --                    (0,0)
 
-  tupleWD          ← present @i eV defVocab
+  tupleWD          ← present @i "tuple" input defVocab
                       (unsafe'di 320 200 ∷ Di Int)
   sttsWDCurr ∷ Widget i Port.Settings
-                   ← dynPresent eV defVocab sttsD
+                   ← dynPresent "Settings" input defVocab sttsD
   initSttsV        ← sample $ current sttsD
   sttsWDSeeded ∷ Widget i Port.Settings
-                   ← present @i eV defVocab
+                   ← present "settings-seed" input defVocab
                       -- (Cr.FontPreferences [])
                       initSttsV
 
-  longStaticTextD  ← present @i eV (desDen @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
+  longStaticTextD  ← present @i "longstatictext" input (desDen @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
   -- The loop demo (currently incapacitated due to definition of mkTextEntryValidatedStyleD)
   let fontNameStyle name = defSty (Proxy @TextLine) & tsFontKey .~ Cr.FK name
-  styleNameD       ← mkTextEntryValidatedStyleD @i eV styleB "defaultSans" $
+  styleNameD       ← mkTextEntryValidatedStyleD @i "stylename" input styleB "defaultSans" $
                      (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
   styleD           ← trackStyle $ fontNameStyle <$> (traceDynWith show $ wValD styleNameD)
   let styleB        = current styleD
 
   --
-  vboxD @i [ stripW $ frameCountD
-        -- , (snd <$>) <$> text2HoloQD
-        -- , stripW styleNameD
-        -- , stripW lolD
-        -- , stripW doubleD
-        -- , stripW recWD
-        , stripW $ Widget.traceWVal "sttsWDCurr: " sttsWDCurr
-        -- , stripW sttsWDSeeded
-        , stripW tupleWD
-        -- , stripW rectD
-        , stripW fpsD
-        , stripW longStaticTextD
-        , stripW statsD
-        , stripW varlenTextD
-        ]
+  vboxD @i input
+    [ stripW frameCountD
+      -- , (snd <$>) <$> text2HoloQD
+      -- , stripW styleNameD
+      -- , stripW lolD
+      -- , stripW doubleD
+      -- , stripW recWD
+    , stripW $ Widget.traceWVal "sttsWDCurr: " sttsWDCurr
+      -- , stripW sttsWDSeeded
+    , stripW tupleWD
+      -- , stripW rectD
+    , stripW fpsD
+    , stripW longStaticTextD
+    , stripW statsD
+    , stripW varlenTextD
+    ] $
+    listenerBindsParse "Scene" (inStore input)
+    [ ("Scene.Settings.sttsWaitVSync", "VSyncToggle")
+    ]
 
 instance SOP.Generic         (V2 a)
 instance SOP.HasDatatypeInfo (V2 a)
@@ -382,7 +376,7 @@ holotype win evCtl windowFrameE inputE = mdo
   liftIO $ GLFW.enableEvent evCtl GLFW.FramebufferSize
 
   worldE ∷ Event t WorldEvent
-                   ← performEvent $ inputE <&> translateEvent
+                   ← performEvent $ inputE <&> transEvent
 
   -- Closing-the-circle issues:
   -- 1. To even receive events, the switch needs to be subscribed to <F3> -- but its subscriptions are default.
@@ -421,8 +415,18 @@ holotype win evCtl windowFrameE inputE = mdo
   -- * SCENE
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
   inputMux         ← routeInputEvent (InputEvent <$> ffilter (\case (U GLFW.EventMouseButton{}) → False; _ → True) inputE) clickedE subscriptionsD
-  (,) subscriptionsD sceneD
-                   ← scene @(API t m) inputMux sttsD statsValD frameNoD fpsValueD
+  (,,) _ae subscriptionsD sceneD
+                   ← scene @(API t m) input sttsD statsValD frameNoD fpsValueD
+
+  semStoreV        ← declSemStore "main"
+    [ ("VSyncToggle"
+      , "Toggle waiting for vertical synchronisation.")
+    ]
+  let input         = mkInput semStoreV evBindsD inputMux
+      bind = bindEvent semStoreV
+      evBindsD      = constDyn $ mempty
+        & bind "VSyncToggle" (inputMaskKeyPress GLFW.Key'F3 mempty)
+
 
   -- * LAYOUT
   -- needs port because of DPI and fonts
@@ -456,7 +460,7 @@ holotype win evCtl windowFrameE inputE = mdo
       pickE         = fmapMaybe id $ attachPromptlyDyn drawnPortD clickE <&> \case
                         (Nothing, _) → Nothing -- We may have no drawn picture yet.
                         (Just x, y)  → Just (x, y)
-  clickedE          ← mousePointId $ (id *** (\(U x@GLFW.EventMouseButton{})→ x)) <$> pickE
+  clickedE         ← mousePointId $ (id *** (\(U x@GLFW.EventMouseButton{})→ x)) <$> pickE
   performEvent_ $ clickedE <&>
     \ClickEvent{..}→ liftIO $ printf "pick=0x%x\n" (Port.tokenHash inIdToken)
 
@@ -490,15 +494,15 @@ data WorldEvent where
       weWinSize ∷ Port.ScreenDim (Di Int)
     } → WorldEvent
 
-translateEvent ∷ (MonadIO m) ⇒ InputU → m WorldEvent
-translateEvent (U (GLFW.EventFramebufferSize _ w h))                                 = pure $ WinSize $ Port.ScreenDim $ unsafe'di w h
-translateEvent (U (GLFW.EventMouseButton w button GLFW.MouseButtonState'Pressed _)) = do
+transEvent ∷ (MonadIO m) ⇒ InputU → m WorldEvent
+transEvent (U (GLFW.EventFramebufferSize _ w h))                                 = pure $ WinSize $ Port.ScreenDim $ unsafe'di w h
+transEvent (U (GLFW.EventMouseButton w button GLFW.MouseButtonState'Pressed _)) = do
   (,) x y ← liftIO $ GLFW.getCursorPos w
   pure $ Click button (po x y)
 -- how to process key chords?
-translateEvent (U (GLFW.EventKey  _ GLFW.Key'F1        _ GLFW.KeyState'Pressed   _)) = pure $ ObjStream
-translateEvent (U (GLFW.EventKey  _ GLFW.Key'F2        _ GLFW.KeyState'Pressed   _)) = pure $ GCing
-translateEvent (U (GLFW.EventKey  _ GLFW.Key'F3        _ GLFW.KeyState'Pressed   _)) = pure $ VSyncToggle
-translateEvent (U (GLFW.EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = pure $ Spawn
-translateEvent (U (GLFW.EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = pure $ Shutdown
-translateEvent _                                                                     = pure $ NonEvent
+transEvent (U (GLFW.EventKey  _ GLFW.Key'F1        _ GLFW.KeyState'Pressed   _)) = pure $ ObjStream
+transEvent (U (GLFW.EventKey  _ GLFW.Key'F2        _ GLFW.KeyState'Pressed   _)) = pure $ GCing
+transEvent (U (GLFW.EventKey  _ GLFW.Key'F3        _ GLFW.KeyState'Pressed   _)) = pure $ VSyncToggle
+transEvent (U (GLFW.EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = pure $ Spawn
+transEvent (U (GLFW.EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = pure $ Shutdown
+transEvent _                                                                     = pure $ NonEvent
