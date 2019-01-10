@@ -337,8 +337,7 @@ holotype win evCtl windowFrameE inputE = mdo
   initWinDimV      ← Port.portWindowSize win
   liftIO $ GLFW.enableEvent evCtl GLFW.FramebufferSize
 
-  worldE ∷ Event t WorldEvent
-                   ← performEvent $ inputE <&> transEvent
+  evE ∷ Event t Ev ← performEvent $ promoteEv <$> inputE
 
   -- Closing-the-circle issues:
   -- 1. To even receive events, the switch needs to be subscribed to <F3> -- but its subscriptions are default.
@@ -355,15 +354,11 @@ holotype win evCtl windowFrameE inputE = mdo
     let Port.Settings{sttsWaitVSync=Port.WaitVSync defvsync,..} = Port.defaultSettings
     in Port.ESettings
        <$> pure (initE $> (sttsDΠ, sttsFontPreferences))
-       <*> pure (fmap (\(WinSize dim)→
-                          (sttsScreenMode, dim))
-                  $ ffilter (\case WinSize{} → True; _ → False)
-                  $ leftmost [worldE, WinSize (Port.ScreenDim initWinDimV) <$ initE])
-       <*> fmap updated
-           (foldDyn (\VSyncToggle (Port.WaitVSync cur) → Port.WaitVSync (not cur))
-             (Port.WaitVSync $ not defvsync)
-             (ffilter (\case VSyncToggle → True; _ → False) $
-               leftmost [worldE, VSyncToggle <$ initE]))
+       <*> pure (fforMaybe (leftmost [evE, Ev (WinSizeEv (Port.ScreenDim initWinDimV)) <$ initE])
+                  (\case
+                      Ev (WinSizeEv dim) → Just (sttsScreenMode, dim)
+                      _ → Nothing))
+       <*> pure (leftmost [Port.WaitVSync True <$ initE])
   sttsD            ← accumMaybeDyn (flip const) Port.defaultSettings $ (fmap Port.portSettings) <$> updated maybePortD
 
   maybePortD       ← Port.portCreate winD sttsE
@@ -376,7 +371,8 @@ holotype win evCtl windowFrameE inputE = mdo
 
   -- * SCENE
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
-  let inputEv       = Ev ∘ GLFWEv <$> ffilter (\case (U GLFW.EventMouseButton{}) → False; _ → True) inputE
+  let inputEv       = fforMaybe inputE
+                      (\case x@(U GLFW.EventMouseButton{}) → Just $ Ev $ GLFWEv x; _ → Nothing)
   inputMux         ← routeEv inputEv clickedE subscriptionsD
   (,,) _ae subscriptionsD sceneD
                    ← scene @(API t m) input sttsD statsValD frameNoD fpsValueD
@@ -419,53 +415,19 @@ holotype win evCtl windowFrameE inputE = mdo
   drawnPortD       ← holdDyn Nothing $ Just <$> drawnPortE
 
   -- * PICKING
-  let clickE        = ffilter (\case (U GLFW.EventMouseButton{}) → True; _ → False) inputE
+  let clickE        = ffilter (evMatch inputMaskClick1Press) evE
       pickE         = fmapMaybe id $ attachPromptlyDyn drawnPortD clickE <&> \case
                         (Nothing, _) → Nothing -- We may have no drawn picture yet.
                         (Just x, y)  → Just (x, y)
-  clickedE         ← mousePointId $ (id *** (\(U x@GLFW.EventMouseButton{})→ x)) <$> pickE
+  clickedE         ← mousePointId $ (id *** (\(Ev (GLFWEv (U x@GLFW.EventMouseButton{})))→ x)) <$> pickE
   performEvent_ $ clickedE <&>
     \(ClickEv{..})→ liftIO $ printf "pick=0x%x\n" (Port.tokenHash ceIdToken)
 
-  hold False ((\case Shutdown → True; _ → False)
-               <$> worldE)
+  hold False (evMatch (inputMaskKeyPress' GLFW.Key'Escape)
+               <$> evE)
 
 mousePointId ∷ RGLFW t m ⇒ Event t (VPort, GLFW.Input 'GLFW.MouseButton) → m (Event t (Ev' ClickEvK))
 mousePointId ev = (ffilter ((≢ 0) ∘ Port.tokenHash ∘ ceIdToken) <$>) <$>
                   performEvent $ ev <&> \(port@Port{..}, e@(GLFW.EventMouseButton _ _ _ _)) → do
                     (,) x y ← liftIO $ (GLFW.getCursorPos portWindow)
                     ClickEv e <$> (Port.portPick port $ floor <$> po x y)
-
-
-
-data WorldEvent where
-  Move ∷
-    { weΔ ∷ Po Double
-    } → WorldEvent
-  Click ∷
-    { weMButton ∷ GLFW.MouseButton
-    , weCoord   ∷ Po Double
-    } → WorldEvent
-  ObjStream   ∷ WorldEvent
-  VSyncToggle ∷ WorldEvent
-  GCing       ∷ WorldEvent
-  Spawn       ∷ WorldEvent
-  Shutdown    ∷ WorldEvent
-  NonEvent    ∷ WorldEvent
-  WinSize ∷
-    {
-      weWinSize ∷ Port.ScreenDim (Di Int)
-    } → WorldEvent
-
-transEvent ∷ (MonadIO m) ⇒ InputU → m WorldEvent
-transEvent (U (GLFW.EventFramebufferSize _ w h))                                 = pure $ WinSize $ Port.ScreenDim $ unsafe'di w h
-transEvent (U (GLFW.EventMouseButton w button GLFW.MouseButtonState'Pressed _)) = do
-  (,) x y ← liftIO $ GLFW.getCursorPos w
-  pure $ Click button (po x y)
--- how to process key chords?
-transEvent (U (GLFW.EventKey  _ GLFW.Key'F1        _ GLFW.KeyState'Pressed   _)) = pure $ ObjStream
-transEvent (U (GLFW.EventKey  _ GLFW.Key'F2        _ GLFW.KeyState'Pressed   _)) = pure $ GCing
-transEvent (U (GLFW.EventKey  _ GLFW.Key'F3        _ GLFW.KeyState'Pressed   _)) = pure $ VSyncToggle
-transEvent (U (GLFW.EventKey  _ GLFW.Key'Insert    _ GLFW.KeyState'Pressed   _)) = pure $ Spawn
-transEvent (U (GLFW.EventKey  _ GLFW.Key'Escape    _ GLFW.KeyState'Pressed   _)) = pure $ Shutdown
-transEvent _                                                                     = pure $ NonEvent

@@ -22,7 +22,8 @@ module Holo.Input
   , EvK(..), EvTy(..)
   , Ev(..), evTy
   , Ev'(..), ev'Ty
-  , glfwEv
+  , promoteEv
+  --
   , EvMask
   , evMatch, evMaskTypes
   --
@@ -35,8 +36,8 @@ module Holo.Input
   --
   , routeEv
   --
-  , inputMaskKeys, inputMaskKey, inputMaskKeyPress, inputMaskKeyRelease
-  , inputMaskChars, inputMaskButtons, inputMaskClick1Press, inputMaskClick1Release, editMaskKeys
+  , inputMaskKeys, inputMaskKey, inputMaskKeyPress, inputMaskKeyPress', inputMaskKeyRelease
+  , inputMaskChars, inputMaskButtons, inputMaskClick1Press, inputMaskClick1Release, inputMaskClick1Any, editMaskKeys
   )
 where
 
@@ -63,12 +64,13 @@ import qualified Data.Sequence                     as Seq
 import qualified Data.Set                          as Set
 import           Debug.Trace                              (trace)
 import qualified Reflex.GLFW                       as GLFW
-import           Reflex.GLFW                              (RGLFW)
+import           Reflex.GLFW                              (RGLFW, InputU(..))
 -- import qualified Data.IORef                        as IO
 -- import qualified System.IO.Unsafe                  as IO
 
 import           Graphics.Flatland
 import           Holo.Port                                (IdToken, tokenHash)
+import qualified Holo.Port                         as Port
 
 
 -- | Sem: a semantic event.
@@ -274,7 +276,7 @@ data Ev' (k ∷ EvK) where
     , ceIdToken          ∷ !IdToken
     } → Ev' ClickEvK
   WinSizeEv ∷
-    { wsNewSize          ∷ {-# UNPACK #-} !(Di Int)
+    { wsNewSize          ∷ {-# UNPACK #-} !(Port.ScreenDim (Di Int))
     } → Ev' ClickEvK
 
 instance Show (Ev' k) where
@@ -321,8 +323,11 @@ evMaskTypes EvMask{..} =
   <> [ ClickEvTy   | emClick ]
   <> [ WinSizeEvTy | emWinSize ]
 
-glfwEv ∷ GLFW.InputU → Ev
-glfwEv = Ev ∘ GLFWEv
+promoteEv ∷ MonadIO m ⇒ GLFW.InputU → m Ev
+promoteEv = \case
+  U (GLFW.EventFramebufferSize _ w h)
+    → pure ∘ Ev ∘ WinSizeEv ∘ Port.ScreenDim $ unsafe'di w h
+  x → pure $ Ev $ GLFWEv x
 
 
 -- * The Input context
@@ -417,19 +422,18 @@ glfwMask ∷ GLFW.EventMask → EvMask
 glfwMask x = EvMask x False False
 
 inputMaskKeys    ∷ Set.Set GL.Key → Set.Set GL.KeyState → GL.ModifierKeys → EvMask
--- inputMaskKeys = EvMask ∘ GLFW.eventMaskKeys .:: GLFW.KeyEventMask
 inputMaskKeys ks kss mks = glfwMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask ks kss mks
 
 inputMaskKey     ∷ GL.Key → Set.Set GL.KeyState → GL.ModifierKeys → EvMask
--- inputMaskKeys = EvMask ∘ GLFW.eventMaskKeys .:: GLFW.KeyEventMask
 inputMaskKey k kss mks = glfwMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask (Set.singleton k) kss mks
 
 inputMaskKeyPress ∷ GL.Key → GL.ModifierKeys → EvMask
--- inputMaskKeys = EvMask ∘ GLFW.eventMaskKeys .:: GLFW.KeyEventMask
 inputMaskKeyPress k mks = glfwMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask (Set.singleton k) (Set.singleton GL.KeyState'Pressed) mks
 
+inputMaskKeyPress' ∷ GL.Key → EvMask
+inputMaskKeyPress' k = glfwMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask (Set.singleton k) (Set.singleton GL.KeyState'Pressed) mempty
+
 inputMaskKeyRelease ∷ GL.Key → GL.ModifierKeys → EvMask
--- inputMaskKeys = EvMask ∘ GLFW.eventMaskKeys .:: GLFW.KeyEventMask
 inputMaskKeyRelease k mks = glfwMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask (Set.singleton k) (Set.singleton GL.KeyState'Released) mks
 
 inputMaskChars   ∷ EvMask
@@ -444,6 +448,9 @@ inputMaskClick btn state = glfwMask $ GLFW.eventMaskButtons $ GLFW.ButtonEventMa
 inputMaskClick1Press, inputMaskClick1Release ∷ EvMask
 inputMaskClick1Press   = inputMaskClick GL.MouseButton'1 GL.MouseButtonState'Pressed
 inputMaskClick1Release = inputMaskClick GL.MouseButton'1 GL.MouseButtonState'Released
+
+inputMaskClick1Any ∷ EvMask
+inputMaskClick1Any = glfwMask $ GLFW.eventMaskButtons $ GLFW.ButtonEventMask (Set.singleton GL.MouseButton'1) (Set.fromList [GL.MouseButtonState'Pressed, GL.MouseButtonState'Released]) mempty
 
 editMaskKeys ∷ EvMask
 editMaskKeys = (inputMaskChars <>) $ glfwMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask
