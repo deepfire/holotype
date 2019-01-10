@@ -75,6 +75,9 @@
       his work was augmenting human
       capabilities... http://dougengelbart.org/firsts/dougs-1968-demo.html
       #+END_QUOTE
+***** Performance tuning
+      - https://trofi.github.io/posts/193-scaling-ghc-make.html
+      - https://github.com/haskell-perf/checklist
 *** General random ideas
 ***** UI trope: simple is powerful
 
@@ -115,7 +118,6 @@
 
       2. be very clear about running external processes: can be very frustrating to
          not know what happens
-
 *** Open questions
 
     - reliable ephemeral identification for tag overlays ::

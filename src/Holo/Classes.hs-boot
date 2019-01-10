@@ -39,7 +39,7 @@ class Typeable r ⇒ As r where
 class Mutable a where
   subscription ∷                    IdToken → Proxy a → Subscription
   subscription = const mempty         -- declare ignorance..
-  mutate       ∷ (RGLFW t m) ⇒ a → Event t InputEvent → m (Dynamic t a)
+  mutate       ∷ (RGLFW t m) ⇒ a → Event t Ev → m (Dynamic t a)
   mutate       = immutable            -- ..then effectuate it
 
 class Named a where

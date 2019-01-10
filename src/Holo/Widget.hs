@@ -11,7 +11,6 @@ module Holo.Widget
   -- , inputMaskKeys, inputMaskButtons, inputMaskChars, editMaskKeys
   -- , inputMaskClick, inputMaskClick1Press, inputMaskClick1Release
   -- , Subscription(..), subSingleton
-  -- , InputEventMux
   -- --
   -- , Definition(..), Vocab(..)
   -- , ppVocab, traceVocab
@@ -134,7 +133,7 @@ widgetDef lbs input voc initial =
   mapDenot @i @a voc
   \_→ do
     tok ← iNewToken $ Proxy @a
-    mut ← mutate (forget initial) $ select (inMux input) $ Const2 tok
+    mut ← mutate (forget initial) $ select (fromEvMux $ inMux input) $ Const2 tok
     dynWidget' lbs input tok voc mut
 
 dynWidget'Def ∷ ∀ i t m a.

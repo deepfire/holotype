@@ -98,44 +98,6 @@ average ∷ (Fractional a, RGLFW t m) ⇒ Int → Event t a → m (Dynamic t a)
 average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 
-
-routeInputEvent ∷ ∀ t m. (RGLFW t m)
-           ⇒ Event t InputEvent          -- ^ Events to distribute
-           → Event t InputEvent          -- ^ Carries the (possibly) new picked entity
-           → Dynamic t Subscription      -- ^ The total mass of subscriptions
-           → m (InputEventMux t)         -- ^ Global event wire for all IdTokens
-routeInputEvent inputE clickedE subsD = do
-  pickeD ← holdDyn Nothing $ Just ∘ inIdToken <$> clickedE -- Compute the latest focus (or just a mouse click)
-  -- XXX: filter the above on the left click -- as it stands any mouse button changes selection
-  let fullInputE = leftmost [clickedE, inputE]
-      inputsD = zipDynWith (,) pickeD (traceDyn "===== new subs: " subsD)
-      -- | Process the incoming events using the latest listener and total set subscriptions
-      routedE ∷ Event t (M.Map IdToken InputEvent)
-      routedE = routeSingle <$> attachPromptlyDyn inputsD fullInputE
-      routeSingle ∷ ((Maybe IdToken, Subscription), InputEvent) → M.Map IdToken InputEvent
-      routeSingle ((mClickOrPicked, subs), ev) =
-        let eventType = inputEventType ev
-        in case subsByType subs eventType of
-           Nothing         → mempty -- no-one cares about this type of events
-           Just eventTypeSubscribers  →
-             let eventListenerSet ∷ Seq.Seq (IdToken, InputEventMask) =
-                   flip Seq.filter eventTypeSubscribers (flip inputMatch ev ∘ snd)
-             in case (eventType, trace ("routing: "<>show mClickOrPicked) mClickOrPicked, toList eventListenerSet) of
-                  (_, _, []) → mempty -- no-one's event mask matches this event
-                  -- --------------- here we need the click, not the accumulated pick
-                  -- (GLFW.MouseButton, Just clicked, eventListeners) → case lookup clicked eventListeners of
-                  --   Nothing → mempty -- focused ID is not among subscribers
-                  --   Just x  → if x ≡ clicked
-                  --             then M.singleton clicked ev
-                  --             else mempty
-                  (_, Just pick, eventListeners)  → case lookup pick eventListeners of
-                    Nothing → mempty -- focused ID is not among subscribers
-                    Just _  → M.singleton (trace ("routed to: "<>show pick) pick) ev
-                  -- (_, Nothing, (tok, _):_) → M.singleton tok ev
-                  (_, Nothing, _) → mempty
-  pure $ fanMap routedE
-
-
 -- mkTextEntryStyleD ∷ RGLFW t m ⇒ InputEventMux t → Behavior t (Style Text) → Text → m (W t (Text, HoloBlank))
 -- mkTextEntryStyleD mux styleB initialV = do
 --   tokenV       ← newId
@@ -414,7 +376,8 @@ holotype win evCtl windowFrameE inputE = mdo
 
   -- * SCENE
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
-  inputMux         ← routeInputEvent (InputEvent <$> ffilter (\case (U GLFW.EventMouseButton{}) → False; _ → True) inputE) clickedE subscriptionsD
+  let inputEv       = Ev ∘ GLFWEv <$> ffilter (\case (U GLFW.EventMouseButton{}) → False; _ → True) inputE
+  inputMux         ← routeEv inputEv clickedE subscriptionsD
   (,,) _ae subscriptionsD sceneD
                    ← scene @(API t m) input sttsD statsValD frameNoD fpsValueD
 
@@ -423,7 +386,7 @@ holotype win evCtl windowFrameE inputE = mdo
       , "Toggle waiting for vertical synchronisation.")
     ]
   let input         = mkInput semStoreV evBindsD inputMux
-      bind = bindEvent semStoreV
+      bind = bindSem semStoreV
       evBindsD      = constDyn $ mempty
         & bind "VSyncToggle" (inputMaskKeyPress GLFW.Key'F3 mempty)
 
@@ -462,16 +425,16 @@ holotype win evCtl windowFrameE inputE = mdo
                         (Just x, y)  → Just (x, y)
   clickedE         ← mousePointId $ (id *** (\(U x@GLFW.EventMouseButton{})→ x)) <$> pickE
   performEvent_ $ clickedE <&>
-    \ClickEvent{..}→ liftIO $ printf "pick=0x%x\n" (Port.tokenHash inIdToken)
+    \(ClickEv{..})→ liftIO $ printf "pick=0x%x\n" (Port.tokenHash ceIdToken)
 
   hold False ((\case Shutdown → True; _ → False)
                <$> worldE)
 
-mousePointId ∷ RGLFW t m ⇒ Event t (VPort, GLFW.Input 'GLFW.MouseButton) → m (Event t InputEvent)
-mousePointId ev = (ffilter ((≢ 0) ∘ Port.tokenHash ∘ inIdToken) <$>) <$>
+mousePointId ∷ RGLFW t m ⇒ Event t (VPort, GLFW.Input 'GLFW.MouseButton) → m (Event t (Ev' ClickEvK))
+mousePointId ev = (ffilter ((≢ 0) ∘ Port.tokenHash ∘ ceIdToken) <$>) <$>
                   performEvent $ ev <&> \(port@Port{..}, e@(GLFW.EventMouseButton _ _ _ _)) → do
                     (,) x y ← liftIO $ (GLFW.getCursorPos portWindow)
-                    ClickEvent e <$> (Port.portPick port $ floor <$> po x y)
+                    ClickEv e <$> (Port.portPick port $ floor <$> po x y)
 
 
 
