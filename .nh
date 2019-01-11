@@ -2,4 +2,4 @@ GHC=861
 GHC_CONFIG=configuration-ghc-8.6.x.nix
 PKGDB=~/holotype/pkgs  # The override state database.
 GITHUB_USER=deepfire
-NIX_GHC_PACKAGE_SET=packages.nix
+NIX_GHC_PACKAGE_SET=nix/packages.nix

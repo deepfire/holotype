@@ -118,4 +118,26 @@ with pkgs.haskell.lib; with lib; with self; {
   ekg-json = overrideCabal super.ekg-json (drv: {
     jailbreak       = true;
   });
+  reflex-animation = mkDerivation {
+    pname = "reflex-animation";
+    version = "0.1.5";
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./pins/reflex-animation.src.json)) ["date"]);
+    libraryHaskellDepends = [
+      base bifunctors containers profunctors reflex reflex-transformers
+      semigroups vector-space
+    ];
+    homepage = "https://github.com/saulzar/reflex-animation";
+    description = "Continuous animations support for reflex";
+    license = stdenv.lib.licenses.bsd3;
+  };
+  stateWriter = dontCheck super.stateWriter;
+  vector-space = overrideCabal super.vector-space (drv: {
+    jailbreak = true;
+    src = pkgs.fetchFromGitHub {
+      owner  = "conal";
+      repo   = "vector-space";
+      rev    = "a4c1313b577f2130c07b498d7bd189d3550917c0";
+      sha256 = "0464v4778l5zzsc0ak2g5n3hm7srryrlbwqfyf05hwpfaih7xqnd";
+    };
+  });
 }
