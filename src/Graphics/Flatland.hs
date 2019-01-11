@@ -47,7 +47,7 @@ import           Data.MonoTraversable
 import           Data.Singletons
 import           Data.Singletons.Prelude
 import           Data.Singletons.TH                hiding ((%~))
-import           Data.Text.Format
+import           Data.Text.Format                  hiding (prec)
 import           Data.Type.Bool
 import           Elsewhere
 import           GHC.Generics                             (Generic)
@@ -56,6 +56,7 @@ import           GHC.Types
 import           Prelude.Unicode
 import           Linear                            hiding (trace)
 import           Text.PrettyPrint.Leijen.Text      hiding ((<$>), space)
+import           Text.Read
 import qualified Data.Map                          as Map
 import qualified Data.Text.Format                  as T
 import qualified Data.Text.Lazy                    as TL
@@ -71,6 +72,7 @@ pπ ∷ PΠ
 pπ = 72
 
 newtype DΠ = DΠ { fromDΠ ∷ Double } deriving (Eq, Num, Show)
+deriving newtype instance Read DΠ
 
 -- $Note [Pango resolution & unit conversion]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -98,6 +100,23 @@ $(genSingletons [''UnitK])
 type instance Element (Unit PU)   = Double
 type instance Element (Unit PUI)  = F.Int32
 type instance Element (Unit Pt)   = F.Int32
+
+deriving         instance Read WUnit
+instance                  Read (Unit PU) where
+  readPrec = prec 10 $ do
+    Ident "PU" <- lexP
+    m <- step readPrec
+    return (PUs m)
+instance                  Read (Unit PUI) where
+  readPrec = prec 10 $ do
+    Ident "PUI" <- lexP
+    m <- step readPrec
+    return (PUIs m)
+instance                  Read (Unit Pt) where
+  readPrec = prec 10 $ do
+    Ident "Pt" <- lexP
+    m <- step readPrec
+    return (Pts m)
 
 class StandardUnit (a ∷ UnitK → Type) where
   convert ∷ (FromUnit u, FromUnit v) ⇒ DΠ → a u → a v

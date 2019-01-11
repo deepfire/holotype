@@ -57,6 +57,7 @@ import           Data.Ord
 import           Data.String
 import           Data.Text                         as T   (Text, unpack)
 import           Debug.Trace                              (trace)
+import qualified Generics.SOP                      as SOP
 import           GHC.Generics
 import           GHC.Stack                                (HasCallStack)
 import           Prelude                           hiding (fail)
@@ -255,7 +256,7 @@ data FontSizeRequest
     { fsValue   ∷ WUnit
     , fsbPolicy ∷ Ordering
     }
-  deriving (Eq, Generic, Show)
+  deriving (Eq, Generic, Read, Show)
 
 --- XXX/expressivity:
 -- let ascending = True in sortOn (if ascending then id else Down)
@@ -269,8 +270,8 @@ data FontSizeRequest
 --       In the expression: sortOn (if o then id else Down) [0, 2, 1]
 
 
-newtype FamilyName = FamilyName { fromFamilyName ∷ Text } deriving (Eq, Show, IsString) -- ^ Pango font family name
-newtype FaceName   = FaceName   { fromFaceName   ∷ Text } deriving (Eq, Show, IsString) -- ^ Pango font face name
+newtype FamilyName = FamilyName { fromFamilyName ∷ Text } deriving (Eq, Show, IsString, Read) -- ^ Pango font family name
+newtype FaceName   = FaceName   { fromFaceName   ∷ Text } deriving (Eq, Show, IsString, Read) -- ^ Pango font face name
 
 data FKind = Spec | Found | Bound
 
@@ -280,7 +281,7 @@ data FontSpec where
     , frFaceName       ∷ FaceName
     , frSizeRequest    ∷ FontSizeRequest
     } → FontSpec
-    deriving (Eq, Generic)
+    deriving (Eq, Generic, Read)
 
 data Font (k ∷ FKind) u where
   FontSpec' ∷
@@ -560,15 +561,18 @@ layDrawText cairo dGIC lay (Po (V2 cvx cvy)) tColor text =
 
 newtype FontKey
   =     FK { fromFK ∷ T.Text }
-  deriving (Eq, Ord, Show, IsString, Generic)
+  deriving (Eq, Ord, Show, IsString, Read, Generic)
 
 newtype FontAlias
   =     Alias { fromAlias ∷ FontKey }
-  deriving (Eq, Ord, Show, IsString, Generic)
+  deriving (Eq, Ord, Show, IsString, Read, Generic)
 
 data    FontPreferences
   =     FontPreferences [(FontKey, Either FontAlias [FontSpec])]
   deriving (Eq, Generic, Show)
+
+instance SOP.Generic         FontPreferences
+instance SOP.HasDatatypeInfo FontPreferences
 
 data FontMap u where
   FontMap ∷

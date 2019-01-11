@@ -26,8 +26,9 @@ instance Present i Integer
 instance Present i Text
 instance Present i a ⇒ Present  i [a]
 
-instance Present i (Cr.FaceName)
-instance Present i (Cr.FamilyName)
-instance Present i (Cr.FontAlias)
-instance Present i (Cr.FontKey)
-instance Present i (Port.ScreenMode)
+instance Present i Cr.FaceName
+instance Present i Cr.FamilyName
+instance Present i Cr.FontAlias
+instance Present i Cr.FontKey
+instance Present i Port.ScreenMode
+instance Present i Port.WaitVSync

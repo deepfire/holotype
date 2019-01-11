@@ -133,7 +133,7 @@ portSetVSync x = liftIO $ GL.swapInterval $ case x of
 data ScreenMode
   = FullScreen
   | Windowed
-  deriving (Eq, GHC.Generic, Show)
+  deriving (Eq, GHC.Generic, Read, Show)
 
 newtype ScreenDim a = ScreenDim a
   deriving (Eq, Newtype, Show)

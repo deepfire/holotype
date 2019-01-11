@@ -4,8 +4,9 @@
 module Elsewhere
   ( textZipper, zipperText
   , everything
-  , trEv, trDyn, trDynM
   , proxy
+  , trEv, trDyn, trDynM
+  , avgStep, average
   , goldenRatio
   , (.:)
   , flip2
@@ -15,6 +16,7 @@ module Elsewhere
   , showTime
   , timeDiff
   , printTimeDiff
+  , (<:)
   )
 where
 
@@ -29,6 +31,8 @@ import           Data.Lub                                 (HasLub(..))
 import           Data.Maybe                               (fromMaybe)
 import           Data.Proxy                               (Proxy(..))
 import           Data.Time.Clock
+import           Data.Typeable                            (Typeable)
+import qualified Data.TypeMap.Dynamic              as TM
 import           GHC.Stack                                ()
 import           Linear                            hiding (trace)
 import           Prelude.Unicode
@@ -70,8 +74,16 @@ trDyn = traceDynWith ∘ const
 trDynM ∷ Reflex t ⇒ String → String → Dynamic t (Maybe a) → Dynamic t (Maybe a)
 trDynM no ju = traceDynWith (\case; Nothing → no; Just _ → ju)
 
-proxy ∷ a → Proxy a
-proxy = const Proxy
+type Avg a = (Int, Int, [a])
+avgStep ∷ Fractional a ⇒ a → (a, Avg a) → (a, Avg a)
+avgStep x (_, (lim, cur, xs)) =
+  let (ncur, nxs) = if cur < lim
+                    then (cur + 1, x:xs)
+                    else (lim,     x:Prelude.init xs)
+  in ((sum nxs) / fromIntegral ncur, (lim, ncur, nxs))
+
+average ∷ (Fractional a, Reflex t, MonadHold t m, MonadFix m) ⇒ Int → Event t a → m (Dynamic t a)
+average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 
 -- * Pretty numbers
@@ -95,6 +107,9 @@ choosePartially one l r = fromMaybe one $ partial (≢ one) l <|> partial (≢ o
 
 everything :: (Enum a, Bounded a) => [a]
 everything = enumFromTo minBound maxBound
+
+proxy ∷ a → Proxy a
+proxy = const Proxy
 
 
 -- * Exceptions
@@ -131,3 +146,9 @@ printTimeDiff message m = do
   putStr message
   putStrLn $ showTime t
   return r
+
+
+-- * In progress
+--
+(<:) ∷ Typeable b ⇒ TM.TypeMap a → (Proxy b, TM.Item a b) → TM.TypeMap a
+(<:) tm (k, v) = TM.insert k v tm

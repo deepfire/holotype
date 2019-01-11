@@ -65,10 +65,7 @@ import           Holo.Input
 import           Holo.Item
 import           Holo.Name
 import           Holo.Record
-import           Holo.Widget                              ( Vocab, Definition(..), desNDen, desDen, traceVocab
-                                                          , dynWidget, liftPureDynamic
-                                                          , Blank
-                                                          , Result(..), Widget, WH, stripW, wValD)
+import           Holo.Widget
 import qualified Holo.Widget                       as Widget
 import qualified Holo.Port                         as Port
 import           Holo.Port                                (Port(..), IdToken)
@@ -86,16 +83,6 @@ newPortFrame portFrameE = performEvent $ portFrameE <&>
     newFrame ← Port.portNextFrame port
     pure (port, newFrame)
 
-type Avg a = (Int, Int, [a])
-avgStep ∷ Fractional a ⇒ a → (a, Avg a) → (a, Avg a)
-avgStep x (_, (lim, cur, xs)) =
-  let (ncur, nxs) = if cur < lim
-                    then (cur + 1, x:xs)
-                    else (lim,     x:Prelude.init xs)
-  in ((sum nxs) / fromIntegral ncur, (lim, ncur, nxs))
-
-average ∷ (Fractional a, RGLFW t m) ⇒ Int → Event t a → m (Dynamic t a)
-average n e = (fst <$>) <$> foldDyn avgStep (0, (n, 0, [])) e
 
 
 -- mkTextEntryStyleD ∷ RGLFW t m ⇒ InputEventMux t → Behavior t (Style Text) → Text → m (W t (Text, HoloBlank))
@@ -141,28 +128,12 @@ fpsCounterD frameE = do
   avgFrameΔD       ← average 300 $ updated frameΔD
   pure (recip <$> avgFrameΔD)
 
-nextFrame ∷ RGLFW t m ⇒ GLFW.Window → Event t () → m (Event t ())
-nextFrame win windowFrameE = performEvent $ windowFrameE <&>
-  \_ → liftIO $ do
-    GLFW.swapBuffers win
-    -- GL.flush  -- not necessary, but someone recommended it
-    GLFW.pollEvents
-
 trackStyle ∷ (As a, RGLFW t m) ⇒ Dynamic t (Sty a) → m (Dynamic t (Style a))
 trackStyle sof = do
   gene ← count $ updated sof
   pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
 
 
-
-instance Typeable a ⇒ Mutable   (Port.ScreenDim a)
-instance Typeable a ⇒ Widgety i (Port.ScreenDim a)
-
-instance SOP.Generic         Cr.FontPreferences
-instance SOP.HasDatatypeInfo Cr.FontPreferences
-
-(<:) ∷ Typeable b ⇒ TM.TypeMap a → (Proxy b, TM.Item a b) → TM.TypeMap a
-(<:) tm (k, v) = TM.insert k v tm
 
 defVocab ∷ Vocab i (Present i)
 defVocab = Vocab
@@ -180,33 +151,8 @@ defVocab = Vocab
     -- XXX:  this is atrocious, but the suspicion is we have a generic solution : -
     <: (Proxy @([(Cr.FontKey,(Either Cr.FontAlias [Cr.FontSpec]))])
        ,                         Desig TextLine)
-    -- <: (Proxy @(Port.ScreenDim (Di Int)),
-    --                              HoloName TextLine)
+    -- <: (Proxy @(Port.ScreenDim (Di Int)), HoloName TextLine)
   )
-deriving newtype instance Read DΠ
-deriving         instance Read Port.ScreenMode
-deriving newtype instance Read Cr.FontKey
-deriving newtype instance Read Cr.FontAlias
-deriving newtype instance Read Cr.FaceName
-deriving newtype instance Read Cr.FamilyName
-deriving         instance Read Cr.FontSizeRequest
-deriving         instance Read Cr.FontSpec
-deriving         instance Read WUnit
-instance                  Read (Unit PU) where
-  readPrec = prec 10 $ do
-    Ident "PU" <- lexP
-    m <- step readPrec
-    return (PUs m)
-instance                  Read (Unit PUI) where
-  readPrec = prec 10 $ do
-    Ident "PUI" <- lexP
-    m <- step readPrec
-    return (PUIs m)
-instance                  Read (Unit Pt) where
-  readPrec = prec 10 $ do
-    Ident "Pt" <- lexP
-    m <- step readPrec
-    return (Pts m)
 
 scene ∷ ∀ i t m. ( HGLFW i t m
                  , Typeable t)
@@ -284,19 +230,6 @@ scene input sttsD statsValD frameNoD fpsValueD = mdo
     [ ("Scene.Settings.sttsWaitVSync", "VSyncToggle")
     ]
 
-instance SOP.Generic         (V2 a)
-instance SOP.HasDatatypeInfo (V2 a)
-
-deriving instance Generic    (Di a)
-instance SOP.Generic         (Di a)
-instance SOP.HasDatatypeInfo (Di a)
-
-deriving instance Generic    (Port.ScreenDim (Di a))
-instance SOP.Generic         (Port.ScreenDim (Di a))
-instance SOP.HasDatatypeInfo (Port.ScreenDim (Di a))
-
-instance Present i Port.WaitVSync
-instance Widgety i Port.WaitVSync
 
 
 
@@ -308,9 +241,6 @@ parseOptions ∷ Opt.Parser Options
 parseOptions =
   Options
   <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
-
-holdDynMaybe ∷ (Reflex t, MonadHold t m, MonadFix m) ⇒ a → Event t (Maybe a) -> m (Dynamic t a)
-holdDynMaybe initial ev = accumMaybeDyn (\_old mNew→ mNew) initial ev
 
 -- * Top level network
 --
