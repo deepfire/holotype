@@ -4,19 +4,19 @@
 , filepath, free, freer-simple, fused-effects, generic-lens
 , generics-sop, ghc-prim, gi-cairo, gi-gobject, gi-pango
 , gi-pangocairo, GLFW-b, Glob, hashable, haskell-gi-base, hedgehog
-, hspec, hxt, JuicyPixels, lambdacube-compiler, lambdacube-gl
-, lambdacube-ir, lens, lens-sop, linear, lub, metamorphic, MissingH
-, monadplus, MonadRandom, mono-traversable, monoidal-containers
-, mtl, newtype-generics, OpenGL, OpenGLRaw, optparse-applicative
-, parsers, pretty, pretty-show, primitive, profunctors, proteaaudio
-, QuickCheck, random, ref-tf, reflex, reflex-glfw, semigroupoids
-, semigroups, singletons, sop-core, spool, stdenv, stm, tasty
-, tasty-discover, tasty-expected-failure, tasty-hedgehog
-, tasty-hspec, tasty-hunit, tasty-quickcheck, tasty-smallcheck
-, template-haskell, text, text-format, text-lens, text-zipper
-, these, time, transformers, trifecta, type-map
-, unordered-containers, vect, vector, wl-pprint-extras
-, wl-pprint-text
+, hspec, hxt, iohk-monitoring, JuicyPixels, lambdacube-compiler
+, lambdacube-gl, lambdacube-ir, lens, lens-sop, linear, lub
+, metamorphic, MissingH, monadplus, MonadRandom, mono-traversable
+, monoidal-containers, mtl, newtype-generics, OpenGL, OpenGLRaw
+, optparse-applicative, parsers, pretty, pretty-show, primitive
+, profunctors, proteaaudio, QuickCheck, random, ref-tf, reflex
+, reflex-glfw, safe, semigroupoids, semigroups, singletons
+, sop-core, spool, stdenv, stm, tasty, tasty-discover
+, tasty-expected-failure, tasty-hedgehog, tasty-hspec, tasty-hunit
+, tasty-quickcheck, tasty-smallcheck, template-haskell, text
+, text-format, text-lens, text-zipper, these, time, transformers
+, trifecta, type-map, unordered-containers, vect, vector
+, wl-pprint-extras, wl-pprint-text
 }:
 mkDerivation {
   pname = "holotype";
@@ -30,15 +30,16 @@ mkDerivation {
     exceptions extra fclabels filepath free freer-simple fused-effects
     generic-lens generics-sop ghc-prim gi-cairo gi-gobject gi-pango
     gi-pangocairo GLFW-b hashable haskell-gi-base hedgehog hspec hxt
-    JuicyPixels lambdacube-compiler lambdacube-gl lambdacube-ir lens
-    lens-sop linear lub metamorphic MissingH monadplus MonadRandom
-    mono-traversable monoidal-containers mtl newtype-generics OpenGL
-    OpenGLRaw optparse-applicative parsers pretty pretty-show primitive
-    profunctors proteaaudio QuickCheck random ref-tf reflex reflex-glfw
-    semigroupoids semigroups singletons sop-core spool stm tasty
-    tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
-    tasty-quickcheck tasty-smallcheck template-haskell text text-format
-    text-lens text-zipper these time transformers trifecta type-map
+    iohk-monitoring JuicyPixels lambdacube-compiler lambdacube-gl
+    lambdacube-ir lens lens-sop linear lub metamorphic MissingH
+    monadplus MonadRandom mono-traversable monoidal-containers mtl
+    newtype-generics OpenGL OpenGLRaw optparse-applicative parsers
+    pretty pretty-show primitive profunctors proteaaudio QuickCheck
+    random ref-tf reflex reflex-glfw safe semigroupoids semigroups
+    singletons sop-core spool stm tasty tasty-expected-failure
+    tasty-hedgehog tasty-hspec tasty-hunit tasty-quickcheck
+    tasty-smallcheck template-haskell text text-format text-lens
+    text-zipper these time transformers trifecta type-map
     unordered-containers vect vector wl-pprint-extras wl-pprint-text
   ];
   executableHaskellDepends = [

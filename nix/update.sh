@@ -2,7 +2,7 @@
 
 who=${1:-deepfire}
 
-cabal2nix . > default.nix
+cabal2nix . > $(dirname $0)/default.nix
 
 if test -n "$1"
 then shift
@@ -13,5 +13,5 @@ do case ${who} in
      local | home ) rbase=file://$HOME; who='';;
      * )            rbase=https://github.com/ ;;
    esac
-   nix-prefetch-git $rbase${who}/$x > $x.src.json
+   nix-prefetch-git $rbase${who}/$x > $(dirname $0)/pins/$x.src.json
 done

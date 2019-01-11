@@ -147,6 +147,7 @@ library
                      , hedgehog
                      , hspec
                      , hxt
+                     , iohk-monitoring
                      , lambdacube-compiler
                      , lambdacube-gl
                      , lambdacube-ir
@@ -202,7 +203,7 @@ library
                      , wl-pprint-text
   if flag(thinerr)
     build-depends:     thinerr
-    
+
 test-suite test
   main-is:             Driver.hs
   hs-source-dirs:      tests

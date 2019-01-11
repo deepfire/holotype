@@ -85,4 +85,37 @@ with pkgs.haskell.lib; with lib; with self; {
     jailbreak       = true;
     # enableLibraryProfiling = false;
   });
+
+  iohk-monitoring = mkDerivation {
+    pname = "iohk-monitoring";
+    version = "0.1.0.0";
+    src = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./pins/iohk-monitoring-framework.src.json)) ["date"]);
+    isLibrary = true;
+    isExecutable = true;
+    libraryHaskellDepends = [
+      aeson array async auto-update base bytestring clock containers
+      contravariant directory ekg ekg-core exceptions filepath katip lens
+      mtl safe-exceptions scientific stm template-haskell text time
+      time-units transformers unix unordered-containers vector yaml
+    ];
+    executableHaskellDepends = [
+      async base bytestring mtl random unix
+    ];
+    testHaskellDepends = [
+      array async base bytestring clock containers mtl process QuickCheck
+      random semigroups stm tasty tasty-hunit tasty-quickcheck text time
+      time-units transformers unordered-containers void yaml
+    ];
+    description = "loggin, benchmarking and monitoring framework";
+    license = stdenv.lib.licenses.mit;
+  };
+  ekg = overrideCabal super.ekg (drv: {
+    jailbreak       = true;
+  });
+  ekg-core = overrideCabal super.ekg-core (drv: {
+    jailbreak       = true;
+  });
+  ekg-json = overrideCabal super.ekg-json (drv: {
+    jailbreak       = true;
+  });
 }
