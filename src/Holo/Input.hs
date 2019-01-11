@@ -14,8 +14,8 @@ module Holo.Input
   --
   , AElt(..)
   --
-  , ListenerBinds(..), LBinds, lbsAE
-  , listenerBindsParse, childBinds
+  , ListenerBinds(..), LBinds, lbsAE, lbsSubs
+  , listenerBindsParse, descBindsQuery, childBinds, childSubs
   --
   , EvBinds, bindSem
   --
@@ -36,6 +36,7 @@ module Holo.Input
   --
   , routeEv
   --
+  , glfwMask
   , inputMaskKeys, inputMaskKey, inputMaskKeyPress, inputMaskKeyPress', inputMaskKeyRelease
   , inputMaskChars, inputMaskButtons, inputMaskClick1Press, inputMaskClick1Release, inputMaskClick1Any, editMaskKeys
   )
@@ -69,6 +70,7 @@ import           Reflex.GLFW                              (RGLFW, InputU(..))
 -- import qualified System.IO.Unsafe                  as IO
 
 import           Graphics.Flatland
+import           Holo.Prelude
 import           Holo.Port                                (IdToken, tokenHash)
 import qualified Holo.Port                         as Port
 
@@ -97,12 +99,18 @@ instance Eq SemW where
 instance Ord SemW where
   SemW (Sem idA _ _) `compare` SemW (Sem idB _ _) = compare idA idB
 
+instance Show SemW where
+  show (SemW (Sem i (SemDescKey sdk) _)) = printf "(Sem %d \"%s\")" (U.hashUnique i) (T.unpack sdk)
+
 mkSem ∷ (MonadIO m) ⇒ SemDescKey → SemLongText → m SemW
 mkSem semDescKey semLongText = liftIO $ do
   semId ← U.newUnique
   pure $ SemW $ Sem{..}
 
 newtype SemSubs = SemSubs (Set.Set SemW) deriving (Semigroup, Monoid)
+
+instance Show SemSubs where
+  show (SemSubs ss) = printf "(SemSubs %s)" (L.intercalate " " $ (\(SemW Sem{..})→ T.unpack $ _sdkVal semDescKey) <$> Set.toList ss)
 
 
 -- | SemStore:  globally recognised pool of SemDeskKey-keyed Sems.
@@ -137,8 +145,8 @@ semByDesc ∷ SemStore → SemDescKey → SemW
 semByDesc s@(SemStore (SemStoreName name,_,_)) sdk@(SemDescKey k) = flip fromMaybe (lookupSemDesc s sdk) $
   error $ printf "SemStore '%s' doesn't have DescKey '%s'." name k
 
-semById   ∷ SemStore → U.Unique   → SemW
-semById s@(SemStore (SemStoreName name,_,_)) uid = flip fromMaybe (lookupSemId s uid) $
+_semById   ∷ SemStore → U.Unique   → SemW
+_semById s@(SemStore (SemStoreName name,_,_)) uid = flip fromMaybe (lookupSemId s uid) $
   error $ printf "SemStore '%s' doesn't have Id '%d'." name (U.hashUnique uid)
 
 
@@ -178,6 +186,9 @@ newtype ListenerBinds = LBinds ( AElt
                                , SemSubs
                                , Map.Map AElt ListenerBinds
                                )
+instance Show ListenerBinds where
+  show (LBinds (ae, subs, cs)) = printf "(LBinds %s: %s  %s)"
+    (T.unpack $ aeltName ae) (show subs) (L.intercalate " " $ show <$> Map.elems cs)
 
 instance IsString LBinds where
   fromString x = LBinds (AElt $ T.pack x, mempty, mempty)
@@ -189,8 +200,11 @@ instance Semigroup ListenerBinds where
 
 type LBinds = ListenerBinds
 
-lbsAE ∷ ListenerBinds → AElt
-lbsAE (LBinds (x, _, _)) = x
+lbsAE   ∷ ListenerBinds → AElt
+lbsAE   (LBinds (x, _, _)) = x
+
+lbsSubs ∷ ListenerBinds → SemSubs
+lbsSubs (LBinds (_, x, _)) = x
 
 emptyLBinds ∷ AElt → ListenerBinds
 emptyLBinds = LBinds ∘ (,mempty,mempty)
@@ -208,10 +222,23 @@ listenerBindsParse self store bdescs =
              in Map.fromList $ flip fmap grps
                 \xs@((sae:_,_):_)→
                   (sae, binds sae ((tail *** id) <$> xs)))
-  in binds self [ (aeltParse af, sdk) | (af, sdk) ← bdescs]
+      res = binds self [ (aeltParse af, sdk) | (af, sdk) ← bdescs]
+  in trace (printf "Parsed binds: %s" (show res)) $
+     res
 
-childBinds ∷ ListenerBinds → AElt → ListenerBinds
-childBinds (LBinds (_, _, aem)) ae = fromMaybe (emptyLBinds ae) $ flip Map.lookup aem ae
+descBindsQuery ∷ String → AElt → ListenerBinds → String
+descBindsQuery desc ae (LBinds (pae, _, aem)) =
+  printf "%s: %s → %s\n%s → %s"
+         desc (T.unpack $ aeltName pae) (T.unpack $ aeltName ae)
+         (L.intercalate " " $ T.unpack ∘ aeltName <$> Map.keys aem) (show $ Map.lookup ae aem)
+
+childBinds ∷ AElt → ListenerBinds → ListenerBinds
+childBinds ae (LBinds (_, _, aem)) =
+  -- trace (descBindsQuery "childBinds" ae lbs) $
+  fromMaybe (emptyLBinds ae) $ Map.lookup ae aem
+
+childSubs ∷ AElt → ListenerBinds → SemSubs
+childSubs = lbsSubs .: childBinds
 
 
 -- | EvBinds:  resolving Sems to low-level input events.
@@ -227,8 +254,8 @@ deriving instance Monoid EvBinds
 bindSem' ∷ SemW → EvMask → EvBinds → EvBinds
 bindSem' (SemW (Sem sid _ _)) mask (EvBinds im) = EvBinds $
   IntMap.alter (Just ∘ \case
-                   Nothing      → mask
-                   Just premask → mask)
+                   Nothing       → mask
+                   Just _premask → mask)
   (U.hashUnique sid) im
 
 bindSem ∷ SemStore → SemDescKey → EvMask → EvBinds → EvBinds
@@ -269,14 +296,14 @@ data EvTy
 
 data Ev' (k ∷ EvK) where
   GLFWEv ∷
-    { geGLFW             ∷ {-# UNPACK #-} !GLFW.InputU
+    { geGLFW             ∷ !GLFW.InputU
     } → Ev' GLFWEvK
   ClickEv ∷
-    { ceEv               ∷ {-# UNPACK #-} !(GLFW.Input GLFW.MouseButton)
+    { ceEv               ∷ !(GLFW.Input GLFW.MouseButton)
     , ceIdToken          ∷ !IdToken
     } → Ev' ClickEvK
   WinSizeEv ∷
-    { wsNewSize          ∷ {-# UNPACK #-} !(Port.ScreenDim (Di Int))
+    { wsNewSize          ∷ !(Port.ScreenDim (Di Int))
     } → Ev' ClickEvK
 
 instance Show (Ev' k) where
@@ -285,7 +312,7 @@ instance Show (Ev' k) where
   show (WinSizeEv sz)  = "#<WinSizeEv " <> show sz                   <> ">"
 
 data Ev where
-  Ev ∷ { ev ∷ {-# UNPACK #-} !(Ev' k) } → Ev
+  Ev ∷ { ev ∷ !(Ev' k) } → Ev
 
 ev'Ty ∷ Ev' k → EvTy
 ev'Ty = \case
@@ -302,8 +329,8 @@ evTy (Ev x) = ev'Ty x
 data EvMask where
   EvMask ∷
     { emGLFW    ∷ !GLFW.EventMask
-    , emClick   ∷ {-# UNPACK #-} !Bool
-    , emWinSize ∷ {-# UNPACK #-} !Bool
+    , emClick   ∷ !Bool
+    , emWinSize ∷ !Bool
     } → EvMask
   deriving (Eq, Ord)
 
@@ -374,8 +401,9 @@ subsByType (Subscription ss) ty = MMap.lookup ty ss
 
 resolveSubs ∷ Reflex t ⇒ Input t → IdToken → SemSubs → Dynamic t Subscription
 resolveSubs input tok (SemSubs ss) = inBinds input <&>
-  (\binds→ L.foldl' (<>) mempty $
-     subSingleton tok ∘ translateSem binds <$> Set.toList ss)
+  (\binds→
+     let subs = L.foldl' (<>) mempty $ subSingleton tok ∘ translateSem binds <$> Set.toList ss
+     in trace (printf "tok %d ss: %s ⇒ subs: %s\n" (tokenHash tok) (show ss) (show subs)) subs)
 
 
 routeEv ∷ ∀ t m. (RGLFW t m)
@@ -395,7 +423,7 @@ routeEv evE clickedE subsD = do
       routeSingle ((mClickOrPicked, subs), ev) =
         let eventType = evTy ev
         in case subsByType subs eventType of
-           Nothing         → mempty -- no-one cares about this type of events
+           Nothing         → trace ("ignored:" <> show eventType) mempty -- no-one cares about this type of events
            Just eventTypeSubscribers  →
              let eventListenerSet ∷ Seq.Seq (IdToken, EvMask) =
                    flip Seq.filter eventTypeSubscribers (flip evMatch ev ∘ snd)
