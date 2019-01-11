@@ -1,4 +1,4 @@
-GHC  ?= $(shell echo $$(cat default-compiler.nix) | tr -d '"')
+GHC  ?= $(shell echo $$(cat nix/default-compiler.nix) | tr -d '"')
 GHCD := $(shell echo $(GHC) | sed 's/ghc843/8.4.3/;s/ghc861/8.6.1/')
 $(info Using ghc-$(GHCD))
 
