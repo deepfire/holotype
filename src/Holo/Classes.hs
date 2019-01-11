@@ -19,7 +19,6 @@ where
 import           Data.Typeable                            (Typeable)
 import           Generics.SOP                             (Proxy)
 import           Reflex                                   (Event, Dynamic)
-import           Reflex.GLFW                              (RGLFW)
 
 -- Local imports
 import           Graphics.Flatland
@@ -58,7 +57,7 @@ class Typeable r  ⇒ As r where
 class Mutable a where
   subscription ∷            IdToken → Proxy a → Subscription
   subscription = const mempty         -- declare ignorance..
-  mutate       ∷ (RGLFW t m) ⇒ a → Event t Ev → m (Dynamic t a)
+  mutate       ∷ (HGLFW i t m) ⇒ a → Event t Ev → WM i m (Dynamic t a)
   mutate       = immutable            -- ..then effectuate it
 
 
@@ -72,16 +71,16 @@ class Named a where
 -- | Widgety: turn values into interactive widgets.
 --
 class (Typeable a) ⇒ Widgety (i ∷ Type) (a ∷ Type) where
-  dynWidget'   ∷ (HGLFW i t m, Typeable a, Named a, Widgety i a, HasCallStack)
-               ⇒ LBinds → Input t → IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-  widget       ∷ (HGLFW i t m, Typeable a, HasCallStack)
-               ⇒ LBinds → Input t           → Vocab i (Present i) →           a → m (Widget i a)
+  dynWidget'    ∷ (HGLFW i t m, Typeable a, Named a, Widgety i a, HasCallStack)
+                ⇒ AElt → IdToken → Vocab i (Present i) → Dynamic t a → WM i m (Widget i a)
+  widget        ∷ (HGLFW i t m, Typeable a, HasCallStack)
+                ⇒ AElt           → Vocab i (Present i) →           a → WM i m (Widget i a)
   --
   default dynWidget'
-               ∷ (HGLFW i t m, Mutable a, Named a)
-               ⇒ LBinds → Input t → IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
-  dynWidget'   = dynWidget'Def
-  widget       = widgetDef
+                ∷ (HGLFW i t m, Mutable a, Named a)
+                ⇒ AElt → IdToken → Vocab i (Present i) → Dynamic t a → WM i m (Widget i a)
+  dynWidget'    = dynWidget'Def
+  widget        = widgetDef
 
 
 -- | Interp: assigning interpretation
@@ -95,9 +94,9 @@ class Interp (a ∷ Type) (b ∷ Type) where
 --
 class (Typeable a) ⇒ Present (i ∷ Type) (a ∷ Type) where
   dynPresent    ∷ (HGLFW i t m, HasCallStack)
-                ⇒ LBinds → Input t          → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+                ⇒ AElt          → Vocab i (Present i) → Dynamic t a → WM i m (Widget i a)
   present       ∷ (HGLFW i t m, HasCallStack)
-                ⇒ LBinds → Input t          → Vocab i (Present i) →           a → m (Widget i a)
+                ⇒ AElt          → Vocab i (Present i) →           a → WM i m (Widget i a)
   --
   dynPresent    = dynPresentDef
   present       = presentDef

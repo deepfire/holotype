@@ -10,6 +10,7 @@
 {-# OPTIONS_GHC -Wno-unsafe #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-} -- XXX: due to HasCallStack
 module Holo.Port where
 
 import           Control.Monad
@@ -22,7 +23,7 @@ import           GHC.Stack
 import           GHC.Types
 import           Graphics.GL.Core33                as GL
 import           LambdaCube.Mesh                   as LC
-import           Linear                            hiding (V3, V4)
+import           Linear                            hiding (Trace, V3, V4)
 import           Reflex                            hiding (Query, Query(..))
 import           Reflex.GLFW                              (RGLFW)
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
@@ -62,6 +63,7 @@ import           Graphics.Flatland
 import           Graphics.Cairo                       (FKind(..))
 import qualified Graphics.Cairo                    as Cr
 import           Holo.Prelude
+import           Tracer()
 
 
 -- | Usher Cairo + Pango -enabled surfaces onto a GL Window,
@@ -174,9 +176,9 @@ data ESettings t where
 (⋈) ∷ Reflex t ⇒ Dynamic t a → Dynamic t b → Dynamic t (a, b)
 (⋈) = zipDynWith (,)
 
-portCreate ∷ (RGLFW t m) ⇒ Dynamic t GL.Window → ESettings t → m (Dynamic t (Maybe (Port f)))
+portCreate ∷ (RGLFW t m, MonadTrace m) ⇒ Dynamic t GL.Window → ESettings t → m (Dynamic t (Maybe (Port f)))
 portCreate winD ESettings{..} = do
-  liftIO $ blankIdToken'setup
+  blankIdToken'setup
   portVisualTracker ← mkTIMap
 
   let (,) osName uniName = ("portStream", "portMtl")
@@ -413,14 +415,14 @@ imageSurfaceGetPixels' pb = do
   r ← GRC.imageSurfaceGetStride pb
   return (pixPtr, V2 r h)
 
-makeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → IdToken → Di Double → m Drawable
-makeDrawable dObjectStream@ObjectStream{..} tok dDi' = liftIO $ do
+makeDrawable ∷ (HasCallStack, MonadTrace m) ⇒ ObjectStream → IdToken → Di Double → m Drawable
+makeDrawable dObjectStream@ObjectStream{..} tok dDi' = do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   unless (w > 0 ∧ h > 0) $
     error $ printf "makeDrawable: non-positive dimensions are not acceptable (token=0x%x): %s" (tokenHash tok) (show $ dDi'^.di'v)
-  dSurface      ← GRC.createImageSurface GRC.FormatARGB32 w h
-  dCairo        ← Cr.cairoCreate  dSurface
-  dGIC          ← Cr.cairoToGICairo dCairo
+  dSurface      ← liftIO $ GRC.createImageSurface GRC.FormatARGB32 w h
+  dCairo        ← liftIO $ Cr.cairoCreate  dSurface
+  dGIC          ← liftIO $ Cr.cairoToGICairo dCairo
 
   let (dx, dy) = (fromIntegral w, fromIntegral $ -h)
       -- position = V.fromList [ LCLin.V3  0 dy 0, LCLin.V3  0  0 0, LCLin.V3 dx  0 0, LCLin.V3  0 dy 0, LCLin.V3 dx  0 0, LCLin.V3 dx dy 0 ]
@@ -431,28 +433,31 @@ makeDrawable dObjectStream@ObjectStream{..} tok dDi' = liftIO $ do
                          , mAttributes = Map.fromList [ ("position",  A_V2F position)
                                                       , ("uv",        A_V2F texcoord)
                                                       , ("id",        A_Int ids)] }
-  dGPUMesh      ← GL.uploadMeshToGPU dMesh
+  dGPUMesh      ← liftIO $ GL.uploadMeshToGPU dMesh
   -- XXX: this is leaky -- has to be done manually
   -- SMem.addFinalizer dGPUMesh $ do
   --   GL.disposeMesh dGPUMesh
-  dGLObject     ← GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [SB.unpack $ fromUNS osUniform, "viewProj"] dGPUMesh
+  dGLObject     ← liftIO $ GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [SB.unpack $ fromUNS osUniform, "viewProj"] dGPUMesh
 
-  dSurfaceData  ← imageSurfaceGetPixels' dSurface
-  dTexId        ← F.alloca $! \pto → glGenTextures 1 pto >> F.peek pto
-  trev ALLOC TEX (dDi^.di'v) (fromIntegral dTexId)
+  dSurfaceData  ← liftIO $ imageSurfaceGetPixels' dSurface
+  dTexId        ← liftIO $ F.alloca $! \pto → glGenTextures 1 pto >> F.peek pto
+  logDebug "TEX ALLOC %s %d" (show $ dDi^.di'v, dTexId)
+  -- traceNamedObject tr (LP (LogValue "tex" (PureD (dDi^.di'v))))
+  -- trev ALLOC TEX (dDi^.di'v) (fromIntegral dTexId)
 
   -- dTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi dStridePixels, h, GL_BGRA, pixels)
   pure Drawable{..}
 
-disposeDrawable ∷ (HasCallStack, MonadIO m) ⇒ ObjectStream → Drawable → m ()
-disposeDrawable ObjectStream{..} Drawable{..} = liftIO $ do
+disposeDrawable ∷ (HasCallStack, MonadTrace m) ⇒ ObjectStream → Drawable → m ()
+disposeDrawable ObjectStream{..} Drawable{..} =
   -- see experiment in LCstress
-  trev FREE TEX (dDi^.di'v) (fromIntegral dTexId)
-  F.withArray [dTexId] $ glDeleteTextures 1 -- release tex id
-  GL.removeObject osStorage dGLObject
-  GL.disposeMesh  dGPUMesh
-  -- dCairo ← cairoCreate is auto-managed
-  GRCI.surfaceFinish dSurface -- undo createImageSurface
+  logDebug "TEX FREE %s %d" (show $ dDi^.di'v, dTexId) >>
+  do liftIO $ do
+       F.withArray [dTexId] (glDeleteTextures 1) -- release tex id
+       GL.removeObject osStorage dGLObject
+       GL.disposeMesh  dGPUMesh
+       -- dCairo ← cairoCreate is auto-managed
+       GRCI.surfaceFinish dSurface -- undo createImageSurface
 
 drawableContentToGPU ∷ (MonadIO m) ⇒ Drawable → m ()
 drawableContentToGPU Drawable{..} = liftIO $ do
@@ -542,16 +547,17 @@ fromIdToken ∷ IdToken → U.Unique
 fromIdToken = fromIdToken'
 {-# INLINE fromIdToken #-}
 
-newId ∷ (HasCallStack, MonadIO m) ⇒ T.Text → m IdToken
-newId desc = liftIO $ do
-  tok ← U.newUnique
-  trev ALLOC TOK desc (U.hashUnique tok)
+newId ∷ (HasCallStack, MonadTrace m) ⇒ T.Text → m IdToken
+newId desc = do
+  tok ← liftIO $ U.newUnique
+  logDebug "TOK ALLOC %s %s" (desc, U.hashUnique tok)
+  -- trev ALLOC TOK desc (U.hashUnique tok)
   pure $ IdToken tok
 
 blankIdToken'      ∷ IO.IORef IdToken
 blankIdToken'      = IO.unsafePerformIO $ IO.newIORef  undefined
-blankIdToken'setup ∷ IO ()
-blankIdToken'setup = IO.writeIORef blankIdToken' =<< newId "blank"
+blankIdToken'setup ∷ MonadTrace m ⇒ m ()
+blankIdToken'setup = newId "blank" >>= (liftIO ∘ IO.writeIORef blankIdToken')
 blankIdToken       ∷ IdToken
 blankIdToken       = IO.unsafePerformIO $ IO.readIORef blankIdToken'
 {-# NOINLINE blankIdToken #-}
@@ -609,7 +615,7 @@ tiMapReplace (TyIdMap m) tm = liftIO $ STM.atomically $ STM.writeTVar m tm
 --     - newDrawable/disposeDrawable
 --   XXX: not thread-safe
 
-portEnsureVisual ∷ (HasCallStack, MonadIO m, PortVisual f, Typeable a, c a)
+portEnsureVisual ∷ (HasCallStack, MonadTrace m, PortVisual f, Typeable a, c a)
   ⇒ Port f
   → Di Double
   → Proxy (c ∷ Type → Constraint)
@@ -625,18 +631,21 @@ portEnsureVisual Port{..} newDim@(Di (V2 newW newH)) hiC hitok pHi keepTest hif 
       (vis ∷ f x, updated ∷ Bool)
         ← case join $ IntMap.lookup (tokenHash hitok) ∘ ctimMap <$> TM.lookup pHi tm of
             Nothing → do
-              trev MISSALLOC VIS (newW, newH) (tokenHash hitok)
+              logDebug "VIS MISSALLOC %s %d" (show (newW, newH), tokenHash hitok)
+              -- trev MISSALLOC VIS (newW, newH) (tokenHash hitok)
               (,True) <$> (hif =<< makeDrawable portObjectStream hitok newDim)
             Just (pv ∷ f x) → do
               let pvDrw  = pvDrawable pv
               if not (keepTest pv) ∨ (dDi pvDrw ≢ (ceiling <$> newDim))
               then do
-                trev REALLOC VIS (newW, newH) (tokenHash hitok)
+                logDebug "VIS REALLOC %s %d" (show (newW, newH), tokenHash hitok)
+                -- trev REALLOC VIS (newW, newH) (tokenHash hitok)
                 pvFree hiC Proxy pv
                 disposeDrawable portObjectStream pvDrw
                 (,True) <$> (hif =<< makeDrawable portObjectStream hitok newDim)
               else do
-                trev REUSE   VIS (newW, newH) (tokenHash hitok)
+                logDebug "VIS REUSE %s %d" (show (newW, newH), tokenHash hitok)
+                -- trev REUSE   VIS (newW, newH) (tokenHash hitok)
                 pure $ (pv, False)
       when updated $
         tiMapAdd hiC pHi hitok vis portVisualTracker
@@ -646,7 +655,7 @@ class PortVisual f where
   pvDrawable    ∷ f a → Drawable
   pvFree        ∷ (MonadIO m, c a) ⇒ Proxy c → Proxy a → f a → m ()
 
-portGarbageCollectVisuals ∷ ∀ m f a. (MonadIO m, PortVisual f) ⇒ Port f → IntMap.IntMap a → m ()
+portGarbageCollectVisuals ∷ ∀ m f a. (MonadTrace m, PortVisual f) ⇒ Port f → IntMap.IntMap a → m ()
 portGarbageCollectVisuals Port{..} validLeaves = do
   case portVisualTracker of
     TyIdMap _ → do

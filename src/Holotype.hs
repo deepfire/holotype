@@ -12,6 +12,7 @@ import           Control.Monad
 import           Control.Monad.Fix
 import           Control.Monad.Primitive
 import           Control.Monad.Ref
+import           Control.Monad.Trans.Reader
 import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Maybe
@@ -83,58 +84,7 @@ newPortFrame portFrameE = performEvent $ portFrameE <&>
     newFrame ← Port.portNextFrame port
     pure (port, newFrame)
 
-
 
--- mkTextEntryStyleD ∷ RGLFW t m ⇒ InputEventMux t → Behavior t (Style Text) → Text → m (W t (Text, HoloBlank))
--- mkTextEntryStyleD mux styleB initialV = do
---   tokenV       ← newId
---   let editE = select mux $ Const2 tokenV
---   valD         ← liftDyn initialV editE
---   setupE       ← getPostBuild
---   let holoE     = attachWith (leafStyled tokenV) styleB $ leftmost [updated valD, initialV <$ setupE]
---   holdDyn (initialV, emptyHolo) (attachPromptlyDyn valD holoE)
---    <&> (,) editMaskKeys
-
-mkTextEntryValidatedStyleD ∷ ∀ i t m. HGLFW i t m ⇒ LBinds → Input t → Behavior t (Style TextLine) → Text → (Text → Bool) → m (Result i Text)
-mkTextEntryValidatedStyleD lbs input styleB initialV testF = do
-  unless (testF initialV) $
-    error $ "Initial value not accepted by test: " <> T.unpack initialV
-  -- (subD, textD) ← mkTextEntryStyleD mux styleB initialV
-  Widget' (_, subD, itemD, textD) ← widget @i @Text lbs input (desDen @Text TextLine) initialV
-  initial ← sample $ current textD
-  foldDyn (\new oldValid→
-               if testF new then new else oldValid)
-    initial (updated textD)
-    <&> Widget' ∘ (lbsAE lbs, subD,itemD,)
-
-vboxD ∷ ∀ i t m. (HGLFW i t m) ⇒ Input t → [WH i] → ListenerBinds → m (Widget.FH i)
-vboxD input chi lbs = do
-  let (subsD, chiD) = foldr (\(sae, s, hb) (ss, hbs)→
-                               ( zipDynWith (<>)
-                                 (let LBinds (_,subs,_) = childBinds lbs sae
-                                  in s subs)
-                                 ss
-                               , zipDynWith (:) hb hbs ))
-                      (constDyn mempty, constDyn [])
-                      chi
-  pure $ (lbsAE lbs, subsD, vbox <$> chiD)
-
-
-
-fpsCounterD ∷ RGLFW t m ⇒ Event t Port.Frame → m (Dynamic t Double)
-fpsCounterD frameE = do
-  frameMomentE     ← performEvent $ fmap (\_ → HOS.fromSec <$> HOS.getTime) frameE
-  frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
-  avgFrameΔD       ← average 300 $ updated frameΔD
-  pure (recip <$> avgFrameΔD)
-
-trackStyle ∷ (As a, RGLFW t m) ⇒ Dynamic t (Sty a) → m (Dynamic t (Style a))
-trackStyle sof = do
-  gene ← count $ updated sof
-  pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
-
-
-
 defVocab ∷ Vocab i (Present i)
 defVocab = Vocab
   (TM.empty
@@ -161,89 +111,78 @@ scene ∷ ∀ i t m. ( HGLFW i t m
   → Dynamic    t Integer
   → Dynamic    t Int
   → Dynamic    t Double
-  → m (Widget.FH i)
-scene input sttsD statsValD frameNoD fpsValueD = mdo
+  → m (Widget i Port.Settings, Widget.WH i)
+scene input sttsD statsValD frameNoD fpsValueD =
+  let lbinds = listenerBindsParse "Scene" (inStore input)
+        [ ("Settings.sttsWaitVSync", "VSyncToggle")
+        , ("Settings.sttsScreenDim", "WinSize")
+        ]
+  in runWidgetM input lbinds $ mdo
 
-  fpsD ∷ Widget i Text
-                   ← dynPresent "fps" input defVocab (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
-  statsD ∷ Widget i Text
-                   ← dynPresent "mem" input defVocab $ statsValD <&>
-                     \(mem)→ T.pack $ printf "mem: %d" mem
-  lolD ∷ Widget i Text
-                   ← dynPresent "lol" input (desDen @Text $ Labelled ("mem", TextLine)) $ statsValD <&>
-                     \(mem)→ T.pack $ printf "%d" mem
+    fpsD ∷ Widget i Text
+                     ← dynPresent "fps" defVocab (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
 
-  let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
-  rectD ∷ Widget i (Di (Unit PU))
-                   ← liftPureDynamic "rect" Rect rectDiD
+    statsD ∷ Widget i Text
+                     ← dynPresent "mem" defVocab $ statsValD <&>
+                       \(mem)→ T.pack $ printf "mem: %d" mem
 
-  frameCountD ∷ Widget i Text
-                   ← dynPresent "nframes" input defVocab $ T.pack ∘ printf "frame #%04d" <$> frameNoD
-  varlenTextD ∷ Widget i Text
-                   ← dynPresent "truefalse" input defVocab $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
+    let rectDiD       = (PUs <$>) ∘ join unsafe'di ∘ fromIntegral ∘ max 1 ∘ flip mod 200 <$> frameNoD
+    rectD ∷ Widget i (Di (Unit PU))
+                     ← liftPureDynamic "rect" Rect rectDiD
 
-  doubleD ∷ Widget i Double
-                   ← present "zero" input defVocab 0
+    frameCountD ∷ Widget i Text
+                     ← dynPresent "nframes" defVocab $ T.pack ∘ printf "frame #%04d" <$> frameNoD
+    varlenTextD ∷ Widget i Text
+                     ← dynPresent "truefalse" defVocab $ T.pack ∘ printf "even: %s" ∘ show ∘ even <$> frameNoD
 
-  -- dimD ∷ Widget i (Double, Double)
-  --                  ← liftW eV (X, (Labelled ("x", TextLine)
-  --                                 ,Labelled ("y", TextLine)))
-  --                    (0,0)
+    tupleWD          ← present @i "tuple" defVocab
+                        (unsafe'di 320 200 ∷ Di Int)
+    sttsWDCurr ∷ Widget i Port.Settings
+                     ← dynPresent "stts-ro" defVocab sttsD
+    initSttsV        ← sample $ current sttsD
+    sttsWDSeeded ∷ Widget i Port.Settings
+                     ← present "Settings" defVocab
+                        initSttsV
 
-  tupleWD          ← present @i "tuple" input defVocab
-                      (unsafe'di 320 200 ∷ Di Int)
-  sttsWDCurr ∷ Widget i Port.Settings
-                   ← dynPresent "Settings" input defVocab sttsD
-  initSttsV        ← sample $ current sttsD
-  sttsWDSeeded ∷ Widget i Port.Settings
-                   ← present "settings-seed" input defVocab
-                      -- (Cr.FontPreferences [])
-                      initSttsV
+    longStaticTextD  ← present @i "longstatictext" (desDen @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
 
-  longStaticTextD  ← present @i "longstatictext" input (desDen @Text TextLine) ("0....5...10...15...20...25...30...35...40...45...50...55...60...65...70...75...80...85...90...95..100" ∷ Text)
+    -- dimD ∷ Widget i (Double, Double)
+    --                  ← liftW eV (X, (Labelled ("x", TextLine)
+    --                                 ,Labelled ("y", TextLine)))
+    --                    (0,0)
+    -- The loop demo (currently incapacitated due to definition of mkTextEntryValidatedStyleD)
+    let fontNameStyle name = defSty (Proxy @TextLine) & tsFontKey .~ Cr.FK name
+    styleNameD       ← mkTextEntryValidatedStyleD @i "stylename" styleB "defaultSans" $
+                       (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
+    styleD           ← trackStyle $ fontNameStyle <$> (traceDynWith show $ wValD styleNameD)
+    let styleB        = current styleD
 
-  -- The loop demo (currently incapacitated due to definition of mkTextEntryValidatedStyleD)
-  let fontNameStyle name = defSty (Proxy @TextLine) & tsFontKey .~ Cr.FK name
-  styleNameD       ← mkTextEntryValidatedStyleD @i "stylename" input styleB "defaultSans" $
-                     (\x→ x ≡ "defaultMono" ∨ x ≡ "defaultSans")
-  styleD           ← trackStyle $ fontNameStyle <$> (traceDynWith show $ wValD styleNameD)
-  let styleB        = current styleD
+    --
+    pure $
+      ( sttsWDSeeded ∷ Widget i Port.Settings
+      , vboxD @i
+        [ stripW frameCountD
+        , stripW sttsWDCurr
+        , stripW sttsWDSeeded
+        , stripW tupleWD
+        , stripW rectD
+        , stripW fpsD
+        , stripW longStaticTextD
+        , stripW statsD
+        , stripW varlenTextD
+        ] lbinds)
 
-  --
-  vboxD @i input
-    [ stripW frameCountD
-      -- , (snd <$>) <$> text2HoloQD
-      -- , stripW styleNameD
-      -- , stripW lolD
-      -- , stripW doubleD
-      -- , stripW recWD
-    , stripW $ Widget.traceWVal "sttsWDCurr: " sttsWDCurr
-      -- , stripW sttsWDSeeded
-    , stripW tupleWD
-      -- , stripW rectD
-    , stripW fpsD
-    , stripW longStaticTextD
-    , stripW statsD
-    , stripW varlenTextD
-    ] $
-    listenerBindsParse "Scene" (inStore input)
-    [ ("Scene.Settings.sttsWaitVSync", "VSyncToggle")
-    ]
-
+vboxD ∷ ∀ i t m. (HGLFW i t m) ⇒ [WH i] → ListenerBinds → (Widget.WH i)
+vboxD chi lbs =
+  let (subsD, chiD) = foldr (\(sae, s, hb) (ss, hbs)→
+                               trace (printf "vboxD χ %s" (T.unpack $ aeltName sae))
+                               ( zipDynWith (<>) s ss
+                               , zipDynWith (:) hb hbs ))
+                      (constDyn mempty, constDyn [])
+                      chi
+  in (lbsAE lbs, subsD, vbox <$> chiD)
 
 
-
-data Options where
-  Options ∷
-    { oTrace ∷ Bool
-    } → Options
-parseOptions ∷ Opt.Parser Options
-parseOptions =
-  Options
-  <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
-
--- * Top level network
---
 holotype ∷ ∀ t m. (Typeable t) ⇒ RGLFWGuest t m
 holotype win evCtl windowFrameE inputE = mdo
   Options{..} ← liftIO $ Opt.execParser $ Opt.info (parseOptions <**> Opt.helper)
@@ -301,21 +240,24 @@ holotype win evCtl windowFrameE inputE = mdo
 
   -- * SCENE
   -- not a loop:  subscriptionsD only used/sampled during inputE, which is independent
-  let inputEv       = fforMaybe inputE
-                      (\case x@(U GLFW.EventMouseButton{}) → Just $ Ev $ GLFWEv x; _ → Nothing)
-  inputMux         ← routeEv inputEv clickedE subscriptionsD
-  (,,) _ae subscriptionsD sceneD
-                   ← scene @(API t m) input sttsD statsValD frameNoD fpsValueD
+  -- let inputEv       = fforMaybe inputE
+  --                     (\case x@(U GLFW.EventMouseButton{}) → Just $ Ev $ GLFWEv x; _ → Nothing)
 
   semStoreV        ← declSemStore "main"
     [ ("VSyncToggle"
       , "Toggle waiting for vertical synchronisation.")
+    , ("WinSize"
+      , "Window size change.")
     ]
   let input         = mkInput semStoreV evBindsD inputMux
-      bind = bindSem semStoreV
+      bind          = bindSem semStoreV
       evBindsD      = constDyn $ mempty
         & bind "VSyncToggle" (inputMaskKeyPress GLFW.Key'F3 mempty)
-
+        & bind "WinSize"     (glfwMask GLFW.eventMaskWindowSize)
+  inputMux         ← routeEv evE clickedE subscriptionsD
+  (,) (Widget' (_,_,sttsWD,_))
+      ((,,) _ae subscriptionsD sceneD)
+                   ← scene @(API t m) input sttsD statsValD frameNoD fpsValueD
 
   -- * LAYOUT
   -- needs port because of DPI and fonts
@@ -356,8 +298,71 @@ holotype win evCtl windowFrameE inputE = mdo
   hold False (evMatch (inputMaskKeyPress' GLFW.Key'Escape)
                <$> evE)
 
+
+
+-- * Boring stuff
+--
+data Options where
+  Options ∷
+    { oTrace ∷ Bool
+    } → Options
+
+parseOptions ∷ Opt.Parser Options
+parseOptions =
+  Options
+  <$> Opt.switch (Opt.long "trace" <> Opt.help "[DEBUG] Enable allocation tracing")
+
 mousePointId ∷ RGLFW t m ⇒ Event t (VPort, GLFW.Input 'GLFW.MouseButton) → m (Event t (Ev' ClickEvK))
 mousePointId ev = (ffilter ((≢ 0) ∘ Port.tokenHash ∘ ceIdToken) <$>) <$>
                   performEvent $ ev <&> \(port@Port{..}, e@(GLFW.EventMouseButton _ _ _ _)) → do
                     (,) x y ← liftIO $ (GLFW.getCursorPos portWindow)
                     ClickEv e <$> (Port.portPick port $ floor <$> po x y)
+
+
+-- * Wijits and various stuffs
+--
+trackStyle ∷ (As a, RGLFW t m) ⇒ Dynamic t (Sty a) → m (Dynamic t (Style a))
+trackStyle sof = do
+  gene ← count $ updated sof
+  pure $ zipDynWith Style sof (StyleGene ∘ fromIntegral <$> gene)
+
+-- mkTextEntryStyleD ∷ RGLFW t m ⇒ InputEventMux t → Behavior t (Style Text) → Text → m (W t (Text, HoloBlank))
+-- mkTextEntryStyleD mux styleB initialV = do
+--   tokenV       ← newId
+--   let editE = select mux $ Const2 tokenV
+--   valD         ← liftDyn initialV editE
+--   setupE       ← getPostBuild
+--   let holoE     = attachWith (leafStyled tokenV) styleB $ leftmost [updated valD, initialV <$ setupE]
+--   holdDyn (initialV, emptyHolo) (attachPromptlyDyn valD holoE)
+--    <&> (,) editMaskKeys
+
+mkTextEntryValidatedStyleD ∷ ∀ i t m. HGLFW i t m ⇒ AElt → Behavior t (Style TextLine) → Text → (Text → Bool) → WM i m (Result i Text)
+mkTextEntryValidatedStyleD ae styleB initialV testF = do
+  unless (testF initialV) $
+    error $ "Initial value not accepted by test: " <> T.unpack initialV
+  -- (subD, textD) ← mkTextEntryStyleD mux styleB initialV
+  Widget' (_, subD, itemD, textD) ← widget @i @Text ae (desDen @Text TextLine) initialV
+  initial ← sample $ current textD
+  foldDyn (\new oldValid→
+               if testF new then new else oldValid)
+    initial (updated textD)
+    <&> Widget' ∘ (ae, subD,itemD,)
+
+fpsCounterD ∷ RGLFW t m ⇒ Event t Port.Frame → m (Dynamic t Double)
+fpsCounterD frameE = do
+  frameMomentE     ← performEvent $ fmap (\_ → HOS.fromSec <$> HOS.getTime) frameE
+  frameΔD          ← (fst <$>) <$> foldDyn (\y (_,x)->(y-x,y)) (0,0) frameMomentE
+  avgFrameΔD       ← average 300 $ updated frameΔD
+  pure (recip <$> avgFrameΔD)
+
+
+instance SOP.Generic         (V2 a)
+instance SOP.HasDatatypeInfo (V2 a)
+
+deriving instance Generic    (Di a)
+instance SOP.Generic         (Di a)
+instance SOP.HasDatatypeInfo (Di a)
+
+deriving instance Generic    (Port.ScreenDim (Di a))
+instance SOP.Generic         (Port.ScreenDim (Di a))
+instance SOP.HasDatatypeInfo (Port.ScreenDim (Di a))

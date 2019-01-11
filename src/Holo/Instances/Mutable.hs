@@ -3,6 +3,7 @@ where
 
 import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
+import           Data.Typeable                            (Typeable)
 import           Prelude.Unicode
 import           Reflex
 import           Reflex.GLFW                              (RGLFW, InputU(..))
@@ -14,13 +15,16 @@ import           Elsewhere
 import {-# SOURCE #-}
                  Holo.Classes
 import           Holo.Input
+import {-# SOURCE #-}
+                 Holo.Widget
+import qualified Holo.Port                         as Port
 
 
 instance {-# OVERLAPPABLE #-} Mutable a where
   subscription = const mempty         -- declare ignorance..
   mutate       = immutable
 
-immutable ∷ (RGLFW t m) ⇒ a → Event t Ev → m (Dynamic t a)
+immutable ∷ HGLFW i t m ⇒ a → Event t Ev → WM i m (Dynamic t a)
 immutable init _ev = pure $ constDyn init
 
 
@@ -65,3 +69,8 @@ translateEditEvent (Ev ev) = case ev of
   (GLFWEv (U (GLFW.EventKey  _ GLFW.Key'Home      _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoBOL
   (GLFWEv (U (GLFW.EventKey  _ GLFW.Key'End       _ GLFW.KeyState'Repeating _))) → Edit $ T.gotoEOL
   x → error $ "Unexpected event (non-edit): " <> show x
+
+
+-- * Immutables
+--
+instance Typeable a ⇒ Mutable (Port.ScreenDim a)

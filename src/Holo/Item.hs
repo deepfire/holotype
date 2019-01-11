@@ -101,10 +101,10 @@ iLeafP = \case
   Leaf{..} → True
   _        → False
 
-iNewToken ∷ (MonadIO m, Typeable a) ⇒ Proxy a → m IdToken
+iNewToken ∷ (MonadTrace m, Typeable a) ⇒ Proxy a → m IdToken
 iNewToken p = Port.newId $ showT $ typeRep p
 
-iCompToken ∷ MonadIO m ⇒ Item c p → m IdToken
+iCompToken ∷ MonadTrace m ⇒ Item c p → m IdToken
 iCompToken = \case
   Leaf{name=Name{..},..} → Port.newId $ showT $ typeRep (proxy n)
   Node{..} → pure Port.blankIdToken
@@ -143,21 +143,23 @@ instance Flex (Item c (a ∷ Phase)) where
 traceIGeoDiff ∷ String → Item a b → Item a b
 traceIGeoDiff desc x = trace (desc<>" geoΔ: "<>Flex.ppdefGeoDiff (iGeo x)) x
 
-iSizeRequest ∷ ∀ c m. (MonadIO m, Typeable c) ⇒ VPort → Item c PBlank → m (Item c PLayout)
+iSizeRequest ∷ ∀ c m. (MonadTrace m, Typeable c) ⇒ VPort → Item c PBlank → m (Item c PLayout)
 iSizeRequest port Leaf{name=name@Name{..},..} = do
   --
   (,) iStruc iSize ← sizeRequest port n denoted (_sStyle $ nStyle)
-  trev SIZE HOLO iSize $ Port.tokenHash nToken
+  logDebug "HOLO SIZE %s %d" (show iSize, Port.tokenHash nToken)
+  -- trev SIZE HOLO iSize $ Port.tokenHash nToken
   pure Leaf{iArea=mempty, ..}
 iSizeRequest port Node{name=name',iSize=_,..} = do
   chi ← (sequence $ iSizeRequest port <$> denoted)
   let name@Name{..} = nodeNameBtoL name'
   --
   (,) iStruc iSize ← sizeRequest port n chi (_sStyle $ nStyle)
-  trev SIZE HOLO iSize (Port.tokenHash nToken)
+  logDebug "HOLO SIZE %s %d" (show iSize, Port.tokenHash nToken)
+  -- trev SIZE HOLO iSize (Port.tokenHash nToken)
   pure $ Node{iArea=mempty, iSize=iSize, denoted=chi, ..}
 
-iMandateVisual ∷ (HasCallStack, MonadIO m) ⇒ VPort → Item c PLayout → [Item c PVisual] → m (Item c PVisual)
+iMandateVisual ∷ (HasCallStack, MonadTrace m) ⇒ VPort → Item c PLayout → [Item c PVisual] → m (Item c PVisual)
 iMandateVisual port hi children = case hi of
   Node{..} → pure $ Node {name = nodeNameLtoV name, denoted = children, ..}
   Leaf{name=name@Name{..},..} → do
@@ -172,7 +174,7 @@ iUnvisual hi children = case hi of
   Node{..} → Node{name = nodeNameLtoV name, denoted = children, ..}
   Leaf{..} → Leaf{lVisual = Nothing, ..}
 
-iRender ∷ (MonadIO m) ⇒ VPort → Item c PVisual → m ()
+iRender ∷ (MonadTrace m) ⇒ VPort → Item c PVisual → m ()
 iRender port Leaf{name=Name{..}, lVisual=Just Visual{..},..} = do
   -- XXX: 'render' is called every frame for everything
   Port.clearDrawable vDrawable
@@ -255,16 +257,16 @@ treeLeaves root = IntMap.fromList $ walk root
         walk x@Leaf{..} = [(Port.tokenHash $ iToken x, x)]
         walk   Node{..} = concat $ walk <$> denoted
 
-ensureTreeVisuals ∷ (MonadIO m) ⇒ VPort → Item c PLayout → m (Item c PVisual)
+ensureTreeVisuals ∷ (MonadTrace m) ⇒ VPort → Item c PLayout → m (Item c PVisual)
 ensureTreeVisuals port i = case i of
   Node{..} → iUnvisual i <$> (sequence $ ensureTreeVisuals port <$> denoted)
   Leaf{..} → iMandateVisual port i []
 
-renderTreeVisuals ∷ (MonadIO m) ⇒ VPort → Item c PVisual → m ()
+renderTreeVisuals ∷ (MonadTrace m) ⇒ VPort → Item c PVisual → m ()
 renderTreeVisuals port l@Leaf{..} = iRender port l
 renderTreeVisuals port   Node{..} = forM_ denoted (renderTreeVisuals port)
 
-showTreeVisuals ∷ (MonadIO m) ⇒ Frame → Item c PVisual → m ()
+showTreeVisuals ∷ (MonadTrace m) ⇒ Frame → Item c PVisual → m ()
 showTreeVisuals frame root = recur (luOf (iArea root)^.lu'po) "" root
   where
     recur parOff _ Leaf{..} = do

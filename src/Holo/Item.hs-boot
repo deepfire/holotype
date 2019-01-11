@@ -1,12 +1,12 @@
 module Holo.Item
 where
 
-import           Control.Monad.IO.Class                   (MonadIO)
 import           Data.Kind                                (Constraint, Type)
 import           Data.Proxy                               (Proxy)
 import           Data.Typeable                            (Typeable)
 
 import qualified Holo.Port                         as Port
+import           Tracer
 
 
 data Phase
@@ -23,4 +23,4 @@ type role Node phantom nominal phantom
 data Node (c ∷ Type → Constraint) (k ∷ KNode) (p ∷ Phase)
 
 
-iNewToken ∷ (MonadIO m, Typeable a) ⇒ Proxy a → m Port.IdToken
+iNewToken ∷ (MonadTrace m, Typeable a) ⇒ Proxy a → m Port.IdToken
