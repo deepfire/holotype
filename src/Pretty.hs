@@ -20,6 +20,8 @@ where
 
 import           Data.Maybe                               (fromMaybe)
 import qualified Data.Text                         as TS
+import           Data.Text.Prettyprint.Doc
+import           Data.Text.Prettyprint.Doc.Render.Text    (renderLazy)
 import qualified Data.Text.Lazy                    as TL
 import qualified Data.Text.Lazy.IO
 import           Debug.Trace                              (trace)
@@ -27,10 +29,6 @@ import           GHC.Stack                                (HasCallStack)
 import           Numeric
 import           Prelude                           hiding (Word, words)
 import           Prelude.Unicode
-import           Text.PrettyPrint.Leijen.Text             (Doc, Pretty
-                                                          , displayT, renderCompact, renderPretty
-                                                          , char, angles, text, pretty
-                                                          , (<+>))
 import           Text.Printf                              (printf)
 
 -- * Pretty
@@ -51,21 +49,21 @@ ppPretty wi =  rendPretty wi ∘ pretty
 trace'pp ∷ Pretty a ⇒ String → a → a
 trace'pp prefix o = trace (prefix <> TL.unpack (ppPretty 60 o)) o
 
-rendCompact ∷ Doc → TL.Text
-rendCompact = displayT ∘ renderCompact
+rendCompact ∷ Doc ann → TL.Text
+rendCompact = renderLazy ∘ layoutCompact
 
-rendPretty ∷ Int → Doc → TL.Text
-rendPretty wi = displayT ∘ renderPretty 1.0 wi
+rendPretty ∷ Int → Doc ann → TL.Text
+rendPretty wi = renderLazy ∘ layoutPretty (defaultLayoutOptions { layoutPageWidth = AvailablePerLine wi 1.0 })
 
-prettyMaybe ∷ Pretty a ⇒ TL.Text → Maybe a → Doc
-prettyMaybe m = fromMaybe (text m) ∘ (pretty <$>)
+prettyMaybe ∷ Pretty a ⇒ TL.Text → Maybe a → Doc ann
+prettyMaybe m = fromMaybe (pretty m) ∘ (pretty <$>)
 
-unreadable ∷ TL.Text → Doc → Doc
-unreadable ty x = char '#' <> angles (text ty <+> x)
+unreadable ∷ TL.Text → Doc ann → Doc ann
+unreadable ty x = pretty '#' <> angles (pretty ty <+> x)
 
-(<->), (<:>) ∷ Doc → Doc → Doc
-l <-> r = l <> char '-' <> r
-l <:> r = l <> char ':' <> r
+(<->), (<:>) ∷ Doc ann → Doc ann → Doc ann
+l <-> r = l <> pretty '-' <> r
+l <:> r = l <> pretty ':' <> r
 
 trace' ∷ Show a ⇒ String → a → a
 trace' prefix o = trace (prefix <> (show o)) o

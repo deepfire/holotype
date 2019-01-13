@@ -8,15 +8,14 @@
 , lambdacube-gl, lambdacube-ir, lens, lens-sop, linear, lub
 , metamorphic, MissingH, monadplus, MonadRandom, mono-traversable
 , monoidal-containers, mtl, newtype-generics, OpenGL, OpenGLRaw
-, optparse-applicative, parsers, pretty, pretty-show, primitive
-, profunctors, proteaaudio, QuickCheck, random, ref-tf, reflex
-, reflex-glfw, safe, semigroupoids, semigroups, singletons
+, optparse-applicative, parsers, pretty, pretty-show, prettyprinter
+, primitive, profunctors, proteaaudio, QuickCheck, random, ref-tf
+, reflex, reflex-glfw, safe, semigroupoids, semigroups, singletons
 , sop-core, spool, stdenv, stm, tasty, tasty-discover
 , tasty-expected-failure, tasty-hedgehog, tasty-hspec, tasty-hunit
 , tasty-quickcheck, tasty-smallcheck, template-haskell, text
 , text-format, text-lens, text-zipper, these, time, transformers
 , trifecta, type-map, unordered-containers, vect, vector
-, wl-pprint-extras, wl-pprint-text
 }:
 mkDerivation {
   pname = "holotype";
@@ -34,13 +33,13 @@ mkDerivation {
     lambdacube-ir lens lens-sop linear lub metamorphic MissingH
     monadplus MonadRandom mono-traversable monoidal-containers mtl
     newtype-generics OpenGL OpenGLRaw optparse-applicative parsers
-    pretty pretty-show primitive profunctors proteaaudio QuickCheck
-    random ref-tf reflex reflex-glfw safe semigroupoids semigroups
-    singletons sop-core spool stm tasty tasty-expected-failure
-    tasty-hedgehog tasty-hspec tasty-hunit tasty-quickcheck
-    tasty-smallcheck template-haskell text text-format text-lens
-    text-zipper these time transformers trifecta type-map
-    unordered-containers vect vector wl-pprint-extras wl-pprint-text
+    pretty pretty-show prettyprinter primitive profunctors proteaaudio
+    QuickCheck random ref-tf reflex reflex-glfw safe semigroupoids
+    semigroups singletons sop-core spool stm tasty
+    tasty-expected-failure tasty-hedgehog tasty-hspec tasty-hunit
+    tasty-quickcheck tasty-smallcheck template-haskell text text-format
+    text-lens text-zipper these time transformers trifecta type-map
+    unordered-containers vect vector
   ];
   executableHaskellDepends = [
     aeson base base-unicode-symbols bytestring cairo clock containers

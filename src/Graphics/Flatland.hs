@@ -48,14 +48,14 @@ import           Data.Singletons
 import           Data.Singletons.Prelude
 import           Data.Singletons.TH                hiding ((%~))
 import           Data.Text.Format                  hiding (prec)
+import           Data.Text.Prettyprint.Doc
 import           Data.Type.Bool
 import           Elsewhere
 import           GHC.Generics                             (Generic)
 import           GHC.TypeLits
 import           GHC.Types
-import           Prelude.Unicode
 import           Linear                            hiding (trace)
-import           Text.PrettyPrint.Leijen.Text      hiding ((<$>), space)
+import           Prelude.Unicode
 import           Text.Read
 import qualified Data.Map                          as Map
 import qualified Data.Text.Format                  as T
@@ -326,8 +326,8 @@ makeLenses ''Co
 ppV2 ∷ Show a ⇒ V2 a → TL.Text
 ppV2 x = (TL.pack ∘ show $ x^._x) <> "x" <> (TL.pack ∘ show $ x^._y)
 
-instance Show a ⇒ Pretty (Di a) where pretty = text ∘ ("#<Di " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.di'v)
-instance Show a ⇒ Pretty (Po a) where pretty = text ∘ ("#<Po " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.po'v)
+instance Show a ⇒ Pretty (Di a) where pretty = pretty ∘ ("#<Di " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.di'v)
+instance Show a ⇒ Pretty (Po a) where pretty = pretty ∘ ("#<Po " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.po'v)
 ---------- </boilerplate>
 
 unsafe'di ∷ a → a → Di a
@@ -600,12 +600,12 @@ rb'd   ∷ Axis → Lens' (RB a) a
 rb'd   X f (RB   (Po (V2 x y))) = RB   ∘ Po ∘ (flip V2 y) <$> f x
 rb'd   Y f (RB   (Po (V2 x y))) = RB   ∘ Po ∘ (id   V2 x) <$> f y
 
-instance Show d ⇒ Pretty (Cstr d) where pretty = text ∘ ("#<Cstr " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.cstr'v)
-instance Show d ⇒ Pretty (Reqt d) where pretty = text ∘ ("#<Reqt " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.reqt'v)
-instance Show d ⇒ Pretty (Size d) where pretty = text ∘ ("#<Size " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.size'v)
-instance Show d ⇒ Pretty (Orig d) where pretty = text ∘ ("#<Orig " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.orig'v)
-instance Show d ⇒ Pretty (LU   d) where pretty = text ∘ ("#<LU "   <>) ∘ (<> ">") ∘ ppV2 ∘ (^.lu'v)
-instance Show d ⇒ Pretty (RB   d) where pretty = text ∘ ("#<RB "   <>) ∘ (<> ">") ∘ ppV2 ∘ (^.rb'v)
+instance Show d ⇒ Pretty (Cstr d) where pretty = pretty ∘ ("#<Cstr " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.cstr'v)
+instance Show d ⇒ Pretty (Reqt d) where pretty = pretty ∘ ("#<Reqt " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.reqt'v)
+instance Show d ⇒ Pretty (Size d) where pretty = pretty ∘ ("#<Size " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.size'v)
+instance Show d ⇒ Pretty (Orig d) where pretty = pretty ∘ ("#<Orig " <>) ∘ (<> ">") ∘ ppV2 ∘ (^.orig'v)
+instance Show d ⇒ Pretty (LU   d) where pretty = pretty ∘ ("#<LU "   <>) ∘ (<> ">") ∘ ppV2 ∘ (^.lu'v)
+instance Show d ⇒ Pretty (RB   d) where pretty = pretty ∘ ("#<RB "   <>) ∘ (<> ">") ∘ ppV2 ∘ (^.rb'v)
 
 instance Lin d  ⇒ AddMax (Reqt d) (Reqt d) where
   addMax ax = Reqt .: on (addMax ax) (_reqt'di)
@@ -666,11 +666,11 @@ class    (Additive a, Additive b, Fractional d, Ord d, Pretty d, Show d) ⇒ NoA
 instance (Additive a, Additive b, Fractional d, Ord d, Pretty d, Show d) ⇒ NoArea a b d where
   noArea = Area zero zero
 
-pretty'Area'Int ∷ RealFrac d ⇒ FromArea a b LU Size d ⇒ Area' a b d → Doc
+pretty'Area'Int ∷ RealFrac d ⇒ FromArea a b LU Size d ⇒ Area' a b d → Doc ann
 pretty'Area'Int a =
   let Area (LU (Po (V2 x y))) (Size (Di d)) = from'area a
-  in (text ∘ ppV2 $ floor <$> d)
-     <> char '+' <> pretty (floor x ∷ Int) <> char '+' <> pretty (floor y ∷ Int)
+  in (pretty ∘ ppV2 $ floor <$> d)
+     <> pretty '+' <> pretty (floor x ∷ Int) <> pretty '+' <> pretty (floor y ∷ Int)
 
 -- XXX: this is a lazy, slow implementation, that suffers from conversion roundtrips
 area'split'start ∷ RealFrac d ⇒ FromArea a b LU Size d ⇒ FromArea LU Size a b d ⇒ Axis → d → Area' a b d → (Area' a b d, Area' a b d)
@@ -685,7 +685,7 @@ area'split'end   axis spli a =
   in area'split'start axis (axis'dim - spli) a
 
 instance (FromArea a b LU Size d, RealFrac d) ⇒ Pretty (Area' a b d) where
-  pretty x = char '#' <> angles (text "Area" <+> pretty'Area'Int x)
+  pretty x = pretty '#' <> angles ("Area" <+> pretty'Area'Int x)
 
 type Area      d = Area' Po   Di   d
 type Area'Orig d = Area' Orig Size d
