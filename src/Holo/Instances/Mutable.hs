@@ -1,6 +1,7 @@
 module Holo.Instances.Mutable
 where
 
+import           Data.Proxy                               (Proxy)
 import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
 import           Data.Typeable                            (Typeable)
@@ -24,8 +25,8 @@ instance {-# OVERLAPPABLE #-} Mutable a where
   subscription = const mempty         -- declare ignorance..
   mutate       = immutable
 
-immutable ∷ HGLFW i t m ⇒ a → Event t Ev → WM i m (Dynamic t a)
-immutable init _ev = pure $ constDyn init
+immutable ∷ MonadW i t r m ⇒ Proxy i → a → Event t Ev → m (Dynamic t a)
+immutable _pI init _ev = pure $ constDyn init
 
 
 instance Mutable () where
@@ -33,13 +34,13 @@ instance Mutable () where
 
 
 instance Mutable Bool where
-  subscription tok _ = subSingleton tok inputMaskClick1Press
-  mutate  initial ev = foldDyn (\_ v → not v) initial ev
+  subscription  tok _ = subSingleton tok inputMaskClick1Press
+  mutate _ initial ev = foldDyn (\_ v → not v) initial ev
 
 
 instance Mutable Text where
   subscription tok _ = subSingleton tok editMaskKeys
-  mutate initial ev =
+  mutate _ initial ev =
     (zipperText <$>) <$> foldDyn (\Edit{..} tz → eeEdit tz) (textZipper [initial]) (translateEditEvent <$> ev)
 
 data EditEvent where

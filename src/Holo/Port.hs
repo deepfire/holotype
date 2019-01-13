@@ -176,7 +176,7 @@ data ESettings t where
 (⋈) ∷ Reflex t ⇒ Dynamic t a → Dynamic t b → Dynamic t (a, b)
 (⋈) = zipDynWith (,)
 
-portCreate ∷ (RGLFW t m, MonadTrace m) ⇒ Dynamic t GL.Window → ESettings t → m (Dynamic t (Maybe (Port f)))
+portCreate ∷ (RGLFW t m, MonadTrace r m) ⇒ Dynamic t GL.Window → ESettings t → m (Dynamic t (Maybe (Port f)))
 portCreate winD ESettings{..} = do
   blankIdToken'setup
   portVisualTracker ← mkTIMap
@@ -415,7 +415,7 @@ imageSurfaceGetPixels' pb = do
   r ← GRC.imageSurfaceGetStride pb
   return (pixPtr, V2 r h)
 
-makeDrawable ∷ (HasCallStack, MonadTrace m) ⇒ ObjectStream → IdToken → Di Double → m Drawable
+makeDrawable ∷ (HasCallStack, MonadTrace r m) ⇒ ObjectStream → IdToken → Di Double → m Drawable
 makeDrawable dObjectStream@ObjectStream{..} tok dDi' = do
   let dDi@(Di (V2 w h)) = fmap ceiling dDi'
   unless (w > 0 ∧ h > 0) $
@@ -448,7 +448,7 @@ makeDrawable dObjectStream@ObjectStream{..} tok dDi' = do
   -- dTexture      ← uploadTexture2DToGPU'''' False False False False $ (fromWi dStridePixels, h, GL_BGRA, pixels)
   pure Drawable{..}
 
-disposeDrawable ∷ (HasCallStack, MonadTrace m) ⇒ ObjectStream → Drawable → m ()
+disposeDrawable ∷ (HasCallStack, MonadTrace r m) ⇒ ObjectStream → Drawable → m ()
 disposeDrawable ObjectStream{..} Drawable{..} =
   -- see experiment in LCstress
   logDebug "TEX FREE %s %d" (show $ dDi^.di'v, dTexId) >>
@@ -547,7 +547,7 @@ fromIdToken ∷ IdToken → U.Unique
 fromIdToken = fromIdToken'
 {-# INLINE fromIdToken #-}
 
-newId ∷ (HasCallStack, MonadTrace m) ⇒ T.Text → m IdToken
+newId ∷ (HasCallStack, MonadTrace r m) ⇒ T.Text → m IdToken
 newId desc = do
   tok ← liftIO $ U.newUnique
   logDebug "TOK ALLOC %s %s" (desc, U.hashUnique tok)
@@ -556,7 +556,7 @@ newId desc = do
 
 blankIdToken'      ∷ IO.IORef IdToken
 blankIdToken'      = IO.unsafePerformIO $ IO.newIORef  undefined
-blankIdToken'setup ∷ MonadTrace m ⇒ m ()
+blankIdToken'setup ∷ MonadTrace r m ⇒ m ()
 blankIdToken'setup = newId "blank" >>= (liftIO ∘ IO.writeIORef blankIdToken')
 blankIdToken       ∷ IdToken
 blankIdToken       = IO.unsafePerformIO $ IO.readIORef blankIdToken'
@@ -615,7 +615,7 @@ tiMapReplace (TyIdMap m) tm = liftIO $ STM.atomically $ STM.writeTVar m tm
 --     - newDrawable/disposeDrawable
 --   XXX: not thread-safe
 
-portEnsureVisual ∷ (HasCallStack, MonadTrace m, PortVisual f, Typeable a, c a)
+portEnsureVisual ∷ (HasCallStack, MonadTrace r m, PortVisual f, Typeable a, c a)
   ⇒ Port f
   → Di Double
   → Proxy (c ∷ Type → Constraint)
@@ -655,7 +655,7 @@ class PortVisual f where
   pvDrawable    ∷ f a → Drawable
   pvFree        ∷ (MonadIO m, c a) ⇒ Proxy c → Proxy a → f a → m ()
 
-portGarbageCollectVisuals ∷ ∀ m f a. (MonadTrace m, PortVisual f) ⇒ Port f → IntMap.IntMap a → m ()
+portGarbageCollectVisuals ∷ ∀ r m f a. (MonadTrace r m, PortVisual f) ⇒ Port f → IntMap.IntMap a → m ()
 portGarbageCollectVisuals Port{..} validLeaves = do
   case portVisualTracker of
     TyIdMap _ → do

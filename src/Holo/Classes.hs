@@ -8,7 +8,7 @@ module Holo.Classes
   , Named(..)
   --
   , Widgety(..)
-  , HGLFW, API, APIt, APIm
+  , API, APIt, APIm
   --
   , Interp(..)
   --
@@ -57,7 +57,7 @@ class Typeable r  ⇒ As r where
 class Mutable a where
   subscription  ∷                           IdToken → Proxy a → Subscription
   subscription  = const mempty         -- declare ignorance..
-  mutate       ∷ (HGLFW i t m) ⇒ a → Event t Ev → WM i m (Dynamic t a)
+  mutate       ∷ (MonadW i t r m) ⇒ Proxy i → a → Event t Ev → m (Dynamic t a)
   mutate       = immutable            -- ..then effectuate it
 
 
@@ -71,14 +71,14 @@ class Named a where
 -- | Widgety: turn values into interactive widgets.
 --
 class (Typeable a) ⇒ Widgety (i ∷ Type) (a ∷ Type) where
-  dynWidget'    ∷ (HGLFW i t m, Typeable a, Named a, Widgety i a, HasCallStack)
-                ⇒ AElt → IdToken → Vocab i (Present i) → Dynamic t a → WM i m (Widget i a)
-  widget        ∷ (HGLFW i t m, Typeable a, HasCallStack)
-                ⇒ AElt           → Vocab i (Present i) →           a → WM i m (Widget i a)
+  dynWidget'    ∷ (MonadW i t r m, Typeable a, Named a, Widgety i a, HasCallStack)
+                ⇒ AElt → IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+  widget        ∷ (MonadW i t r m, Typeable a, HasCallStack)
+                ⇒ AElt           → Vocab i (Present i) →           a → m (Widget i a)
   --
   default dynWidget'
-                ∷ (HGLFW i t m, Mutable a, Named a)
-                ⇒ AElt → IdToken → Vocab i (Present i) → Dynamic t a → WM i m (Widget i a)
+                ∷ (MonadW i t r m, Mutable a, Named a)
+                ⇒ AElt → IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
   dynWidget'    = dynWidget'Def
   widget        = widgetDef
 
@@ -93,10 +93,10 @@ class Interp (a ∷ Type) (b ∷ Type) where
 -- | Present:  Widgety with added interpretation
 --
 class (Typeable a) ⇒ Present (i ∷ Type) (a ∷ Type) where
-  dynPresent    ∷ (HGLFW i t m, HasCallStack)
-                ⇒ AElt          → Vocab i (Present i) → Dynamic t a → WM i m (Widget i a)
-  present       ∷ (HGLFW i t m, HasCallStack)
-                ⇒ AElt          → Vocab i (Present i) →           a → WM i m (Widget i a)
+  dynPresent    ∷ (MonadW i t r m, HasCallStack)
+                ⇒ AElt          → Vocab i (Present i) → Dynamic t a → m (Widget i a)
+  present       ∷ (MonadW i t r m, HasCallStack)
+                ⇒ AElt          → Vocab i (Present i) →           a → m (Widget i a)
   --
   dynPresent    = dynPresentDef
   present       = presentDef

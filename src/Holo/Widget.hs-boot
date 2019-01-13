@@ -30,42 +30,40 @@ type role HoloTag phantom
 
 type Blank   i     = Item Top PBlank
 
-type HGLFW (i ∷ Type) t m   = (t ~ (APIt i), m ~ (APIm i), RGLFW t m)
+class ( RGLFW t m
+      , HAPI i t r m
+      , MonadTrace r m
+      , r ~ (MonadWCtx t)
+      , Has (Input t) r
+      , Has LBinds r
+      ) ⇒
+  MonadW i t r m
 
-type role API phantom phantom
-data API (t ∷ Type) (m ∷ Type → Type)
+type HAPI i t r m = (t ~ APIt i, r ~ APIr i, m ~ APIm i)
+
+type role API phantom phantom phantom
+data API (t ∷ Type) (r ∷ Type) (m ∷ Type → Type)
 
 type family APIt a ∷ Type where
-  APIt (API t _) = t
-  APIt _         = TypeError ('Text "APIt on non-API.")
+  APIt (API t _ _) = t
+  APIt _           = TypeError ('Text "APIt on non-API.")
+
+type family APIr a ∷ Type where
+  APIr (API _ r _) = r
+  APIr _           = TypeError ('Text "APIr on non-API.")
 
 type family APIm a ∷ (Type → Type) where
-  APIm (API _ m) = m
-  APIm _         = TypeError ('Text "APIm on non-API.")
+  APIm (API _ _ m) = m
+  APIm _           = TypeError ('Text "APIm on non-API.")
 
 type WH      i   = (AElt, Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i))
 type WF      i b = (AElt, Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
 
 type Widget  i b = Result i b
 
-data WidgetMCtx i where
-  WidgetMCtx ∷
-    { wcInput  ∷ !(Input (APIt i))
-    , wcLBinds ∷ !LBinds
-    } → WidgetMCtx i
-
-newtype (Monad m) ⇒ WidgetM i m a = WidgetM (ReaderT (WidgetMCtx i) m a)
-
-type WM i m a = WidgetM i m a
-
-instance Functor        m ⇒ Functor        (WidgetM i m)
-instance Applicative    m ⇒ Applicative    (WidgetM i m)
-instance Monad          m ⇒ Monad          (WidgetM i m)
-instance                    MonadTrans     (WidgetM i)
-instance MonadIO        m ⇒ MonadIO        (WidgetM i m)
-instance MonadRef       m ⇒ MonadRef       (WidgetM i m)
-instance MonadFix       m ⇒ MonadFix       (WidgetM i m)
-instance HGLFW      i t m ⇒ MonadHold    t (WidgetM i m)
-instance PostBuild    t m ⇒ PostBuild    t (WidgetM i m)
-instance PerformEvent t m ⇒ PerformEvent t (WidgetM i m)
-instance MonadSample  t m ⇒ MonadSample  t (WidgetM i m)
+data MonadWCtx t where
+  MonadWCtx ∷
+    { wcTrace  ∷ !(Trace IO)
+    , wcInput  ∷ !(Maybe (Input t))
+    , wcLBinds ∷ !(Maybe LBinds)
+    } → MonadWCtx t

@@ -14,7 +14,7 @@ module Holo.Input
   --
   , AElt(..)
   --
-  , ListenerBinds(..), LBinds, lbsAE, lbsSubs
+  , ListenerBinds(..), LBinds, lbsAE, lbsSubs, emptyLBinds
   , listenerBindsParse, descBindsQuery, childBinds, childSubs
   --
   , EvBinds, bindSem

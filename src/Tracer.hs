@@ -3,6 +3,8 @@ module Tracer
   , module Cardano.BM.Data.Aggregated
   , module Cardano.BM.Data.LogItem
   , mkTrace
+  , Has(..)
+  , MonadTrace, getTrace
   , logDebug,  logInfo,  logNotice,  logWarning,  logError,  logCritical,  logAlert,  logEmergency
   , logDebug', logInfo', logNotice', logWarning', logError', logCritical', logAlert', logEmergency'
   )
@@ -43,7 +45,8 @@ import qualified Cardano.BM.Trace                  as T
 
 -- * Tracing
 --
-class (MonadReader (Trace m) m, MonadIO m) ⇒ MonadTrace m
+class    (MonadIO m, MonadReader r m, Has (Trace IO) r) ⇒ MonadTrace r m
+instance (MonadIO m, MonadReader r m, Has (Trace IO) r) ⇒ MonadTrace r m
 
 mkTrace ∷ MonadIO m ⇒ Text → m (Trace m)
 mkTrace desc = do
@@ -54,10 +57,11 @@ mkTrace desc = do
     T.logNotice tr "-- tracing initialised"
     pure tr
 
--- runWithLogging ∷ (MonadIO m, MonadReader (Trace m) m, MonadIO m) ⇒ Text → m a → m a
--- runWithLogging desc act = do
---   tr ← mkTrace desc
---   runReader act tr
+class Has t r where
+  sliceReader ∷ r → t
+
+getTrace ∷ MonadTrace r m ⇒ m (Trace IO)
+getTrace = sliceReader <$> ask
 
 logDebug', logInfo', logNotice', logWarning', logError', logCritical', logAlert', logEmergency' ∷
   (MonadIO m, TF.Params ps) ⇒ Trace m → Format → ps → m ()
@@ -71,15 +75,15 @@ logAlert'     tr fmt ps = T.logAlert     tr $ toStrict $ TF.format fmt ps
 logEmergency' tr fmt ps = T.logEmergency tr $ toStrict $ TF.format fmt ps
 
 logDebug, logInfo, logNotice, logWarning, logError, logCritical, logAlert, logEmergency ∷
-  (MonadReader (Trace m) m, MonadIO m, TF.Params ps) ⇒ Format → ps → m ()
-logDebug         fmt ps = ask >>= \tr→ T.logDebug     tr $ toStrict $ TF.format fmt ps
-logInfo          fmt ps = ask >>= \tr→ T.logInfo      tr $ toStrict $ TF.format fmt ps
-logNotice        fmt ps = ask >>= \tr→ T.logNotice    tr $ toStrict $ TF.format fmt ps
-logWarning       fmt ps = ask >>= \tr→ T.logWarning   tr $ toStrict $ TF.format fmt ps
-logError         fmt ps = ask >>= \tr→ T.logError     tr $ toStrict $ TF.format fmt ps
-logCritical      fmt ps = ask >>= \tr→ T.logCritical  tr $ toStrict $ TF.format fmt ps
-logAlert         fmt ps = ask >>= \tr→ T.logAlert     tr $ toStrict $ TF.format fmt ps
-logEmergency     fmt ps = ask >>= \tr→ T.logEmergency tr $ toStrict $ TF.format fmt ps
+  (MonadTrace r m, MonadIO m, TF.Params ps) ⇒ Format → ps → m ()
+logDebug         fmt ps = getTrace >>= \tr→ liftIO $ T.logDebug     tr $ toStrict $ TF.format fmt ps
+logInfo          fmt ps = getTrace >>= \tr→ liftIO $ T.logInfo      tr $ toStrict $ TF.format fmt ps
+logNotice        fmt ps = getTrace >>= \tr→ liftIO $ T.logNotice    tr $ toStrict $ TF.format fmt ps
+logWarning       fmt ps = getTrace >>= \tr→ liftIO $ T.logWarning   tr $ toStrict $ TF.format fmt ps
+logError         fmt ps = getTrace >>= \tr→ liftIO $ T.logError     tr $ toStrict $ TF.format fmt ps
+logCritical      fmt ps = getTrace >>= \tr→ liftIO $ T.logCritical  tr $ toStrict $ TF.format fmt ps
+logAlert         fmt ps = getTrace >>= \tr→ liftIO $ T.logAlert     tr $ toStrict $ TF.format fmt ps
+logEmergency     fmt ps = getTrace >>= \tr→ liftIO $ T.logEmergency tr $ toStrict $ TF.format fmt ps
 
 
 config ∷ MonadIO m ⇒ m CM.Configuration

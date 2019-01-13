@@ -19,7 +19,6 @@ module Holo.Prelude
   , IsString
   , MonadIO, liftIO
   --
-  , (<>)
   , assert
   , doubleToFloat
   , either
@@ -40,7 +39,6 @@ import           Data.Function
 import           Data.Functor
 import           Data.List                         hiding (uncons)
 import           Data.Maybe                               (fromMaybe)
-import           Data.Monoid                              ((<>))
 import           Data.String                              (IsString)
 import           Debug.Trace                              (trace)
 import           GHC.Generics                             (Generic)

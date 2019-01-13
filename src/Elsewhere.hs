@@ -9,6 +9,7 @@ module Elsewhere
   , avgStep, average
   , goldenRatio
   , (.:)
+  , rcomp
   , flip2
   , choosePartially
   , catchAny
@@ -96,11 +97,17 @@ goldenRatio = 1.61803398875
 --
 (.:) ∷ ∀ a f g b. (b → a) → (f → g → b) → f → g → a
 (.:) = (.) ∘ (.)
+{-# INLINE (.:) #-}
 
 infixr 9 .:
 
+rcomp ∷ (a → b) → (b → c) → (a → c)
+rcomp = flip (.)
+{-# INLINE rcomp #-}
+
 flip2 ∷ (a → b → c → d) → b → c → a → d
 flip2 f b c a = f a b c
+{-# INLINE flip2 #-}
 
 choosePartially ∷ Eq a ⇒ a → a → a → a
 choosePartially one l r = fromMaybe one $ partial (≢ one) l <|> partial (≢ one) r
@@ -110,6 +117,7 @@ everything = enumFromTo minBound maxBound
 
 proxy ∷ a → Proxy a
 proxy = const Proxy
+{-# INLINE proxy #-}
 
 
 -- * Exceptions
