@@ -118,6 +118,13 @@
 
       2. be very clear about running external processes: can be very frustrating to
          not know what happens
+*** Toolbox
+    - versioning
+      - https://github.com/lortabac/versioning
+    - open sums
+      - https://github.com/patrickt/fastsum/blob/master/examples/Main.hs
+    - stupid & reliable distributed ACID DB:
+      - https://github.com/crclark/foundationdb-haskell
 *** Open questions
 
     - reliable ephemeral identification for tag overlays ::
@@ -201,8 +208,6 @@
 
 ***** Storage backends
       - should support rich (schema-capable, version-capable) semantics
-      - in case we need stupid & reliable ACID data:
-        - https://github.com/apple/foundationdb/
 ***** Scene composition
 ******* Phases, quick overview
 

@@ -124,6 +124,7 @@ library
                      , clock
                      , containers
                      , data-default
+                     , deepseq
                      , dependent-sum
                      , directory
                      , dlist
@@ -132,7 +133,6 @@ library
                      , fclabels
                      , filepath
                      , free
-                     , freer-simple
                      , fused-effects
                      -- , fsnotify
                      , generics-sop

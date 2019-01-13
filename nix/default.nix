@@ -1,7 +1,7 @@
 { mkDerivation, aeson, aeson-pretty, base, base-unicode-symbols
 , binary, bytestring, cairo, clock, containers, data-default
-, dependent-sum, directory, dlist, exceptions, extra, fclabels
-, filepath, free, freer-simple, fused-effects, generic-lens
+, deepseq, dependent-sum, directory, dlist, exceptions, extra
+, fclabels, filepath, free, fused-effects, generic-lens
 , generics-sop, ghc-prim, gi-cairo, gi-gobject, gi-pango
 , gi-pangocairo, GLFW-b, Glob, hashable, haskell-gi-base, hedgehog
 , hspec, hxt, iohk-monitoring, JuicyPixels, lambdacube-compiler
@@ -25,8 +25,8 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson aeson-pretty base base-unicode-symbols binary bytestring
-    cairo clock containers data-default dependent-sum directory dlist
-    exceptions extra fclabels filepath free freer-simple fused-effects
+    cairo clock containers data-default deepseq dependent-sum directory
+    dlist exceptions extra fclabels filepath free fused-effects
     generic-lens generics-sop ghc-prim gi-cairo gi-gobject gi-pango
     gi-pangocairo GLFW-b hashable haskell-gi-base hedgehog hspec hxt
     iohk-monitoring JuicyPixels lambdacube-compiler lambdacube-gl

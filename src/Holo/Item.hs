@@ -96,8 +96,8 @@ instance Monoid    (Item Top PBlank)  where mempty = Leaf (Name Port.blankIdToke
 instance Semigroup (Item Top PLayout) where _ <> _ = mempty
 instance Monoid    (Item Top PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
 
-iLeafP ∷ Item c p → Bool
-iLeafP = \case
+_iLeafP ∷ Item c p → Bool
+_iLeafP = \case
   Leaf{..} → True
   _        → False
 
@@ -114,8 +114,8 @@ iToken = \case
   Leaf{name=Name{..},..} → nToken
   Node{name=Name{..},..} → nToken
 
-iGeo ∷ Item c p → Geo
-iGeo = \case
+_iGeo ∷ Item c p → Geo
+_iGeo = \case
   Leaf{name=Name{..},..} → nGeo
   Node{name=Name{..},..} → nGeo
 
@@ -140,8 +140,8 @@ instance Flex (Item c (a ∷ Phase)) where
   children f i@Leaf{..} = (\_→ i)                               <$> f []
   children f   Node{..} = (\x→ Node {denoted=x, ..})            <$> f denoted
 
-traceIGeoDiff ∷ String → Item a b → Item a b
-traceIGeoDiff desc x = trace (desc<>" geoΔ: "<>Flex.ppdefGeoDiff (iGeo x)) x
+_traceIGeoDiff ∷ String → Item a b → Item a b
+_traceIGeoDiff desc x = trace (desc<>" geoΔ: "<>Flex.ppdefGeoDiff (_iGeo x)) x
 
 iSizeRequest ∷ ∀ c m. (MonadTrace m, Typeable c) ⇒ VPort → Item c PBlank → m (Item c PLayout)
 iSizeRequest port Leaf{name=name@Name{..},..} = do

@@ -26,25 +26,25 @@ class Typeable r ⇒ As r where
   type instance IStruc r = ()
   type             Vis r ∷ Type
   type instance    Vis r = ()
-  defAs       ∷               Proxy r             → r
-  defSty      ∷               Proxy r             → Sty r
-  compSty     ∷                     r             → Sty r
-  compSty                           x             = defSty (proxy x)
-  sizeRequest ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → m (IStruc r, Di (Maybe Double))
-  setupVis    ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Area'LU Double → Drawable → m (Vis r)
-  render      ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Po Double      → Drawable → Vis r → m () -- ^ Update visual.
-  freeVis     ∷ MonadIO m ⇒   Proxy r                                                         → Vis r → m ()
-  freeVis                           _                                                               _ = pure ()
+  defAs         ∷               Proxy r             → r
+  defSty        ∷               Proxy r             → Sty r
+  compSty       ∷                     r             → Sty r
+  compSty                             x             = defSty (proxy x)
+  sizeRequest   ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → m (IStruc r, Di (Maybe Double))
+  setupVis      ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Area'LU Double → Drawable → m (Vis r)
+  render        ∷ MonadIO m ⇒ VPort → r → Denoted r → Sty r → IStruc r → Po Double      → Drawable → Vis r → m () -- ^ Update visual.
+  freeVis       ∷ MonadIO m ⇒   Proxy r                                                         → Vis r → m ()
+  freeVis                             _                                                               _ = pure ()
 
 class Mutable a where
-  subscription ∷                    IdToken → Proxy a → Subscription
-  subscription = const mempty         -- declare ignorance..
+  subscription  ∷                           IdToken → Proxy a → Subscription
+  subscription  = const mempty         -- declare ignorance..
   mutate       ∷ (HGLFW i t m) ⇒ a → Event t Ev → WM i m (Dynamic t a)
   mutate       = immutable            -- ..then effectuate it
 
 class Named a where
-  compName ∷ (As n, Denoted n ~ a) ⇒ Proxy a → IdToken → n → Name n
-  compName = defStyGeoName
+  compName      ∷ (As n, Denoted n ~ a) ⇒ Proxy a → IdToken → n → Name n
+  compName      = defStyGeoName
 
 class (Typeable a) ⇒ Widgety (i ∷ Type) (a ∷ Type) where
   dynWidget'    ∷ (HGLFW i t m, Typeable a, Named a, Widgety i a, HasCallStack)

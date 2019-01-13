@@ -18,6 +18,7 @@ import           Reflex.GLFW                              (RGLFW)
 import           Holo.Input                               (AElt, Input, LBinds, SemSubs, Subscription)
 import {-# SOURCE #-}
                  Holo.Item
+import           Tracer
 
 
 type role Definition nominal nominal

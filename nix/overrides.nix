@@ -146,6 +146,7 @@ with pkgs.haskell.lib; with self; {
   ## Non-code, configuration-only change
 
   fused-effects = overrideCabal super.fused-effects (drv: {
+    # src             = pkgs.fetchgit (removeAttrs (builtins.fromJSON (builtins.readFile ./pins/fused-effects.src.json)) ["date"]);
     jailbreak       = true;
   });
 

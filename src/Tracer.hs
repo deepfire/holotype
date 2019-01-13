@@ -14,11 +14,12 @@ import           GHC.Stack
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Text.Format                  as TF
 import qualified Data.Text.Format.Params           as TF
-import           Debug.Trace
+import           Data.Kind                                (Type)
 import           Data.List
 import           Data.Text                               (Text)
 import           Data.Text.Lazy                          (toStrict)
 import           Data.Text.Format
+import           Debug.Trace
 import           Foreign.Ptr
 import           Numeric
 import           Prelude.Unicode
