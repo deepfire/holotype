@@ -223,7 +223,8 @@ holotype' win evCtl windowFrameE inputE = mdo
   initWinDimV      ← Port.portWindowSize win
   liftIO $ GLFW.enableEvent evCtl GLFW.FramebufferSize
 
-  evE ∷ Event t Ev ← performEvent $ promoteEv <$> inputE
+  evRawE ∷ Event t Ev ← performEvent $ promoteEv <$> inputE
+  let (clickRawE, evE) = fanEither $ (\x→ if evMatch inputMaskClickRawAny x then Left x else Right x) <$> evRawE
 
   -- Closing-the-circle issues:
   -- 1. To even receive events, the switch needs to be subscribed to <F3> -- but its subscriptions are default.
@@ -237,7 +238,7 @@ holotype' win evCtl windowFrameE inputE = mdo
   -- 9. SemanticEvents, EventBindings and Addresses seem to be only needed during decision of how to compile subscriptions.
   -- 10. Objects declare SemanticEvents they can handle and their sub-Addresses.
   sttsE            ←
-    let Port.Settings{sttsWaitVSync=Port.WaitVSync defvsync,..} = Port.defaultSettings
+    let Port.Settings{..} = Port.defaultSettings
     in Port.ESettings
        <$> pure (initE $> (sttsDΠ, sttsFontPreferences))
        <*> pure (fforMaybe (leftmost [evE, Ev (WinSizeEv (Port.ScreenDim initWinDimV)) <$ initE])
@@ -272,7 +273,7 @@ holotype' win evCtl windowFrameE inputE = mdo
         & bind "VSyncToggle" (inputMaskKeyPress GLFW.Key'F3 mempty)
         & bind "WinSize"     (glfwMask GLFW.eventMaskWindowSize)
   inputMux         ← routeEv evE clickedE subscriptionsD
-  (,) (Widget' (_,_,sttsWD,_))
+  (,) (Widget' (_,_,csttsWD,_))
       ((,,) _ae subscriptionsD sceneD)
                    ← upgradeMonadW @i "Scene" input $ scene @i input sttsD statsValD frameNoD fpsValueD
 
@@ -306,8 +307,7 @@ holotype' win evCtl windowFrameE inputE = mdo
   drawnPortD       ← holdDyn Nothing $ Just <$> drawnPortE
 
   -- * PICKING
-  let clickE        = ffilter (evMatch inputMaskClick1Press) evE
-      pickE         = fmapMaybe id $ attachPromptlyDyn drawnPortD clickE <&> \case
+  let pickE         = fmapMaybe id $ attachPromptlyDyn drawnPortD clickRawE <&> \case
                         (Nothing, _) → Nothing -- We may have no drawn picture yet.
                         (Just x, y)  → Just (x, y)
   clickedE         ← mousePointId $ (id *** (\(Ev (GLFWEv (U x@GLFW.EventMouseButton{})))→ x)) <$> pickE

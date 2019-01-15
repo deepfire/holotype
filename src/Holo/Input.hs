@@ -38,7 +38,10 @@ module Holo.Input
   --
   , glfwMask
   , inputMaskKeys, inputMaskKey, inputMaskKeyPress, inputMaskKeyPress', inputMaskKeyRelease
-  , inputMaskChars, inputMaskButtons, inputMaskClick1Press, inputMaskClick1Release, inputMaskClick1Any, editMaskKeys
+  , inputMaskChars
+  , inputMaskClickRaw, inputMaskClickRawAny
+  , inputMaskClick1Press, inputMaskClick1Release, inputMaskClick1Any
+  , editMaskKeys
   )
 where
 
@@ -49,7 +52,7 @@ import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Foldable                            (toList, foldr')
 import           Data.Function                            (on)
-import           Data.Maybe                               (fromMaybe)
+import           Data.Maybe                               (fromMaybe, isJust)
 import qualified Data.List                         as L
 import qualified Data.Text                         as T
 import           Data.String                              (IsString(..))
@@ -75,7 +78,7 @@ import           Holo.Port                                (IdToken, tokenHash)
 import qualified Holo.Port                         as Port
 
 
--- | Sem: a semantic event.
+-- | Sem: a high-level event type.
 --
 data Sem a where
   Sem ∷
@@ -110,7 +113,8 @@ mkSem semDescKey semLongText = liftIO $ do
 newtype SemSubs = SemSubs (Set.Set SemW) deriving (Semigroup, Monoid)
 
 instance Show SemSubs where
-  show (SemSubs ss) = printf "(SemSubs %s)" (L.intercalate " " $ (\(SemW Sem{..})→ T.unpack $ _sdkVal semDescKey) <$> Set.toList ss)
+  show (SemSubs ss)
+    = printf "(Subs%s)" $ L.concat $ (\(SemW Sem{..})→ ' ':(T.unpack $ _sdkVal semDescKey)) <$> Set.toList ss
 
 
 -- | SemStore:  globally recognised pool of SemDeskKey-keyed Sems.
@@ -145,9 +149,9 @@ semByDesc ∷ SemStore → SemDescKey → SemW
 semByDesc s@(SemStore (SemStoreName name,_,_)) sdk@(SemDescKey k) = flip fromMaybe (lookupSemDesc s sdk) $
   error $ printf "SemStore '%s' doesn't have DescKey '%s'." name k
 
-_semById   ∷ SemStore → U.Unique   → SemW
-_semById s@(SemStore (SemStoreName name,_,_)) uid = flip fromMaybe (lookupSemId s uid) $
-  error $ printf "SemStore '%s' doesn't have Id '%d'." name (U.hashUnique uid)
+-- _semById   ∷ SemStore → U.Unique   → SemW
+-- _semById s@(SemStore (SemStoreName name,_,_)) uid = flip fromMaybe (lookupSemId s uid) $
+--   error $ printf "SemStore '%s' doesn't have Id '%d'." name (U.hashUnique uid)
 
 
 -- | SemListeners: what IdTokens listen to particular Sems.
@@ -187,8 +191,8 @@ newtype ListenerBinds = LBinds ( AElt
                                , Map.Map AElt ListenerBinds
                                )
 instance Show ListenerBinds where
-  show (LBinds (ae, subs, cs)) = printf "(LBinds %s: %s  %s)"
-    (T.unpack $ aeltName ae) (show subs) (L.intercalate " " $ show <$> Map.elems cs)
+  show (LBinds (ae, subs, cs)) = printf "(LBinds \"%s\" %s%s)"
+    (T.unpack $ aeltName ae) (show subs) (L.concat $ (' ':) ∘ show <$> Map.elems cs)
 
 instance IsString LBinds where
   fromString x = LBinds (AElt $ T.pack x, mempty, mempty)
@@ -306,11 +310,6 @@ data Ev' (k ∷ EvK) where
     { wsNewSize          ∷ !(Port.ScreenDim (Di Int))
     } → Ev' ClickEvK
 
-instance Show (Ev' k) where
-  show (GLFWEv e)      = "#<GLFWEv "    <> show e                    <> ">"
-  show (ClickEv e tok) = "#<ClickEv "   <> show e <> " " <> show tok <> ">"
-  show (WinSizeEv sz)  = "#<WinSizeEv " <> show sz                   <> ">"
-
 data Ev where
   Ev ∷ { ev ∷ !(Ev' k) } → Ev
 
@@ -324,30 +323,71 @@ evTy ∷ Ev → EvTy
 evTy (Ev x) = ev'Ty x
 
 
+-- * Event focus classification
+--
+data EvFocusEffect
+  = FocusDependent
+  | FocusClick
+  | FocusAgnostic
+  deriving (Eq, Ord, Show)
+
+editKeySet ∷ Set.Set GL.Key
+editKeySet = Set.fromList
+  [ GL.Key'Up, GL.Key'Down, GL.Key'Left, GL.Key'Right, GL.Key'Home, GL.Key'End
+  , GL.Key'Backspace, GL.Key'Delete, GL.Key'Enter
+  ]
+
+evFocusEffect ∷ Ev' k → EvFocusEffect
+evFocusEffect = \case
+  GLFWEv (U e)  → case e of
+    GLFW.EventScroll{} → FocusDependent
+    GLFW.EventChar{}   → FocusDependent
+    (GLFW.EventKey _win k _scan state _mods) →
+      if Set.member k editKeySet ∧ state ≡ GL.KeyState'Pressed ∧ state ≡ GL.KeyState'Repeating
+      then FocusDependent
+      else FocusAgnostic
+    _ → FocusAgnostic
+  ClickEv{}   → FocusClick
+  WinSizeEv{} → FocusAgnostic
+
+instance Show (Ev' k) where
+  show (GLFWEv e)      = "#<GLFWEv "    <> show e                    <> ">"
+  show (ClickEv (GLFW.EventMouseButton _w btn st mods) tok) =
+                  printf "#<ClickEv 0x%x %s %s %s>" (tokenHash tok) (show btn) (show st) (GLFW.showModifierKeys mods)
+  show (WinSizeEv sz)  = "#<WinSizeEv " <> show sz                   <> ">"
+
+
 -- * EvMask
 --
 data EvMask where
   EvMask ∷
     { emGLFW    ∷ !GLFW.EventMask
-    , emClick   ∷ !Bool
+    , emClick   ∷ !(Maybe GLFW.ButtonEventMask)
     , emWinSize ∷ !Bool
     } → EvMask
   deriving (Eq, Ord)
 
-instance Show      EvMask where show EvMask{..} = printf "(IM %s click:%s winsize:%s)" (show emGLFW) (show emClick)
-instance Semigroup EvMask where EvMask ga ca wa <> EvMask gb cb wb = EvMask (ga <> gb) (ca ∨ cb) (wa ∨ wb)
-instance Monoid    EvMask where mempty = EvMask mempty False False
+instance Show      EvMask where
+  show EvMask{..} =
+    ("(IM"<>) ∘ (<>")") ∘ concat $ (' ':) <$> []
+      <> [ show emGLFW | emGLFW ≢ mempty ]
+      <> case emClick of
+           Nothing → []
+           Just (GLFW.ButtonEventMask btn st mods) → [show btn<>"-"<>show st<>"-"<>GLFW.showModifierKeys mods]
+      <> [ "WinSize"   | emWinSize ]
+instance Semigroup EvMask where EvMask ga ca wa <> EvMask gb cb wb = EvMask (ga <> gb) (ca <> cb) (wa ∨ wb)
+instance Monoid    EvMask where mempty = EvMask mempty Nothing False
 
 evMatch ∷ EvMask → Ev → Bool
 evMatch EvMask{..} (Ev e) = case e of
   GLFWEv{geGLFW=GLFW.U x} → GLFW.eventMatch emGLFW x
-  ClickEv{}               → emClick
+  ClickEv{..}             → fromMaybe False $ flip GLFW.matchButtonEventMask ceEv <$> emClick
   WinSizeEv{}             → emWinSize
 
 evMaskTypes ∷ EvMask → [EvTy]
 evMaskTypes EvMask{..} =
   (GLFWEvTy <$> GLFW.eventMaskTypes emGLFW)
-  <> [ ClickEvTy   | emClick ]
+  <> [ ClickEvTy   | isJust emClick ]
   <> [ WinSizeEvTy | emWinSize ]
 
 promoteEv ∷ MonadIO m ⇒ GLFW.InputU → m Ev
@@ -381,9 +421,13 @@ inMux   (Input (_, _, x)) = x
 newtype Subscription = Subscription (MMap.MonoidalMap EvTy (Seq.Seq (IdToken, EvMask)))
 
 instance Show Subscription where
-  show (Subscription map) = ("(Subs"<>) ∘ (<>")") $ concat $
-    [ " "<>show et<>"::"<> L.intercalate "+" [ printf "0x%x:%s:cl=%s:ws=%s" tok (show gm) (show cl) (show ws)
-                                             | (tokenHash → tok,(EvMask gm cl ws)) ← toList subs]
+  show (Subscription map) = ("(Subs"<>) ∘ (<>")") ∘ concat ∘ fmap ("\n    "<>) $
+    [ printf "%10s → " (show et) <>
+      concat [ printf "\n        0x%x%s" tok $ concat $ []
+               <> [" "<>show gm | gm ≢ mempty]
+               <> fromMaybe [] ((:[]) ∘ (' ':) ∘ show <$> mcl)
+               <> [" WinSize"   | ws ≢ False]
+             | (tokenHash → tok,(EvMask gm mcl ws)) ← toList subs]
     | (et, subs) ← MMap.toList map]
 
 instance Semigroup Subscription where
@@ -420,26 +464,57 @@ routeEv evE clickedE subsD = do
       routedE ∷ Event t (Map.Map IdToken Ev)
       routedE = routeSingle <$> attachPromptlyDyn inputsD fullInputE
       routeSingle ∷ ((Maybe IdToken, Subscription), Ev) → Map.Map IdToken Ev
-      routeSingle ((mClickOrPicked, subs), ev) =
-        let eventType = evTy ev
-        in case subsByType subs eventType of
-           Nothing         → trace ("ignored:" <> show eventType) mempty -- no-one cares about this type of events
-           Just eventTypeSubscribers  →
-             let eventListenerSet ∷ Seq.Seq (IdToken, EvMask) =
+      routeSingle ((mClickOrPicked, subs), ev@(Ev ev')) =
+        let eventType       = evTy ev
+            eventFocEff     = evFocusEffect ev'
+            ignoredUntraced = \case
+              (GLFWEv (U GLFW.EventCursorPos{}))                                      → True
+              (GLFWEv (U (GLFW.EventMouseButton _ _ GL.MouseButtonState'Released _))) → True
+              _ → False
+            -- routing: Just Id-0x2d
+            -- routed to: Id-0x2d
+            -- ignored:ClickEvTy
+            -- pick=0x2d
+        in -- XXX: if we could get focused thing's eventmask, we could be routing faster.
+           -- if eventFocEff ≡ FocusDependent
+           -- then
+           -- else
+           case subsByType subs eventType of
+           Nothing                             → -- no-one cares about this type of events
+                                                 if ignoredUntraced ev' then mempty
+                                                 else trace ("ignored:" <> show ev') mempty
+           Just eventTypeSubscribers           → -- someone cares about type, let's see on mask & focus
+             let maskMatchingListeners ∷ Seq.Seq (IdToken, EvMask) =
                    flip Seq.filter eventTypeSubscribers (flip evMatch ev ∘ snd)
-             in case (eventType, trace ("routing: "<>show mClickOrPicked) mClickOrPicked, toList eventListenerSet) of
-                  (_, _, []) → mempty -- no-one's event mask matches this event
+                 discrimination = (eventFocEff, mClickOrPicked, toList maskMatchingListeners)
+             in case trace ("routing: "<>show discrimination) discrimination of
+                  (_, _, [])                     → -- no-one cares about this eventmask
+                                                   mempty
                   -- --------------- here we need the click, not the accumulated pick
                   -- (GLFW.MouseButton, Just clicked, eventListeners) → case lookup clicked eventListeners of
                   --   Nothing → mempty -- focused ID is not among subscribers
                   --   Just x  → if x ≡ clicked
                   --             then M.singleton clicked ev
                   --             else mempty
-                  (_, Just pick, eventListeners)  → case lookup pick eventListeners of
-                    Nothing → mempty -- focused ID is not among subscribers
-                    Just _  → Map.singleton (trace ("routed to: "<>show pick) pick) ev
+                  (FocusDependent
+                    , Just pick, eventListeners) → -- focus available, let's see if it subscribes to this event
+                                                   case lookup pick eventListeners of
+                    Nothing →                      -- focused ID did not ask for this
+                                                   mempty
+                    Just _  →                      -- focused ID DID ask for this!
+                                                   Map.singleton (trace ("routed to: "<>show pick) pick) ev
+                  (FocusClick
+                    , Just pick, eventListeners) → -- focus available, let's see if it subscribes to this event
+                                                   case lookup pick eventListeners of
+                    Nothing →                      -- focused ID did not ask for this
+                                                   mempty
+                    Just _  →                      -- focused ID DID ask for this!
+                                                   Map.singleton (trace ("routed to: "<>show pick) pick) ev
+                  (FocusAgnostic, _, _)          → -- the event is focus-agnostic, deliver to all subscribers
+                                                   Map.fromList $ (id *** const ev) <$> toList maskMatchingListeners
                   -- (_, Nothing, (tok, _):_) → M.singleton tok ev
-                  (_, Nothing, _) → mempty
+                  (_, Nothing, _)                → -- there is no focus, required by the event
+                                                   mempty
   pure ∘ EvMux $ fanMap routedE
 
 
@@ -447,7 +522,7 @@ routeEv evE clickedE subsD = do
 --
 
 glfwMask ∷ GLFW.EventMask → EvMask
-glfwMask x = EvMask x False False
+glfwMask x = EvMask x Nothing False
 
 inputMaskKeys    ∷ Set.Set GL.Key → Set.Set GL.KeyState → GL.ModifierKeys → EvMask
 inputMaskKeys ks kss mks = glfwMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask ks kss mks
@@ -467,24 +542,25 @@ inputMaskKeyRelease k mks = glfwMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask (S
 inputMaskChars   ∷ EvMask
 inputMaskChars   = glfwMask $ GLFW.eventMaskChars
 
-inputMaskButtons ∷ GLFW.ButtonEventMask → EvMask
-inputMaskButtons = glfwMask ∘ GLFW.eventMaskButtons
+inputMaskClickRaw ∷ GL.MouseButton → GL.MouseButtonState → EvMask
+inputMaskClickRaw btn state = glfwMask $ GLFW.eventMaskButtons $ GLFW.ButtonEventMask (Set.singleton btn) (Set.singleton state) mempty
+
+inputMaskClickRawAny ∷ EvMask
+inputMaskClickRawAny = glfwMask $ GLFW.eventMaskButtons $
+  GLFW.ButtonEventMask (Set.fromList [GL.MouseButton'1, GL.MouseButton'2, GL.MouseButton'3]) (Set.singleton GL.MouseButtonState'Pressed) mempty
 
 inputMaskClick ∷ GL.MouseButton → GL.MouseButtonState → EvMask
-inputMaskClick btn state = glfwMask $ GLFW.eventMaskButtons $ GLFW.ButtonEventMask (Set.singleton btn) (Set.singleton state) mempty
+inputMaskClick btn state = EvMask mempty (Just cMask) False
+  where cMask = GLFW.ButtonEventMask (Set.singleton btn) (Set.singleton state) mempty
 
 inputMaskClick1Press, inputMaskClick1Release ∷ EvMask
 inputMaskClick1Press   = inputMaskClick GL.MouseButton'1 GL.MouseButtonState'Pressed
 inputMaskClick1Release = inputMaskClick GL.MouseButton'1 GL.MouseButtonState'Released
 
 inputMaskClick1Any ∷ EvMask
-inputMaskClick1Any = glfwMask $ GLFW.eventMaskButtons $ GLFW.ButtonEventMask (Set.singleton GL.MouseButton'1) (Set.fromList [GL.MouseButtonState'Pressed, GL.MouseButtonState'Released]) mempty
+inputMaskClick1Any = EvMask mempty (Just cMask) False
+  where cMask = GLFW.ButtonEventMask (Set.singleton GL.MouseButton'1) (Set.fromList [GL.MouseButtonState'Pressed, GL.MouseButtonState'Released]) mempty
 
 editMaskKeys ∷ EvMask
-editMaskKeys = (inputMaskChars <>) $ glfwMask $ GLFW.eventMaskKeys $ GLFW.KeyEventMask
-  (Set.fromList
-   [ GL.Key'Up, GL.Key'Down, GL.Key'Left, GL.Key'Right, GL.Key'Home, GL.Key'End
-   , GL.Key'Backspace, GL.Key'Delete, GL.Key'Enter
-   ])
-  (Set.fromList [GL.KeyState'Pressed, GL.KeyState'Repeating])
-  (mempty)
+editMaskKeys = (inputMaskChars <>) $ glfwMask $ GLFW.eventMaskKeys $
+  GLFW.KeyEventMask editKeySet (Set.fromList [GL.KeyState'Pressed, GL.KeyState'Repeating]) mempty

@@ -541,7 +541,7 @@ screenM w h = scaleM -- Vc..*. flipM
 --
 newtype IdToken = IdToken { fromIdToken' ∷ U.Unique } deriving (Eq, Ord)
 instance Show IdToken where
-  show (IdToken u) = printf "Id-0x%x" (U.hashUnique u)
+  show (IdToken u) = printf "id=x%x" (U.hashUnique u)
 
 fromIdToken ∷ IdToken → U.Unique
 fromIdToken = fromIdToken'
