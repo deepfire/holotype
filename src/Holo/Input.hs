@@ -447,7 +447,7 @@ resolveSubs ∷ Reflex t ⇒ Input t → IdToken → SemSubs → Dynamic t Subsc
 resolveSubs input tok (SemSubs ss) = inBinds input <&>
   (\binds→
      let subs = L.foldl' (<>) mempty $ subSingleton tok ∘ translateSem binds <$> Set.toList ss
-     in trace (printf "tok %d ss: %s ⇒ subs: %s\n" (tokenHash tok) (show ss) (show subs)) subs)
+     in trace (printf "tok 0x%x ss: %s ⇒ subs: %s\n" (tokenHash tok) (show ss) (show subs)) subs)
 
 
 routeEv ∷ ∀ t m. (RGLFW t m)

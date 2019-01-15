@@ -138,6 +138,12 @@ widgetDef ae voc initial =
     tok   ← iNewToken $ Proxy @a
     input ← getInput @i
     mut   ← mutate (Proxy @i) (forget initial) $ select (fromEvMux $ inMux input) $ Const2 tok
+    -- XXX: Di is a nested compound, and that breaks down event routing
+    -- Q: how to represent Di?
+    --   1. if it's a compound, we need to fix the Node IdToken story
+    --   2. if it's not, we have to route focus manually.. based on what state?
+    --      ..but we get to write a custom, pretty As instance in return
+    type error
     dynWidget' ae tok voc mut
 
 dynWidget'Def ∷ ∀ i t r m a.
@@ -149,6 +155,7 @@ dynWidget'Def ae tok voc da =
       in do
         input ← getInput @i
         lbs   ← getSubLBinds @i ae
+        liftIO $ printf "dynWidgetDef %s tok=0x%x\n" (show $ aeltName ae) (tokenHash tok)
         pure $ Widget' ( ae
                        , (subscription tok (Proxy @a) <>) <$> resolveSubs input tok (lbsSubs lbs)
                        , leaf name <$> da
@@ -186,6 +193,7 @@ dynPresentDef ae voc da =
     let name = compName (Proxy @(Denoted n)) tok n
     input ← getInput @i
     lbs   ← getSubLBinds @i ae
+    liftIO $ printf "dynPresentDef %s tok=0x%x\n" (show $ aeltName ae) (tokenHash tok)
     pure $ Widget'
       ( ae
       , (subscription tok (Proxy @(Denoted n)) <>) <$> resolveSubs input tok (lbsSubs lbs)
