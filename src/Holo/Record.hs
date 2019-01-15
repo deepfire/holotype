@@ -40,8 +40,8 @@ instance {-# OVERLAPPABLE #-}
   , HGLFW i t m
   ) ⇒ Widgety i a where
   dynWidget' ae tok voc da = do
-    lbs   ← getSubLBinds ae
-    w     ← runWidgetMLBinds lbs $ SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
+    lbs   ← getSubLBinds @i ae
+    w     ← runWidgetMLBinds @i lbs $ SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
             (\_p _dti → pure 0)
             (recoverFieldWidget (lbs, tok, voc, da))
     pure $ setAE ae w
@@ -53,27 +53,27 @@ instance {-# OVERLAPPABLE #-}
   , HGLFW i t m
   ) ⇒ Present i a where
   present ae voc initial = do
-    lbs   ← getSubLBinds ae
-    w     ← runWidgetMLBinds lbs $ SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
+    lbs   ← getSubLBinds @i ae
+    w     ← runWidgetMLBinds @i lbs $ SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
             (\_p _dti → pure 0)
             (recoverFieldPresent (lbs, voc, initial))
     pure $ setAE ae w
   dynPresent ae voc da  = do
-    lbs   ← getSubLBinds ae
-    w     ← runWidgetMLBinds lbs $ SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
+    lbs   ← getSubLBinds @i ae
+    w     ← runWidgetMLBinds @i lbs $ SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
             (\_px _dti→ pure 0)
             (recoverFieldPresentDynamic (lbs, voc, da))
     pure $ setAE ae w
 
-recoverFieldWidget ∷ ∀ i t m u f xss xs.
-  ( HGLFW i t m
+recoverFieldWidget ∷ ∀ i sig t m u f xss xs.
+  ( MonadW i sig t m
   , SOP.HasDatatypeInfo u, SOP.Code u ~ xss
   , As TextLine, Present i Text
   , Typeable f
   , Present i f
   )
   ⇒ (LBinds, Port.IdToken, Vocab i (Present i), Dynamic t u)
-  → ReadFieldT (Present i) i (WidgetM i m) u f xss xs
+  → ReadFieldT (Present i) i m u f xss xs
 recoverFieldWidget (lbs, tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $
   mapDesig @i @f voc
   \(_ ∷ n)→ do
@@ -81,18 +81,18 @@ recoverFieldWidget (lbs, tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo (Field
       ivD ← interpretate @i vD
       pure $ Widget' (ae,sD,iD,ivD)
 
-recoverFieldPresent ∷ ∀ i t m u a xss xs.
-  ( HGLFW i t m
+recoverFieldPresent ∷ ∀ i sig t m u a xss xs.
+  ( MonadW i sig t m
   , SOP.HasDatatypeInfo u, SOP.Code u ~ xss
   , As TextLine, Present i Text
   , Typeable a
   , Present i a
   )
   ⇒ (LBinds, Vocab i (Present i), u)
-  → ReadFieldT (Present i) i (WidgetM i m) u a xss xs
+  → ReadFieldT (Present i) i m u a xss xs
 recoverFieldPresent (lbs, voc, initV ∷ u) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
   let fname' = pack fname
-  tok ← liftIO $ Port.newId $ "record label '" <> fname' <> "'"
+  tok ← Port.newId $ "record label '" <> fname' <> "'"
   let addLabel ""  x = x
       addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Top (Denoted x))
                                 ⇒ Port.IdToken → x → Denoted x → Blank i)
@@ -104,18 +104,19 @@ recoverFieldPresent (lbs, voc, initV ∷ u) _pC _pIAF _dtinfo _consNr _cinfo (Fi
 
 
 recoverFieldPresentDynamic
-  ∷ ∀ i t m a f xss xs.
-    ( HasCallStack, Typeable f
+  ∷ ∀ i sig t m a f xss xs.
+    ( MonadW i sig t m
+    , HasCallStack, Typeable f
     , Named a, HGLFW i t m
     , SOP.Generic a
     , SOP.HasDatatypeInfo a
     , SOP.Code a ~ xss, SOP.All2 (Present i) xss
     )
   ⇒ (LBinds, Vocab i (Present i), Dynamic t a)
-  → ReadFieldT (Present i) i (WidgetM i m) a f xss xs
+  → ReadFieldT (Present i) i m a f xss xs
 recoverFieldPresentDynamic (lbs, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
   let fname' = pack fname
-  tok ← liftIO $ Port.newId $ "record label '" <> fname' <> "'"
+  tok ← Port.newId $ "record label '" <> fname' <> "'"
   let addLabel ""  x = x
       addLabel lab x = hbox [ (defLeaf ∷ (x ~ TextLine, As x, Top (Denoted x))
                                 ⇒ Port.IdToken → x → Denoted x → Blank i)

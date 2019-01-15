@@ -30,11 +30,8 @@ module Holo.Widget
   -- )
 where
 
-import           Control.Monad.Fix
-import           Control.Monad.Reader              hiding (ask)
-import           Control.Monad.Ref
-import           Control.Monad.Trans
-import           Control.Monad.Trans.Reader
+import           Control.Effect                    hiding (Trace)
+import           Control.Effect.Reader
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Typeable
 import qualified Data.TypeMap.Dynamic              as TM
@@ -131,41 +128,41 @@ mapDesig v f =
 
 
 widgetDef
-  ∷ ∀ i t m a
-  . (HGLFW i t m, MonadW i m, Typeable a, HasCallStack)
+  ∷ ∀ i sig t m a
+  . (MonadW i sig t m, Typeable a, HasCallStack)
   ⇒ AElt → Vocab i (Present i) → a → m (Widget i a)
 widgetDef ae voc initial =
   mapDenot @i @a voc
   \_→ do
     tok   ← iNewToken $ Proxy @a
-    input ← getInput
-    mut   ← mutate (forget initial) $ select (fromEvMux $ inMux input) $ Const2 tok
+    input ← getInput @i
+    mut   ← mutate (Proxy @i) (forget initial) $ select (fromEvMux $ inMux input) $ Const2 tok
     dynWidget' ae tok voc mut
 
-dynWidget'Def ∷ ∀ i t m a.
-  (Typeable a, Mutable a, Named a, HGLFW i t m, MonadW i m)
+dynWidget'Def ∷ ∀ i sig t m a.
+  (Typeable a, Mutable a, Named a, MonadW i sig t m)
   ⇒ AElt → IdToken → Vocab i (Present i) → Dynamic t a → m (Widget i a)
 dynWidget'Def ae tok voc da =
   mapDenot @i @a voc
   \n→ let name = compName (Proxy @a) tok n
       in do
-        input ← getInput
-        lbs   ← getSubLBinds ae
+        input ← getInput @i
+        lbs   ← getSubLBinds @i ae
         pure $ Widget' ( ae
                        , (subscription tok (Proxy @a) <>) <$> resolveSubs input tok (lbsSubs lbs)
                        , leaf name <$> da
                        , da)
 
 dynWidget
-  ∷ ∀ i t m a
-  . (HasCallStack, HGLFW i t m, Named a, Widgety i a, MonadW i m)
+  ∷ ∀ i sig t m a
+  . (HasCallStack, Named a, Widgety i a, MonadW i sig t m)
   ⇒ AElt → Vocab i (Present i) → Dynamic t a → m (Widget i a)
 dynWidget ae voc dyn = do
   tok ← iNewToken $ Proxy @a
   dynWidget' ae tok voc dyn
 
-presentDef ∷ ∀ i a t m
-  . (HGLFW i t m, HasCallStack, Typeable a, MonadW i m)
+presentDef ∷ ∀ i a sig t m
+  . (HasCallStack, Typeable a, MonadW i sig t m)
   ⇒ AElt → Vocab i (Present i) → a → m (Widget i a)
 presentDef ae voc seed =
   mapDesig @i @a voc
@@ -178,16 +175,16 @@ presentDef ae voc seed =
       , iD
       , ivD)
 
-dynPresentDef ∷ ∀ i a t m
-  . (HGLFW i t m, Typeable a, MonadW i m)
+dynPresentDef ∷ ∀ i a sig t m
+  . (Typeable a, MonadW i sig t m)
   ⇒ AElt → Vocab i (Present i) → Dynamic t a → m (Widget i a)
 dynPresentDef ae voc da =
   mapDesig @i @a voc
   \(n ∷ n)→ do
     tok ← iNewToken $ Proxy @a
     let name = compName (Proxy @(Denoted n)) tok n
-    input ← getInput
-    lbs   ← getSubLBinds ae
+    input ← getInput @i
+    lbs   ← getSubLBinds @i ae
     pure $ Widget'
       ( ae
       , (subscription tok (Proxy @(Denoted n)) <>) <$> resolveSubs input tok (lbsSubs lbs)
@@ -195,15 +192,15 @@ dynPresentDef ae voc da =
       , da)
 
 -- | Interpretation from the Denoted type and widget creation.
-interpretate ∷ ∀ i t m a b.
-  (Interp a b, HGLFW i t m, Typeable b, MonadW i m)
+interpretate ∷ ∀ i sig t m a b.
+  (Interp a b, Typeable b, MonadW i sig t m)
   ⇒ Dynamic t a → m (Dynamic t b)
 interpretate dyn = scanDynMaybe (fromMaybe $ error $ "Cannot interpret initial value into type " <> show (typeRep $ Proxy @b))
                    const
                    (interp <$> dyn)
 
-liftPureDynamic ∷ ∀ i t m n a.
-  (As n, Denoted n ~ a, Named a, Widgety i a, HGLFW i t m, MonadW i m)
+liftPureDynamic ∷ ∀ i sig t m n a.
+  (As n, Denoted n ~ a, Named a, Widgety i a, MonadW i sig t m)
   ⇒ AElt → n → Dynamic t a → m (Widget i a)
 liftPureDynamic ae n da = do
   tok ← iNewToken $ Proxy @a
@@ -217,7 +214,7 @@ liftPureDynamic ae n da = do
 
 -- * The final lift:  W(-idget)
 --
-type HGLFW (i ∷ Type) t m = (t ~ (APIt i), m ~ (APIm i), RGLFW t m, MonadTrace m)
+type HGLFW (i ∷ Type) t m = (t ~ (APIt i), m ~ (APIm i), RGLFW t m)
 
 data API (t ∷ Type) (m ∷ Type → Type)
 
@@ -289,25 +286,14 @@ data WidgetMCtx i where
 switchCtxBinds ∷ LBinds → WidgetMCtx i → WidgetMCtx i
 switchCtxBinds lbs (WidgetMCtx input _) = WidgetMCtx input lbs
 
---newtype (MonadTrace m) ⇒ WidgetM i m a = WidgetM (ReaderT (WidgetMCtx i) m a)
-class (MonadTrace m, MonadReader (WidgetMCtx i) m) ⇒ MonadW i m
+type MonadW i sig t m   = (Member (Reader  (WidgetMCtx i)) sig, Carrier sig m, HGLFW i t m, MonadTrace sig m)
+type   EffW i       m a =    Eff (ReaderC (WidgetMCtx i) m) a
 
---type WM i m a = WidgetM i m a
+-- class (MonadTrace m, MonadReader (WidgetMCtx i) m) ⇒ MonadW i m
 
--- deriving newtype instance Functor        m ⇒ Functor        (WidgetM i m)
--- deriving newtype instance Applicative    m ⇒ Applicative    (WidgetM i m)
--- deriving newtype instance Monad          m ⇒ Monad          (WidgetM i m)
--- deriving newtype instance                    MonadTrans     (WidgetM i)
--- deriving newtype instance MonadIO        m ⇒ MonadIO        (WidgetM i m)
--- deriving newtype instance MonadRef       m ⇒ MonadRef       (WidgetM i m)
--- deriving newtype instance MonadFix       m ⇒ MonadFix       (WidgetM i m)
--- deriving newtype instance HGLFW      i t m ⇒ MonadHold    t (WidgetM i m)
--- deriving newtype instance PostBuild    t m ⇒ PostBuild    t (WidgetM i m)
--- deriving newtype instance PerformEvent t m ⇒ PerformEvent t (WidgetM i m)
--- deriving newtype instance MonadSample  t m ⇒ MonadSample  t (WidgetM i m)
---deriving newtype instance MonadTrace     m ⇒ MonadReader (Trace (WidgetM i m)) m
--- deriving newtype instance (MonadReader (Trace (WidgetM i m)) (WidgetM i m))
--- deriving newtype instance MonadIO m ⇒ MonadTrace     (WidgetM i m)
+runWidgetM ∷ ∀ i sig t m a. (Carrier sig m, MonadIO m, HGLFW i t m) ⇒ Input t → LBinds → EffW i m a → m a
+runWidgetM input lbs m =
+  runReaderC (interpret m) (WidgetMCtx input lbs)
 
 -- runWidgetM ∷ (HGLFW i t m) ⇒ Input t → LBinds → WM i m a → m a
 -- runWidgetM input lbs (WidgetM rm) = runReaderT rm (WidgetMCtx input lbs)
@@ -322,18 +308,18 @@ class (MonadTrace m, MonadReader (WidgetMCtx i) m) ⇒ MonadW i m
 -- runWidgetMLBinds lbs (WidgetM rdr) = do
 --   WidgetM $ withReaderT (switchCtxBinds lbs) rdr
 
-getInput ∷ (HGLFW i t m, MonadW i m) ⇒ m (Input t)
-getInput = ask
+getInput  ∷ ∀ i sig t m. MonadW i sig t m ⇒ m (Input t)
+getInput  = wcInput @i <$> ask
 
-getLBinds ∷ MonadW i m ⇒ m LBinds
-getLBinds = ask
+getLBinds ∷ ∀ i sig t m. MonadW i sig t m ⇒ m LBinds
+getLBinds = wcLBinds @i <$> ask
 
-runWidgetMLBinds ∷ (MonadW i m) ⇒ LBinds → m a → m a
+runWidgetMLBinds ∷ (MonadW i sig t m) ⇒ LBinds → m a → m a
 runWidgetMLBinds lbs act = undefined
   -- WidgetM $ withReaderT (switchCtxBinds lbs) rdr
 
-getSubLBinds ∷ MonadW i m ⇒ AElt → m LBinds
-getSubLBinds ae = do
-  lbs ← WidgetM $ wcLBinds <$> ask
-  liftIO $ putStrLn (descBindsQuery "getSubLBinds" ae lbs)
-  pure $ childBinds ae lbs
+getSubLBinds ∷ MonadW i sig t m ⇒ AElt → m LBinds
+getSubLBinds ae = do undefined
+  -- lbs ← WidgetM $ wcLBinds <$> ask
+  -- liftIO $ putStrLn (descBindsQuery "getSubLBinds" ae lbs)
+  -- pure $ childBinds ae lbs

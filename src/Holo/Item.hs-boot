@@ -23,4 +23,4 @@ type role Node phantom nominal phantom
 data Node (c ∷ Type → Constraint) (k ∷ KNode) (p ∷ Phase)
 
 
-iNewToken ∷ (MonadTrace m, Typeable a) ⇒ Proxy a → m Port.IdToken
+iNewToken ∷ (MonadTrace sig m, Typeable a) ⇒ Proxy a → m Port.IdToken

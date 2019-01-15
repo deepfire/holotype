@@ -1,15 +1,24 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# OPTIONS_GHC  -fprint-potential-instances #-}
 module Tracer
   ( module Cardano.BM.Trace
   , module Cardano.BM.Data.Aggregated
   , module Cardano.BM.Data.LogItem
-  , mkTrace
+  , MonadTrace, EffTrace
+  , mkTrace, runWithTracing
   , logDebug,  logInfo,  logNotice,  logWarning,  logError,  logCritical,  logAlert,  logEmergency
   , logDebug', logInfo', logNotice', logWarning', logError', logCritical', logAlert', logEmergency'
   )
   -- (setupTracer, trev, trevE, TraceKind(..), TraceEntity(..), TraceAction(..))
 where
+import           Control.Effect                    hiding (Trace)
+import           Control.Effect.Carrier
+import           Control.Effect.Reader
+import           Control.Effect.Lift
 import           Control.Monad
 import           Control.Monad.IO.Class
+import qualified Control.Monad.Trans               as MTL
+import qualified Control.Monad.Trans.Reader        as MTL
 import           GHC.Stack
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Text.Format                  as TF
@@ -26,10 +35,6 @@ import           Prelude.Unicode
 import qualified System.IO.Unsafe                  as IO
 import qualified Data.IORef                        as IO
 
-import           Control.Monad.Reader                     (MonadReader, ask)
-import           Control.Monad.Trans
-import           Control.Monad.Trans.Reader        hiding (ask)
-
 import qualified Cardano.BM.Configuration.Model    as CM
 import           Cardano.BM.Data.Aggregated (Measurable (..))
 import           Cardano.BM.Data.BackendKind
@@ -40,24 +45,91 @@ import           Cardano.BM.Setup
 import           Cardano.BM.Trace                  hiding (logDebug, logInfo, logNotice, logWarning, logError, logCritical, logAlert, logEmergency)
 import qualified Cardano.BM.Trace                  as T
 
+import           Cardano.BM.Data.Trace
 
 -- * Tracing
 --
-class (MonadReader (Trace m) m, MonadIO m) ⇒ MonadTrace m
+type MonadTrace sig m  = (Member (Reader (Trace IO)) sig, Carrier sig m, MonadIO m)
+type EffTrace       m a =    Eff (Reader (Trace m) m) a
 
-mkTrace ∷ MonadIO m ⇒ Text → m (Trace m)
+runWithTracing ∷ ∀ r sig m a. (Carrier sig m, MonadIO m) ⇒ Text → Eff (ReaderC (Trace IO) m) a → m a
+runWithTracing desc m = do
+  tr ← liftIO $ mkTrace desc
+  runReader tr m
+
+mkTrace ∷ (MonadIO m) ⇒ Text → m (Trace m)
 mkTrace desc = do
     c  ← config
-    -- create initial top-level |Trace|
-    tr ← setupTrace (Right c) desc
-
+    tr ← setupTrace (Right c) desc -- MonadIO m ⇒ Either FilePath Configuration → Text → m (Trace m)
     T.logNotice tr "-- tracing initialised"
     pure tr
 
--- runWithLogging ∷ (MonadIO m, MonadReader (Trace m) m, MonadIO m) ⇒ Text → m a → m a
--- runWithLogging desc act = do
---   tr ← mkTrace desc
---   runReader act tr
+-- subDoit ∷ (MonadIO m) ⇒ m (String, String)
+-- subDoit = liftIO $ runM doit
+
+-- sendM ∷ ∀ (sig ∷ (Type → Type) → Type → Type) (m ∷ Type → Type) (a ∷ k). sig a → m a
+--sendM :: (Monad m, Monad (effect m), Member (Lift (effect m)) sig, Member effect sig, Carrier sig m) => effect m a -> m a
+--sendM :: (Monad m, Monad (effect m), Member (Lift (effect m)) sig, Member effect sig, Carrier sig m) => effect m a -> m a
+
+newtype WEff (n :: * -> *) m a = WEff { runWEff :: Eff m a }
+  deriving (Applicative, Functor, Monad)
+
+instance (Carrier sig m, Member (Lift n) sig, MonadIO n) => MonadIO (WEff n m) where
+  liftIO = send . Lift . fmap pure . liftIO @n
+
+instance Carrier sig m => Carrier sig (WEff n m) where
+  ret = WEff . ret
+
+sendM ∷ ∀ l m n sig a
+  . ( Monad l
+    , Monad m, Carrier sig m
+    , Monad n
+    , l ~ n
+    , Member (Lift l) sig) ⇒ n a → m a
+sendM m = send (Lift (fmap pure m))
+
+doit ∷ ∀ m. (MonadIO m) ⇒ m (String, String)
+doit =
+  MTL.runReaderT (do
+    liftIO $ runM $ runReader ("quux" ∷ String) $ do
+      liftIO $ putStrLn "foo"
+      foo ← sendM @(MTL.ReaderT String m) $ MTL.ask
+      let foo = ""
+      bar ← ask
+      pure (foo, bar))
+    ["bar"]
+
+-- If you want to use fused-effects’ effects, you have to have a Carrier constraint
+-- for the context and a Member constraint for the carrier’s signature. If you had
+-- those for whatever monad you’re lifting with the Lift effect, then you wouldn’t
+-- need the Lift effect at all.
+
+-- Equivalently, a monad m lifted into a monad transformer t m can’t use t m’s
+-- functionality; lift (action :: m a) :: t m a, i.e. action’s type doesn’t mention t
+-- so it can’t do anything which requires t, only things which only require m.
+
+-- If, on the other hand, you wanted to have some monad transformer wrapping a
+-- fused-effects computation, you could do that with something like FooT (Eff
+-- carrier). Then the outer context could be given a (possibly orphan) Carrier
+-- instance and send requests to Eff, but the inner Eff context couldn’t send
+-- requests to FooT (because it doesn’t contain it).
+
+-- As to which layering is correct, that really depends on the semantics you want,
+-- e.g. Eff (ErrorC e (Eff (StateC s m))) and Eff (StateC s (Eff (ErrorC e m))) have
+-- different semantics: in the former, errors discard state, in the latter, errors do
+-- not. (And the variations in meaning of layers of State carriers above and below
+-- NonDet carriers are even more interesting.)
+
+
+-- doit ∷ ∀ m sig. (MonadIO m) ⇒ m ()
+-- doit = do
+--   tr ∷ Trace IO ← liftIO $ mkTrace "yay"
+--   MTL.runReaderT (do
+--     liftIO $ runM $ runWithTracing "yay" $ do
+--       liftIO $ putStrLn "foo"
+--       foo ← MTL.ask
+--       logDebug "we're live %s %s!" ("a" ∷ String, "b" ∷ String))
+--     ["lol"]
 
 logDebug', logInfo', logNotice', logWarning', logError', logCritical', logAlert', logEmergency' ∷
   (MonadIO m, TF.Params ps) ⇒ Trace m → Format → ps → m ()
@@ -71,16 +143,15 @@ logAlert'     tr fmt ps = T.logAlert     tr $ toStrict $ TF.format fmt ps
 logEmergency' tr fmt ps = T.logEmergency tr $ toStrict $ TF.format fmt ps
 
 logDebug, logInfo, logNotice, logWarning, logError, logCritical, logAlert, logEmergency ∷
-  (MonadReader (Trace m) m, MonadIO m, TF.Params ps) ⇒ Format → ps → m ()
-logDebug         fmt ps = ask >>= \tr→ T.logDebug     tr $ toStrict $ TF.format fmt ps
-logInfo          fmt ps = ask >>= \tr→ T.logInfo      tr $ toStrict $ TF.format fmt ps
-logNotice        fmt ps = ask >>= \tr→ T.logNotice    tr $ toStrict $ TF.format fmt ps
-logWarning       fmt ps = ask >>= \tr→ T.logWarning   tr $ toStrict $ TF.format fmt ps
-logError         fmt ps = ask >>= \tr→ T.logError     tr $ toStrict $ TF.format fmt ps
-logCritical      fmt ps = ask >>= \tr→ T.logCritical  tr $ toStrict $ TF.format fmt ps
-logAlert         fmt ps = ask >>= \tr→ T.logAlert     tr $ toStrict $ TF.format fmt ps
-logEmergency     fmt ps = ask >>= \tr→ T.logEmergency tr $ toStrict $ TF.format fmt ps
-
+  (MonadTrace sig m, TF.Params ps) ⇒ Format → ps → m ()
+logDebug         fmt ps = ask >>= \tr→ liftIO . T.logDebug     tr . toStrict $ TF.format fmt ps
+logInfo          fmt ps = ask >>= \tr→ liftIO . T.logInfo      tr . toStrict $ TF.format fmt ps
+logNotice        fmt ps = ask >>= \tr→ liftIO . T.logNotice    tr . toStrict $ TF.format fmt ps
+logWarning       fmt ps = ask >>= \tr→ liftIO . T.logWarning   tr . toStrict $ TF.format fmt ps
+logError         fmt ps = ask >>= \tr→ liftIO . T.logError     tr . toStrict $ TF.format fmt ps
+logCritical      fmt ps = ask >>= \tr→ liftIO . T.logCritical  tr . toStrict $ TF.format fmt ps
+logAlert         fmt ps = ask >>= \tr→ liftIO . T.logAlert     tr . toStrict $ TF.format fmt ps
+logEmergency     fmt ps = ask >>= \tr→ liftIO . T.logEmergency tr . toStrict $ TF.format fmt ps
 
 config ∷ MonadIO m ⇒ m CM.Configuration
 config = liftIO $ do

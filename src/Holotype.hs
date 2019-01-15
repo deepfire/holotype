@@ -8,11 +8,13 @@
 module Holotype where
 
 import           Control.Arrow
+import           Control.Effect                    hiding (Trace)
+import           Control.Effect.Carrier
+import           Control.Effect.Reader
 import           Control.Monad
 import           Control.Monad.Fix
 import           Control.Monad.Primitive
 import           Control.Monad.Ref
-import           Control.Monad.Trans.Reader
 import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Maybe
@@ -22,6 +24,7 @@ import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
 import           Data.Tuple
 import           Data.Typeable
+import           Data.IORef                               (IORef(..))
 import           Generics.SOP.Monadic
 -- import           GHC.IOR
 import           Linear                            hiding (trace)
@@ -104,23 +107,26 @@ defVocab = Vocab
     -- <: (Proxy @(Port.ScreenDim (Di Int)), HoloName TextLine)
   )
 
-scene ∷ ∀ i t m. ( HGLFW i t m
-                 , Typeable t)
-  ⇒ Input t
-  → Dynamic    t Port.Settings
+scene ∷ ∀ i sig t m.
+  ( MonadW i sig t m
+  , Typeable t)
+  ⇒ Dynamic    t Port.Settings
   → Dynamic    t Integer
   → Dynamic    t Int
   → Dynamic    t Double
   → m (Widget i Port.Settings, Widget.WH i)
-scene input sttsD statsValD frameNoD fpsValueD =
+scene sttsD statsValD frameNoD fpsValueD = do
+  input ← getInput @i
   let lbinds = listenerBindsParse "Scene" (inStore input)
         [ ("Settings.sttsWaitVSync", "VSyncToggle")
         , ("Settings.sttsScreenDim", "WinSize")
         ]
-  in runWidgetM input lbinds $ mdo
+  local (switchCtxBinds @i lbinds) $ mdo
 
     fpsD ∷ Widget i Text
                      ← dynPresent "fps" defVocab (T.pack ∘ printf "%3d fps" ∘ (floor ∷ Double → Integer) <$> fpsValueD)
+  -- dynPresent    ∷ (MonadW i sig t m, HasCallStack)
+  --               ⇒ AElt          → Vocab i (Present i) → Dynamic t a → m (Widget i a)
 
     statsD ∷ Widget i Text
                      ← dynPresent "mem" defVocab $ statsValD <&>
@@ -183,20 +189,31 @@ vboxD chi lbs =
   in (lbsAE lbs, subsD, vbox <$> chiD)
 
 
-holotype ∷ ∀ t m. (Typeable t) ⇒ RGLFWGuest t m
-holotype win evCtl windowFrameE inputE = mdo
+-- holotype ∷ ∀ t m. (RGLFW t m) ⇒ RGLFWGuest t m
+-- holotype  win evCtl windowFrameE inputE =
+--   -- runM $ runWithTracing "yay" $ ((⊥) ∷ Monad m ⇒ m _) --holotype' win evCtl windowFrameE inputE
+--   -- runWithTracing "yay" ∷ Eff (ReaderC (Holo.Prelude.Trace IO) m0) a0 -> m0 a0
+--   runMIO $ (runWithTracing "yay") $ do
+--     --logDebug "we're live %s %s!" ("a" ∷ String, "b" ∷ String)
+--     pure $ constant False
+
+-- instance MonadRef (Eff (ReaderC (Holo.Prelude.Trace IO) (Eff (LiftIOC m)))) where
+--   type instance Ref (Eff (ReaderC (Holo.Prelude.Trace IO) (Eff (LiftIOC m)))) = IORef
+
+holotype ∷ ∀ sig t m. (RGLFW t m) ⇒ RGLFWGuest t m
+holotype win evCtl windowFrameE inputE = liftIO $ runM $ runWithTracing "holotype" $ mdo
   Options{..} ← liftIO $ Opt.execParser $ Opt.info (parseOptions <**> Opt.helper)
                 ( Opt.fullDesc
                   -- <> header   "A simple holotype."
                   <> Opt.progDesc "A simple holotype.")
-  when oTrace $
-    liftIO $ setupTracer False
-    [(ALLOC,     TOK,  TRACE, 0),(FREE,      TOK, TRACE, 0)
-    ,(SIZE,      HOLO, TRACE, 0)
+  -- when oTrace $
+    -- liftIO $ setupTracer False
+    -- [(ALLOC,     TOK,  TRACE, 0),(FREE,      TOK, TRACE, 0)
+    -- ,(SIZE,      HOLO, TRACE, 0)
     -- (ALLOC,     TOK, TRACE, 0),(FREE,      TOK, TRACE, 0)
     -- ,(MISSALLOC, VIS, TRACE, 4),(REUSE,     VIS, TRACE, 4),(REALLOC,   VIS, TRACE, 4),(ALLOC,     VIS, TRACE, 4),(FREE,        VIS, TRACE, 4)
     -- ,(ALLOC,     TEX, TRACE, 8),(FREE,      TEX, TRACE, 8)
-    ]
+    -- ]
 
   HOS.unbufferStdout
 
@@ -257,7 +274,7 @@ holotype win evCtl windowFrameE inputE = mdo
   inputMux         ← routeEv evE clickedE subscriptionsD
   (,) (Widget' (_,_,sttsWD,_))
       ((,,) _ae subscriptionsD sceneD)
-                   ← scene @(API t m) input sttsD statsValD frameNoD fpsValueD
+                   ← (⊥) --scene sttsD statsValD frameNoD fpsValueD
 
   -- * LAYOUT
   -- needs port because of DPI and fonts
@@ -282,7 +299,7 @@ holotype win evCtl windowFrameE inputE = mdo
                        tree' ← ensureTreeVisuals port tree
                        -- XXX: 'render' is called every frame for everything
                        renderTreeVisuals port tree'
-                       showTreeVisuals f tree'
+                       showTreeVisuals @sig f tree'
                        pure port
   drawnPortD       ← holdDyn Nothing $ Just <$> drawnPortE
 
@@ -297,6 +314,8 @@ holotype win evCtl windowFrameE inputE = mdo
 
   hold False (evMatch (inputMaskKeyPress' GLFW.Key'Escape)
                <$> evE)
+  -- hold False (evMatch (inputMaskKeyPress' GLFW.Key'Escape)
+  --              <$> never)
 
 
 
@@ -336,7 +355,7 @@ trackStyle sof = do
 --   holdDyn (initialV, emptyHolo) (attachPromptlyDyn valD holoE)
 --    <&> (,) editMaskKeys
 
-mkTextEntryValidatedStyleD ∷ ∀ i t m. HGLFW i t m ⇒ AElt → Behavior t (Style TextLine) → Text → (Text → Bool) → WM i m (Result i Text)
+mkTextEntryValidatedStyleD ∷ ∀ i sig t m. MonadW i sig t m ⇒ AElt → Behavior t (Style TextLine) → Text → (Text → Bool) → m (Result i Text)
 mkTextEntryValidatedStyleD ae styleB initialV testF = do
   unless (testF initialV) $
     error $ "Initial value not accepted by test: " <> T.unpack initialV

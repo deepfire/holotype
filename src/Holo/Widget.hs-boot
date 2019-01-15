@@ -1,10 +1,8 @@
 module Holo.Widget
 where
 
-import           Control.Monad.Fix
-import           Control.Monad.Ref
-import           Control.Monad.Trans
-import           Control.Monad.Trans.Reader
+import           Control.Effect                    hiding (Trace)
+import           Control.Effect.Reader
 import           Data.Kind                                (Type)
 import           Data.Typeable                            (Typeable)
 import qualified Data.TypeMap.Dynamic              as TM
@@ -54,18 +52,5 @@ data WidgetMCtx i where
     , wcLBinds ∷ !LBinds
     } → WidgetMCtx i
 
-newtype (Monad m) ⇒ WidgetM i m a = WidgetM (ReaderT (WidgetMCtx i) m a)
-
-type WM i m a = WidgetM i m a
-
-instance Functor        m ⇒ Functor        (WidgetM i m)
-instance Applicative    m ⇒ Applicative    (WidgetM i m)
-instance Monad          m ⇒ Monad          (WidgetM i m)
-instance                    MonadTrans     (WidgetM i)
-instance MonadIO        m ⇒ MonadIO        (WidgetM i m)
-instance MonadRef       m ⇒ MonadRef       (WidgetM i m)
-instance MonadFix       m ⇒ MonadFix       (WidgetM i m)
-instance HGLFW      i t m ⇒ MonadHold    t (WidgetM i m)
-instance PostBuild    t m ⇒ PostBuild    t (WidgetM i m)
-instance PerformEvent t m ⇒ PerformEvent t (WidgetM i m)
-instance MonadSample  t m ⇒ MonadSample  t (WidgetM i m)
+type MonadW i sig t m   = (Member (Reader  (WidgetMCtx i)) sig, Carrier sig m, HGLFW i t m, MonadTrace sig m)
+type   EffW i       m a =    Eff (ReaderC (WidgetMCtx i) m) a
