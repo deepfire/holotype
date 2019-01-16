@@ -143,7 +143,6 @@ widgetDef ae voc initial =
     --   1. if it's a compound, we need to fix the Node IdToken story
     --   2. if it's not, we have to route focus manually.. based on what state?
     --      ..but we get to write a custom, pretty As instance in return
-    type error
     dynWidget' ae tok voc mut
 
 dynWidget'Def ∷ ∀ i t r m a.
@@ -294,10 +293,15 @@ instance Reflex (APIt i) ⇒ Applicative (Result i) where
   -- To allow nodes to have unique IdTokens
   -- ← must allow executing newId here
   -- ← work out how to unpack W
+  -- type WF      i b = (AElt, Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
+  -- data instance
+  --      Result  i b = Reflex (APIt i)
+  --                  ⇒ Widget' { fromWidget ∷ WF i b } -- LRR ≡ Lifted Record Result
+  -- type Widget  i b = Result i b
   pure x = Widget' ("", mempty, constDyn (vbox []), constDyn x)
-  Widget' (ael, fsubs, fitem, fvals) <*> Widget' (_aer, xsubs, xitem, xvals) =
+  Widget' (fae, fsubs, fitem, fvals) <*> Widget' (_xae, xsubs, xitem, xvals) =
     Widget' $ (,,,)
-    ael
+    fae
     (zipDynWith (<>) fsubs xsubs)
     (zipDynWith ((\fhb xhb→ xhb & children %~ (fhb :)))
                      fitem xitem)

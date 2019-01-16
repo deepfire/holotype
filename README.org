@@ -628,7 +628,31 @@
         3. Absolutes that underflow: ???
         4. Absolutes that overflow:
            - ideally, propagate upward (see same for box hardness)
-
+* Problems
+*** (m :.: Result t) a ⇒ Applicative on 'Result t' ⇒ Node construction unbearably pure
+***** The problematic pipeline
+      1. ct = (!! choice) $ SOP.apInjs_POP pop ∷ SOP (m :.: Result t) xss
+      2. By hsequence ∷ (SListIN h xs, SListIN (Prod h) xs, HSequence h, Applicative f) =>
+          h f xs -> f (h I xs)
+      3. Comp msop = hsequence ct              ∷     (m :.: Result t) (SOP I xss)
+      4. By unComp ∷
+          (f :.: g) p -> f (g p)
+      5. msop                                  ∷      m    (Result t  (SOP I xss))
+      6. By (SOP.to <$>) <$>
+          m (Result t (SOP I (x : xs))) -> m (Result t a)
+      7. Comp res = (SOP.to <$>) <$> msop      ∷     (m :.: Result t) a
+      8. By unComp ∷
+          (f :.: g) p -> f (g p)
+      9. res                                   ∷      m    (Result t a)
+***** The problematic foundation of the pipeline
+      1. forall f xs. (c a, All c xs, All2 c xss)
+         ⇒ …
+         → (a → f)
+         → (m :.: Result t) f
+      2. We want to separate (Result t f) from f
+      3. Theory: can we go for this instead:
+         → m (Result t f)
+      4. Let's try!
 * emacs options
 
 ;; Local Variables:

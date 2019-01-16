@@ -106,44 +106,6 @@ instance As TextLine where
     Cr.unbindFontLayout tFont tLayout
 
 
--- * V2Entry
---
-data V2EntryS
-  = V2EntryS
-  { v2eChars     ∷ Int
-  } -- specifying scale as part of style is a smell
---
---  Height: 2*(radius + line-weight + tolerance + line-weight + 0.5*(line-weight + tolerance))
---  Width:  2*(0.5*interfocal + radius + line-weight + tolerance + line-weight + 0.5*(line-weight + tolerance))
-data V2Entry a = V2Entry
-
-instance As (V2Entry (a ∷ Type)) where
-  type Denoted (V2Entry a) = V2 a
-  type Sty     (V2Entry a) = V2EntryS
-  defAs   _ = V2Entry
-  defSty  _ = V2EntryS
-    { v2eChars   = 4
-    }
-  sizeRequest _ V2Entry _ V2EntryS{..} =
-    let padding = 0.5 * (ssLineWeight + ssTolerance)
-        h = 2 * (ssRadius + ssTolerance + ssLineWeight + padding)
-        w = h + ssInterfocal
-    in pure ∘ (,) () ∘ (Just <$>) ∘ Di $ V2 w h
-  setupVis _ _ _ _ _ _ _ = pure ()
-  render _ V2Entry val V2EntryS{..} () shift d@Drawable{..} () = do
-    let padding  = 0.5 * (ssLineWeight + ssTolerance)
-        rrRadius = ssRadius + ssTolerance + ssLineWeight
-        hCenter  = rrRadius + padding
-    Cr.runCairo dCairo $ do
-      -- paintDebugColorFrames dDi
-      Cr.crMoveTo shift
-      paintRoundedRect (white, if val then ssColorOn else ssColorOff)
-        (Th ssLineWeight) (R rrRadius) (Wi ssInterfocal) (Pad padding)
-      paintCircle white (R ssRadius) (Po $ V2 (hCenter + if val then 0 else ssInterfocal) hCenter)
-    Port.drawableContentToGPU d
--- paintRoundedRect color lw@(Th lineWeight) r@(R radius) (Wi interfocal) (Pad pad) = do
-
-
 -- * Switch - Bool - Interp Bool x
 --
 data SwitchS

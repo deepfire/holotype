@@ -67,27 +67,28 @@ recover
   ⇒ Proxy c
   → Proxy (t, a)
   → PerformChoiceT t m a xss
-  → (forall f xs. (c f, All c xs, All2 c xss) ⇒ ReadFieldT c t m a f xss xs)
+  → (forall f xs. (c f, All2 c xss) ⇒ ReadFieldT c t m a f xss xs)
   → (m :.: Result t) a
 recover pC pTA choicef fieldf = let dti = datatypeInfo (Proxy @a) ∷ DatatypeInfo xss
   in Comp $
   case dti of
     ADT _moduleName typeName cInfos → do
       choice ← choicef pTA dti
-      let pop       ∷ POP (m :.: Result t) xss     = recover' pC pTA fieldf $ (datatypeInfo (Proxy @a) ∷ DatatypeInfo xss)
-          ct        ∷ SOP (m :.: Result t) xss     = (!! choice) $ SOP.apInjs_POP pop
-          Comp msop ∷ (m :.: Result t) (SOP I xss) = hsequence ct
+      let pop        ∷ POP (m :.: Result t) xss     = recover' pC pTA fieldf $ (datatypeInfo (Proxy @a) ∷ DatatypeInfo xss)
+          ct         ∷ SOP (m :.: Result t) xss     = (!! choice) $ SOP.apInjs_POP pop
+          Comp mrsop ∷ (m :.: Result t) (SOP I xss) = hsequence ct
       case SOP.sList ∷ SOP.SList xss of
-        SOP.SCons → (SOP.to <$>) <$> msop
+        SOP.SCons → (SOP.to <$>) <$> mrsop
     Newtype _moduleName typeName cInfo → do
       let nCInfos -- ~∷ NP ((,) Int :.: ConstructorInfo) '[ '[x]]
             = enumerate $ cInfo :* Nil
-          sop     ∷                  SOP (m :.: Result t) xss  = SOP.SOP $ SOP.Z $
+          sop        ∷ SOP (m :.: Result t) xss =
+            SOP.SOP $ SOP.Z $
             recoverCtor pC pTA fieldf dti
             (SOP.hd nCInfos)
             (SOP.hd ((SOP.gtraversals -- ~∷ NP (NP (SOP.GTraversal (→) (→) s)) '[ '[x]]
                         )))
-          Comp mdsop ∷ (m :.: Result t) (SOP I               xss) = hsequence sop
+          Comp mdsop ∷     (m :.: Result t) (SOP I xss) = hsequence sop
       (SOP.to <$>) <$> mdsop
 
 recover'
