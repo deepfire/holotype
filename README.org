@@ -89,7 +89,7 @@
       5. Return vs. C-Return -- a story of multi-line text input
 
 ***** UI trope: level-of-detail variance
-      
+
       1. "give me more data about this object"
          1. scaling
             1. points-of-interest at low scale
@@ -631,19 +631,26 @@
 * Problems
 *** (m :.: Result t) a ⇒ Applicative on 'Result t' ⇒ Node construction unbearably pure
 ***** The problematic pipeline
-      1. ct = (!! choice) $ SOP.apInjs_POP pop ∷ SOP (m :.: Result t) xss
+      1. ct = (!! choice) $ SOP.apInjs_POP pop   ∷ SOP (m :.: Result t) xss
       2. By hsequence ∷ (SListIN h xs, SListIN (Prod h) xs, HSequence h, Applicative f) =>
           h f xs -> f (h I xs)
-      3. Comp msop = hsequence ct              ∷     (m :.: Result t) (SOP I xss)
+      3. Comp msop = hsequence ct                ∷     (m :.: Result t) (SOP I xss)
       4. By unComp ∷
           (f :.: g) p -> f (g p)
-      5. msop                                  ∷      m    (Result t  (SOP I xss))
+      5. msop                                    ∷      m    (Result t  (SOP I xss))
       6. By (SOP.to <$>) <$>
           m (Result t (SOP I (x : xs))) -> m (Result t a)
-      7. Comp res = (SOP.to <$>) <$> msop      ∷     (m :.: Result t) a
+      7. Comp res = (SOP.to <$>) <$> msop        ∷     (m :.: Result t) a
       8. By unComp ∷
           (f :.: g) p -> f (g p)
-      9. res                                   ∷      m    (Result t a)
+      9. res                                     ∷      m    (Result t a)
+***** Potential `hsequence` replacements
+      - hsequence' ∷ (SListIN h xs, Applicative f) ⇒ h (f :.: g) xs → f (h g xs)
+        hsequence  ∷                                 h  f        xs → f (h I xs)
+        htraverse' ∷ (SListI2 xss, Applicative g) =>
+                     (forall a ⇒ f a → g (f' a)) → SOP f xss → g (SOP f' xss)
+      - g ~ m, f' ~ Result t
+        -            (forall a ⇒ f a → m (Result t a)) → SOP f xss → m (SOP (Result t) xss)
 ***** The problematic foundation of the pipeline
       1. forall f xs. (c a, All c xs, All2 c xss)
          ⇒ …

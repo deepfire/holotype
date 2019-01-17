@@ -5,7 +5,6 @@ module Generics.SOP.Monadic
   , recover
 
   -- reexports
-  , (:.:)(..)
   , DatatypeInfo(..), ConstructorInfo(..), FieldInfo(..)
   )
 where
@@ -21,11 +20,7 @@ import           Prelude.Unicode
 import           Text.Printf
 
 import           GHC.Stack
-import           Generics.SOP                        ((:.:)(..)
-                                                     , NP(..), SOP(..), POP(..), I(..), K(..), Code, All, All2, Top
-                                                     , HasDatatypeInfo(..), DatatypeInfo(..), ConstructorInfo(..), FieldInfo(..), SListI
-                                                     , hcliftA2, hliftA, hsequence
-                                                     )
+import           Generics.SOP
 import           Generics.SOP.NP                     (pure_NP)
 import qualified Generics.SOP                     as SOP
 import qualified Generics.SOP.NP                  as SOP
@@ -57,7 +52,7 @@ type ReadFieldT c t m u a xss xs
   → ConstructorInfo xs
   → FieldInfo a
   → (u → a)
-  → (m :.: Result t) a
+  → m (Result t a)
 
 recover
   ∷ ∀ a (c ∷ Type → Constraint) (t ∷ Type) m xss.
@@ -68,9 +63,9 @@ recover
   → Proxy (t, a)
   → PerformChoiceT t m a xss
   → (forall f xs. (c f, All2 c xss) ⇒ ReadFieldT c t m a f xss xs)
-  → (m :.: Result t) a
+  → m (Result t a)
 recover pC pTA choicef fieldf = let dti = datatypeInfo (Proxy @a) ∷ DatatypeInfo xss
-  in Comp $
+  in
   case dti of
     ADT _moduleName typeName cInfos → do
       choice ← choicef pTA dti
@@ -159,5 +154,5 @@ recoverFields pC _pTU fieldf dtinfo consNr cinfo traversals finfos =
                  → SOP.GTraversal (→) (→) u a
                  → (m :.: Result t) a
     recoverField dtinfo consNr cinfo finfo trav =
-      fieldf (Proxy @c) (Proxy @(t, u, a))
+      Comp $ fieldf (Proxy @c) (Proxy @(t, u, a))
       dtinfo consNr cinfo finfo (SOP.get trav ∷ u → a)

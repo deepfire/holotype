@@ -41,7 +41,7 @@ instance {-# OVERLAPPABLE #-}
   ) ⇒ Widgety i a where
   dynWidget' ae tok voc da = do
     lbs   ← getSubLBinds @i ae
-    w     ← runWidgetMLBinds @i lbs $ SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
+    w     ← runWidgetMLBinds @i lbs $ recover (Proxy @(Present i)) (Proxy @(i, a))
             (\_p _dti → pure 0)
             (recoverFieldWidget (tok, voc, da))
     pure $ setAE ae w
@@ -54,13 +54,13 @@ instance {-# OVERLAPPABLE #-}
   ) ⇒ Present i a where
   present ae voc initial = do
     lbs   ← getSubLBinds @i ae
-    w     ← runWidgetMLBinds @i lbs $ SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
+    w     ← runWidgetMLBinds @i lbs $ recover (Proxy @(Present i)) (Proxy @(i, a))
             (\_p _dti → pure 0)
             (recoverFieldPresent (voc, initial))
     pure $ setAE ae w
   dynPresent ae voc da  = do
     lbs   ← getSubLBinds @i ae
-    w     ← runWidgetMLBinds @i lbs $ SOP.unComp $ recover (Proxy @(Present i)) (Proxy @(i, a))
+    w     ← runWidgetMLBinds @i lbs $ recover (Proxy @(Present i)) (Proxy @(i, a))
             (\_px _dti→ pure 0)
             (recoverFieldPresentDynamic (voc, da))
     pure $ setAE ae w
@@ -74,7 +74,7 @@ recoverFieldWidget ∷ ∀ i t r m u f xss xs.
   )
   ⇒ (Port.IdToken, Vocab i (Present i), Dynamic t u)
   → ReadFieldT (Present i) i m u f xss xs
-recoverFieldWidget (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $
+recoverFieldWidget (tok, voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj =
   mapDesig @i @f voc
   \(_ ∷ n)→ do
       Widget' (ae,sD,iD,vD) ← dynWidget' @i @(Denoted n) (AElt $ pack fname) tok voc (forget ∘ proj <$> dRec)
@@ -90,7 +90,7 @@ recoverFieldPresent ∷ ∀ i t r m u a xss xs.
   )
   ⇒ (Vocab i (Present i), u)
   → ReadFieldT (Present i) i m u a xss xs
-recoverFieldPresent (voc, initV ∷ u) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
+recoverFieldPresent (voc, initV ∷ u) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = do
   let fname' = pack fname
   tok ← Port.newId $ "record label '" <> fname' <> "'"
   let addLabel ""  x = x
@@ -114,7 +114,7 @@ recoverFieldPresentDynamic
     )
   ⇒ (Vocab i (Present i), Dynamic t a)
   → ReadFieldT (Present i) i m a f xss xs
-recoverFieldPresentDynamic (voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = Comp $ do
+recoverFieldPresentDynamic (voc, dRec) _pC _pIAF _dtinfo _consNr _cinfo (FieldInfo fname) proj = do
   let fname' = pack fname
   tok ← Port.newId $ "record label '" <> fname' <> "'"
   let addLabel ""  x = x
