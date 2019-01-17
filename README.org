@@ -629,7 +629,7 @@
         4. Absolutes that overflow:
            - ideally, propagate upward (see same for box hardness)
 * Problems
-*** (m :.: Result t) a ⇒ Applicative on 'Result t' ⇒ Node construction unbearably pure
+*** DONE (m :.: Result t) a ⇒ Applicative on 'Result t' ⇒ Node construction unbearably pure
 ***** The problematic pipeline
       1. ct = (!! choice) $ SOP.apInjs_POP pop   ∷ SOP (m :.: Result t) xss
       2. By hsequence ∷ (SListIN h xs, SListIN (Prod h) xs, HSequence h, Applicative f) =>
@@ -660,6 +660,9 @@
       3. Theory: can we go for this instead:
          → m (Result t f)
       4. Let's try!
+***** Solution
+      - introduce a separate node finalisation post-phase, that performs monadic
+        computation after the ADT lift
 * emacs options
 
 ;; Local Variables:

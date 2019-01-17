@@ -1,10 +1,24 @@
 {-# OPTIONS_GHC -Weverything #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
+--
+-- $Mandate of the module
+--
+--   1. Provide a generic Item element for a visual layout hierarchy.
+--   2. No one does pattern-matching on Item outside this module.
+--
+-- $Module TODO
+--
+--   1. Reconsider if (Denoted a) has to reside within the Item itself.
+--      After all, layout can (should?) sometimes (often?) happen independent of
+--      the value changes?
+--   2. Try to drop the first argument of the Node type (the constraint).
+--
 module Holo.Item
   ( Phase(..)
   , Item
   , iNewToken, iSizeRequest
   , leaf, defLeaf
+  , IsNode, IsNodeP, completeNode
   , Node, KNode
   , vbox, hbox
   --
@@ -29,7 +43,6 @@ import           Prelude.Unicode
 import qualified Data.IntMap                       as IntMap
 import qualified Unsafe.Coerce                     as Co
 
-import           Elsewhere
 import           Graphics.Flatland
 import           Graphics.Flex
 import qualified Graphics.Flex                     as Flex
@@ -59,32 +72,44 @@ data Phase
   | PLayout
   | PVisual
 
-type family IStrucP (p ∷ Phase) a ∷ Type where
-  IStrucP PBlank  _ = ()
-  IStrucP PLayout a = IStruc a
-  IStrucP PVisual a = IStruc a
+type family PIStruc (p ∷ Phase) a ∷ Type where
+  PIStruc PBlank  _ = ()
+  PIStruc PLayout a = IStruc a
+  PIStruc PVisual a = IStruc a
 
-type family VisualP (p ∷ Phase) a ∷ Type where
-  VisualP PBlank  _ = ()
-  VisualP PLayout _ = ()
-  VisualP PVisual a = Maybe (Visual a)
+type family PVis    (p ∷ Phase) a ∷ Type where
+  PVis    PBlank  _ = ()
+  PVis    PLayout _ = ()
+  PVis    PVisual a = Maybe (Visual a)
+
+type IsNodeP c (k ∷ KNode) a p = (Typeable a, Typeable c, Typeable k, a ~ Node c k p)
+type IsNode  c k a             = IsNodeP c k a PBlank
 
 -- Phasing is TTG-inspired
 data Item (c ∷ Type → Constraint) (p ∷ Phase) where
   Leaf ∷ ∀ c p a. (As a, c (Denoted a), Typeable a) ⇒
     { name        ∷ Name a
     , denoted     ∷ Denoted a
-    , iStruc      ∷ IStrucP p a
+    , iStruc      ∷ PIStruc p a
     , iSize       ∷ Di (Maybe Double) -- Flex input:  the desired size
                                       -- Has to be always defined, because we need an universally quantified Flex (Item p)
     , iArea       ∷ Area'LU Double    -- Flex output: the resultant size + coords
                                       -- Same quip as for iSize
-    , lVisual     ∷ VisualP p a
+    , lVisual     ∷ PVis p a
     } → Item c p
-  Node ∷ ∀ c k p a. (a ~ Node c k p, Typeable k) ⇒
+  -- XXX: make Node ∷ Item c PBlank, so it's inadmissible in other contexts
+  Node ∷ ∀ c p a k. (IsNodeP c k a p) ⇒
     { name        ∷ Name a
     , denoted     ∷ Denoted a
-    , iStruc      ∷ IStrucP p a
+    , iStruc      ∷ PIStruc p a
+    , iSize       ∷ Di (Maybe Double) -- Flex input:  the desired size
+    , iArea       ∷ Area'LU Double    -- Flex output: the resultant size + coords
+    } → Item c p
+  -- FullNode has IdTokens allocated
+  FullNode ∷ ∀ c p a k. (IsNodeP c k a p) ⇒
+    { name        ∷ Name a
+    , denoted     ∷ Denoted a
+    , iStruc      ∷ PIStruc p a
     , iSize       ∷ Di (Maybe Double) -- Flex input:  the desired size
     , iArea       ∷ Area'LU Double    -- Flex output: the resultant size + coords
     } → Item c p
@@ -95,33 +120,20 @@ instance Monoid    (Item Top PBlank)  where mempty = Leaf (Name Port.blankIdToke
 instance Semigroup (Item Top PLayout) where _ <> _ = mempty
 instance Monoid    (Item Top PLayout) where mempty = Leaf (Name Port.blankIdToken (initStyle ()) defGeo ()) () () diNothing mempty mempty
 
-_iLeafP ∷ Item c p → Bool
-_iLeafP = \case
-  Leaf{..} → True
-  _        → False
-
 iNewToken ∷ (MonadTrace r m, Typeable a) ⇒ Proxy a → m IdToken
 iNewToken p = Port.newId $ showT $ typeRep p
 
-_iCompToken ∷ MonadTrace r m ⇒ Item c p → m IdToken
-_iCompToken = \case
-  Leaf{name=Name{..},..} → Port.newId $ showT $ typeRep (proxy n)
-  Node{..} → pure Port.blankIdToken
-
 iToken ∷ Item c p → IdToken
 iToken = \case
-  Leaf{name=Name{..},..} → nToken
-  Node{name=Name{..},..} → nToken
-
-_iGeo ∷ Item c p → Geo
-_iGeo = \case
-  Leaf{name=Name{..},..} → nGeo
-  Node{name=Name{..},..} → nGeo
+  Leaf{name=Name{..},..}     → nToken
+  FullNode{name=Name{..},..} → nToken
+  n@Node{}                   → eIncompleteNode "iToken" n
 
 iStyleGene ∷ Item c p → StyleGene
 iStyleGene = \case
-  Leaf{name=Name{..},..} → _sStyleGene nStyle
-  Node{name=Name{..},..} → _sStyleGene nStyle
+  Leaf{name=Name{..},..}     → _sStyleGene nStyle
+  FullNode{name=Name{..},..} → _sStyleGene nStyle
+  n@Node{}                   → eIncompleteNode "iStyleGene" n
 
 instance Eq (Item c a) where
   (==)    a b = iToken a ≡ iToken b
@@ -129,15 +141,33 @@ instance Eq (Item c a) where
 instance Ord (Item c a) where
   compare a b = iToken a `compare` iToken b
 
+instance Show (Item c a) where
+  show     Leaf{..} = showItemName name
+  show     Node{..} = showItemName name
+  show FullNode{..} = showItemName name
+
+showItemName ∷ ∀ a. Typeable a ⇒ Name a → String
+showItemName n = printf "(Item %s id=0x%x)" (show $ typeRep $ Proxy @a) (Port.tokenHash $ nToken n)
+
 instance Flex (Item c (a ∷ Phase)) where
-  geo      f   Leaf{..} = (\x→ Leaf {name=name {nGeo = x}, ..}) <$> f (nGeo name)
-  geo      f   Node{..} = (\x→ Node {name=name {nGeo = x}, ..}) <$> f (nGeo name)
-  size     f i@Leaf{..} = (\x→ i    {iSize=x})                  <$> f iSize
-  size     f i@Node{..} = (\x→ i    {iSize=x})                  <$> f iSize
-  area     f i@Leaf{..} = (\x→ i    {iArea=x})                  <$> f iArea
-  area     f i@Node{..} = (\x→ i    {iArea=x})                  <$> f iArea
-  children f i@Leaf{..} = (\_→ i)                               <$> f []
-  children f   Node{..} = (\x→ Node {denoted=x, ..})            <$> f denoted
+  geo      f       Leaf{..} = (\x→     Leaf {name=name {nGeo = x}, ..}) <$> f (nGeo name)
+  geo      f       Node{..} = (\x→     Node {name=name {nGeo = x}, ..}) <$> f (nGeo name)
+  geo      f   FullNode{..} = (\x→ FullNode {name=name {nGeo = x}, ..}) <$> f (nGeo name)
+  size     f     i@Leaf{..} = (\x→ i        {iSize=x})                  <$> f iSize
+  size     f     i@Node{..} = (\x→ i        {iSize=x})                  <$> f iSize
+  size     f i@FullNode{..} = (\x→ i        {iSize=x})                  <$> f iSize
+  area     f     i@Leaf{..} = (\x→ i        {iArea=x})                  <$> f iArea
+  area     f     i@Node{..} = (\x→ i        {iArea=x})                  <$> f iArea
+  area     f i@FullNode{..} = (\x→ i        {iArea=x})                  <$> f iArea
+  children f     i@Leaf{..} = (\_→ i)                                   <$> f []
+  children f       Node{..} = (\x→     Node {denoted=x, ..})            <$> f denoted
+  children f   FullNode{..} = (\x→ FullNode {denoted=x, ..})            <$> f denoted
+
+_iGeo ∷ Item c p → Geo
+_iGeo = \case
+  Leaf{name=Name{..},..}     → nGeo
+  Node{name=Name{..},..}     → nGeo
+  FullNode{name=Name{..},..} → nGeo
 
 _traceIGeoDiff ∷ String → Item a b → Item a b
 _traceIGeoDiff desc x = trace (desc<>" geoΔ: "<>Flex.ppdefGeoDiff (_iGeo x)) x
@@ -149,7 +179,7 @@ iSizeRequest port Leaf{name=name@Name{..},..} = do
   logDebug "HOLO SIZE %s %d" (show iSize, Port.tokenHash nToken)
   -- trev SIZE HOLO iSize $ Port.tokenHash nToken
   pure Leaf{iArea=mempty, ..}
-iSizeRequest port Node{name=name',iSize=_,..} = do
+iSizeRequest port FullNode{name=name',iSize=_,..} = do
   chi ← (sequence $ iSizeRequest port <$> denoted)
   let name@Name{..} = nodeNameBtoL name'
   --
@@ -157,21 +187,25 @@ iSizeRequest port Node{name=name',iSize=_,..} = do
   logDebug "HOLO SIZE %s %d" (show iSize, Port.tokenHash nToken)
   -- trev SIZE HOLO iSize (Port.tokenHash nToken)
   pure $ Node{iArea=mempty, iSize=iSize, denoted=chi, ..}
+iSizeRequest _ n@Node{} =
+  eIncompleteNode "iSizeRequest" n
 
 iMandateVisual ∷ (HasCallStack, MonadTrace r m) ⇒ VPort → Item c PLayout → [Item c PVisual] → m (Item c PVisual)
 iMandateVisual port hi children = case hi of
-  Node{..} → pure $ Node {name = nodeNameLtoV name, denoted = children, ..}
   Leaf{name=name@Name{..},..} → do
     let dim = iArea^.area'b.size'di
     vis ←  Port.portEnsureVisual port dim (Proxy @As) nToken Proxy (\Visual{..}→ _sStyleGene nStyle ≢ iStyleGene hi) $
            \drw→ Visual <$> setupVis port n denoted (_sStyle nStyle) iStruc iArea drw
                         <*> pure drw
     pure Leaf{lVisual=Just vis, ..}
+  FullNode{..} → pure $ FullNode {name = nodeNameLtoV name, denoted = children, ..}
+  Node{..}     → eIncompleteNode "iMandateVisual" hi
 
 iUnvisual ∷ Item c PLayout → [Item c PVisual] → Item c PVisual
 iUnvisual hi children = case hi of
-  Node{..} → Node{name = nodeNameLtoV name, denoted = children, ..}
-  Leaf{..} → Leaf{lVisual = Nothing, ..}
+  Leaf{..}     → Leaf{lVisual = Nothing, ..}
+  FullNode{..} → FullNode{name = nodeNameLtoV name, denoted = children, ..}
+  Node{..}     → eIncompleteNode "iUnvisual" hi
 
 iRender ∷ (MonadTrace r m) ⇒ VPort → Item c PVisual → m ()
 iRender port Leaf{name=Name{..}, lVisual=Just Visual{..},..} = do
@@ -227,11 +261,19 @@ instance (Typeable c, Typeable k, Typeable p) ⇒ As (Node (c ∷ Type → Const
 
 -- * Constructors
 --
-node ∷ (a ~ Node c k PBlank, Typeable k)
+node ∷ IsNode c k a
   ⇒ Name a
   → [Item c PBlank]
   → Item c PBlank
 node name denoted = Node name denoted () diNothing mempty
+
+completeNode ∷ IsNodeP c k a p
+  ⇒ Proxy k → Name a → Item c p → Item c p
+completeNode _ name (Node (_n ∷ Name a) denoted struc size area) = FullNode name denoted struc size area
+completeNode _ _ x = x
+
+eIncompleteNode ∷ HasCallStack ⇒ String → Item c a → b
+eIncompleteNode ctx item = error $ printf "%s: incomplete node %s" ctx (show item)
 
 leaf ∷ (As a, c (Denoted a))
   ⇒ Name a
@@ -239,7 +281,7 @@ leaf ∷ (As a, c (Denoted a))
   → Item c PBlank
 leaf name denoted = Leaf name denoted () diNothing mempty ()
 
-hbox, vbox ∷ [Item c PBlank] → Item c PBlank
+hbox, vbox ∷ Typeable c ⇒ [Item c PBlank] → Item c PBlank
 hbox chi = node (Name Port.blankIdToken (initStyle ()) (nodeGeo HBoxN) HBoxN) chi
 vbox chi = node (Name Port.blankIdToken (initStyle ()) (nodeGeo VBoxN) VBoxN) chi
 
@@ -253,17 +295,20 @@ defLeaf tok a denoted = leaf (defName tok a) denoted
 treeLeaves ∷ Item c a → IntMap.IntMap (Item c a)
 treeLeaves root = IntMap.fromList $ walk root
   where walk ∷ Item c a → [(Int, Item c a)]
-        walk x@Leaf{..} = [(Port.tokenHash $ iToken x, x)]
-        walk   Node{..} = concat $ walk <$> denoted
+        walk   x@Leaf{..} = [(Port.tokenHash $ iToken x, x)]
+        walk FullNode{..} = concat $ walk <$> denoted
+        walk     x@Node{} = eIncompleteNode "treeLeaves" x
 
 ensureTreeVisuals ∷ (MonadTrace r m) ⇒ VPort → Item c PLayout → m (Item c PVisual)
 ensureTreeVisuals port i = case i of
-  Node{..} → iUnvisual i <$> (sequence $ ensureTreeVisuals port <$> denoted)
-  Leaf{..} → iMandateVisual port i []
+  Leaf{}       → iMandateVisual port i []
+  FullNode{..} → iUnvisual i <$> (sequence $ ensureTreeVisuals port <$> denoted)
+  Node{}       → eIncompleteNode "treeLeaves" i
 
 renderTreeVisuals ∷ (MonadTrace r m) ⇒ VPort → Item c PVisual → m ()
-renderTreeVisuals port l@Leaf{..} = iRender port l
-renderTreeVisuals port   Node{..} = forM_ denoted (renderTreeVisuals port)
+renderTreeVisuals port     i@Leaf{} = iRender port i
+renderTreeVisuals port FullNode{..} = forM_ denoted (renderTreeVisuals port)
+renderTreeVisuals _        i@Node{} = eIncompleteNode "renderTreeVisuals" i
 
 showTreeVisuals ∷ ∀ m r c. (MonadTrace r m) ⇒ Frame → Item c PVisual → m ()
 showTreeVisuals frame root = recur (luOf (iArea root)^.lu'po) "" root
@@ -274,10 +319,11 @@ showTreeVisuals frame root = recur (luOf (iArea root)^.lu'po) "" root
         Just Visual{..} →
           Port.framePutDrawable frame vDrawable (doubleToFloat <$> ourOff)
         _ → pure ()
-    recur parOff pfx Node{..} = do
+    recur parOff pfx FullNode{..} = do
       -- liftIO $ putStrLn $ pfx <> show (offset ^.po'v) <> " " <> Flex.ppItemArea i
       let ourOff = parOff + luOf iArea^.lu'po
       forM_ denoted $ recur ourOff (pfx <> "  ")
+    recur _ _ i@Node{..} = eIncompleteNode "showTreeVisuals" i
 
 ---
 --- Demonstration that compounds can't be easily done via As instances.

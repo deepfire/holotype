@@ -1,5 +1,8 @@
-{-# OPTIONS_GHC -Weverything #-}
-{-# OPTIONS_GHC -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
+{-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-missing-import-lists -Wno-implicit-prelude -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-all-missed-specialisations -Wno-unsafe -Wno-missing-export-lists -Wno-type-defaults -Wno-partial-fields -Wno-missing-local-signatures -Wno-orphans #-}
+-- $Module TODO
+--
+--   1. Scrutinise Note [Node finalisation phase]
+--
 module Holo.Widget
   -- ( module Holo.Classes
   -- , module Holo.Item
@@ -126,6 +129,38 @@ mapDesig v f =
        Just (Denot _) → vocErr pA v "Lift" "Desig" "Just Denot"
        Just (Desig      n) → f n
        Just (DesigDenot n) → f n
+
+
+-- $Note [Node finalisation phase]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-- We need to have a separate node finalisation phase (Item.Node vs. Item.FullNode),
+-- for as long as the conjunction of the following is true:
+--
+--    1. We want to use structure-based processing of generics-sop to lift ADTs (say, of type 'a') into widgets
+--    2. The atomic type widget lifting is (roughly) ∷ a → m (f a), where f is the widget functor,
+--       and the ADT lifting invariably depends on this (and has the same type)
+--    3. Generics.SOP.hsequence enforces 'Applicative f'
+--    4. We need to do a monadic computation to allocate widget nodes that combine the ADT's fields.
+--       - True for as long as a wiget needs to have a Data.Unique identifier -- which is to:
+--         1. receive personalised events,
+--         2. have a personal backing visual
+--
+-- XXX: this is called in an unsafe manner, we'd really better use a GADT in the Item trees
+finaliseRecoveredNode ∷ ∀ i t r m a (n ∷ Type) c k
+  . (MonadW i t r m, Typeable a, Widgety i a, IsNode c k a)
+  ⇒ Vocab i (Present i) → Result i a → m (Result i a)
+finaliseRecoveredNode voc x@(Widget' (ae, subsD, itemD, valsD)) = do
+  tok         ← iNewToken $ Proxy @a
+  mapDenot @i @a voc
+    \(n ∷ n)→ do
+      let name      = compName (Proxy @a) tok n
+      input        ← getInput @i
+      -- mut       ← mutate (Proxy @i) (forget initial) $ select (fromEvMux $ inMux input) $ Const2 tok
+      lbs          ← getSubLBinds @i ae
+      liftIO $ printf "finaliseNode %s tok=0x%x\n" (show $ aeltName ae) (tokenHash tok)
+      let ownSubsD  = (subscription tok (Proxy @a) <>) <$> resolveSubs input tok (lbsSubs lbs)
+          fullItemD = itemD <&> completeNode (Proxy @k) name
+      pure $ Widget' (ae, zipDynWith (<>) subsD ownSubsD, fullItemD, valsD)
 
 
 widgetDef
@@ -290,14 +325,6 @@ instance Functor (Result i) where
   fmap f (Widget' (ae, subs, item, val)) = Widget' (ae, subs, item, f <$> val)
 
 instance Reflex (APIt i) ⇒ Applicative (Result i) where
-  -- To allow nodes to have unique IdTokens
-  -- ← must allow executing newId here
-  -- ← work out how to unpack W
-  -- type WF      i b = (AElt, Dynamic (APIt i) Subscription, Dynamic (APIt i) (Blank i), Dynamic (APIt i) b)
-  -- data instance
-  --      Result  i b = Reflex (APIt i)
-  --                  ⇒ Widget' { fromWidget ∷ WF i b } -- LRR ≡ Lifted Record Result
-  -- type Widget  i b = Result i b
   pure x = Widget' ("", mempty, constDyn (vbox []), constDyn x)
   Widget' (fae, fsubs, fitem, fvals) <*> Widget' (_xae, xsubs, xitem, xvals) =
     Widget' $ (,,,)

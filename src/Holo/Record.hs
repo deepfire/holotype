@@ -40,11 +40,12 @@ instance {-# OVERLAPPABLE #-}
   , MonadW i t r m
   ) ⇒ Widgety i a where
   dynWidget' ae tok voc da = do
-    lbs   ← getSubLBinds @i ae
-    w     ← runWidgetMLBinds @i lbs $ recover (Proxy @(Present i)) (Proxy @(i, a))
-            (\_p _dti → pure 0)
-            (recoverFieldWidget (tok, voc, da))
-    pure $ setAE ae w
+    lbs ← getSubLBinds @i ae
+    w   ← runWidgetMLBinds @i lbs $ do
+      recover (Proxy @(Present i)) (Proxy @(i, a))
+        (\_p _dti → pure 0) -- XXX: stub that'll obviously break sums -- should be a dynamic for choice
+        (recoverFieldWidget (tok, voc, da))
+    setAE ae <$> finaliseRecoveredNode voc w
 
 instance {-# OVERLAPPABLE #-}
   (Typeable a
@@ -53,17 +54,19 @@ instance {-# OVERLAPPABLE #-}
   , MonadW i t r m
   ) ⇒ Present i a where
   present ae voc initial = do
-    lbs   ← getSubLBinds @i ae
-    w     ← runWidgetMLBinds @i lbs $ recover (Proxy @(Present i)) (Proxy @(i, a))
-            (\_p _dti → pure 0)
-            (recoverFieldPresent (voc, initial))
-    pure $ setAE ae w
+    lbs ← getSubLBinds @i ae
+    w   ← runWidgetMLBinds @i lbs $ do
+      recover (Proxy @(Present i)) (Proxy @(i, a))
+        (\_p _dti → pure 0) -- XXX: stub that'll obviously break sums -- should be a dynamic for choice
+        (recoverFieldPresent (voc, initial))
+    setAE ae <$> finaliseRecoveredNode voc w
   dynPresent ae voc da  = do
-    lbs   ← getSubLBinds @i ae
-    w     ← runWidgetMLBinds @i lbs $ recover (Proxy @(Present i)) (Proxy @(i, a))
-            (\_px _dti→ pure 0)
-            (recoverFieldPresentDynamic (voc, da))
-    pure $ setAE ae w
+    lbs ← getSubLBinds @i ae
+    w   ← runWidgetMLBinds @i lbs $ do
+      recover (Proxy @(Present i)) (Proxy @(i, a))
+        (\_px _dti→ pure 0) -- XXX: stub that'll obviously break sums -- should be a dynamic for choice
+        (recoverFieldPresentDynamic (voc, da))
+    setAE ae <$> finaliseRecoveredNode voc w
 
 recoverFieldWidget ∷ ∀ i t r m u f xss xs.
   ( MonadW i t r m
@@ -99,9 +102,8 @@ recoverFieldPresent (voc, initV ∷ u) _pC _pIAF _dtinfo _consNr _cinfo (FieldIn
                               tok TextLine (pack lab <> ": ")
                             , x
                             ]
-  Widget' (ae, subsD, item, val) ←  present @i (AElt $ pack fname) voc (proj initV)
+  Widget' (ae, subsD, item, val) ← present @i (AElt $ pack fname) voc (proj initV)
   pure $ Widget' (ae, subsD, addLabel fname <$> item, val)
-
 
 recoverFieldPresentDynamic
   ∷ ∀ i t r m a f xss xs.
