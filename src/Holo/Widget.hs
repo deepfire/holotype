@@ -159,6 +159,8 @@ finaliseRecoveredNode voc x@(Widget' (ae, subsD, itemD, valsD)) = do
       lbs          ← getSubLBinds @i ae
       liftIO $ printf "finaliseNode %s tok=0x%x\n" (show $ aeltName ae) (tokenHash tok)
       let ownSubsD  = (subscription tok (Proxy @a) <>) <$> resolveSubs input tok (lbsSubs lbs)
+-- • Could not deduce: (n :: *) ~ (Node (Top *) k0 'PBlank :: *)
+--     arising from a use of ‘completeNode’
           fullItemD = itemD <&> completeNode (Proxy @k) name
       pure $ Widget' (ae, zipDynWith (<>) subsD ownSubsD, fullItemD, valsD)
 

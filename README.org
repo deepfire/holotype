@@ -629,6 +629,12 @@
         4. Absolutes that overflow:
            - ideally, propagate upward (see same for box hardness)
 * Problems
+*** Node finalisation needs the internal type
+***** Potential solution
+      1. Make Item sport the content type by default, only wrapping it for children.
+      2. Bonus: make Item into an HList-like structure!
+         - that has a risk of making refactoring super-painful in the current
+           prototyping phase, though.
 *** DONE (m :.: Result t) a ⇒ Applicative on 'Result t' ⇒ Node construction unbearably pure
 ***** The problematic pipeline
       1. ct = (!! choice) $ SOP.apInjs_POP pop   ∷ SOP (m :.: Result t) xss
