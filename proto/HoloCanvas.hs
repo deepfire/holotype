@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies, TypeInType #-}
+{-# LANGUAGE GADTs, TypeFamilies, TypeFamilyDependencies, PolyKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExplicitForAll, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes, UndecidableInstances #-}

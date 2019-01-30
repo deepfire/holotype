@@ -16,6 +16,7 @@
 :set -XNamedFieldPuns
 :set -XOverloadedStrings
 :set -XPackageImports
+:set -XPolyKinds
 :set -XRankNTypes
 :set -XRecordWildCards
 :set -XRecursiveDo
@@ -25,7 +26,6 @@
 :set -XTupleSections
 :set -XTypeApplications
 :set -XTypeFamilies
-:set -XTypeInType
 :set -XUndecidableInstances
 :set -XUnicodeSyntax
 :set -XViewPatterns

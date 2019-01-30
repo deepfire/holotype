@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall -Wno-unticked-promoted-constructors -Wno-orphans -Wno-type-defaults #-}
+{-# OPTIONS_GHC -ddump-tc-trace #-}
 module Holo.Record
   ( Vocab(..)
   , Definition(..)
@@ -45,7 +46,7 @@ instance {-# OVERLAPPABLE #-}
       recover (Proxy @(Present i)) (Proxy @(i, a))
         (\_p _dti → pure 0) -- XXX: stub that'll obviously break sums -- should be a dynamic for choice
         (recoverFieldWidget (tok, voc, da))
-    setAE ae <$> finaliseRecoveredNode voc w
+    setAE ae <$> finaliseNodeWidget w
 
 instance {-# OVERLAPPABLE #-}
   (Typeable a
@@ -58,15 +59,17 @@ instance {-# OVERLAPPABLE #-}
     w   ← runWidgetMLBinds @i lbs $ do
       recover (Proxy @(Present i)) (Proxy @(i, a))
         (\_p _dti → pure 0) -- XXX: stub that'll obviously break sums -- should be a dynamic for choice
-        (recoverFieldPresent (voc, initial))
-    setAE ae <$> finaliseRecoveredNode voc w
+        (\a b c d e f g → finaliseNodeWidget =<<
+          recoverFieldPresent (voc, initial) a b c d e f g)
+    setAE ae <$> finaliseNodeWidget w
   dynPresent ae voc da  = do
     lbs ← getSubLBinds @i ae
     w   ← runWidgetMLBinds @i lbs $ do
       recover (Proxy @(Present i)) (Proxy @(i, a))
         (\_px _dti→ pure 0) -- XXX: stub that'll obviously break sums -- should be a dynamic for choice
-        (recoverFieldPresentDynamic (voc, da))
-    setAE ae <$> finaliseRecoveredNode voc w
+        (\a b c d e f g → --finaliseNodeWidget =<<
+          recoverFieldPresentDynamic (voc, da) a b c d e f g)
+    setAE ae <$> finaliseNodeWidget w
 
 recoverFieldWidget ∷ ∀ i t r m u f xss xs.
   ( MonadW i t r m

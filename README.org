@@ -37,7 +37,8 @@
   2. Facilitate context switching by introducing sub-contexts
 * Ideas pipeline
 *** Inspiration material
-
+    - Mendix (low-code) ::
+      - http://sandervanderburg.blogspot.com/2018/06/my-introduction-to-mendix-and-low-code.html
     - ECS ::
       - conceptual intro ::
         - https://slide-rs.github.io/specs/
@@ -669,6 +670,25 @@
 ***** Solution
       - introduce a separate node finalisation post-phase, that performs monadic
         computation after the ADT lift
+*** GHC-8.8
+    - cabal-doctest
+      - [X] fetchpatch
+    - cabal-install
+      - [X] bump for Cabal
+    - generic-deriving
+      - [X] bump for TH
+    - data-default
+      - [ ] ???
+        - ["cp", "-f", "/nix/store/baa1q5ph9w2daw63vdblldq4wc5g74c0-data-default-class-0.1.2.0/lib/ghc-8.7.20190115/package.conf.d/data-default-class-0.1.2.0-FeIQ5tLoVZBHMSgrT9zptQ.conf", "/build/package.conf.d/"]
+        - ["cp", "-f", "/build/package.conf.d/"]
+    - haskell-src-exts
+      - [ ] sigsegv in Haddock
+    - gtk2hs-buildtools
+      - [ ] MonadFail https://github.com/gtk2hs/gtk2hs/issues/264
+    - th-lift
+      - [ ] TH https://github.com/mboes/th-lift/issues/38
+    - generics-sop
+      - [ ] TH https://github.com/well-typed/generics-sop/issues/96
 * emacs options
 
 ;; Local Variables:

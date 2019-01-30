@@ -18,7 +18,7 @@ module Holo.Item
   , Item
   , iNewToken, iSizeRequest
   , leaf, defLeaf
-  , IsNode, IsNodeP, completeNode
+  , IsNode, IsNodeP, completeNodeName
   , Node, KNode
   , vbox, hbox
   --
@@ -267,10 +267,14 @@ node ∷ IsNode c k a
   → Item c PBlank
 node name denoted = Node name denoted () diNothing mempty
 
-completeNode ∷ IsNodeP c k a p
-  ⇒ Proxy k → Name a → Item c p → Item c p
-completeNode _ name (Node (_n ∷ Name a) denoted struc size area) = FullNode name denoted struc size area
-completeNode _ _ x = x
+replaceNameToken ∷ IdToken → Name n → Name n
+replaceNameToken tok name = name { nToken = tok }
+
+completeNodeName ∷ ()
+  ⇒ IdToken → Item c p → Item c p
+completeNodeName tok (Node name denoted struc size area) =
+  FullNode (replaceNameToken tok name) denoted struc size area
+completeNodeName _ x = x
 
 eIncompleteNode ∷ HasCallStack ⇒ String → Item c a → b
 eIncompleteNode ctx item = error $ printf "%s: incomplete node %s" ctx (show item)

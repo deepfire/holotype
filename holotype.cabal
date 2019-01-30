@@ -92,6 +92,7 @@ library
            , OverloadedStrings
            , PackageImports
            , PartialTypeSignatures
+           , PolyKinds
            , RankNTypes
            , RecordWildCards
            , RecursiveDo
@@ -102,7 +103,6 @@ library
            , TypeApplications
            , TypeFamilies
            , TypeFamilyDependencies
-           , TypeInType
            , TypeOperators
            , UndecidableInstances
            , UnicodeSyntax
@@ -186,7 +186,6 @@ library
                      , tasty-hspec
                      , tasty-hunit
                      , tasty-quickcheck
-                     , tasty-smallcheck
                      , template-haskell
                      , text
                      , text-format

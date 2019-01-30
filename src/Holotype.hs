@@ -156,29 +156,37 @@ scene input sttsD statsValD frameNoD fpsValueD =
     let styleB        = current styleD
 
     --
-    pure $
-      ( sttsWDSeeded ∷ Widget i Port.Settings
-      , vboxD @i
-        [ stripW frameCountD
-        , stripW sttsWDCurr
-        , stripW sttsWDSeeded
-        , stripW tupleWD
-        , stripW rectD
-        , stripW fpsD
-        , stripW longStaticTextD
-        , stripW statsD
-        , stripW varlenTextD
-        ] lbinds)
+    (sttsWDSeeded ∷ Widget i Port.Settings,)
+      <$> vboxD @i
+      [ stripW frameCountD
+      , stripW sttsWDCurr
+      , stripW sttsWDSeeded
+      , stripW tupleWD
+      , stripW rectD
+      , stripW fpsD
+      , stripW longStaticTextD
+      , stripW statsD
+      , stripW varlenTextD
+      ]
 
-vboxD ∷ ∀ i t r m. (MonadW i t r m) ⇒ [WH i] → ListenerBinds → (Widget.WH i)
-vboxD chi lbs =
+vboxD ∷ ∀ i t r m. (MonadW i t r m) ⇒ [WH i] → m (WH i)
+vboxD chi = do
+  lbs ← getLBinds @i
   let (subsD, chiD) = foldr (\(sae, s, hb) (ss, hbs)→
                                trace (printf "vboxD χ %s" (T.unpack $ aeltName sae))
                                ( zipDynWith (<>) s ss
                                , zipDynWith (:) hb hbs ))
                       (constDyn mempty, constDyn [])
                       chi
-  in (lbsAE lbs, subsD, vbox <$> chiD)
+  finaliseNodeWH @i @[WH i] (lbsAE lbs, subsD, vbox <$> chiD)
+-- • Could not deduce (SOP.HasDatatypeInfo (Dynamic * t (Blank * i)))
+--     arising from a use of ‘finaliseNodeWH’
+--   from the context: MonadW i t r m
+--     bound by the type signature for:
+--                vboxD :: forall i t r (m :: * -> *).
+--                         MonadW i t r m =>
+--                         [WH i] -> m (WH i)
+--     at src/Holotype.hs:172:1-55
 
 
 holotype ∷ ∀ i t r m rm

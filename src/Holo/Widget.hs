@@ -81,7 +81,7 @@ data                                   HoloTag (i ∷ Type)
 
 ppVocab ∷ ∀ (i ∷ Type) c. Vocab i c → T.Text
 ppVocab (Vocab (tm ∷ TM.TypeMap (HoloTag i))) = T.intercalate "\n" $
-  TM.collapse (ppDefinition @i) tm
+  TM.toListMap (ppDefinition @i) tm
 
 traceVocab ∷ ∀ (i ∷ Type) c. String → Vocab i c → Vocab i c
 traceVocab desc voc = trace (desc <>" "<> T.unpack (ppVocab voc)) voc
@@ -141,28 +141,43 @@ mapDesig v f =
 --       and the ADT lifting invariably depends on this (and has the same type)
 --    3. Generics.SOP.hsequence enforces 'Applicative f'
 --    4. We need to do a monadic computation to allocate widget nodes that combine the ADT's fields.
---       - True for as long as a wiget needs to have a Data.Unique identifier -- which is to:
+--       - True for as long as a widget needs to have a Data.Unique identifier -- which is to:
 --         1. receive personalised events,
 --         2. have a personal backing visual
 --
 -- XXX: this is called in an unsafe manner, we'd really better use a GADT in the Item trees
-finaliseRecoveredNode ∷ ∀ i t r m a (n ∷ Type) c k
-  . (MonadW i t r m, Typeable a, Widgety i a, IsNode c k a)
-  ⇒ Vocab i (Present i) → Result i a → m (Result i a)
-finaliseRecoveredNode voc x@(Widget' (ae, subsD, itemD, valsD)) = do
-  tok         ← iNewToken $ Proxy @a
-  mapDenot @i @a voc
-    \(n ∷ n)→ do
-      let name      = compName (Proxy @a) tok n
-      input        ← getInput @i
-      -- mut       ← mutate (Proxy @i) (forget initial) $ select (fromEvMux $ inMux input) $ Const2 tok
-      lbs          ← getSubLBinds @i ae
-      liftIO $ printf "finaliseNode %s tok=0x%x\n" (show $ aeltName ae) (tokenHash tok)
-      let ownSubsD  = (subscription tok (Proxy @a) <>) <$> resolveSubs input tok (lbsSubs lbs)
--- • Could not deduce: (n :: *) ~ (Node (Top *) k0 'PBlank :: *)
---     arising from a use of ‘completeNode’
-          fullItemD = itemD <&> completeNode (Proxy @k) name
-      pure $ Widget' (ae, zipDynWith (<>) subsD ownSubsD, fullItemD, valsD)
+finaliseNodeSubsItem ∷ ∀ i a t r m
+  . (MonadW i t r m, Typeable a, Mutable a)
+  ⇒ AElt
+  → Dynamic (APIt i) Subscription
+  → Dynamic (APIt i) (Blank i)
+  → m ( Dynamic (APIt i) Subscription
+      , Dynamic (APIt i) (Blank i))
+finaliseNodeSubsItem ae subsD itemD = do
+  tok          ← iNewToken $ Proxy @a
+  input        ← getInput @i
+  -- mut       ← mutate (Proxy @i) (forget initial) $ select (fromEvMux $ inMux input) $ Const2 tok
+  lbs          ← getSubLBinds @i ae
+  liftIO $ printf "finaliseNode %s tok=0x%x\n" (show $ aeltName ae) (tokenHash tok)
+  let ownSubsD  = (subscription tok (Proxy @a) <>) <$> resolveSubs input tok (lbsSubs lbs)
+      fullItemD = itemD <&> completeNodeName tok
+  pure $ ( zipDynWith (<>) subsD ownSubsD
+         , fullItemD
+         )
+
+finaliseNodeWidget ∷ ∀ i a t r m
+  . (MonadW i t r m, Typeable a, Mutable a)
+  ⇒ Widget i a → m (Widget i a)
+finaliseNodeWidget (Widget' (ae, subsD, itemD, valD)) = do
+  (,) subsD' itemD' ← finaliseNodeSubsItem @i @a ae subsD itemD
+  pure $ Widget' (ae, subsD', itemD', valD)
+
+finaliseNodeWH ∷ ∀ i a t r m
+  . (MonadW i t r m, Typeable a, Mutable a)
+  ⇒ WH i → m (WH i)
+finaliseNodeWH (ae, subsD, itemD) = do
+  (,) subsD' itemD' ← finaliseNodeSubsItem @i @a ae subsD itemD
+  pure $ (ae, subsD', itemD')
 
 
 widgetDef
