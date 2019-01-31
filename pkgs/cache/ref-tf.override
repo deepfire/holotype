@@ -1,4 +1,0 @@
-  ref-tf = overrideCabal super.ref-tf (drv: {
-    jailbreak       = true;
-  });
-

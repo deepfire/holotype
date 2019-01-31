@@ -1,4 +1,0 @@
-  fused-effects = overrideCabal super.fused-effects (drv: {
-    jailbreak       = true;
-  });
-

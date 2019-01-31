@@ -1,4 +1,0 @@
-  stylish-haskell = overrideCabal super.stylish-haskell (drv: {
-    jailbreak       = true;
-  });
-
