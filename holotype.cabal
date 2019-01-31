@@ -136,7 +136,7 @@ library
                      , fused-effects
                      -- , fsnotify
                      , generics-sop
-                     , generic-lens
+                     -- , generic-lens
                      , ghc-prim
                      , gi-cairo
                      , gi-gobject
@@ -168,7 +168,7 @@ library
                      , pretty-show
                      , primitive
                      , profunctors
-                     , proteaaudio
+                     -- , proteaaudio -- https://github.com/hvr/head.hackage/issues/96
                      , random
                      , ref-tf
                      , reflex
