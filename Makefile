@@ -1,77 +1,33 @@
 GHC  ?= $(shell echo $$(cat nix/default-compiler.nix) | tr -d '"')
-GHCD := $(shell echo $(GHC) | sed 's/ghc843/8.4.3/;s/ghc861/8.6.1/')
-$(info Using ghc-$(GHCD))
+GHCD := $(shell echo $(GHC) | sed 's/ghc843/-8.4.3/;s/ghc861/-8.6.1/;s/ghcHEAD/HEAD/')
+$(info Using ghc$(shell ghc --version | cut -d, -f2))
 
 all: holotype
 
-doc:
-	cabal haddock --hyperlink-source --hoogle --executables --hscolour=dist/doc/html/holotype/holotype/src/hscolour.css
+Setup: Setup.hs
+	ghc --make $^
+doc:   $(CABAL)
+	./$^ haddock --hyperlink-source --hoogle --executables --hscolour=dist/doc/html/holotype/holotype/src/hscolour.css
 
 default.nix: holotype.cabal
 	cabal2nix --no-haddock --no-check . > default.nix
 
-# LTRACE_TRACE_SPEC=-o holotype.ltrace -e '*pango*@MAIN' -e '*cairo*@MAIN' -e '*g_*@MAIN-g_malloc-g_free-g_strndup'
-LTRACE_TRACE_SPEC=-o holotype.ltrace -e '-poll-write-__errno_location'
-LTRACE_OPTIONS=--no-signals $(LTRACE_TRACE_SPEC)
-#
-#
-Holostress:     Holostress.hs  src/*.hs
-	ghc $< -isrc
-hls holostress: Holostress
-	./$< $(SCENARIO) +RTS -T $(RTS)
-
-Holoframe:      Holoframe.hs   src/*.hs
-	ghc $< -isrc
-hf holoframe: Holoframe
-	./$< $(SCENARIO) +RTS -T $(RTS)
-
-Refstress:      Refstress.hs   src/*.hs
-	ghc $<
-rfs refstress: Refstress
-	./$< $(SCENARIO) +RTS -T $(RTS)
-
-# hols holostress:
-# 	ghc -threaded -eventlog -rtsopts -isrc --make Holostress.hs && ./Holostress +RTS -T -ls -N2
-LCstress:     LCstress.hs    src/*.hs
-	ghc $<
-lcs lcstress: LCstress
-	./$< $(SCENARIO) +RTS -T $(RTS)
-
-Cairostress:    Cairostress.hs src/*.hs
-	ghc $<
-crs crstress:   Cairostress
-	./$< $(SCENARIO) # +RTS -T $(RTS)
-crsl crstressl: Cairostress
-	ltrace $(LTRACE_OPTIONS) $< $(SCENARIO) +RTS -T $(RTS)
-	cut -d '(' -f1 holotype.ltrace | sort | uniq -c | grep -v 'resumed>' | sort -n | tee crstress.lprof
-
-cairostress: cairostress.c
-	gcc $< -g -o $@ $$(pkg-config --cflags cairo pango pangocairo) $$(pkg-config --libs cairo pango pangocairo)
-ccrs: cairostress
-	./cairostress
-
 SRCS=$(wildcard *.hs src/*.hs src/*/*.hs src/*/*/*.hs)
+CABAL=Setup dist/setup-config
+dist/setup-config: Setup holotype.cabal
+	./Setup configure
 BUILDBASE=dist/build
 HOLOTYPE=$(BUILDBASE)/holotype/holotype
 # BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-$(GHCD)/holotype-0.0.1/x
 # HOLOTYPE=$(BUILDBASE)/holotype/build/holotype/holotype
-$(HOLOTYPE): $(SRCS)
-	cabal build --ghc-option=-fprint-explicit-kinds $(if $(GHCOPT),--ghc-option=$(GHCOPT)) -j4 exe:holotype $(GHCOUT)
-
-#
-#
-clean:
-	cabal clean
-	rm dist dist-newstyle .ghc.environment.* -rf
-	sh -c "rm -f {,doc/,doc/*/,src/,src/*/,src/*/*/,te/,tests/}*.{o,hi,dyn_hi,dyn_o,hs~} *~ *.{aux,bin,eventlog,hp,lprof,out}"
-cls:
-	echo -en '\ec'
+$(HOLOTYPE): $(SRCS) $(CABAL)
+	./Setup build --ghc-option=-fprint-explicit-kinds $(if $(GHCOPT),--ghc-option=$(GHCOPT)) -j4 exe:holotype $(GHCOUT)
 
 # Support for experiments:
 #
 define defexperiment =
-$(BUILDBASE)/$1/build/$1/$1: ./experiments/$1/Main.hs
-	@cabal -v0 new-build $1
+$(BUILDBASE)/$1/build/$1/$1: ./experiments/$1/Main.hs $(CABAL)
+	@./Setup -v0 new-build $1
 $1: $(BUILDBASE)/$1/build/$1/$1
 	@$(BUILDBASE)/$1/build/$1/$1
 endef
@@ -129,15 +85,6 @@ pholotype: $(HOLOTYPE)
 	$(tool) $< +RTS -T -h -l $(toollog)
 	hp2ps -c holotype.hp
 	evince holotype.ps
-
-
-RESOURCE_CALLS='pango_font_map_create_context|pango_cairo_create_context|pango_layout_new|cairo_destroy|cairo_surface_destroy|cairo_create|cairo_image_surface_create'
-lholotype: $(HOLOTYPE)
-	ltrace $(LTRACE_OPTIONS) $< +RTS -T -RTS $(OPTS) $(toollog) $(ghcoutlog)
-	cut -d '(' -f1 holotype.ltrace | sort | uniq -c | grep -v 'resumed>' | sort -n | tee holotype.lprof
-res resources:
-	egrep $(RESOURCE_CALLS) holotype.lprof
-
 #
 #
 pro prorun pronounce-runnable:
@@ -164,3 +111,59 @@ gdb: $(HOLOTYPE)
 .PHONY: modules graph
 modules graph:
 	graphmod | dot -Tpdf > holotype.pdf && evince holotype.pdf
+#
+#
+Holostress:     Holostress.hs  src/*.hs
+	ghc $< -isrc
+hls holostress: Holostress
+	./$< $(SCENARIO) +RTS -T $(RTS)
+
+Holoframe:      Holoframe.hs   src/*.hs
+	ghc $< -isrc
+hf holoframe: Holoframe
+	./$< $(SCENARIO) +RTS -T $(RTS)
+
+Refstress:      Refstress.hs   src/*.hs
+	ghc $<
+rfs refstress: Refstress
+	./$< $(SCENARIO) +RTS -T $(RTS)
+
+# hols holostress:
+# 	ghc -threaded -eventlog -rtsopts -isrc --make Holostress.hs && ./Holostress +RTS -T -ls -N2
+LCstress:     LCstress.hs    src/*.hs
+	ghc $<
+lcs lcstress: LCstress
+	./$< $(SCENARIO) +RTS -T $(RTS)
+
+Cairostress:    Cairostress.hs src/*.hs
+	ghc $<
+crs crstress:   Cairostress
+	./$< $(SCENARIO) # +RTS -T $(RTS)
+crsl crstressl: Cairostress
+	ltrace $(LTRACE_OPTIONS) $< $(SCENARIO) +RTS -T $(RTS)
+	cut -d '(' -f1 holotype.ltrace | sort | uniq -c | grep -v 'resumed>' | sort -n | tee crstress.lprof
+
+cairostress: cairostress.c
+	gcc $< -g -o $@ $$(pkg-config --cflags cairo pango pangocairo) $$(pkg-config --libs cairo pango pangocairo)
+ccrs: cairostress
+	./cairostress
+
+# LTRACE_TRACE_SPEC=-o holotype.ltrace -e '*pango*@MAIN' -e '*cairo*@MAIN' -e '*g_*@MAIN-g_malloc-g_free-g_strndup'
+LTRACE_TRACE_SPEC=-o holotype.ltrace -e '-poll-write-__errno_location'
+LTRACE_OPTIONS=--no-signals $(LTRACE_TRACE_SPEC)
+
+RESOURCE_CALLS='pango_font_map_create_context|pango_cairo_create_context|pango_layout_new|cairo_destroy|cairo_surface_destroy|cairo_create|cairo_image_surface_create'
+lholotype: $(HOLOTYPE)
+	ltrace $(LTRACE_OPTIONS) $< +RTS -T -RTS $(OPTS) $(toollog) $(ghcoutlog)
+	cut -d '(' -f1 holotype.ltrace | sort | uniq -c | grep -v 'resumed>' | sort -n | tee holotype.lprof
+res resources:
+	egrep $(RESOURCE_CALLS) holotype.lprof
+
+#
+#
+clean: $(CABAL)
+	./Setup clean
+	rm dist dist-newstyle .ghc.environment.* -rf
+	sh -c "rm -f {,doc/,doc/*/,src/,src/*/,src/*/*/,te/,tests/}*.{o,hi,dyn_hi,dyn_o,hs~} *~ *.{aux,bin,eventlog,hp,lprof,out}"
+cls:
+	echo -en '\ec'
