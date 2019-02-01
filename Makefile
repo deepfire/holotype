@@ -3,8 +3,6 @@ GHCD := $(shell echo $(GHC) | sed 's/ghc843/-8.4.3/;s/ghc861/-8.6.1/;s/ghcHEAD/H
 $(info Using ghc$(shell ghc --version | cut -d, -f2))
 
 all: holotype
-ALL_LANGUAGE_PRAGMAS = $(shell awk -e '/^[ ]*AllowAmbiguousTypes/,/^$$/ { print; }' holotype.cabal | tr -d , | xargs echo)
-ALL_XFLAGS = $(foreach lang,$(ALL_LANGUAGE_PRAGMAS),-X$(lang))
 
 Setup: Setup.hs
 	ghc --make $^
@@ -14,7 +12,6 @@ doc:   $(CABAL)
 default.nix: holotype.cabal
 	cabal2nix --no-haddock --no-check . > default.nix
 
-SRCS=$(wildcard *.hs src/*.hs src/*/*.hs src/*/*/*.hs)
 CABAL=Setup dist/setup-config
 dist/setup-config: Setup holotype.cabal
 	./Setup configure
@@ -22,8 +19,19 @@ BUILDBASE=dist/build
 HOLOTYPE=$(BUILDBASE)/holotype/holotype
 # BUILDBASE=dist-newstyle/build/x86_64-linux/ghc-$(GHCD)/holotype-0.0.1/x
 # HOLOTYPE=$(BUILDBASE)/holotype/build/holotype/holotype
-$(HOLOTYPE): $(SRCS) $(CABAL)
+
+LIB_SRCS=$(wildcard src/*.hs src/*/*.hs src/*/*/*.hs)
+$(HOLOTYPE): Main.hs $(LIB_SRCS) $(CABAL)
 	./Setup build --ghc-option=-fprint-explicit-kinds $(if $(GHCOPT),--ghc-option=$(GHCOPT)) -j4 exe:holotype $(GHCOUT)
+
+ALL_LANGUAGE_PRAGMAS = $(shell awk -e '/^[ ]*AllowAmbiguousTypes/,/^$$/ { print; }' holotype.cabal | tr -d , | xargs echo)
+ALL_XFLAGS = $(foreach lang,$(ALL_LANGUAGE_PRAGMAS),-X$(lang))
+
+define defdirectbuild =
+$(patsubst %.hs,%,$1): $(LIB_SRCS)
+	ghc $1 --make -isrc $(ALL_XFLAGS)
+endef
+$(foreach libsrc,$(LIB_SRCS),$(eval $(call defdirectbuild,$(libsrc))))
 
 # Support for experiments:
 #
