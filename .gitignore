@@ -11,11 +11,13 @@
 *.eventlog
 *.graphml
 *.hi
+*.hi-boot
 *.hp
 *.log
 *.lprof
 *.ltrace*
 *.o
+*.o-boot
 *.o_p
 *.orig
 *.pdf

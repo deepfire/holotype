@@ -3,6 +3,8 @@ GHCD := $(shell echo $(GHC) | sed 's/ghc843/-8.4.3/;s/ghc861/-8.6.1/;s/ghcHEAD/H
 $(info Using ghc$(shell ghc --version | cut -d, -f2))
 
 all: holotype
+ALL_LANGUAGE_PRAGMAS = $(shell awk -e '/^[ ]*AllowAmbiguousTypes/,/^$$/ { print; }' holotype.cabal | tr -d , | xargs echo)
+ALL_XFLAGS = $(foreach lang,$(ALL_LANGUAGE_PRAGMAS),-X$(lang))
 
 Setup: Setup.hs
 	ghc --make $^
