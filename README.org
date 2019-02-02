@@ -451,6 +451,10 @@
 ******* Goal & its problems: liftW = liftWRecord
         1. t & m that liftWRecord depends on are ambiguous
            1. must be somehow deduced from the Holo's head-bound vars
+* Playbook
+*** GHC compiler going AWOL
+    - -ddump-tc-trace
+    - -dcore-lint
 * Open question archive
 *** =flex= notes
 ***** Attributes
