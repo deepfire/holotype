@@ -120,7 +120,7 @@ gdb: $(HOLOTYPE)
 
 .PHONY: modules graph
 modules graph:
-	graphmod | dot -Tpdf > holotype.pdf && evince holotype.pdf
+	graphmod --no-cabal Main.hs -isrc | dot -Tpdf > holotype.pdf && evince holotype.pdf 2>/dev/null
 #
 #
 Holostress:     Holostress.hs  src/*.hs

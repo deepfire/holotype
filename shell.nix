@@ -10,7 +10,7 @@ let
   extras   = [
                ghc.ghc-events
                # ghc.ghcid
-               # ghc.graphmod
+               ghc.graphmod
                # ghc.cabal-install
                pkgs.graphviz
              ];
