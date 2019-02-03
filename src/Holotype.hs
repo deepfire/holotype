@@ -37,7 +37,6 @@ import qualified Graphics.Cairo                    as Cr
 import           Graphics.Flatland
 import qualified Graphics.Flex                     as Flex
 
-import           Holo.Prelude
 import           Holo.Classes
 import           Holo.Instances
 import           Holo.Input

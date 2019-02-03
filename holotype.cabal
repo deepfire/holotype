@@ -60,7 +60,6 @@ library
                   Holo.Item
                   Holo.Name
                   Holo.Port
-                  Holo.Prelude
                   Holo.Record
                   Holo.System
                   Holo.Widget

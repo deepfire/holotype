@@ -75,7 +75,6 @@ import Data.IORef
 import Data.Vector (Vector,(//),(!))
 import LambdaCube.GL.Input (createObjectCommands, mkUniform)
 import LambdaCube.GL.Mesh (GPUMesh(..), GPUData(..))
-import HoloPrelude
 
 
 foreign import ccall "&cairo_destroy"

@@ -15,7 +15,6 @@ import           Graphics.Flex                            (Geo, defGeo)
 
 import {-# SOURCE #-}
                  Holo.Classes
-import           Holo.Prelude
 import           Holo.Port                                (IdToken, Drawable)
 import qualified Holo.Port                         as Port
 

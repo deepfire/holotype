@@ -19,8 +19,6 @@
 {-# LANGUAGE UnicodeSyntax #-}
 {-# OPTIONS_GHC -Wextra -Wno-unticked-promoted-constructors -Wno-type-defaults #-}
 
-import           HoloPrelude
-
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.List
 import qualified Data.Map.Strict                   as Map

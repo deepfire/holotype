@@ -21,7 +21,6 @@
 module Holotype where
 
 -- Basis
-import           HoloPrelude                       hiding ((<>))
 import           Prelude                           hiding (id, Word)
 import           Control.Concurrent                       (forkIO, threadDelay)
 

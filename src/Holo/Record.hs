@@ -11,7 +11,6 @@ import qualified Graphics.Cairo                    as Cr
 import           Holo.Instances
 import           Holo.Input
 import           Holo.Item
-import           Holo.Prelude
 import qualified Holo.Port                         as Port
 import           Holo.Widget
 

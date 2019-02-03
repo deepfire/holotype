@@ -106,7 +106,7 @@ proxy = const Proxy
 -- * Exceptions
 --
 catchAny ∷ IO a → (SomeException → IO a) → IO a
-catchAny guarded handler = Control.Exception.catch guarded onExc
+catchAny guarded handler = catch guarded onExc
   where onExc e | shouldCatch e = handler e
                 | otherwise = throwIO e
         shouldCatch e

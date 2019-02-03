@@ -1,162 +1,89 @@
-module ExternalImports where
+module ExternalImports
+  (module X
+  )
+where
 
-import           Cardano.BM.Data.Aggregated (Measurable (..))
-import           Cardano.BM.Data.BackendKind
-import           Cardano.BM.Data.LogItem
-import           Cardano.BM.Data.Output
-import           Cardano.BM.Data.Severity
-import           Cardano.BM.Setup
-import           Cardano.BM.Trace                  hiding (logDebug, logInfo, logNotice, logWarning, logError, logCritical, logAlert, logEmergency)
-import           Control.Applicative
-import           Control.Arrow                            ((***), (&&&))
-import           Control.Category                  hiding ((.), id, const)
-import           Control.Exception                        (AsyncException, SomeException, assert, catch, fromException, throwIO)
--- import           Control.Lens                      hiding (As, children, from, to)
-import           Control.Lens                             (Lens', Traversal', makeLenses, ix, _1, (^.), (<&>), (.~), (-~), (+~), (%~))
-import           Control.Monad.Fix
-import           Control.Monad                            (foldM)
-import           Control.Monad.IO.Class                   (MonadIO, liftIO)
-import           Control.Monad.Plus                       (partial)
-import           Control.Monad.Primitive
-import           Control.Monad.Random              hiding (lift)
-import           Control.Monad.Reader                     (MonadReader, ask)
-import           Control.Monad.Ref
-import           Control.Monad.State               hiding (lift)
-import           Control.Monad.Trans
-import           Control.Monad.Trans.Reader               (ReaderT)
-import           Control.Monad                            (unless, when, filterM)
-import           Control.Newtype.Generics
-import           Data.Complex
-import           Data.Either                              (either)
-import           Data.Foldable                            (toList, foldr')
-import           Data.Function                            (on)
-import           Data.Functor
-import           Data.Functor.Misc                        (Const2(..))
-import           Data.GI.Base.ShortPrelude                (checkUnexpectedReturnNULL)
-import           Data.Glb                                 (HasGlb(..))
-import           Data.Lub                                 (HasLub(..))
-import           Data.IORef
-import           Data.Kind                                (Type)
-import           Data.List                                (cycle)
-import           Data.Lub                                 (HasLub(..))
-import           Data.Map.Strict                          (Map)
-import           Data.Maybe                               (fromMaybe, isJust)
-import           Data.MonoTraversable
-import           Data.Ord
-import           Data.Proxy                               (Proxy(..))
-import           Data.Singletons
-import           Data.Singletons.TH                hiding ((%~))
-import           Data.String                              (IsString(..))
-import           Data.Text                         as T   (Text, unpack)
-import           Data.Text.Format                  hiding (prec)
-import           Data.Text.Lazy                          (toStrict)
-import           Data.Text.Prettyprint.Doc
-import           Data.Text.Prettyprint.Doc.Render.Text    (renderLazy)
-import           Data.Text                                (Text, pack, unpack, toLower, drop)
-import           Data.Text.Zipper                         (TextZipper)
-import           Data.Time.Clock
-import           Data.Tuple
-import           Data.Typeable                            (Typeable, typeRep)
-import           Data.Type.Bool
-import           Data.Vect                                (Mat4(..), Vec3(..), Vec4(..))
-import           Debug.Trace                              (trace)
-import           Foreign.Ptr
-import           Generics.SOP                      hiding (Generic, from)
-import           Generics.SOP.NP                          (pure_NP)
-import           Generics.SOP                             (Top)
-import           GHC.Base
-import           GHC.Generics                             (Generic)
-import           GHC.Num
-import           GHC.Stack                                (HasCallStack)
-import           GHC.TypeLits
-import           GHC.Types                                (Constraint, Type)
-import "GLFW-b"  Graphics.UI.GLFW                  as GL
-import           Graphics.GL.Core33                as GL
-import           LambdaCube.Mesh                   as LC
--- import           Linear                            hiding (Trace, V3, V4, basis, trace)
-import           Linear                                   (Additive, V2(..), V3(..), zero)
-import           Numeric
-import           Numeric.Extra                            (doubleToFloat)
-import           Prelude                           hiding (Word, fail, id, words)
--- import           Prelude                           hiding (read, take, drop, length)
-import           Prelude.Unicode
-import           Reflex.GLFW                              (RGLFW)
-import           Reflex.GLFW                              (RGLFW, InputU(..))
-import           Reflex.GLFW                              (RGLFW, RGLFWGuest, InputU(..))
-import           Reflex                            hiding (Additive, Query, Query(..))
-import           Reflex.Host.Class                        (ReflexHost, MonadReflexHost)
-import           System.IO.Unsafe                         (unsafePerformIO)
-import           Text.Printf                              (printf)
-import           Text.Read                         hiding (prec)
-
-import qualified Cardano.BM.Configuration.Model    as CM
-import qualified Cardano.BM.Trace                  as T
-import qualified Codec.Picture                     as Juicy
-import qualified Codec.Picture.Saving              as Juicy
-import qualified Control.Category                  as C
-import qualified Control.Concurrent.STM            as STM
-import qualified Control.Monad.Ref
-import qualified Data.Aeson.Encode.Pretty          as AE
-import qualified Data.ByteString                   as B
-import qualified Data.ByteString.Char8             as SB
-import qualified Data.ByteString.Lazy              as LB
-import qualified Data.GI.Base                      as GI
-import qualified Data.GI.Base.CallStack            as B.CallStack
-import qualified Data.IntMap.Strict                as IntMap
-import qualified Data.IORef                        as IO
-import qualified Data.Label.Mono                   as DLM
-import qualified Data.Label.Point                  as DLP
-import qualified Data.List                         as L
-import qualified Data.Map.Monoidal.Strict          as MMap
-import qualified Data.Map.Strict                   as Map
-import qualified Data.Sequence                     as Seq
-import qualified Data.Set                          as Set
-import qualified Data.Text                         as T
-import qualified Data.Text.Format                  as T
-import qualified Data.Text.Format                  as TF
-import qualified Data.Text.Format.Params           as TF
-import qualified Data.Text.Lazy                    as TL
-import qualified Data.Text.Lazy.IO                 as TLIO
-import qualified Data.Text.Zipper                  as T
-import qualified Data.Time.Clock                   as Time
-import qualified Data.TypeMap.Dynamic              as TM
-import qualified Data.Vect                         as Vc
-import qualified Data.Vector                       as V
-import qualified Data.Vector.Storable.ByteString   as B
-import qualified Foreign                           as F
-import qualified Foreign.Concurrent                as FC
-import qualified Foreign.C.Types                   as F
-import qualified Foreign.ForeignPtr.Unsafe         as F
-import qualified Generics.SOP                      as SOP
-import qualified Generics.SOP.NP                   as SOP
-import qualified GHC.Generics                      as GHC
-import qualified GHC.Stats                         as Sys
-import qualified GI.Cairo                          as GIC
-import qualified GI.GObject.Objects.Object         as GI
-import qualified GI.Pango                          as GIP
-import qualified GI.PangoCairo.Functions           as GIPC
-import qualified GI.PangoCairo.Interfaces.FontMap  as GIPC
-import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
-import qualified Graphics.GL.Core33                as GL
-import qualified Graphics.Rendering.Cairo          as GRC
-import qualified Graphics.Rendering.Cairo.Internal as GRCI
-import qualified Graphics.Rendering.Cairo.Internal as GRC (Render(..), create, destroy)
-import qualified Graphics.Rendering.Cairo.Types    as GRC
-import qualified LambdaCube.Compiler               as GL
-import qualified LambdaCube.GL                     as GL
-import qualified LambdaCube.GL.Mesh                as GL
-import qualified LambdaCube.GL.Type                as GL
-import qualified LambdaCube.Linear                 as LCLin
-import qualified Options.Applicative               as Opt
-import qualified Reflex.GLFW                       as GLFW
-import qualified System.Clock                      as Sys
-import qualified System.IO                         as Sys
-import qualified System.IO.Unsafe                  as IO
-import qualified System.Mem                        as Sys
-import qualified Text.Parser.Char                  as P
-import qualified Text.Parser.Combinators           as P
-import qualified Text.Parser.Token                 as P
-import qualified Text.Read                         as TR
-import qualified Text.Trifecta.Parser              as P
-import qualified Text.Trifecta.Result              as P
-import qualified Unsafe.Coerce                     as Co
+-------------------------------------------------------- as X
+import           Cardano.BM.Data.Aggregated              as X (Measurable (..))
+import           Cardano.BM.Data.BackendKind             as X
+import           Cardano.BM.Data.LogItem                 as X
+import           Cardano.BM.Data.Output                  as X
+import           Cardano.BM.Data.Severity                as X
+import           Cardano.BM.Setup                        as X
+import           Cardano.BM.Trace                        as X hiding (logDebug, logInfo, logNotice, logWarning, logError, logCritical, logAlert, logEmergency)
+import           Control.Applicative                     as X
+import           Control.Arrow                           as X (Arrow, ArrowApply, (***), (&&&), app, arr, first, second)
+import           Control.Category                        as X hiding ((.), id, const)
+import           Control.Exception                       as X (AsyncException, SomeException, assert, catch, fromException, throwIO)
+-- import           Control.Lens                         as X hiding (As, children, from, to)
+import           Control.Lens                            as X (Lens', Traversal', makeLenses, ix, _1, _2, (^.), (<&>), (.~), (-~), (+~), (%~), (&), _Just)
+import           Control.Monad                           as X (foldM)
+import           Control.Monad                           as X (unless, when, filterM)
+import           Control.Monad.Fix                       as X
+import           Control.Monad.IO.Class                  as X (MonadIO, liftIO)
+import           Control.Monad.Plus                      as X (partial)
+import           Control.Monad.Primitive                 as X
+import           Control.Monad.Random                    as X hiding (lift)
+import           Control.Monad.Reader                    as X (MonadReader, ask)
+import           Control.Monad.Ref                       as X
+import           Control.Monad.State                     as X hiding (lift)
+import           Control.Monad.Trans                     as X
+import           Control.Monad.Trans.Reader              as X (ReaderT, runReaderT)
+import           Control.Newtype.Generics                as X (Newtype)
+import           Data.Complex                            as X
+import           Data.Either                             as X (either, fromRight, fromLeft, isLeft)
+import           Data.Foldable                           as X (toList, foldr')
+import           Data.Function                           as X (on)
+import           Data.Functor                            as X
+import           Data.Functor.Misc                       as X (Const2(..))
+import           Data.GI.Base.ShortPrelude               as X (checkUnexpectedReturnNULL)
+import           Data.Glb                                as X (HasGlb(..))
+import           Data.IORef                              as X
+import           Data.Kind                               as X (Type)
+import           Data.List                               as X (cycle, find, intercalate, partition, sortOn)
+import           Data.Lub                                as X (HasLub(..))
+import           Data.Map.Strict                         as X (Map)
+import           Data.Maybe                              as X (fromMaybe, isJust, fromJust)
+import           Data.MonoTraversable                    as X
+import           Data.Ord                                as X
+import           Data.Proxy                              as X (Proxy(..))
+--import           Data.Singletons                         as X hiding (TyCon(..), (<=))
+import           Data.Singletons.TH                      as X (genSingletons)
+import           Data.String                             as X (IsString(..))
+import           Data.Text                               as X (Text, pack, unpack, toLower)
+import           Data.Text.Format                        as X hiding (left, prec, right)
+import           Data.Text.Lazy                          as X (fromStrict, toStrict)
+import           Data.Text.Prettyprint.Doc               as X hiding (list)
+import           Data.Text.Prettyprint.Doc.Render.Text   as X (renderLazy, renderStrict)
+import           Data.Text.Zipper                        as X (TextZipper)
+import           Data.Time.Clock                         as X
+import           Data.Tuple                              as X
+import           Data.Type.Bool                          as X
+import           Data.Typeable                           as X (Typeable, typeRep)
+import           Data.Vect                               as X (Mat4(..), Vec3(..), Vec4(..))
+import           Debug.Trace                             as X (trace, traceIO, traceEventIO)
+import           Foreign.Ptr                             as X
+-- import           GHC.Base                                as X
+import           GHC.Generics                            as X (Generic)
+import           GHC.Num                                 as X
+import           GHC.Stack                               as X (HasCallStack, callStack, prettyCallStack)
+import           GHC.TypeLits                            as X
+import           GHC.Types                               as X (Constraint, Type)
+import           Generics.SOP                            as X (Code, Rep, HasDatatypeInfo, SList(..), SListI, I, K, All, All2, Top, POP(..), NP(..), SOP(..), NS(..))
+import           Generics.SOP.NP                         as X (pure_NP)
+import           Graphics.GL.Types                       as X
+-- import           Linear                               as X hiding (Trace, V3, V4, basis, trace)
+import           Linear                                  as X (Additive, V2(..), V3(..), V4(..), zero, _x, _y, (^+^), (^-^))
+import           Numeric                                 as X
+import           Numeric.Extra                           as X (doubleToFloat)
+-- import           Prelude                              as X hiding (read, take, drop, length)
+import           Prelude                                 as X hiding (Word, fail, id, words, print)
+import           Prelude.Unicode                         as X
+import           Reflex                                  as X hiding (Additive, Query, Query(..))
+import           Reflex.GLFW                             as X (RGLFW)
+import           Reflex.GLFW                             as X (RGLFW, InputU(..))
+import           Reflex.GLFW                             as X (RGLFW, RGLFWGuest, InputU(..))
+import           Reflex.Host.Class                       as X (ReflexHost, MonadReflexHost)
+import           System.IO.Unsafe                        as X (unsafePerformIO)
+import           Text.Printf                             as X (printf)
+import           Text.Read                               as X (readPrec)

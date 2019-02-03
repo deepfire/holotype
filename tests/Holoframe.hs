@@ -31,7 +31,6 @@ import           Flex
 
 import           HoloTypes
 
-import           HoloPrelude                       hiding ((<>))
 import qualified Holo
 import           HoloPort
 import qualified Holo.System                       as HOS

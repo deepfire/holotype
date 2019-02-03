@@ -35,6 +35,7 @@ import qualified Foreign.C.Types                   as F
 import qualified GHC.Generics                      as GHC
 import qualified GI.Cairo                          as GIC
 import qualified GI.Pango                          as GIP
+import qualified Graphics.GL.Core46                as GL
 import qualified Graphics.Rendering.Cairo          as GRC
 import qualified Graphics.Rendering.Cairo.Internal as GRCI
 import qualified LambdaCube.Compiler               as GL
@@ -47,11 +48,11 @@ import qualified Unsafe.Coerce                     as Co
 import           ExternalImports
 
 -- Local imports
+import           Elsewhere
 import           Graphics.Flatland
 import           Graphics.Cairo                       (FKind(..))
 import qualified Graphics.Cairo                    as Cr
-import           Holo.Prelude
-import           Tracer()
+import           Tracer
 
 
 -- | Usher Cairo + Pango -enabled surfaces onto a GL Window,
@@ -84,7 +85,7 @@ data Drawable where
     , dCairo              ∷ Cr.Cairo
     , dGIC                ∷ GIC.Context
     --
-    , dMesh               ∷ LC.Mesh
+    , dMesh               ∷ GL.Mesh
     , dGPUMesh            ∷ GL.GPUMesh
     , dGLObject           ∷ GL.Object
     , dTexId              ∷ GLuint
@@ -258,7 +259,7 @@ mkPipePickText oans (Di di) = SB.unlines
 --
 portDrawFrame ∷ (MonadIO m) ⇒ Port f → PipeName → m ()
 portDrawFrame Port{..} name = liftIO $ do
-  GL.renderFrame ∘ Data.Maybe.fromJust $ Map.lookup name portPipelines
+  GL.renderFrame ∘ fromJust $ Map.lookup name portPipelines
 
 portWindowSize ∷ (MonadIO m) ⇒ GL.Window → m (Di Int)
 portWindowSize win = liftIO (GL.getFramebufferSize win)
@@ -301,12 +302,12 @@ portPick port@Port{portSettings=Settings{sttsScreenDim=ScreenDim dim}} pos = do
 -- The next couple of functions mostly stolen from lambdacube-gl/testclient.hs
 snapFrameBuffer ∷ (MonadIO m) ⇒ Di Int → m Juicy.DynamicImage
 snapFrameBuffer (Di (V2 w h)) = do
-  glFinish
-  glBindFramebuffer GL_READ_FRAMEBUFFER 0
+  GL.glFinish
+  GL.glBindFramebuffer GL.GL_READ_FRAMEBUFFER 0
   -- glReadBuffer GL_FRONT
   -- glBlitFramebuffer 0 0 (fromIntegral w) (fromIntegral h) 0 (fromIntegral h) (fromIntegral w) 0 GL_COLOR_BUFFER_BIT GL_NEAREST
-  glReadBuffer GL_BACK
-  bs ← liftIO $ withFrameBuffer w GL_RGBA 0 0 w h $ \p -> B.packCStringLen (F.castPtr p,w*h*4)
+  GL.glReadBuffer GL.GL_BACK
+  bs ← liftIO $ withFrameBuffer w GL.GL_RGBA 0 0 w h $ \p -> B.packCStringLen (F.castPtr p,w*h*4)
   let v = B.byteStringToVector bs
   pure $ Juicy.ImageRGBA8 $ Juicy.Image w h v
 
@@ -316,27 +317,27 @@ pickFrameBuffer ∷ (MonadIO m)
   → Po Int      -- ^ pick coordinates
   → m F.Word32  -- ^ resultant pixel value
 pickFrameBuffer fb (Di (V2 w h)) (Po (V2 x y)) = do
-  glFinish
-  glBindFramebuffer GL_READ_FRAMEBUFFER $ fromIntegral fb
+  GL.glFinish
+  GL.glBindFramebuffer GL.GL_READ_FRAMEBUFFER $ fromIntegral fb
   let (fbmode, format) =
         if fb == 0
-        then (GL_BACK_LEFT,         GL_RGBA)
-        else (GL_COLOR_ATTACHMENT0, GL_RGBA_INTEGER)
-  glReadBuffer fbmode
+        then (GL.GL_BACK_LEFT,         GL.GL_RGBA)
+        else (GL.GL_COLOR_ATTACHMENT0, GL.GL_RGBA_INTEGER)
+  GL.glReadBuffer fbmode
   liftIO $ withFrameBuffer w format x (h - y - 1) 1 1 $ \p -> F.peek (F.castPtr p ∷ F.Ptr F.Word32)
 
 withFrameBuffer ∷ Int → GLenum → Int → Int → Int → Int → (F.Ptr F.Word8 → IO a) → IO a
 withFrameBuffer rowLen format x y w h fn = F.allocaBytes (w*h*4) $ \p → do
-  glPixelStorei GL_UNPACK_LSB_FIRST    0
-  glPixelStorei GL_UNPACK_SWAP_BYTES   0
-  glPixelStorei GL_UNPACK_ROW_LENGTH   $ fromIntegral rowLen
-  glPixelStorei GL_UNPACK_IMAGE_HEIGHT 0
-  glPixelStorei GL_UNPACK_SKIP_ROWS    0
-  glPixelStorei GL_UNPACK_SKIP_PIXELS  0
-  glPixelStorei GL_UNPACK_SKIP_IMAGES  0
-  glPixelStorei GL_UNPACK_ALIGNMENT    1
-  glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) format GL_UNSIGNED_BYTE $ F.castPtr p
-  glPixelStorei GL_UNPACK_ROW_LENGTH   0
+  GL.glPixelStorei GL.GL_UNPACK_LSB_FIRST    0
+  GL.glPixelStorei GL.GL_UNPACK_SWAP_BYTES   0
+  GL.glPixelStorei GL.GL_UNPACK_ROW_LENGTH   $ fromIntegral rowLen
+  GL.glPixelStorei GL.GL_UNPACK_IMAGE_HEIGHT 0
+  GL.glPixelStorei GL.GL_UNPACK_SKIP_ROWS    0
+  GL.glPixelStorei GL.GL_UNPACK_SKIP_PIXELS  0
+  GL.glPixelStorei GL.GL_UNPACK_SKIP_IMAGES  0
+  GL.glPixelStorei GL.GL_UNPACK_ALIGNMENT    1
+  GL.glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) format GL.GL_UNSIGNED_BYTE $ F.castPtr p
+  GL.glPixelStorei GL.GL_UNPACK_ROW_LENGTH   0
   fn p
 
 deriving instance Show (GL.GLOutput)
@@ -350,8 +351,8 @@ portPipeline Port{..} = flip Map.lookup portPipelines
 
 pipelineSchema ∷ [(ObjArrayNameS, UniformNameS)] → GL.PipelineSchema
 pipelineSchema schemaPairs =
-  let arrays   = fromOANS ∘ view _1            <$> schemaPairs
-      textures = SB.unpack ∘ fromUNS ∘ view _2 <$> schemaPairs
+  let arrays   = fromOANS ∘ (^. _1)            <$> schemaPairs
+      textures = SB.unpack ∘ fromUNS ∘ (^. _2) <$> schemaPairs
       simplePosUVSchema =
         GL.ObjectArraySchema GL.Triangles $ Map.fromList
         [ ("position",       GL.Attribute_V2F)
@@ -417,10 +418,10 @@ makeDrawable dObjectStream@ObjectStream{..} tok dDi' = do
       position = V.fromList [ LCLin.V2  0 dy,   LCLin.V2  0  0,   LCLin.V2 dx  0,   LCLin.V2  0 dy,   LCLin.V2 dx  0,   LCLin.V2 dx dy ]
       texcoord = V.fromList [ LCLin.V2  0  1,   LCLin.V2  0  0,   LCLin.V2  1  0,   LCLin.V2  0  1,   LCLin.V2  1  0,   LCLin.V2  1  1 ]
       ids      = V.fromList $ L.replicate 6 $ fromIntegral (tokenHash tok)
-      dMesh    = LC.Mesh { mPrimitive  = P_Triangles
-                         , mAttributes = Map.fromList [ ("position",  A_V2F position)
-                                                      , ("uv",        A_V2F texcoord)
-                                                      , ("id",        A_Int ids)] }
+      dMesh    = GL.Mesh { mPrimitive  = GL.P_Triangles
+                         , mAttributes = Map.fromList [ ("position",  GL.A_V2F position)
+                                                      , ("uv",        GL.A_V2F texcoord)
+                                                      , ("id",        GL.A_Int ids)] }
   dGPUMesh      ← liftIO $ GL.uploadMeshToGPU dMesh
   -- XXX: this is leaky -- has to be done manually
   -- SMem.addFinalizer dGPUMesh $ do
@@ -428,7 +429,7 @@ makeDrawable dObjectStream@ObjectStream{..} tok dDi' = do
   dGLObject     ← liftIO $ GL.addMeshToObjectArray osStorage (fromOANS osObjArray) [SB.unpack $ fromUNS osUniform, "viewProj"] dGPUMesh
 
   dSurfaceData  ← liftIO $ imageSurfaceGetPixels' dSurface
-  dTexId        ← liftIO $ F.alloca $! \pto → glGenTextures 1 pto >> F.peek pto
+  dTexId        ← liftIO $ F.alloca $! \pto → GL.glGenTextures 1 pto >> F.peek pto
   logDebug "TEX ALLOC %s %d" (show $ dDi^.di'v, dTexId)
   -- traceNamedObject tr (LP (LogValue "tex" (PureD (dDi^.di'v))))
   -- trev ALLOC TEX (dDi^.di'v) (fromIntegral dTexId)
@@ -441,7 +442,7 @@ disposeDrawable ObjectStream{..} Drawable{..} =
   -- see experiment in LCstress
   logDebug "TEX FREE %s %d" (show $ dDi^.di'v, dTexId) >>
   do liftIO $ do
-       F.withArray [dTexId] (glDeleteTextures 1) -- release tex id
+       F.withArray [dTexId] (GL.glDeleteTextures 1) -- release tex id
        GL.removeObject osStorage dGLObject
        GL.disposeMesh  dGPUMesh
        -- dCairo ← cairoCreate is auto-managed
@@ -452,31 +453,31 @@ drawableContentToGPU Drawable{..} = liftIO $ do
   let ObjectStream{..} = dObjectStream
 
   let (pixels, V2 strideBytes pixelrows) = dSurfaceData
-  cTexture ← uploadTexture2DToGPU'''' False False False False (strideBytes `div` 4, pixelrows, GL_BGRA, pixels) dTexId
+  cTexture ← uploadTexture2DToGPU'''' False False False False (strideBytes `div` 4, pixelrows, GL.GL_BGRA, pixels) dTexId
 
   GL.updateObjectUniforms dGLObject $ do
     fromUNS osUniform GL.@= return cTexture
 
 uploadTexture2DToGPU'''' ∷ (MonadIO m) ⇒ Bool → Bool → Bool → Bool → (Int, Int, GL.GLenum, F.Ptr F.CUChar) → GLuint → m GL.TextureData
 uploadTexture2DToGPU'''' isFiltered isSRGB isMip isClamped (w, h, format, ptr) to' = liftIO $ do
-    glPixelStorei GL_UNPACK_ALIGNMENT 1
-    glBindTexture GL_TEXTURE_2D to'
-    let texFilter = if isFiltered then GL_LINEAR else GL_NEAREST
+    GL.glPixelStorei GL.GL_UNPACK_ALIGNMENT 1
+    GL.glBindTexture GL.GL_TEXTURE_2D to'
+    let texFilter = if isFiltered then GL.GL_LINEAR else GL.GL_NEAREST
         wrapMode = case isClamped of
-            True    → GL_CLAMP_TO_EDGE
-            False   → GL_REPEAT
+            True    → GL.GL_CLAMP_TO_EDGE
+            False   → GL.GL_REPEAT
         (minFilter,maxLevel) = case isFiltered && isMip of
             False   → (texFilter,0)
-            True    → (GL_LINEAR_MIPMAP_LINEAR, (floor $ (log (fromIntegral $ max w h) ∷ Float) / log 2) ∷ Int)
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_S $ fromIntegral wrapMode
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_T $ fromIntegral wrapMode
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER $ fromIntegral minFilter
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER $ fromIntegral texFilter
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_BASE_LEVEL 0
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAX_LEVEL $ fromIntegral maxLevel
-    let internalFormat  = fromIntegral $ if isSRGB then GL_SRGB8_ALPHA8 else GL_RGBA8
-    glTexImage2D GL_TEXTURE_2D 0 internalFormat (fromIntegral w) (fromIntegral h) 0 format GL_UNSIGNED_BYTE $ F.castPtr ptr
-    when isMip $ glGenerateMipmap GL_TEXTURE_2D
+            True    → (GL.GL_LINEAR_MIPMAP_LINEAR, (floor $ (log (fromIntegral $ max w h) ∷ Float) / log 2) ∷ Int)
+    GL.glTexParameteri GL.GL_TEXTURE_2D GL.GL_TEXTURE_WRAP_S $ fromIntegral wrapMode
+    GL.glTexParameteri GL.GL_TEXTURE_2D GL.GL_TEXTURE_WRAP_T $ fromIntegral wrapMode
+    GL.glTexParameteri GL.GL_TEXTURE_2D GL.GL_TEXTURE_MIN_FILTER $ fromIntegral minFilter
+    GL.glTexParameteri GL.GL_TEXTURE_2D GL.GL_TEXTURE_MAG_FILTER $ fromIntegral texFilter
+    GL.glTexParameteri GL.GL_TEXTURE_2D GL.GL_TEXTURE_BASE_LEVEL 0
+    GL.glTexParameteri GL.GL_TEXTURE_2D GL.GL_TEXTURE_MAX_LEVEL $ fromIntegral maxLevel
+    let internalFormat  = fromIntegral $ if isSRGB then GL.GL_SRGB8_ALPHA8 else GL.GL_RGBA8
+    GL.glTexImage2D GL.GL_TEXTURE_2D 0 internalFormat (fromIntegral w) (fromIntegral h) 0 format GL.GL_UNSIGNED_BYTE $ F.castPtr ptr
+    when isMip $ GL.glGenerateMipmap GL.GL_TEXTURE_2D
     return $ GL.TextureData to'
 
 framePutDrawable ∷ (MonadIO m) ⇒ Frame → Drawable → Po Float → m ()

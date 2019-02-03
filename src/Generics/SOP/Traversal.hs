@@ -25,6 +25,7 @@ module Generics.SOP.Traversal (
   , tail
   , i
   ) where
+import qualified Control.Arrow                     as A
 import qualified Control.Category                  as C
 import qualified Data.Label.Mono                   as DLM
 import qualified Data.Label.Point                  as DLP
@@ -55,7 +56,7 @@ smodify :: GTraversal r w a b -> w (w b b, a) a
 smodify (GTraversal _ g) = g
 
 gtravset :: Arrow w => GTraversal r w a b -> w (b, a) a
-gtravset l = smodify l . first (arr const)
+gtravset l = smodify l C.. A.first (A.arr const)
 
 {-------------------------------------------------------------------------------
   Conversion

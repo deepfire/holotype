@@ -42,7 +42,9 @@ import qualified Foreign                           as F
 import qualified GI.Pango                          as GIP (unitsToDouble, unitsFromDouble)
 import qualified Generics.SOP                      as SOP
 import qualified System.IO.Unsafe                  as UN
+
 import           ExternalImports
+import           Elsewhere
 
 
 -- * Dimensional density.
@@ -83,18 +85,18 @@ type instance Element (Unit Pt)   = F.Int32
 deriving         instance Read WUnit
 instance                  Read (Unit PU) where
   readPrec = TR.prec 10 $ do
-    Ident "PU" <- lexP
-    m <- step readPrec
+    TR.Ident "PU" <- TR.lexP
+    m <- TR.step TR.readPrec
     return (PUs m)
 instance                  Read (Unit PUI) where
   readPrec = TR.prec 10 $ do
-    Ident "PUI" <- lexP
-    m <- step readPrec
+    TR.Ident "PUI" <- TR.lexP
+    m <- TR.step TR.readPrec
     return (PUIs m)
 instance                  Read (Unit Pt) where
   readPrec = TR.prec 10 $ do
-    Ident "Pt" <- lexP
-    m <- step readPrec
+    TR.Ident "Pt" <- TR.lexP
+    m <- TR.step TR.readPrec
     return (Pts m)
 
 class StandardUnit (a ∷ UnitK → Type) where

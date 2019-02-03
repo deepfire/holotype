@@ -195,10 +195,10 @@ walk action f = loop [0] f
           pure ()
 
 ppItemSize ∷ Flex a ⇒ a → String
-ppItemSize x = T.unpack ∘ renderLazy ∘ layoutCompact $ pretty'mdi  $ x^.size
+ppItemSize x = T.unpack ∘ renderStrict ∘ layoutCompact $ pretty'mdi  $ x^.size
 
 ppItemArea ∷ Flex a ⇒ a → String
-ppItemArea x = T.unpack ∘ renderLazy ∘ layoutCompact $ pretty'Area'Int $ x^.area
+ppItemArea x = T.unpack ∘ renderStrict ∘ layoutCompact $ pretty'Area'Int $ x^.area
 
 showItemArea ∷ Flex a ⇒ a → String
 showItemArea x = show $ x^.area

@@ -15,7 +15,6 @@ import           Graphics.Cairo                           (FKind(..))
 import qualified Graphics.Cairo                    as Cr
 import {-# SOURCE #-}
                  Holo.Classes
-import           Holo.Prelude
 import           Holo.Port                                (Drawable(..), Port(..), Settings(..))
 import qualified Holo.Port                         as Port
 import           Pretty

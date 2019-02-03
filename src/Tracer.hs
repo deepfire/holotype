@@ -1,8 +1,5 @@
 module Tracer
-  ( module Cardano.BM.Trace
-  , module Cardano.BM.Data.Aggregated
-  , module Cardano.BM.Data.LogItem
-  , mkTrace
+  ( mkTrace
   , Has(..)
   , MonadTrace, getTrace
   , logDebug,  logInfo,  logNotice,  logWarning,  logError,  logCritical,  logAlert,  logEmergency
@@ -140,4 +137,4 @@ trev kind entity arg addrOrId = liftIO $ do
 trevE ∷ (HasCallStack, Show a) ⇒ TraceKind → TraceEntity → a → Int → b → b
 trevE kind entity arg addrOrId x =
   let msg = show kind <> " " <> show entity <> " 0x" <> showHex addrOrId "" <> " " <> show arg
-  in trace msg $ traceEvent msg x
+  in trace msg x -- XXX: Debug.Trace.traceEvent is also a thing

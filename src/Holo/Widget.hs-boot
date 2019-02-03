@@ -3,6 +3,7 @@ where
 import qualified Data.TypeMap.Dynamic              as TM
 import           ExternalImports
 
+import           Generics.SOP.Monadic
 import           Holo.Input                               (AElt, Input, LBinds, SemSubs, Subscription)
 import {-# SOURCE #-}
                  Holo.Item
