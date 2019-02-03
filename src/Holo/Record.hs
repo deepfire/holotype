@@ -5,13 +5,7 @@ module Holo.Record
   , Definition(..)
   )
 where
-
-import           Data.Text                                (Text, pack)
-import           Data.Typeable
-import           Generics.SOP.Monadic
-import           Generics.SOP                             (Top)
-import qualified Generics.SOP                      as SOP
-import           Reflex                            hiding (Additive)
+import           ExternalImports
 
 import qualified Graphics.Cairo                    as Cr
 import           Holo.Instances

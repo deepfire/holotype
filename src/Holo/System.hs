@@ -6,15 +6,11 @@ module Holo.System
   , unbufferStdout
   )
 where
-
-import           Prelude.Unicode
-
-import           Control.Monad.IO.Class                   (MonadIO, liftIO)
-
 import qualified GHC.Stats                         as Sys
 import qualified System.Clock                      as Sys
 import qualified System.IO                         as Sys
 import qualified System.Mem                        as Sys
+import           ExternalImports
 
 
 newtype Sec = Sec { fromSec ∷ Double } deriving (Eq, Fractional, Num, Ord, Real, RealFrac, Show)

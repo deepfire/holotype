@@ -7,31 +7,6 @@
 --{-# OPTIONS_GHC -ddump-ds             #-} -- -
 module Holotype
 where
-
-import           Imports
-import           Control.Arrow                     hiding ((<+>))
-import           Control.Monad
-import           Control.Monad.Fix
-import           Control.Monad.Primitive
-import           Control.Monad.Ref
-import           Control.Monad.Reader
-import           Data.Foldable
-import           Data.Functor.Misc                        (Const2(..))
-import           Data.Maybe
---import           Data.Semigroup
---import           Data.Singletons
-import           Data.Text                                (Text)
-import           Data.Text.Zipper                         (TextZipper)
-import           Data.Tuple
-import           Data.Typeable
-import           Generics.SOP.Monadic
--- import           GHC.IOR
-import           Linear                            hiding (Trace, trace)
-import           Prelude                           hiding (id, Word)
-import           Reflex                            hiding (Additive, Query, Query(..))
-import           Reflex.Host.Class                        (ReflexHost, MonadReflexHost)
-import           Reflex.GLFW                              (RGLFW, RGLFWGuest, InputU(..))
-import           Text.Read
 import qualified Codec.Picture                     as Juicy
 import qualified Codec.Picture.Saving              as Juicy
 import qualified Control.Concurrent.STM            as STM
@@ -54,6 +29,7 @@ import qualified Text.Parser.Combinators           as P
 import qualified Text.Parser.Token                 as P
 import qualified Text.Trifecta.Parser              as P
 import qualified Text.Trifecta.Result              as P
+import           ExternalImports
 
 -- Local imports
 import           Elsewhere

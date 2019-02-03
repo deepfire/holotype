@@ -28,20 +28,9 @@ module Holo.Item
   , showTreeVisuals
   )
 where
-
-import           Control.Lens                             ((^.), (.~), (&))
-import           Data.Foldable
-import           Data.Maybe                               (fromMaybe)
-import           Data.Proxy                               (Proxy(..))
-import           Data.Typeable                            (Typeable, typeRep)
-import           Generics.SOP                             (Top)
-import           GHC.Stack                                (HasCallStack)
-import           GHC.Types                                (Constraint, Type)
-import           Linear                                   (zero)
-import           Numeric.Extra                            (doubleToFloat)
-import           Prelude.Unicode
 import qualified Data.IntMap                       as IntMap
 import qualified Unsafe.Coerce                     as Co
+import           ExternalImports
 
 import           Graphics.Flatland
 import           Graphics.Flex

@@ -17,19 +17,10 @@ module Pretty
   , errorT, errorTL, errorTS
   )
 where
-
-import           Data.Maybe                               (fromMaybe)
 import qualified Data.Text                         as TS
-import           Data.Text.Prettyprint.Doc
-import           Data.Text.Prettyprint.Doc.Render.Text    (renderLazy)
 import qualified Data.Text.Lazy                    as TL
 import qualified Data.Text.Lazy.IO
-import           Debug.Trace                              (trace)
-import           GHC.Stack                                (HasCallStack)
-import           Numeric
-import           Prelude                           hiding (Word, words)
-import           Prelude.Unicode
-import           Text.Printf                              (printf)
+import           ExternalImports
 
 -- * Pretty
 newtype HexShow = HexShow Int

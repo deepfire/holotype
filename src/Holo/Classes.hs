@@ -15,10 +15,7 @@ module Holo.Classes
   , Present(..)
   )
 where
-
-import           Data.Typeable                            (Typeable)
-import           Generics.SOP                             (Proxy)
-import           Reflex                                   (Event, Dynamic)
+import           ExternalImports
 
 -- Local imports
 import           Graphics.Flatland

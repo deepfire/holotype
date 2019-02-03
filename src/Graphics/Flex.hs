@@ -44,21 +44,8 @@ module Graphics.Flex
   , layout
   )
 where
-
-import           Control.Applicative
-import           Control.Lens                             (Lens', Traversal', makeLenses, ix, _1, (^.), (<&>), (.~), (-~), (+~), (%~))
-import           Control.Monad.IO.Class                   (MonadIO, liftIO)
-import           Control.Monad.Plus                       (partial)
-import           Data.Function
-import           Data.List
-import           Data.Maybe                               (fromMaybe)
-import           Data.Text.Prettyprint.Doc
-import           Data.Text.Prettyprint.Doc.Render.Text    (renderLazy)
-import           GHC.Stack                                ()
-import           Linear                            hiding (basis, trace)
-import           Text.Printf                              (printf)
-import           Prelude.Unicode
 import qualified Data.Text                             as T
+import           ExternalImports
 
 import           Graphics.Flatland
 

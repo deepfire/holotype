@@ -8,23 +8,11 @@ module Generics.SOP.Monadic
   , DatatypeInfo(..), ConstructorInfo(..), FieldInfo(..)
   )
 where
-
 import qualified Data.List                        as L
-import           Data.Maybe
-import           Data.String
-import           Data.Text                           (Text, pack, unpack, toLower, drop)
-import           Data.Typeable
-import           GHC.Types                           (Constraint, Type)
-import           Prelude                      hiding (read, take, drop, length)
-import           Prelude.Unicode
-import           Text.Printf
-
-import           GHC.Stack
-import           Generics.SOP                 hiding (Generic, from)
-import           Generics.SOP.NP                     (pure_NP)
 import qualified Generics.SOP                     as SOP
 import qualified Generics.SOP.NP                  as SOP
 import qualified Generics.SOP.Traversal           as SOP
+import           ExternalImports
 
 
 -- * Somewhat generic

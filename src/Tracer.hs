@@ -10,37 +10,14 @@ module Tracer
   )
   -- (setupTracer, trev, trevE, TraceKind(..), TraceEntity(..), TraceAction(..))
 where
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           GHC.Stack
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Text.Format                  as TF
 import qualified Data.Text.Format.Params           as TF
-import           Data.Kind                                (Type)
-import           Data.List
-import           Data.Text                               (Text)
-import           Data.Text.Lazy                          (toStrict)
-import           Data.Text.Format
-import           Debug.Trace
-import           Foreign.Ptr
-import           Numeric
-import           Prelude.Unicode
 import qualified System.IO.Unsafe                  as IO
 import qualified Data.IORef                        as IO
-
-import           Control.Monad.Reader                     (MonadReader, ask)
-import           Control.Monad.Trans
-import           Control.Monad.Trans.Reader        hiding (ask)
-
 import qualified Cardano.BM.Configuration.Model    as CM
-import           Cardano.BM.Data.Aggregated (Measurable (..))
-import           Cardano.BM.Data.BackendKind
-import           Cardano.BM.Data.LogItem
-import           Cardano.BM.Data.Output
-import           Cardano.BM.Data.Severity
-import           Cardano.BM.Setup
-import           Cardano.BM.Trace                  hiding (logDebug, logInfo, logNotice, logWarning, logError, logCritical, logAlert, logEmergency)
 import qualified Cardano.BM.Trace                  as T
+import           ExternalImports
 
 
 -- * Tracing

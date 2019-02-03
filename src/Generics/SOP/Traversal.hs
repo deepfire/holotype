@@ -25,18 +25,13 @@ module Generics.SOP.Traversal (
   , tail
   , i
   ) where
-
---import Prelude hiding (id, (.), curry, uncurry, const, head, tail)
-import           Control.Arrow                     hiding ((<+>))
-import           Control.Category                  hiding ((.), id, const)
 import qualified Control.Category                  as C
 import qualified Data.Label.Mono                   as DLM
 import qualified Data.Label.Point                  as DLP
 import qualified Data.Label.Mono                   as Lens
-
-import           Generics.SOP                      hiding (Generic, from)
 import qualified Generics.SOP                      as SOP
 import qualified GHC.Generics                      as GHC
+import           ExternalImports
 
 {-------------------------------------------------------------------------------
   Generalized lens using two categories

@@ -11,21 +11,8 @@ module Reflex.Random
   , foldRand
   )
 
-  where
-
-import Control.Monad.Fix
-import Control.Monad.State
-
-import Control.Applicative
-
-import System.Random
-import Control.Monad.Random
-
--- import Data.Tuple.All
-import Data.Bifunctor
-
-import Reflex                            hiding (Additive)
-
+where
+import           ExternalImports
 
 -- | Reflex.Gloss.Random
 -- A module for using random number state with reflex.

@@ -1,7 +1,6 @@
 module Holo.Name
 where
-
-import           Data.Kind                                (Type)
+import           ExternalImports
 
 import qualified Holo.Port                         as Port
 

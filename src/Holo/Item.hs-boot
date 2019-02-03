@@ -1,9 +1,6 @@
 module Holo.Item
 where
-
-import           Data.Kind                                (Constraint, Type)
-import           Data.Proxy                               (Proxy)
-import           Data.Typeable                            (Typeable)
+import           ExternalImports
 
 import qualified Holo.Port                         as Port
 import           Tracer

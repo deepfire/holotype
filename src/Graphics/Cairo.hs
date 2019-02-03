@@ -42,27 +42,8 @@ module Graphics.Cairo
   , makeFontLayout
   )
 where
-
-import           Control.Arrow                            ((***))
-import           Control.Lens                      hiding (As, children, from, to)
-import           Control.Monad                            (foldM)
-import           Control.Monad.IO.Class                   (MonadIO, liftIO)
-import           Control.Monad.Trans.Reader               (ReaderT(..))
-import           Data.Either
-import           Data.GI.Base.ShortPrelude                (checkUnexpectedReturnNULL)
-import           Data.List
-import           Data.Map.Strict                          (Map)
-import           Data.Maybe                               (fromMaybe)
-import           Data.Ord
-import           Data.String
 import           Data.Text                         as T   (Text, unpack)
-import           Debug.Trace                              (trace)
 import qualified Generics.SOP                      as SOP
-import           GHC.Generics                             (Generic)
-import           GHC.Stack                                (HasCallStack)
-import           Prelude                           hiding (fail)
-import           Prelude.Unicode
-import           Text.Printf                              (printf)
 import qualified Data.GI.Base                      as GI
 import qualified Data.GI.Base.CallStack            as B.CallStack
 import qualified Data.IORef                        as IO
@@ -78,8 +59,8 @@ import qualified GI.PangoCairo.Interfaces.FontMap  as GIPC
 import qualified Graphics.Rendering.Cairo          as GRC
 import qualified Graphics.Rendering.Cairo.Internal as GRC (Render(..), create, destroy)
 import qualified Graphics.Rendering.Cairo.Types    as GRC
-import           Linear                            hiding (trace)
 import qualified System.IO.Unsafe                  as UN
+import           ExternalImports
 
 import           Elsewhere
 import           Graphics.Flatland

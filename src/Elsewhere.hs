@@ -20,27 +20,10 @@ module Elsewhere
   , (<:)
   )
 where
-
-import           Control.Applicative
-import           Control.Exception                        (AsyncException, SomeException, catch, fromException, throwIO)
-import           Control.Monad.Plus                       (partial)
-import           Control.Monad.Random
-import           Control.Monad.State
-import           Data.Complex
-import           Data.Glb                                 (HasGlb(..))
-import           Data.Lub                                 (HasLub(..))
-import           Data.Maybe                               (fromMaybe)
-import           Data.Proxy                               (Proxy(..))
-import           Data.Time.Clock
-import           Data.Typeable                            (Typeable)
 import qualified Data.TypeMap.Dynamic              as TM
-import           GHC.Stack                                ()
-import           Linear                            hiding (trace)
-import           Prelude.Unicode
-import           Reflex                            hiding (Additive)
-import           Text.Printf                              (printf)
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
+import           ExternalImports
 
 
 -- * 'lub' + 'linear'

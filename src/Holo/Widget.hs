@@ -32,20 +32,10 @@ module Holo.Widget
   -- , Frame(..)
   -- )
 where
+import           ExternalImports
 
-import           Control.Monad.Reader
-import           Control.Monad.Trans.Reader               (ReaderT)
-import           Data.Functor.Misc                        (Const2(..))
-import           Data.Typeable
 import qualified Data.TypeMap.Dynamic              as TM
-import           Generics.SOP                             (Proxy, Top)
-import           Generics.SOP.Monadic
-import           GHC.TypeLits
-import           Reflex                            hiding (Additive, Query, Query(..))
-import           Reflex.GLFW                              (RGLFW)
 import qualified Data.Text                         as T
-
--- Local imports
 import           Graphics.Flex
 import           Tracer
 import {-# SOURCE #-}

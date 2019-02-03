@@ -9,7 +9,7 @@ let
   ghc      = pkgs.haskell.packages."${compiler}";            # :: nixpkgs/pkgs/development/haskell-modules/make-package-set.nix
   extras   = [
                ghc.ghc-events
-               # ghc.ghcid
+               ghc.ghcid
                ghc.graphmod
                # ghc.cabal-install
                pkgs.graphviz

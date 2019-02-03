@@ -33,6 +33,9 @@ $(patsubst %.hs,%,$1): $(LIB_SRCS)
 endef
 $(foreach libsrc,$(LIB_SRCS),$(eval $(call defdirectbuild,$(libsrc))))
 
+ghcid:
+	ghcid Holotype.hs -Csrc --command="ghci $(ALL_XFLAGS)"
+
 # Support for experiments:
 #
 define defexperiment =

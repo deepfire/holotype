@@ -1,19 +1,7 @@
 module Holo.Widget
 where
-
-import           Control.Monad.Fix
-import           Control.Monad.Ref
-import           Control.Monad.Trans
-import           Control.Monad.Trans.Reader
-import           Data.Kind                                (Type)
-import           Data.Typeable                            (Typeable)
 import qualified Data.TypeMap.Dynamic              as TM
-import           Generics.SOP                             (Top)
-import           Generics.SOP.Monadic                     (Result)
-import           GHC.Stack
-import           GHC.TypeLits
-import           Reflex                            hiding (Additive)
-import           Reflex.GLFW                              (RGLFW)
+import           ExternalImports
 
 import           Holo.Input                               (AElt, Input, LBinds, SemSubs, Subscription)
 import {-# SOURCE #-}

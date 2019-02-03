@@ -20,13 +20,9 @@ module Data.IntUnique (
    Unique,
    newUnique,
    hashUnique
- ) where
-
-import           System.IO.Unsafe (unsafePerformIO)
-
-import           GHC.Base
-import           GHC.Num
-import           Data.IORef
+ )
+where
+import           ExternalImports
 
  -- | An abstract unique object.  Objects of type 'Unique' may be
  -- compared for equality and ordering and hashed into 'Int'.

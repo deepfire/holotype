@@ -19,17 +19,10 @@ module Graphics.FlatDraw
   , paintRoundedRect
   )
 where
+import           ExternalImports
 
-import           Control.Lens                      hiding (As, children, from, to)
-import           Control.Monad.State
-import           Data.List                                (cycle)
-import           Data.Maybe
-import           Linear                            hiding (trace)
-import           Prelude.Unicode
 import qualified Graphics.Rendering.Cairo          as GRC
 import qualified Graphics.Rendering.Cairo.Internal as GRCI
-
--- Local
 import           Graphics.Flatland
 
 

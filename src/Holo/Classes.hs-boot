@@ -1,13 +1,6 @@
 module Holo.Classes
 where
-
-import           Control.Monad.IO.Class                   (MonadIO)
-import           Data.Proxy                               (Proxy)
-import           Data.Typeable                            (Typeable)
-import           GHC.Types                                (Type)
-import           GHC.Stack                                (HasCallStack)
-import           Reflex                                   (Event, Dynamic)
-import           Reflex.GLFW                              (RGLFW)
+import           ExternalImports
 
 import           Graphics.Flatland
 

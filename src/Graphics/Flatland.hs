@@ -34,29 +34,6 @@ module Graphics.Flatland
   , chord'CW
   )
 where
-
-import           Control.Applicative
-import           Control.Lens                      hiding (As, children, from, to)
-import           Control.Monad.Random              hiding (lift)
-import           Control.Monad.State               hiding (lift)
-import           Data.Complex
-import           Data.Function
-import           Data.Glb
-import           Data.Lub
-import           Data.MonoTraversable
-import           Data.Singletons
---import           Data.Singletons.Prelude
-import           Data.Singletons.TH                hiding ((%~))
-import           Data.Text.Format                  hiding (prec)
-import           Data.Text.Prettyprint.Doc
-import           Data.Type.Bool
-import           Elsewhere
-import           GHC.Generics                             (Generic)
-import           GHC.TypeLits
-import           GHC.Types
-import           Linear                            hiding (trace)
-import           Prelude.Unicode
-import           Text.Read                         hiding (prec)
 import qualified Text.Read                         as TR
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Text.Format                  as T
@@ -65,6 +42,7 @@ import qualified Foreign                           as F
 import qualified GI.Pango                          as GIP (unitsToDouble, unitsFromDouble)
 import qualified Generics.SOP                      as SOP
 import qualified System.IO.Unsafe                  as UN
+import           ExternalImports
 
 
 -- * Dimensional density.

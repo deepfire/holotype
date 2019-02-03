@@ -8,10 +8,7 @@ module Holo.Name
   , Visual(..), VPort
   )
 where
-
-import           Data.Proxy                               (Proxy)
-import           Data.Kind                                (Type)
-import           Data.Typeable
+import           ExternalImports
 
 -- Local imports
 import           Graphics.Flex                            (Geo, defGeo)

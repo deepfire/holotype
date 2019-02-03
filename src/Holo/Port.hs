@@ -13,20 +13,6 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-} -- XXX: due to HasCallStack
 module Holo.Port
 where
-
-import           Control.Monad
-import           Control.Newtype.Generics
-import           Data.Maybe
-import           Data.Proxy
-import           Data.Typeable
-import           Data.Vect                                (Mat4(..), Vec3(..), Vec4(..))
-import           GHC.Stack
-import           GHC.Types
-import           Graphics.GL.Core33                as GL
-import           LambdaCube.Mesh                   as LC
-import           Linear                            hiding (Trace, V3, V4, trace)
-import           Reflex                            hiding (Additive, Query, Query(..))
-import           Reflex.GLFW                              (RGLFW)
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Codec.Picture                     as Juicy
 import qualified Control.Concurrent.STM            as STM
@@ -58,6 +44,7 @@ import qualified LambdaCube.GL.Type                as GL
 import qualified LambdaCube.Linear                 as LCLin
 import qualified System.IO.Unsafe                  as IO
 import qualified Unsafe.Coerce                     as Co
+import           ExternalImports
 
 -- Local imports
 import           Graphics.Flatland

@@ -44,33 +44,17 @@ module Holo.Input
   , editMaskKeys
   )
 where
-
-import           Control.Arrow                            ((***))
-import           Control.Lens                             ((<&>))
-import           Control.Monad.IO.Class                   (MonadIO, liftIO)
--- import           Control.Monad                            (foldM)
-import           Data.Functor.Misc                        (Const2(..))
-import           Data.Foldable                            (toList, foldr')
-import           Data.Function                            (on)
-import           Data.Maybe                               (fromMaybe, isJust)
 import qualified Data.List                         as L
 import qualified Data.Text                         as T
-import           Data.String                              (IsString(..))
 import qualified Data.IntUnique                    as U
-import           Prelude.Unicode
-import           Reflex                            hiding (Additive)
-import           Text.Printf                              (printf)
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Data.IntMap.Strict                as IntMap
 import qualified Data.Map.Monoidal.Strict          as MMap
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Sequence                     as Seq
 import qualified Data.Set                          as Set
-import           Debug.Trace                              (trace)
 import qualified Reflex.GLFW                       as GLFW
-import           Reflex.GLFW                              (RGLFW, InputU(..))
--- import qualified Data.IORef                        as IO
--- import qualified System.IO.Unsafe                  as IO
+import           ExternalImports
 
 import           Graphics.Flatland
 import           Holo.Prelude
