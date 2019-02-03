@@ -23,7 +23,7 @@ module Main where
 
 import           Control.Monad
 import           Data.Maybe
-import           Linear
+import           Linear                            hiding (trace)
 import           Prelude                           hiding (id, Word)
 
 import           Flatland

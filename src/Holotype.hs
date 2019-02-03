@@ -5,9 +5,11 @@
 --{-# OPTIONS_GHC -ddump-tc             #-} -- -
 --{-# OPTIONS_GHC -ddump-rule-firings   #-} -- -
 --{-# OPTIONS_GHC -ddump-ds             #-} -- -
-module Holotype where
+module Holotype
+where
 
-import           Control.Arrow
+import           Imports
+import           Control.Arrow                     hiding ((<+>))
 import           Control.Monad
 import           Control.Monad.Fix
 import           Control.Monad.Primitive
@@ -16,8 +18,8 @@ import           Control.Monad.Reader
 import           Data.Foldable
 import           Data.Functor.Misc                        (Const2(..))
 import           Data.Maybe
-import           Data.Semigroup
-import           Data.Singletons
+--import           Data.Semigroup
+--import           Data.Singletons
 import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
 import           Data.Tuple
@@ -26,7 +28,7 @@ import           Generics.SOP.Monadic
 -- import           GHC.IOR
 import           Linear                            hiding (Trace, trace)
 import           Prelude                           hiding (id, Word)
-import           Reflex                            hiding (Query, Query(..))
+import           Reflex                            hiding (Additive, Query, Query(..))
 import           Reflex.Host.Class                        (ReflexHost, MonadReflexHost)
 import           Reflex.GLFW                              (RGLFW, RGLFWGuest, InputU(..))
 import           Text.Read

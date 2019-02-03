@@ -23,10 +23,10 @@ import           HoloPrelude
 
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.List
-import qualified Data.Map                          as Map
+import qualified Data.Map.Strict                   as Map
 import qualified Data.Vector                       as V
 
-import           Linear
+import           Linear                            hiding (trace)
 
 import qualified GI.PangoCairo.Functions           as GIPC
 import qualified Graphics.Rendering.Cairo          as GRC

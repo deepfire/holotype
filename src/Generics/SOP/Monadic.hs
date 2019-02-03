@@ -12,7 +12,7 @@ where
 import qualified Data.List                        as L
 import           Data.Maybe
 import           Data.String
-import           Data.Text                           (Text, pack, unpack, toLower, drop, take)
+import           Data.Text                           (Text, pack, unpack, toLower, drop)
 import           Data.Typeable
 import           GHC.Types                           (Constraint, Type)
 import           Prelude                      hiding (read, take, drop, length)
@@ -20,7 +20,7 @@ import           Prelude.Unicode
 import           Text.Printf
 
 import           GHC.Stack
-import           Generics.SOP
+import           Generics.SOP                 hiding (Generic, from)
 import           Generics.SOP.NP                     (pure_NP)
 import qualified Generics.SOP                     as SOP
 import qualified Generics.SOP.NP                  as SOP
@@ -81,7 +81,7 @@ recover pC pTA choicef fieldf = let dti = datatypeInfo (Proxy @a) ∷ DatatypeIn
             SOP.SOP $ SOP.Z $
             recoverCtor pC pTA fieldf dti
             (SOP.hd nCInfos)
-            (SOP.hd ((SOP.gtraversals -- ~∷ NP (NP (SOP.GTraversal (→) (→) s)) '[ '[x]]
+            (SOP.hd ((gtraversals -- ~∷ NP (NP (GTraversal (→) (→) s)) '[ '[x]]
                         )))
           Comp mdsop ∷     (m :.: Result t) (SOP I xss) = hsequence sop
       (SOP.to <$>) <$> mdsop
@@ -101,7 +101,7 @@ recover' pC pTA fieldf dti@(ADT _ name cs) =
                      --(Proxy @(All (HasReadField t m a)))
         (recoverCtor pC pTA fieldf dti)
         (enumerate cs)
-        (SOP.gtraversals ∷ NP (NP (SOP.GTraversal (→) (→) a)) xss)
+        (gtraversals ∷ NP (NP (GTraversal (→) (→) a)) xss)
 recover' _ _ _ _ = error "Non-ADTs not supported."
 
 -- * 1. Extract the constructor's product of field names
@@ -116,7 +116,7 @@ recoverCtor
   → (forall f. c f ⇒ ReadFieldT c t m a f xss xs)
   → DatatypeInfo xss
   → (((,) SumChoiceT) :.: ConstructorInfo) xs
-  → NP (SOP.GTraversal (→) (→) a) xs
+  → NP (GTraversal (→) (→) a) xs
   → NP (m :.: Result t) xs
 recoverCtor pC pTA fieldf dti (Comp (consNr, consi@(Record _ finfos))) travs = recoverFields pC pTA fieldf dti consNr consi travs finfos
 recoverCtor pC pTA fieldf dti (Comp (consNr, consi@Constructor{}))     travs = recoverFields pC pTA fieldf dti consNr consi travs (SOP.hpure (FieldInfo ""))
@@ -137,7 +137,7 @@ recoverFields
   → DatatypeInfo xss
   → SumChoiceT
   → ConstructorInfo xs
-  → NP (SOP.GTraversal (→) (→) u) xs
+  → NP (GTraversal (→) (→) u) xs
   → NP (FieldInfo) xs
   → NP (m :.: Result t) xs
 recoverFields pC _pTU fieldf dtinfo consNr cinfo traversals finfos =
@@ -151,8 +151,8 @@ recoverFields pC _pTU fieldf dtinfo consNr cinfo traversals finfos =
                  → SumChoiceT
                  → ConstructorInfo xs
                  → FieldInfo a
-                 → SOP.GTraversal (→) (→) u a
+                 → GTraversal (→) (→) u a
                  → (m :.: Result t) a
     recoverField dtinfo consNr cinfo finfo trav =
       Comp $ fieldf (Proxy @c) (Proxy @(t, u, a))
-      dtinfo consNr cinfo finfo (SOP.get trav ∷ u → a)
+      dtinfo consNr cinfo finfo (gtravget trav ∷ u → a)

@@ -12,7 +12,7 @@ import           Generics.SOP                             (Top)
 import           Generics.SOP.Monadic                     (Result)
 import           GHC.Stack
 import           GHC.TypeLits
-import           Reflex
+import           Reflex                            hiding (Additive)
 import           Reflex.GLFW                              (RGLFW)
 
 import           Holo.Input                               (AElt, Input, LBinds, SemSubs, Subscription)

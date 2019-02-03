@@ -24,7 +24,7 @@ import Control.Monad.Random
 -- import Data.Tuple.All
 import Data.Bifunctor
 
-import Reflex
+import Reflex                            hiding (Additive)
 
 
 -- | Reflex.Gloss.Random

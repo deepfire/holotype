@@ -29,18 +29,18 @@ import           Control.Concurrent                       (forkIO, threadDelay)
 import           Data.Semigroup
 
 -- Algebra
-import           Linear
+import           Linear                            hiding (trace)
 
 -- Dirty stuff
 -- import qualified Data.IORef                        as IO
 
 -- Reflex
-import           Reflex                            hiding (Query, Query(..))
+import           Reflex                            hiding (Additive, Query, Query(..))
 import           Reflex.GLFW
 import           Reflex.Random
 
 -- Text parsing & editing
-import qualified Data.Map                          as M
+import qualified Data.Map.Strict                   as M
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T
 import qualified Text.Parser.Char                  as P

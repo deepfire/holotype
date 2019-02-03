@@ -20,11 +20,11 @@ module Graphics.FlatDraw
   )
 where
 
-import           Control.Lens                      hiding (children)
+import           Control.Lens                      hiding (As, children, from, to)
 import           Control.Monad.State
 import           Data.List                                (cycle)
 import           Data.Maybe
-import           Linear
+import           Linear                            hiding (trace)
 import           Prelude.Unicode
 import qualified Graphics.Rendering.Cairo          as GRC
 import qualified Graphics.Rendering.Cairo.Internal as GRCI

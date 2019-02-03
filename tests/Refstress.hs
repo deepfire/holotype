@@ -26,7 +26,7 @@ import           Control.Monad.IO.Class
 import qualified Control.Monad.Ref
 import qualified Data.Time.Clock                   as Time
 import           Prelude.Unicode
-import           Reflex
+import           Reflex                            hiding (Additive)
 import           Reflex.GLFW
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 

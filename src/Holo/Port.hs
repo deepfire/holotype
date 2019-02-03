@@ -11,7 +11,8 @@
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-} -- XXX: due to HasCallStack
-module Holo.Port where
+module Holo.Port
+where
 
 import           Control.Monad
 import           Control.Newtype.Generics
@@ -23,8 +24,8 @@ import           GHC.Stack
 import           GHC.Types
 import           Graphics.GL.Core33                as GL
 import           LambdaCube.Mesh                   as LC
-import           Linear                            hiding (Trace, V3, V4)
-import           Reflex                            hiding (Query, Query(..))
+import           Linear                            hiding (Trace, V3, V4, trace)
+import           Reflex                            hiding (Additive, Query, Query(..))
 import           Reflex.GLFW                              (RGLFW)
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Codec.Picture                     as Juicy

@@ -58,7 +58,7 @@ import qualified Data.Text                         as T
 import           Data.String                              (IsString(..))
 import qualified Data.IntUnique                    as U
 import           Prelude.Unicode
-import           Reflex
+import           Reflex                            hiding (Additive)
 import           Text.Printf                              (printf)
 import "GLFW-b"  Graphics.UI.GLFW                  as GL
 import qualified Data.IntMap.Strict                as IntMap

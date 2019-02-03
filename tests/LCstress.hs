@@ -28,7 +28,7 @@ import qualified Data.Aeson                        as AE
 import qualified Data.ByteString.Char8             as SB
 import qualified Data.ByteString.Lazy              as LB
 import           Data.List
-import qualified Data.Map                          as Map
+import qualified Data.Map.Strict                   as Map
 import           Data.Maybe
 import           Data.String
 import qualified Data.Vector                       as V
@@ -67,7 +67,7 @@ import qualified System.Mem.Weak                   as SMem
 
 import LambdaCube.GL.Type as T
 import LambdaCube.GL.Util
-import Data.Map (Map)
+import Data.Map.Strict (Map)
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
 import LambdaCube.PipelineSchema

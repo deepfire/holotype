@@ -26,15 +26,17 @@ module Generics.SOP.Traversal (
   , i
   ) where
 
-import Prelude hiding (id, (.), curry, uncurry, const, head, tail)
-import Control.Arrow
-import Control.Category
-import Data.Label.Mono (Lens)
-import Data.Label.Point (Iso(..))
-import qualified Data.Label.Mono as Lens
+--import Prelude hiding (id, (.), curry, uncurry, const, head, tail)
+import           Control.Arrow                     hiding ((<+>))
+import           Control.Category                  hiding ((.), id, const)
+import qualified Control.Category                  as C
+import qualified Data.Label.Mono                   as DLM
+import qualified Data.Label.Point                  as DLP
+import qualified Data.Label.Mono                   as Lens
 
-import Generics.SOP
-import qualified GHC.Generics as GHC
+import           Generics.SOP                      hiding (Generic, from)
+import qualified Generics.SOP                      as SOP
+import qualified GHC.Generics                      as GHC
 
 {-------------------------------------------------------------------------------
   Generalized lens using two categories
@@ -45,41 +47,41 @@ import qualified GHC.Generics as GHC
 data GTraversal r w z b = GTraversal (r z b) (w (w b b, z) z)
 
 instance (Category r, ArrowApply w) => Category (GTraversal r w) where
-  id = GTraversal id app
-  (GTraversal f m) . (GTraversal g n) = GTraversal (f . g) (uncurry (curry n . curry m))
+  id = GTraversal C.id app
+  (.) (GTraversal f m) (GTraversal g n) = GTraversal (f C.. g) (suncurry (scurry n . scurry m))
 
 traversal :: r a b -> w (w b b, a) a -> GTraversal r w a b
 traversal = GTraversal
 
-get :: GTraversal r w a b -> r a b
-get (GTraversal f _) = f
+gtravget :: GTraversal r w a b -> r a b
+gtravget (GTraversal f _) = f
 
-modify :: GTraversal r w a b -> w (w b b, a) a
-modify (GTraversal _ g) = g
+smodify :: GTraversal r w a b -> w (w b b, a) a
+smodify (GTraversal _ g) = g
 
-set :: Arrow w => GTraversal r w a b -> w (b, a) a
-set l = modify l . first (arr const)
+gtravset :: Arrow w => GTraversal r w a b -> w (b, a) a
+gtravset l = smodify l . first (arr const)
 
 {-------------------------------------------------------------------------------
   Conversion
 -------------------------------------------------------------------------------}
 
-fromLens :: (Arrow r, ArrowApply w) => Lens (->) a b -> GTraversal r w a b
+fromLens :: (Arrow r, ArrowApply w) => DLM.Lens (->) a b -> GTraversal r w a b
 fromLens l =
   GTraversal (arr (Lens.get l))
-        (uncurry $ \h -> arr (Lens.set l) . (h . arr (Lens.get l) &&& id))
+        (suncurry $ \h -> arr (Lens.set l) . (h . arr (Lens.get l) &&& id))
 
-fromIso :: (Arrow r, ArrowApply w) => Iso (->) a b -> GTraversal r w a b
-fromIso (Iso f g) = GTraversal (arr f) (uncurry $ \h -> arr g . h . arr f)
+fromIso :: (Arrow r, ArrowApply w) => DLP.Iso (->) a b -> GTraversal r w a b
+fromIso (DLP.Iso f g) = GTraversal (arr f) (suncurry $ \h -> arr g . h . arr f)
 
-toLens :: GTraversal cat cat a b -> Lens cat a b
+toLens :: GTraversal cat cat a b -> DLM.Lens cat a b
 toLens (GTraversal f g) = Lens.lens f g
 
 {-------------------------------------------------------------------------------
   Generic computation of all traversals for a record type
 -------------------------------------------------------------------------------}
 
-gtraversals :: forall r w y xss . ( Generic y, Code y ~ xss
+gtraversals :: forall r w y xss . ( SOP.Generic y, Code y ~ xss
                                   , Arrow r, ArrowApply w
                                   , SListI xss
                                   , All SListI xss)
@@ -114,19 +116,19 @@ nptraversals = case sList :: SList xss of
      (nptraversals :: (SListI xss', All SListI xss') => NP (CTraversals r w        xss')  xss')
      :: (SListI xss', All SListI xss', SListI xs) =>    NP (CTraversals r w (xs ': xss')) xss')
 
-tail' :: (Arrow r, ArrowApply w, SListI xss, SListI xs) => GTraversal r w (NS (NP I) (xs ': xss)) (NS (NP I) xss)
-tail' = fromLens $ Lens.lens (\(S xs) -> xs) (\(f, S xs) -> (S (f xs)))
+stail' :: (Arrow r, ArrowApply w, SListI xss, SListI xs) => GTraversal r w (NS (NP I) (xs ': xss)) (NS (NP I) xss)
+stail' = fromLens $ Lens.lens (\(S xs) -> xs) (\(f, S xs) -> (S (f xs)))
 
-tail  :: (Arrow r, ArrowApply w) =>                        GTraversal r w (NP f       (x ': xs))      (NP f  xs)
-tail  = fromLens $ Lens.lens (\(_ :* xs) -> xs) (\(f, x :* xs) -> (x :* f xs))
+stail  :: (Arrow r, ArrowApply w) =>                        GTraversal r w (NP f       (x ': xs))      (NP f  xs)
+stail  = fromLens $ Lens.lens (\(_ :* xs) -> xs) (\(f, x :* xs) -> (x :* f xs))
 
 np :: forall r w xs. (Arrow r, ArrowApply w, SListI xs) => NP (GTraversal r w (NP I xs)) xs
 np = case sList :: SList xs of
       SNil  -> Nil
-      SCons -> (i . head            ::                   GTraversal r w (NP I (x ': xs1)) x)
+      SCons -> (i . shead            ::                   GTraversal r w (NP I (x ': xs1)) x)
                :*
-               (hliftA (. tail) (np :: SListI xs1 => NP (GTraversal r w (NP I       xs1))  xs1)
-                                    :: SListI xs1 => NP (GTraversal r w (NP I (x ': xs1))) xs1)
+               (hliftA (. stail) (np :: SListI xs1 => NP (GTraversal r w (NP I       xs1))  xs1)
+                                     :: SListI xs1 => NP (GTraversal r w (NP I (x ': xs1))) xs1)
 
 sop :: (Arrow r, ArrowApply w) => GTraversal r w (SOP I xss) (NS (NP I) xss)
 sop = fromIso $ Iso (\(SOP x) -> x)  SOP
@@ -143,26 +145,26 @@ head = fromLens $ Lens.lens
   (\(x :* _) -> x)
   (\(f, x :* xs) -> (f x :* xs))
 
-rep :: (Arrow r, ArrowApply w, Generic a) => GTraversal r w a (Rep a)
-rep = fromIso $ Iso from to
+rep :: (Arrow r, ArrowApply w, SOP.Generic a) => GTraversal r w a (Rep a)
+rep = fromIso $ Iso SOP.from SOP.to
 
 {-------------------------------------------------------------------------------
   Auxiliary
 -------------------------------------------------------------------------------}
 
-const :: Arrow arr => c -> arr b c
-const a = arr (\_ -> a)
+sconst :: Arrow arr => c -> arr b c
+sconst a = arr (\_ -> a)
 
-curry :: Arrow cat => cat (a, b) c -> (a -> cat b c)
-curry m a = m . (const a &&& id)
+scurry :: Arrow cat => cat (a, b) c -> (a -> cat b c)
+scurry m a = m . (const a &&& id)
 
-uncurry :: ArrowApply cat => (a -> cat b c) -> cat (a, b) c
-uncurry a = app . arr (first a)
+suncurry :: ArrowApply cat => (a -> cat b c) -> cat (a, b) c
+suncurry a = app . arr (first a)
 
 ------------------------------------------------------------------------------
 
 data Ex = Num Int | Add { left :: Ex, right :: Ex } | Yay { x :: Ex } deriving (Show, GHC.Generic)
-instance Generic Ex
+instance SOP.Generic Ex
 
 expps :: Code Ex ~ xss => NP (NP (GTraversal (->) (->) Ex)) xss
 expps = gtraversals

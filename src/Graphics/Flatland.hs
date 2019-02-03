@@ -36,7 +36,7 @@ module Graphics.Flatland
 where
 
 import           Control.Applicative
-import           Control.Lens                      hiding (children, from, to)
+import           Control.Lens                      hiding (As, children, from, to)
 import           Control.Monad.Random              hiding (lift)
 import           Control.Monad.State               hiding (lift)
 import           Data.Complex
@@ -45,7 +45,7 @@ import           Data.Glb
 import           Data.Lub
 import           Data.MonoTraversable
 import           Data.Singletons
-import           Data.Singletons.Prelude
+--import           Data.Singletons.Prelude
 import           Data.Singletons.TH                hiding ((%~))
 import           Data.Text.Format                  hiding (prec)
 import           Data.Text.Prettyprint.Doc
@@ -56,8 +56,9 @@ import           GHC.TypeLits
 import           GHC.Types
 import           Linear                            hiding (trace)
 import           Prelude.Unicode
-import           Text.Read
-import qualified Data.Map                          as Map
+import           Text.Read                         hiding (prec)
+import qualified Text.Read                         as TR
+import qualified Data.Map.Strict                   as Map
 import qualified Data.Text.Format                  as T
 import qualified Data.Text.Lazy                    as TL
 import qualified Foreign                           as F
@@ -103,17 +104,17 @@ type instance Element (Unit Pt)   = F.Int32
 
 deriving         instance Read WUnit
 instance                  Read (Unit PU) where
-  readPrec = prec 10 $ do
+  readPrec = TR.prec 10 $ do
     Ident "PU" <- lexP
     m <- step readPrec
     return (PUs m)
 instance                  Read (Unit PUI) where
-  readPrec = prec 10 $ do
+  readPrec = TR.prec 10 $ do
     Ident "PUI" <- lexP
     m <- step readPrec
     return (PUIs m)
 instance                  Read (Unit Pt) where
-  readPrec = prec 10 $ do
+  readPrec = TR.prec 10 $ do
     Ident "Pt" <- lexP
     m <- step readPrec
     return (Pts m)
@@ -453,9 +454,7 @@ other'axis Y = X
 -- * Axis-derived operations
 --
 class AddMax (l ∷ Type) (r ∷ Type) where
-  type Result l r ∷ Type
-  type Result l r = l
-  addMax ∷ Axis → l → r → Result l r
+  addMax ∷ Axis → l → r → l
 
 type Lin a = (Fractional a, Ord a, Num a)
 

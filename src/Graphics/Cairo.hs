@@ -44,21 +44,21 @@ module Graphics.Cairo
 where
 
 import           Control.Arrow                            ((***))
-import           Control.Lens
+import           Control.Lens                      hiding (As, children, from, to)
 import           Control.Monad                            (foldM)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
 import           Control.Monad.Trans.Reader               (ReaderT(..))
 import           Data.Either
 import           Data.GI.Base.ShortPrelude                (checkUnexpectedReturnNULL)
 import           Data.List
-import           Data.Map                                 (Map)
+import           Data.Map.Strict                          (Map)
 import           Data.Maybe                               (fromMaybe)
 import           Data.Ord
 import           Data.String
 import           Data.Text                         as T   (Text, unpack)
 import           Debug.Trace                              (trace)
 import qualified Generics.SOP                      as SOP
-import           GHC.Generics
+import           GHC.Generics                             (Generic)
 import           GHC.Stack                                (HasCallStack)
 import           Prelude                           hiding (fail)
 import           Prelude.Unicode
@@ -66,7 +66,7 @@ import           Text.Printf                              (printf)
 import qualified Data.GI.Base                      as GI
 import qualified Data.GI.Base.CallStack            as B.CallStack
 import qualified Data.IORef                        as IO
-import qualified Data.Map                          as Map
+import qualified Data.Map.Strict                   as Map
 import qualified Foreign                           as F
 import qualified Foreign.Concurrent                as FC
 import qualified Foreign.ForeignPtr.Unsafe         as F

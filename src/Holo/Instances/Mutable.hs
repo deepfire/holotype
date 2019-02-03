@@ -6,7 +6,7 @@ import           Data.Text                                (Text)
 import           Data.Text.Zipper                         (TextZipper)
 import           Data.Typeable                            (Typeable)
 import           Prelude.Unicode
-import           Reflex
+import           Reflex                            hiding (Additive)
 import           Reflex.GLFW                              (RGLFW, InputU(..))
 import qualified "GLFW-b" Graphics.UI.GLFW         as GLFW
 import qualified Data.Text.Zipper                  as T

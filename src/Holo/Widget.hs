@@ -41,7 +41,7 @@ import qualified Data.TypeMap.Dynamic              as TM
 import           Generics.SOP                             (Proxy, Top)
 import           Generics.SOP.Monadic
 import           GHC.TypeLits
-import           Reflex                            hiding (Query, Query(..))
+import           Reflex                            hiding (Additive, Query, Query(..))
 import           Reflex.GLFW                              (RGLFW)
 import qualified Data.Text                         as T
 

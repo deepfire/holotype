@@ -37,7 +37,7 @@ import qualified Data.TypeMap.Dynamic              as TM
 import           GHC.Stack                                ()
 import           Linear                            hiding (trace)
 import           Prelude.Unicode
-import           Reflex
+import           Reflex                            hiding (Additive)
 import           Text.Printf                              (printf)
 import qualified Data.Text                         as T
 import qualified Data.Text.Zipper                  as T

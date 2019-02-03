@@ -58,8 +58,7 @@ import           GHC.Stack                                ()
 import           Linear                            hiding (basis, trace)
 import           Text.Printf                              (printf)
 import           Prelude.Unicode
-import           Data.Text.Lazy                           (Text)
-import qualified Data.Text.Lazy                    as TL
+import qualified Data.Text                             as T
 
 import           Graphics.Flatland
 
@@ -209,10 +208,10 @@ walk action f = loop [0] f
           pure ()
 
 ppItemSize ∷ Flex a ⇒ a → String
-ppItemSize x = TL.unpack ∘ renderLazy ∘ layoutCompact $ pretty'mdi  $ x^.size
+ppItemSize x = T.unpack ∘ renderLazy ∘ layoutCompact $ pretty'mdi  $ x^.size
 
 ppItemArea ∷ Flex a ⇒ a → String
-ppItemArea x = TL.unpack ∘ renderLazy ∘ layoutCompact $ pretty'Area'Int $ x^.area
+ppItemArea x = T.unpack ∘ renderLazy ∘ layoutCompact $ pretty'Area'Int $ x^.area
 
 showItemArea ∷ Flex a ⇒ a → String
 showItemArea x = show $ x^.area
@@ -236,7 +235,7 @@ dump ppf = walk
 
 pretty'mdouble ∷ Maybe Double → Doc ann
 pretty'mdouble Nothing  = pretty '*'
-pretty'mdouble (Just x) = pretty $ TL.pack $ printf "%3d" (floor x ∷ Int)
+pretty'mdouble (Just x) = pretty $ T.pack $ printf "%3d" (floor x ∷ Int)
 
 pretty'mdi ∷ Di (Maybe Double) → Doc ann
 pretty'mdi (Di (V2 ma mb)) = pretty'mdouble ma <> pretty ':' <> pretty'mdouble mb
@@ -303,15 +302,15 @@ makeLenses ''Layout
 
 pretty'layout ∷ Layout → Doc ann
 pretty'layout Layout{..} =
-  let axes  = pretty $ TL.pack (show $ fromMajor _la'major) <> ":" <> TL.pack (show $ fromMinor _la'minor)
+  let axes  = pretty $ T.pack (show $ fromMajor _la'major) <> ":" <> T.pack (show $ fromMinor _la'minor)
       wrap  = if _la'wrap then pretty @Text " Wrap" else mempty
-      dir   = pretty $ TL.take 4 $ TL.pack $ show _la'vertical
-      revMj = pretty $ (<>) "Maj" $ TL.take 4 $ TL.pack $ show _la'reverse
-      revMi = pretty $ (<>) "Min" $ TL.take 4 $ TL.pack $ show _la'reverse2
+      dir   = pretty $ T.take 4 $ T.pack $ show _la'vertical
+      revMj = pretty $ (<>) "Maj" $ T.take 4 $ T.pack $ show _la'reverse
+      revMi = pretty $ (<>) "Min" $ T.take 4 $ T.pack $ show _la'reverse2
   in pretty @Text "Layout " <> wrap <+> axes <+> dir <+> revMj <+> revMi
      <+> pretty ("par:" <> ppV2 (V2 _la'size'dim _la'align'dim))
      <+> pretty ("chi:" <> ppV2 (V2 _la'flex'dim _la'line'dim))
-     <+> pretty ("efd:" <> TL.pack (show _la'extra'flex'dim))
+     <+> pretty ("efd:" <> T.pack (show _la'extra'flex'dim))
      <+> pretty ("g/s:"  <> ppV2 (V2 _la'flex'grows _la'flex'shrinks))
      <+> pretty @Text ("pos2:") <> pretty _la'pos2
 

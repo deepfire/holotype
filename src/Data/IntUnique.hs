@@ -22,11 +22,11 @@ module Data.IntUnique (
    hashUnique
  ) where
 
-import System.IO.Unsafe (unsafePerformIO)
+import           System.IO.Unsafe (unsafePerformIO)
 
-import GHC.Base
-import GHC.Num
-import Data.IORef
+import           GHC.Base
+import           GHC.Num
+import           Data.IORef
 
  -- | An abstract unique object.  Objects of type 'Unique' may be
  -- compared for equality and ordering and hashed into 'Int'.

@@ -11,7 +11,7 @@ import           GHC.Exts                             (Any)
 import           GHC.Types                            (Constraint, Type)
 import           Data.Proxy                           (Proxy(..))
 import           Data.Typeable                        (Typeable, typeRep)
-import qualified Data.Map                          as Map
+import qualified Data.Map.Strict                   as Map
 import qualified Data.TypeMap.Internal.Dynamic     as TM
 import           Unsafe.Coerce                        (unsafeCoerce)
 

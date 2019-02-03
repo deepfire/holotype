@@ -22,7 +22,7 @@ import           GHC.TypeLits                      hiding (Text)
 -- Types
 import           Control.Monad                            (when, forM_)
 import           Control.Monad.IO.Class                   (MonadIO, liftIO)
-import qualified Data.Map                          as Map
+import qualified Data.Map.Strict                   as Map
 import qualified Data.Text                         as T
 import qualified Data.Vector                       as V
 import qualified Data.Vect                         as Vc
@@ -30,7 +30,7 @@ import           Data.Vect                                (Mat4(..), Vec3(..))
 import           Numeric.Extra                            (doubleToFloat)
 
 -- Algebra
-import           Linear
+import           Linear                            hiding (trace)
 
 -- Manually-bound Cairo
 import qualified Graphics.Rendering.Cairo          as GRC
