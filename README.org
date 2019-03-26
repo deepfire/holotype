@@ -37,6 +37,8 @@
   2. Facilitate context switching by introducing sub-contexts
 * Ideas pipeline
 *** Inspiration material
+    - Self-discoverable expert cli interfaces ::
+      - Felix: if you ever wondered what's the state of the art regarding self-discoverable expert cli interfaces: https://kakoune.org/ <= this editor is crazy good regarding that
     - Mendix (low-code) ::
       - http://sandervanderburg.blogspot.com/2018/06/my-introduction-to-mendix-and-low-code.html
     - ECS ::
